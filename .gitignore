@@ -1,14 +1,29 @@
-Binaries
-DerivedDataCache
-Intermediate
-Saved
-.vscode
-.vs
+.vs/
+.vscode/.browse.VC.db*
+.vscode/ipch/
+
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+Build/
+
+*.sln
 *.VC.db
 *.opensdf
 *.opendb
 *.sdf
-*.sln
 *.suo
 *.xcodeproj
 *.xcworkspace
+
+# Optional local editor state
+*.tmp
+*.log
+
+# Do NOT ignore these:
+# Config/
+# Content/
+# Plugins/
+# Source/
+# *.uproject
