@@ -1,0 +1,92 @@
+# Current Design Baseline
+
+_The canonical current version of Gloamstead._
+
+## Short Pitch
+
+> Nurture the last warm light in a dying world. Listen to what it whispers - before the dark learns how to silence it forever.
+
+## Game Identity
+
+Gloamstead is a third-person dark fantasy sanctuary-restoration game. The player protects a mysterious growing source of light, currently called the Veil Heart, in a bleak and half-dead world. The game is about learning the Heart's strange language, restoring meaningful structures, and surviving nights that respond to what the player understood, neglected, disturbed, or misread.
+
+## What The Game Is
+
+- Third-person.
+- Dark fantasy, bleak but not hopeless.
+- Restoration-focused.
+- Interpretation-driven.
+- Simple-combat pressure.
+- Small-to-medium scope, at least initially.
+- Centered on one meaningful place rather than a giant survival sandbox.
+- Built around a clear action -> preparation -> consequence -> dawn feedback loop.
+
+## What The Game Is Not
+
+- Not tower defense.
+- Not horde survival.
+- Not RTS-lite.
+- Not colony simulation.
+- Not village management.
+- Not survival crafting.
+- Not a resource grind.
+- Not a hack-and-slash action game.
+- Not generic base defense.
+
+## Core Experience
+
+The player explores a ruined place, receives cryptic warnings from the working-name Veil Heart, restores or alters fixed ancient structures, prepares at dusk, and survives nights that test whether the player understood the warning and the world rule behind it.
+
+The most satisfying outcome is not "I killed everything." It is:
+
+> I understood the warning. I restored the right place. I built the right thing. I survived because I learned the world.
+
+## Art Direction Baseline
+
+The recommended production-facing art direction is:
+
+> **Withered Gothic Realism** — a painterly, romantic dark-fantasy realism with liminal memory atmospherics and ritualized restoration.
+
+This direction blends:
+
+- **Withered Romantic Realism** as the emotional foundation: mournful, sacred, weathered, and grounded.
+- **Painterly Gothic Realism** as the rendering philosophy: believable materials and lighting shaped by strong composition, readable silhouettes, and controlled texture density.
+- **Liminal Memory Realism** as the world-behavior layer: corrupted spaces feel half-remembered, unstable, and soft at the edges; restored spaces regain clarity and perceptual coherence.
+- **Ritualistic Naturalism** as the object and structure language: lanterns, gardens, mirrors, bells, roots, shrines, and boundaries should feel symbolic, ancient, and place-specific rather than like generic construction pieces.
+- **Luminous Ruin Fantasy** as the restraint-based accent: warmth, teal-gold glow, motes, and miraculous beauty appear mainly through the Veil Heart, restoration, dawn feedback, and rare sacred reveals.
+
+The art direction should make restoration feel like reality becoming trustworthy again, not merely like objects becoming cleaner or brighter.
+
+## Current Genre Label
+
+The best current label is:
+
+> Third-person dark fantasy sanctuary-restoration game.
+
+Alternative supporting tags:
+
+- atmospheric adventure
+- restoration puzzle
+- light action
+- supernatural consequence survival
+- dark fantasy mystery
+
+Avoid leading with "base defense" or "survival builder," because those imply the wrong game.
+
+
+## Current Scope Baseline
+
+The first playable experience should target approximately **2-6 hours**.
+
+The current MVP shape is:
+
+- one island or contained place
+- semi-open, but scaled down
+- fixed restoration locations
+- a small set of meaningful night consequences
+- enough dawn feedback to prove the loop
+- possible ending direction seeds, but not necessarily full multiple-ending implementation
+
+## Working Name Note
+
+`Veil Heart` remains a working term for the central light/heart. Do not treat it as final naming.
