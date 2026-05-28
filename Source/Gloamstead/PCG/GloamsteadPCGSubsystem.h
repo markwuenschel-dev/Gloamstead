@@ -1,0 +1,121 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/WorldSubsystem.h"
+#include "PCGPointData.h"
+#include "Data/RitualTypes.h"
+#include "GloamsteadPCGSubsystem.generated.h"
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStructureRestored, const FRestorationEventPayload&, Payload);
+
+USTRUCT()
+struct FRitualPointState
+{
+    GENERATED_BODY()
+
+    bool bIsRestored = false;
+    float LightLevel = 0.0f;
+    float CorruptionLevel = 0.0f;
+};
+
+USTRUCT()
+struct FRitualSpatialCell
+{
+    TArray<int32> PointIndices;
+};
+
+UCLASS()
+class GLOAMSTEAD_API UGloamsteadPCGSubsystem : public UWorldSubsystem
+{
+    GENERATED_BODY()
+
+public:
+    // === Lifecycle ===
+    virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+    virtual void Deinitialize() override;
+
+    // === Initialization ===
+    UFUNCTION(BlueprintCallable, Category="PCG|Ritual")
+    void InitializeFromPCGComponent(UPCGComponent* PCGComponent, int32 WorldSeed);
+
+    // === Core Queries (use fast parallel state where possible) ===
+    UFUNCTION(BlueprintCallable, Category="PCG|Ritual")
+    bool GetPointByIndex(int32 PointIndex, FPCGPoint& OutPoint) const;
+
+    UFUNCTION(BlueprintCallable, Category="PCG|Ritual")
+    TArray<FPCGPoint> GetPointsByRitualType(ERitualType Type, bool bOnlyRestored = false) const;
+
+    UFUNCTION(BlueprintCallable, Category="PCG|Ritual")
+    TArray<FPCGPoint> GetPointsAlongPath(int32 PathSegmentID) const;
+
+    UFUNCTION(BlueprintCallable, Category="PCG|Ritual")
+    int32 FindNearestUnrestoredPointIndex(const FVector& Location, ERitualType Type, float SearchRadius = 1600.f) const;
+
+    UFUNCTION(BlueprintPure, Category="PCG|Ritual")
+    bool IsPointRestored(int32 PointIndex) const;
+
+    UFUNCTION(BlueprintPure, Category="PCG|Ritual")
+    float GetLightLevel(int32 PointIndex) const;
+
+    UFUNCTION(BlueprintPure, Category="PCG|Ritual")
+    float GetCorruptionLevel(int32 PointIndex) const;
+
+    // === State Mutation (optimized hot path) ===
+    UFUNCTION(BlueprintCallable, Category="PCG|Ritual")
+    bool ApplyRestoration(int32 PointIndex, const FRestorationEventPayload& Payload);
+
+    // === Persistence (Vertical Slice Strategy) ===
+    UFUNCTION(BlueprintCallable, Category="PCG|Ritual")
+    TSet<int32> GetRestoredPointIndices() const;
+
+    UFUNCTION(BlueprintCallable, Category="PCG|Ritual")
+    void ReapplyRestoredState(const TSet<int32>& RestoredIndices);
+
+    // === Debugging ===
+    UFUNCTION(BlueprintCallable, Category="PCG|Ritual|Debug")
+    void DrawDebugRitualPoints(float Duration = 0.0f) const;
+
+    UFUNCTION(BlueprintCallable, Category="PCG|Ritual|Debug")
+    void DrawDebugSpatialGrid(float Duration = 0.0f) const;
+
+    UFUNCTION(BlueprintCallable, Category="PCG|Ritual|Debug")
+    void SetDrawSpatialGridDebug(bool bEnabled);
+
+    // === Delegates ===
+    UPROPERTY(BlueprintAssignable, Category="PCG|Ritual")
+    FOnStructureRestored OnStructureRestored;
+
+private:
+    // Internal attribute access (used during init and explicit sync)
+    bool GetBoolAttribute(const FPCGPoint& Point, FName AttributeName, bool DefaultValue = false) const;
+    float GetFloatAttribute(const FPCGPoint& Point, FName AttributeName, float DefaultValue = 0.0f) const;
+    int32 GetIntAttribute(const FPCGPoint& Point, FName AttributeName, int32 DefaultValue = -1) const;
+
+    ERitualType GetRitualTypeFromPoint(const FPCGPoint& Point) const;
+
+    // Spatial hash helpers
+    void BuildSpatialGrid();
+    FIntVector WorldToCell(const FVector& Location) const;
+
+    // Explicit expensive sync to PCG metadata (use sparingly)
+    void SyncPointToMetadata(int32 PointIndex);
+
+    UPROPERTY()
+    UPCGPointData* MutablePointData = nullptr;
+
+    int32 CurrentWorldSeed = 0;
+    TSet<int32> RestoredPointIndices;
+
+    // Fast parallel state (primary source of truth for mutable data)
+    TArray<FRitualPointState> PointStates;
+
+    // Spatial acceleration
+    TMap<FIntVector, FRitualSpatialCell> SpatialGrid;
+    float CellSize = 400.0f;
+    FBox WorldBounds;
+
+    // Cached for performance
+    TArray<FPCGPoint> CachedPoints;
+
+    bool bDrawSpatialGridDebug = false;
+};
