@@ -1,0 +1,26 @@
+---
+description: Gloamstead UE5 project rules
+alwaysApply: true
+---
+
+This is Gloamstead, a UE5 C++/Blueprint hybrid game.
+
+Follow docs/agents/ProjectRules.md before making architectural decisions.
+
+Use C++ for core systems, components, interfaces, data structs, and subsystems.
+Expose designer-facing fields and events to Blueprint.
+Keep gameplay balance in Data Assets, Data Tables, and Curves.
+Do not use GAS for MVP.
+Do not add multiplayer, hunger/thirst, farming, or large procedural world systems unless explicitly requested.
+Avoid backward-compatibility shims and thin wrapper layers.
+Prefer direct migrations and clean implementations.
+
+When modifying Unreal C++:
+- Update headers and source files together.
+- Use Unreal naming conventions.
+- Keep UPROPERTY metadata practical and editor-friendly.
+- Make systems Blueprint-readable where useful.
+- Do not invent unrelated systems.
+
+Before coding, identify the specific system doc being implemented.
+After coding, summarize changed files and expected editor setup steps.
