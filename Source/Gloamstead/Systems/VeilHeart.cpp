@@ -29,17 +29,85 @@ void AVeilHeart::BeginPlay()
 
 void AVeilHeart::OnRestorationComplete(const FRestorationEventPayload& Payload)
 {
-	UE_LOG(LogTemp, Log, TEXT("VeilHeart: Restoration received - Ritual: %d, LightDelta: %.2f, CorruptionCleared: %.2f"),
-		static_cast<int32>(Payload.RitualType), Payload.LightDelta, Payload.CorruptionCleared);
+	UE_LOG(LogTemp, Log, TEXT("VeilHeart: Restoration received - Ritual: %d, LightDelta: %.2f, CorruptionCleared: %.2f, WarningTag: %s"),
+		static_cast<int32>(Payload.RitualType), Payload.LightDelta, Payload.CorruptionCleared,
+		*Payload.WarningTagSatisfied.ToString());
 
-	if (Payload.RitualType == ERitualType::LanternPost)
+	EvaluateRestorationAgainstWarnings(Payload);
+}
+
+void AVeilHeart::EvaluateRestorationAgainstWarnings(const FRestorationEventPayload& Payload)
+{
+	FName TagToCheck = Payload.WarningTagSatisfied;
+	if (TagToCheck == NAME_None)
 	{
-		const FName Tag = FName(TEXT("LanternPost"));
-		if (!SatisfiedWarningTags.Contains(Tag))
+		TagToCheck = FName(*GetRitualTypeDisplayName(Payload.RitualType));
+	}
+
+	if (TagToCheck == NAME_None)
+	{
+		return;
+	}
+
+	if (WarningCatalog)
+	{
+		for (const FVeilHeartWarningFragment& Warning : WarningCatalog->Warnings)
 		{
-			SatisfiedWarningTags.Add(Tag);
-			UE_LOG(LogTemp, Log, TEXT("VeilHeart: LanternPost warning tag satisfied."));
+			if (Warning.SatisfiableTags.Contains(TagToCheck))
+			{
+				if (!SatisfiedWarningTags.Contains(TagToCheck))
+				{
+					SatisfiedWarningTags.Add(TagToCheck);
+					UE_LOG(LogTemp, Log, TEXT("VeilHeart: Warning tag satisfied via catalog: %s"), *TagToCheck.ToString());
+				}
+				return;
+			}
 		}
+		UE_LOG(LogTemp, Verbose, TEXT("VeilHeart: Tag %s did not match any catalog warning."), *TagToCheck.ToString());
+		return;
+	}
+
+	if (!SatisfiedWarningTags.Contains(TagToCheck))
+	{
+		SatisfiedWarningTags.Add(TagToCheck);
+		UE_LOG(LogTemp, Log, TEXT("VeilHeart: Warning tag satisfied (no catalog): %s"), *TagToCheck.ToString());
+	}
+}
+
+const FVeilHeartWarningFragment* AVeilHeart::FindWarningForNight(ENightConsequenceType NightType) const
+{
+	if (!WarningCatalog)
+	{
+		return nullptr;
+	}
+
+	const FVeilHeartWarningFragment* Best = nullptr;
+	for (const FVeilHeartWarningFragment& Warning : WarningCatalog->Warnings)
+	{
+		if (Warning.AssociatedNightType == NightType)
+		{
+			if (!Best || Warning.ClarityTier >= Best->ClarityTier)
+			{
+				Best = &Warning;
+			}
+		}
+	}
+	return Best;
+}
+
+void AVeilHeart::EmitWarningForNight(ENightConsequenceType NightType)
+{
+	if (const FVeilHeartWarningFragment* Warning = FindWarningForNight(NightType))
+	{
+		UE_LOG(LogTemp, Log, TEXT("VeilHeart: Dusk warning [%s] for night %s"),
+			*Warning->WarningId.ToString(), *GetNightConsequenceTypeDisplayName(NightType));
+		OnWarningEmitted(*Warning);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("VeilHeart: No catalog warning for night %s (catalog %s)."),
+			*GetNightConsequenceTypeDisplayName(NightType),
+			WarningCatalog ? TEXT("assigned") : TEXT("missing"));
 	}
 }
 
