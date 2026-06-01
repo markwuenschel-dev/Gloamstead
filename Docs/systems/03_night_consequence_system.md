@@ -208,8 +208,15 @@ Assign a **`UNightConsequenceCatalog`** asset on the manager (or defaults) befor
 
 **PIE / editor**: advance phases manually (e.g. test BP calling **`AdvanceToNextPhase`**). Assign **`UNightConsequenceCatalog`** on the night manager (NC-1 follow-up still applies).
 
-### Deferred (post NC-2)
+### NC-3 — Night execution bridge (wave **night-consequence NC-3**, tasks NC-007–NC-009)
 
-- **Spawning / runtime night mechanics** (corruption spread, omens, combat, VFX, failure states).
+- **`ApplyCorruptionSpread`** on `UGloamsteadPCGSubsystem`: bounded random point corruption bump (does not touch restoration flags).
+- **`UNightConsequenceRuntime`**: caches plan from **`OnNightPlanReady`**; **`BeginNight`** / **`EndNight`** with **`OnNightStarted`** / **`OnNightEnded`**.
+- **DayNight**: entering **Night** calls **`BeginNight`** + type stub; entering **Dawn** calls **`EndNight`** before Veil Heart reflection.
+- **Stubs**: Corruption applies spread (log avg before/after); Tutorial/Omen log-only until wave-nc-4.
+
+### Deferred (post NC-3)
+
+- **Spawning / combat / VFX** per night visual language.
 - **Full night-type catalog** in code (Retrieval, Silence/Possession, Mirror, Bargain, Fracture, True Siege) and designer assets per type.
 - **Dawn feedback** beyond tag clear + log (journal, resources, adaptation rollout).
