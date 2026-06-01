@@ -27,6 +27,9 @@ protected:
     UFUNCTION(BlueprintCallable, Category="Veil Heart")
     void ProcessDawnReflection();
 
+    UFUNCTION(BlueprintPure, Category="Veil Heart")
+    int32 GetSatisfiedWarningTagCount() const { return SatisfiedWarningTags.Num(); }
+
 private:
     UPROPERTY()
     class UGloamsteadPCGSubsystem* PCGSubsystem = nullptr;
