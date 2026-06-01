@@ -123,3 +123,14 @@ The Heart may eventually have growth direction states based on player decisions.
 - sacrificed / awakened / restrained / transformed
 
 These are lore and ending seeds, not MVP requirements.
+
+## Implementation status (2026-06-01)
+
+Wave **veil-heart VH-1** (tasks VH-001–VH-003):
+
+- **`FVeilHeartWarningFragment`** + **`UVeilHeartWarningCatalog`** (`Source/Gloamstead/Data/VeilHeartWarningTypes.*`).
+- **`AVeilHeart`**: **`EvaluateRestorationAgainstWarnings`** matches **`Payload.WarningTagSatisfied`** (or ritual display name fallback) against catalog **`SatisfiableTags`**.
+- **Dusk**: **`GloamsteadDayNightSubsystem`** calls **`EmitWarningForNight`** after **`PrepareNightConsequences`**; BP **`OnWarningEmitted`** for presentation.
+- Dawn tag clear + log unchanged from NC-2.
+
+**Editor**: assign a warning catalog on the Heart actor; create rows with **`AssociatedNightType`** per MVP night.

@@ -246,3 +246,11 @@ Bells should feel ceremonial rather than utilitarian. Their restoration can rein
 ### Roots / Walls / Boundaries
 
 Boundaries should feel alive, ritualized, and morally ambiguous. Restoring them defines inside and outside, but over-restoration may choke growth or create pressure. Their visual language should include root tension, stone seams, threshold markings, and subtle breathing movement.
+
+## Implementation status (2026-06-01)
+
+Wave **ritual-placement RP-1** (tasks RP-001–RP-002):
+
+- **`URitualPlacementComponent`**: **`RitualDefinitions`** map (`ERitualType` → **`URitualDefinition`**) drives **`LightDelta`**, **`CorruptionCleared`**, and **`WarningTagSatisfied`** (point metadata first, then definition's first satisfiable tag).
+- Falls back to **`GetDefaultLightContribution`** / **`GetDefaultCorruptionClearance`** when no definition assigned.
+- **`OnRestoredActorSpawned`** Blueprint event after successful **`ConfirmPlacement`** (C++ logs; visuals via BP).
