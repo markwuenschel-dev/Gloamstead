@@ -165,3 +165,42 @@ The simplest current failure state is:
 - the player dies or is consumed by the dark
 
 Because the game is now third-person, player death can be direct and embodied. Heart failure should still feel central: the player is not only losing health, but losing the last stable light in the place.
+
+## Implementation status (2026-06-01)
+
+Wave **night-consequence NC-1** (tasks NC-001–NC-003) adds data and dusk **selection** only. No night entities spawn yet; design sections above still describe the full target.
+
+### NC-001 — Data types (`Source/Gloamstead/Data/NightConsequenceTypes.*`)
+
+- **`ENightConsequenceType`**: `Tutorial`, `Corruption`, `Omen` (plus hidden `Invalid`). Matches the three MVP night types in this doc; other night types remain design-only.
+- **`FNightSanctuarySnapshot`**: aggregates used for rule scoring (`AverageLightLevel`, `AverageCorruptionLevel`, `RestoredPointCount`, per-ritual restored counts).
+- **`FNightConsequenceRule`**: designer row with `NightType`, `Weight`, light/corruption min–max bands, and `FavoredRitualTypes`.
+- **`UNightConsequenceCatalog`**: `UPrimaryDataAsset` with `Rules`, `FallbackNightType`, and `bForceTutorialOnFirstNight`.
+- **`GetNightConsequenceTypeDisplayName`**: logging/UI helper for the enum.
+
+### NC-002 — Sanctuary snapshot (`UGloamsteadPCGSubsystem`)
+
+BlueprintPure read-only getters (safe `0` when uninitialized):
+
+- `GetSanctuaryAverageLightLevel` / `GetSanctuaryAverageCorruptionLevel`
+- `GetRestoredPointCount` / `GetRestoredCountByRitualType`
+- **`BuildSanctuarySnapshot`**: fills `FNightSanctuarySnapshot` from the getters above.
+
+`ApplyRestoration` behavior is unchanged.
+
+### NC-003 — Night selection (`UNightConsequenceManager`)
+
+- Subscribes to **`OnStructureRestored`** (path-segment light coverage tracked for future use).
+- **`PrepareNightConsequences`**: `BuildSanctuarySnapshot` → `SelectNightTypeFromCatalog` → stores `LastSelectedNightType`, increments `NightsPrepared`, logs, broadcasts **`OnNightPlanReady`**.
+- **`ScoreRule`**: filters by snapshot light/corruption bands; adds weight from favored ritual restore counts.
+- First night: **`bForceTutorialOnFirstNight`** (manager or catalog) forces **`Tutorial`** when `NightsPrepared == 0`.
+- Missing/empty catalog: hard fallback **`Corruption`**; no matching rules: catalog **`FallbackNightType`**.
+
+Assign a **`UNightConsequenceCatalog`** asset on the manager (or defaults) before calling prep from gameplay.
+
+### Deferred (not in NC-1)
+
+- **Spawning / runtime night mechanics** (corruption spread, omens, combat, VFX, failure states).
+- **`DayNight` / dusk–dawn subsystem** wiring to call `PrepareNightConsequences` on schedule.
+- **Full night-type catalog** in code (Retrieval, Silence/Possession, Mirror, Bargain, Fracture, True Siege) and designer assets per type.
+- **Dawn feedback**, resource rewards, and adaptation rollout hooks beyond selection logging/delegate.
