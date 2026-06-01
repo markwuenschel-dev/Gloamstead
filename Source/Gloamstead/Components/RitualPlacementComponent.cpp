@@ -92,6 +92,8 @@ bool URitualPlacementComponent::ConfirmPlacement()
     if (bSuccess)
     {
         OnPlacementConfirmed(FinalPointIndex);
+        OnRestoredActorSpawned(SpawnedActor, FinalPointIndex, Payload.RitualType);
+        UE_LOG(LogTemp, Log, TEXT("RitualPlacement: Restored point %d type %d"), FinalPointIndex, static_cast<int32>(Payload.RitualType));
         ExitPlacementMode();
     }
 

@@ -60,6 +60,9 @@ public:
     void OnPlacementConfirmed(int32 PointIndex);
 
     UFUNCTION(BlueprintImplementableEvent, Category="Ritual|Placement")
+    void OnRestoredActorSpawned(AActor* SpawnedActor, int32 PointIndex, ERitualType RitualType);
+
+    UFUNCTION(BlueprintImplementableEvent, Category="Ritual|Placement")
     void OnPlacementModeExited();
 
     UFUNCTION(BlueprintImplementableEvent, Category="Ritual|Placement")
