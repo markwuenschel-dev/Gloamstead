@@ -90,3 +90,17 @@ The current MVP shape is:
 ## Working Name Note
 
 `Veil Heart` remains a working term for the central light/heart. Do not treat it as final naming.
+
+## Implementation Snapshot (June 2026)
+
+The **first playable loop** exists in C++ on `main`:
+
+- Restore ritual points via `URitualPlacementComponent` (optional `URitualDefinition` data).
+- Advance **`UGloamsteadDayNightSubsystem`** through Dusk / Night / Dawn.
+- Dusk: night type selection + Veil Heart warning emit (`UVeilHeartWarningCatalog`).
+- Night: corruption or tutorial spread / omen clue delegate (`UNightConsequenceRuntime`).
+- Dawn: Veil Heart reflection and cleared warning tags.
+
+Not yet in code: combat encounters, journal UI, save persistence, full art pass.
+
+See [../Phase2_CoreLoop.md](../Phase2_CoreLoop.md) and [../systems/](../systems/) implementation sections.

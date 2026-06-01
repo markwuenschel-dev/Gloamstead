@@ -6,125 +6,126 @@
 
 ![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.7-blue?logo=unrealengine)
 ![Status](https://img.shields.io/badge/Status-Vertical%20Slice-orange)
-![Phase](https://img.shields.io/badge/Phase-1.5%20Complete-green)
+![Phase](https://img.shields.io/badge/Phase-2%20Core%20Loop-green)
 ![License](https://img.shields.io/badge/License-Personal-lightgrey)
 
 ---
 
 ## Overview
 
-Gloamstead is a focused third-person experience centered on the **Veil Heart** — a mysterious, growing source of light in a bleak, half-dead world. 
+Gloamstead is a focused third-person experience centered on the **Veil Heart** — a mysterious, growing source of light in a bleak, half-dead world.
 
 The player does not build bases, manage villages, or survive hordes. Instead, they **interpret cryptic warnings**, perform **ritualistic restorations** of meaningful structures, and face the **consequences** of their choices at night. Every restoration carries both mechanical weight and narrative meaning.
 
 ## Core Fantasy
 
-The game is built around a single powerful loop:
-
 **Warning → Understanding → Restoration → Consequence → Reflection**
 
-Success is measured not by power or expansion, but by whether the player correctly interprets the world and restores the right places.
+Success is measured by whether the player correctly interprets the world and restores the right places.
 
-## Current Status
+## Current Status (June 2026)
 
-The foundational restoration loop has been implemented across three major phases:
+The **vertical-slice core loop** is implemented in C++ on `main`: placement → restoration → dusk warning → night selection → night runtime → dawn reflection.
 
 | Phase | Focus | Status |
 |-------|-------|--------|
-| **Phase 0** | Ritual Data Contracts | ✅ Complete |
-| **Phase 1** | Optimized PCG Subsystem | ✅ Complete |
-| **Phase 1.5** | Player Placement System | ✅ Complete |
+| **Phase 0** | Ritual data contracts | Complete |
+| **Phase 1** | PCG subsystem + spatial grid | Complete |
+| **Phase 1.5** | Ritual placement component | Complete |
+| **Phase 2** | Day/night, night consequences, Veil Heart warnings | **Core loop complete** (stubs; no combat spawns yet) |
 
-### Completed Systems
+### Implemented systems (C++)
 
-- **Ritual Data Layer** — `ERitualType`, `FRestorationEventPayload` (with `PointIndex`), and `URitualDefinition` Data Assets
-- **PCG Subsystem** — High-performance hybrid state model + spatial hash grid for ritual point queries and mutations
-- **Ritual Placement Component** — C++ base + Blueprint child with snapping, preview management, validation, and proper payload construction
+| System | Role |
+|--------|------|
+| `UGloamsteadPCGSubsystem` | Ritual point state, sanctuary snapshot, `ApplyCorruptionSpread` |
+| `URitualPlacementComponent` | Placement, `URitualDefinition`-driven payloads, `OnRestoredActorSpawned` |
+| `UGloamsteadDayNightSubsystem` | `Day → Dusk → Night → Dawn`, orchestrates prep and reflection |
+| `UNightConsequenceManager` | Catalog scoring, `PrepareNightConsequences`, built-in MVP catalog fallback |
+| `UNightConsequenceRuntime` | `BeginNight` / `EndNight`, type stubs, `OnOmenClueReady` |
+| `AVeilHeart` | Warning catalog, tag satisfaction, dusk `EmitWarningForNight`, dawn reflection |
+
+MVP night types in code: **Tutorial**, **Corruption**, **Omen**.
+
+### Still manual / editor
+
+- Assign optional `UNightConsequenceCatalog` / `UVeilHeartWarningCatalog` / `URitualDefinition` data assets for tuning (C++ defaults work in PIE without them).
+- **Compile** after pulling; call `AdvanceToNextPhase` in a test Blueprint to drive the cycle.
+- Restored-actor meshes/VFX via Blueprint (`OnRestoredActorSpawned`, `OnWarningEmitted`).
 
 ## Project Structure
 
 ```
 Gloamstead/
 ├── Source/Gloamstead/
-│   ├── Data/                  # RitualTypes, RitualDefinition
-│   ├── PCG/                   # UGloamsteadPCGSubsystem (optimized)
-│   ├── Components/            # RitualPlacementComponent
-│   └── Systems/               # VeilHeart, NightConsequenceManager (in progress)
-├── Content/
-│   ├── PCG/Graphs/            # Ritual Infrastructure graphs
-│   ├── Blueprints/PCG/        # Placement component + previews
-│   ├── Blueprints/Restoration/
-│   └── Data/Rituals/          # Ritual Definition Data Assets
-└── Docs/                      # Phase-specific implementation documentation
+│   ├── Data/           # RitualTypes, RitualDefinition, NightConsequenceTypes, VeilHeartWarningTypes
+│   ├── PCG/            # UGloamsteadPCGSubsystem
+│   ├── Components/     # URitualPlacementComponent
+│   └── Systems/        # DayNight, NightConsequence*, AVeilHeart
+├── Content/            # PCG graphs, Blueprints, Data Assets (designer)
+└── Docs/               # Design + implementation documentation
 ```
-
-## Key Technical Features
-
-- **Hybrid PCG State** — Fast parallel arrays for runtime mutations with on-demand metadata sync
-- **Spatial Hash Acceleration** — Efficient nearest-neighbor queries for placement
-- **Event-Driven Architecture** — Clean separation between restoration events and their narrative/mechanical consequences
-- **Designer-Friendly** — Strong C++/Blueprint split with exposed parameters and debug visualization tools
 
 ## Documentation
 
-Detailed implementation notes are available in the `Docs/` folder:
+Start here: **[Docs/README.md](Docs/README.md)**
 
-- [Architecture Overview](Docs/ArchitectureOverview.md)
-- [Phase 0 – Ritual Data](Docs/Phase0_RitualData.md)
-- [Phase 1 – PCG Subsystem](Docs/Phase1_PCGSubsystem.md)
-- [Phase 1.5 – Placement Component](Docs/Phase1.5_PlacementComponent.md)
+| Doc | Description |
+|-----|-------------|
+| [Architecture Overview](Docs/ArchitectureOverview.md) | Layers, data flow, maturity |
+| [Phase 2 – Core Loop](Docs/Phase2_CoreLoop.md) | Day/night + night + Heart (implementation) |
+| [Phase 0 – Ritual Data](Docs/Phase0_RitualData.md) | Payloads and ritual definitions |
+| [Phase 1 – PCG](Docs/Phase1_PCGSubsystem.md) | Subsystem and performance model |
+| [Phase 1.5 – Placement](Docs/Phase1.5_PlacementComponent.md) | Player placement flow |
+| [Veil Heart (design)](Docs/systems/01_veil_heart_system.md) | Design + implementation status |
+| [Restoration (design)](Docs/systems/02_restoration_system.md) | Design + implementation status |
+| [Night Consequences (design)](Docs/systems/03_night_consequence_system.md) | Design + implementation status |
+| [Project Rules (agents)](Docs/agents/ProjectRules.md) | UE5 / architecture conventions |
 
 ## Development
-
-This project follows a strict vertical slice philosophy. The current focus is on proving the **Warning → Restoration → Consequence** loop before expanding scope.
 
 ### Prerequisites
 
 - Unreal Engine 5.7+
-- Visual Studio 2022 (for C++ development)
+- Visual Studio 2022 (C++)
 
-### Running the Project
+### Open and build
 
-1. Open `Gloamstead.uproject`
-2. Generate project files if necessary
-3. Build the project in your desired configuration
+1. Clone and open `Gloamstead.uproject`.
+2. Generate Visual Studio project files if prompted.
+3. Build **Development Editor** for the `Gloamstead` module.
+4. Place an **AVeilHeart** in the test map; use a BP or console hook to call `UGloamsteadDayNightSubsystem::AdvanceToNextPhase`.
+
+### PIE smoke test (minimal)
+
+1. Initialize PCG ritual points (existing map setup).
+2. Restore at least one ritual point (placement component).
+3. Advance phases: **Day → Dusk → Night → Dawn**.
+4. Confirm logs: night type selected, optional corruption spread, Veil Heart warning/dawn lines.
 
 ## Roadmap
 
-### Phase 2 – Consequence & Reflection (Next Priority)
+### Next (Phase 2 polish)
 
-- **Night Consequence System**
-  - Data structures for consequence types
-  - Selection and spawning logic based on restoration state
-  - Path-based threat modulation using `LightLevel` and `CorruptionLevel`
-- **Veil Heart Dawn Reflection**
-  - System for delivering contextual payoff based on satisfied warning tags
-  - Journal / memory system tied to restorations
-- **Restored Actor Integration**
-  - Final art and VFX for `LanternPost` and `GardenBed`
-  - Reactive behavior based on current `LightLevel`
-- **Expanded Ritual Types**
-  - `MirrorPillar` and `BellShrine` prototyping
+- Designer data assets for catalog, warnings, and ritual definitions.
+- Blueprint UI/audio for `OnWarningEmitted` and `OnOmenClueReady`.
+- Journal / structured dawn payoff (`wave-vh-2` planned).
+- Night resource reward and failure hooks.
 
-### Phase 3 – Vertical Slice Polish
+### Phase 3 – Vertical slice polish
 
-- Full persistence of dynamic ritual state (LightLevel, CorruptionLevel, Restored flags)
-- Improved spatial grid tuning tools and auto-balancing
-- Sound design and ambient systems tied to restoration state
-- Basic UI for warnings and restoration feedback
-- Performance profiling and optimization pass
+- Restored actor meshes and VFX per ritual type.
+- Persistence (save/load of point state).
+- Expanded night types and spawn/mechanics (beyond stubs).
+- `MirrorPillar` / `BellShrine` ritual types.
 
-### Longer Term Vision
+### Longer term
 
-- Support for multiple islands / larger world scope
-- Additional ritual archetypes with unique mechanical and narrative roles
-- Deeper integration between the Veil Heart’s personality and restoration choices
-- Potential move toward a more sophisticated spatial data structure (e.g. Loose Octree)
-- Expanded consequence variety (environmental, psychological, and entity-based)
+- Multiple places / larger scope, deeper Heart progression, full consequence variety.
 
 ## License
 
-This is a personal project. All rights reserved.
+Personal project. All rights reserved.
 
 ---
 

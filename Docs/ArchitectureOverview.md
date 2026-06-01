@@ -9,82 +9,103 @@ The restoration system is designed around **meaningful cause and effect**, not g
 ## System Layers
 
 ### Layer 0 – Data Contracts (Phase 0)
-- `ERitualType`
-- `FRestorationEventPayload` (single source of truth for a restoration event)
-- `URitualDefinition` Data Assets
+
+- `ERitualType`, `FRestorationEventPayload`, `URitualDefinition`
+- `ENightConsequenceType`, `UNightConsequenceCatalog`, `FNightSanctuarySnapshot`
+- `FVeilHeartWarningFragment`, `UVeilHeartWarningCatalog`
 
 ### Layer 1 – World State Authority (Phase 1)
+
 **`UGloamsteadPCGSubsystem`**
 
-- Owns all ritual point data at runtime
-- Hybrid performance model (fast parallel state + PCG metadata on demand)
-- Spatial hash acceleration for placement queries
+- Owns ritual point state (`FRitualPointState`, spatial grid)
+- `ApplyRestoration`, `ApplyCorruptionSpread`, sanctuary aggregates
 - Broadcasts `OnStructureRestored`
 
-### Layer 1.5 – Player Interaction (Phase 1.5)
+### Layer 1.5 – Player Interaction (Phase 1.5 → RP-1)
+
 **`URitualPlacementComponent`**
 
-- Discovers and snaps to ritual points
-- Manages preview actors and validation
-- Constructs and submits restoration payloads (including `PointIndex`)
+- Snapping, validation, definition-driven payloads
+- `OnRestoredActorSpawned` for Blueprint visuals
 
-### Layer 2 – Narrative & Consequence Systems (Phase 1 → Phase 2)
-- **Veil Heart**: Interprets restorations against previous warnings → Dawn reflection payoff
-- **Night Consequence Manager**: Uses restoration data to shape the coming night
+### Layer 2 – Schedule & consequences (Phase 2)
+
+**`UGloamsteadDayNightSubsystem`**
+
+- Phase authority: Day / Dusk / Night / Dawn
+- Invokes night prep, runtime, and dawn reflection in order
+
+**`UNightConsequenceManager` + `UNightConsequenceRuntime`**
+
+- Dusk: select night type from catalog + snapshot
+- Night: execute type stub (spread, omen delegate, etc.)
+
+**`AVeilHeart`**
+
+- Warnings at dusk; tag satisfaction on restore; reflection at dawn
 
 ## Data Flow (Core Loop)
 
 ```
 Player Input
     ↓
-RitualPlacementComponent (queries + validation)
+RitualPlacementComponent
     ↓
-BuildRestorationEventPayload (includes PointIndex)
+BuildRestorationPayload → ApplyRestoration (PCG)
     ↓
-UGloamsteadPCGSubsystem::ApplyRestoration()
-    ├── Update fast parallel state (PointStates)
-    ├── Track RestoredPointIndices
-    └── Broadcast OnStructureRestored(Payload)
-            ↓
-    ┌───────┴───────┐
-    │               │
-Veil Heart     Night Consequence Manager
-(Meaning)      (Consequence)
-    │               │
-    └───────┬───────┘
-            ↓
-Dawn Reflection + Next Night Behavior
+OnStructureRestored(Payload)
+    ├→ VeilHeart (EvaluateRestorationAgainstWarnings)
+    └→ NightConsequenceManager (path coverage, future)
+
+[Later: AdvanceToNextPhase → Dusk]
+    ↓
+PrepareNightConsequences → OnNightPlanReady
+    ↓
+VeilHeart::EmitWarningForNight
+
+[Night]
+    ↓
+NightConsequenceRuntime::BeginNight → ExecuteNightStub
+
+[Dawn]
+    ↓
+EndNight → VeilHeart::ProcessDawnReflection
 ```
 
 ## Performance Architecture
 
-| Concern                    | Solution                              | Location |
-|---------------------------|---------------------------------------|----------|
-| Frequent state reads      | Parallel `FRitualPointState` array    | Subsystem |
-| Nearest neighbor queries  | Spatial Hash Grid                     | Subsystem |
-| Expensive metadata writes | Explicit `SyncPointToMetadata()` only | Subsystem |
-| Payload as event context  | `PointIndex` for fast follow-up reads | Payload |
+| Concern | Solution | Location |
+|---------|----------|----------|
+| Frequent state reads | `PointStates` array | PCG Subsystem |
+| Nearest neighbor | Spatial hash grid | PCG Subsystem |
+| Metadata writes | `SyncPointToMetadata()` only when needed | PCG Subsystem |
+| Event context | `PointIndex` on payload | Payload |
 
 ## Key Design Rules
 
-1. **The Subsystem is the only source of truth** for current ritual point state.
-2. **The Placement Component is the only place** that constructs `FRestorationEventPayload`.
-3. **Downstream systems** should prefer `Payload.PointIndex` + fast getters over location-based lookups.
-4. **Metadata is not free** — treat writes as a deliberate, infrequent operation.
+1. **PCG subsystem** is the source of truth for ritual point state.
+2. **Placement component** constructs `FRestorationEventPayload` (only place).
+3. **DayNight subsystem** owns phase transitions; do not duplicate dusk/dawn hooks elsewhere without reason.
+4. **Downstream systems** use `Payload.PointIndex` + subsystem getters, not location scans in hot paths.
 
-## Future Expansion (Phase 2+)
+## Current Maturity (June 2026)
 
-- Additional Ritual Types (`MirrorPillar`, `BellShrine`)
-- More sophisticated consequence selection based on `RitualType` + current state
-- Full save/load of dynamic attributes
-- Potential move from Spatial Hash → Loose Octree for larger world support
-- GPU-driven PCG updates (long-term)
+| Layer | Status |
+|-------|--------|
+| Phase 0 – Data | Complete |
+| Phase 1 – PCG | Complete |
+| Phase 1.5 – Placement | Complete |
+| Phase 2 – Core loop | **Complete in C++** (stubs, no spawn pipeline) |
+| Phase 2 – Polish | Journal, assets, VFX, persistence — planned |
 
-## Current Maturity (as of this document)
+The event pipeline **Placement → PCG → Listeners → Day/Night → Night runtime → Dawn** is implemented and testable in PIE.
 
-- Phase 0: Complete
-- Phase 1: Complete (optimized)
-- Phase 1.5: Complete
-- Phase 2: Not yet started
+**Detail:** [Phase2_CoreLoop.md](Phase2_CoreLoop.md)
 
-The restoration event pipeline (`Placement → Subsystem → Payload → Listeners`) is now solid and performant.
+## Future Expansion
+
+- `MirrorPillar`, `BellShrine` ritual types
+- Full night-type enum and entity spawning
+- Save/load of dynamic attributes
+- Optional spatial structure upgrade (e.g. loose octree) for larger worlds

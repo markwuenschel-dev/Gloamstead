@@ -88,3 +88,11 @@ This enables all downstream systems to use the fast getters on the Subsystem.
 
 - **PCG Subsystem**: Primary consumer of queries and sole caller of `ApplyRestoration`
 - **Restored Actors**: Spawned by this component (not by the Subsystem)
+
+## Phase 2 additions (RP-1)
+
+- **`RitualDefinitions`** map (`ERitualType` → `URitualDefinition`) drives `LightDelta`, `CorruptionCleared`, and default warning tags in the payload.
+- **`OnRestoredActorSpawned`** Blueprint event after successful placement (implement meshes/VFX in BP).
+- Payload includes **`TimeOfDayAtRestoration`** and **`NightCountAtRestoration`** from `UGloamsteadDayNightSubsystem` when present.
+
+See [Phase2_CoreLoop.md](Phase2_CoreLoop.md) and [systems/02_restoration_system.md](systems/02_restoration_system.md).

@@ -99,3 +99,10 @@ if (Payload.PointIndex != -1)
 - `ApplyRestoration` is now extremely cheap (array write + delegate).
 - Spatial queries are O(1) average in well-tuned grids.
 - Metadata writes are the only expensive operation — keep them explicit and infrequent.
+
+## Phase 2 additions (night loop)
+
+- **Sanctuary aggregates:** `GetSanctuaryAverageLightLevel`, `GetSanctuaryAverageCorruptionLevel`, `GetRestoredCountByRitualType`, `BuildSanctuarySnapshot` — used by `UNightConsequenceManager` at dusk.
+- **`ApplyCorruptionSpread(Delta, MaxPoints)`:** night-only corruption bump on random points; does not alter `bIsRestored`.
+
+See [Phase2_CoreLoop.md](Phase2_CoreLoop.md).
