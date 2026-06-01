@@ -1,5 +1,6 @@
 #include "Systems/GloamsteadDayNightSubsystem.h"
 #include "Systems/NightConsequenceManager.h"
+#include "Systems/NightConsequenceRuntime.h"
 #include "Systems/VeilHeart.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -52,6 +53,10 @@ void UGloamsteadDayNightSubsystem::ApplyPhaseChange(EGloamsteadDayPhase NewPhase
 	{
 		HandleEnterDusk();
 	}
+	else if (NewPhase == EGloamsteadDayPhase::Night)
+	{
+		HandleEnterNight();
+	}
 	else if (NewPhase == EGloamsteadDayPhase::Dawn)
 	{
 		HandleEnterDawn();
@@ -77,10 +82,30 @@ void UGloamsteadDayNightSubsystem::HandleEnterDusk()
 	}
 }
 
+void UGloamsteadDayNightSubsystem::HandleEnterNight()
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (UNightConsequenceRuntime* Runtime = World->GetSubsystem<UNightConsequenceRuntime>())
+		{
+			Runtime->BeginNight();
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("DayNight: NightConsequenceRuntime missing at night."));
+		}
+	}
+}
+
 void UGloamsteadDayNightSubsystem::HandleEnterDawn()
 {
 	if (UWorld* World = GetWorld())
 	{
+		if (UNightConsequenceRuntime* Runtime = World->GetSubsystem<UNightConsequenceRuntime>())
+		{
+			Runtime->EndNight();
+		}
+
 		TArray<AActor*> Hearts;
 		UGameplayStatics::GetAllActorsOfClass(World, AVeilHeart::StaticClass(), Hearts);
 		if (Hearts.Num() > 0)

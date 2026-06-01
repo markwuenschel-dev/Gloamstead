@@ -26,6 +26,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Night")
 	void EndNight();
 
+	/** MVP type dispatch (corruption spread, tutorial/omen log stubs). */
+	void ExecuteNightStub();
+
 	UFUNCTION(BlueprintPure, Category = "Night")
 	ENightConsequenceType GetPlannedNightType() const { return PlannedNightType; }
 

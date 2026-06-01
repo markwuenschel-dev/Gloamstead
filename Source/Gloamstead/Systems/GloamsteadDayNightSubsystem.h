@@ -46,6 +46,7 @@ public:
 private:
 	void ApplyPhaseChange(EGloamsteadDayPhase NewPhase);
 	void HandleEnterDusk();
+	void HandleEnterNight();
 	void HandleEnterDawn();
 
 	UPROPERTY()
