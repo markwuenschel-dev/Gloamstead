@@ -22,7 +22,9 @@ struct FRitualPointState
 USTRUCT()
 struct FRitualSpatialCell
 {
-    TArray<int32> PointIndices;
+	GENERATED_BODY()
+
+	TArray<int32> PointIndices;
 };
 
 UCLASS()
