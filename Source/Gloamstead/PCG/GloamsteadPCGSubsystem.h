@@ -4,6 +4,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "PCGPointData.h"
 #include "Data/RitualTypes.h"
+#include "Data/NightConsequenceTypes.h"
 #include "GloamsteadPCGSubsystem.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStructureRestored, const FRestorationEventPayload&, Payload);
@@ -59,6 +60,22 @@ public:
 
     UFUNCTION(BlueprintPure, Category="PCG|Ritual")
     float GetCorruptionLevel(int32 PointIndex) const;
+
+    // === Sanctuary aggregates (read-only; safe defaults when uninitialized) ===
+    UFUNCTION(BlueprintPure, Category="PCG|Sanctuary")
+    float GetSanctuaryAverageLightLevel() const;
+
+    UFUNCTION(BlueprintPure, Category="PCG|Sanctuary")
+    float GetSanctuaryAverageCorruptionLevel() const;
+
+    UFUNCTION(BlueprintPure, Category="PCG|Sanctuary")
+    int32 GetRestoredPointCount() const;
+
+    UFUNCTION(BlueprintPure, Category="PCG|Sanctuary")
+    int32 GetRestoredCountByRitualType(ERitualType Type) const;
+
+    UFUNCTION(BlueprintPure, Category="PCG|Sanctuary")
+    FNightSanctuarySnapshot BuildSanctuarySnapshot() const;
 
     // === State Mutation (optimized hot path) ===
     UFUNCTION(BlueprintCallable, Category="PCG|Ritual")
