@@ -1,5 +1,6 @@
 #include "Components/RitualPlacementComponent.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
+#include "Systems/GloamsteadDayNightSubsystem.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -193,7 +194,17 @@ void URitualPlacementComponent::BuildRestorationPayload(int32 PointIndex, AActor
 
     OutPayload.LightDelta = (OutPayload.RitualType == ERitualType::LanternPost) ? 0.35f : 0.15f;
     OutPayload.CorruptionCleared = (OutPayload.RitualType == ERitualType::LanternPost) ? 0.2f : 0.35f;
-    OutPayload.TimeOfDayAtRestoration = 0.5f; // Replace with real time-of-day value when available
+
+    OutPayload.TimeOfDayAtRestoration = 0.5f;
+    OutPayload.NightCountAtRestoration = 0;
+    if (const UWorld* World = GetWorld())
+    {
+        if (const UGloamsteadDayNightSubsystem* DayNight = World->GetSubsystem<UGloamsteadDayNightSubsystem>())
+        {
+            OutPayload.TimeOfDayAtRestoration = DayNight->GetNormalizedTimeOfDay();
+            OutPayload.NightCountAtRestoration = DayNight->GetNightCount();
+        }
+    }
 }
 
 FRotator URitualPlacementComponent::CalculateAlignedRotation(const FVector& Location, const FVector& TerrainNormal) const
