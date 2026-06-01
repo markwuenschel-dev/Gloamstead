@@ -36,7 +36,7 @@ foreach ($d in "claimed","done","blocked","archived") {
 Write-Host "Handoffs: claimed=$($h.claimed) done=$($h.done) blocked=$($h.blocked) archived=$($h.archived)"
 
 $i = @{}
-foreach ($r in "claude-code","local-script") {
+foreach ($r in "grok-cursor","claude-code","local-script") {
     $i[$r] = (Get-ChildItem "$root/inbox/$r/raw" -File -EA 0 | ? Name -ne '.gitkeep').Count
 }
 Write-Host "InboxRaw: claude=$($i['claude-code']) local=$($i['local-script'])"

@@ -21,6 +21,10 @@ Build/
 *.tmp
 *.log
 
+# Collaboration system worktrees (generated, per-agent sandboxes)
+.claude/worktrees/
+.grok/worktrees/
+
 # Do NOT ignore these:
 # Config/
 # Content/
