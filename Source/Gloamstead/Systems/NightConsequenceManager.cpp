@@ -2,9 +2,22 @@
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Kismet/GameplayStatics.h"
 
+void UNightConsequenceManager::EnsureNightCatalog()
+{
+	if (NightCatalog)
+	{
+		return;
+	}
+
+	NightCatalog = NewObject<UNightConsequenceCatalog>(this, TEXT("DefaultNightCatalog"));
+	PopulateMVPNightConsequenceRules(*NightCatalog);
+	UE_LOG(LogTemp, Log, TEXT("NightConsequenceManager: Using built-in MVP night catalog (assign a DA to override)."));
+}
+
 void UNightConsequenceManager::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+	EnsureNightCatalog();
 
 	if (UWorld* World = GetWorld())
 	{
@@ -72,7 +85,8 @@ ENightConsequenceType UNightConsequenceManager::SelectNightTypeFromCatalog(const
 		return ENightConsequenceType::Corruption;
 	}
 
-	if (bForceTutorialOnFirstNight && NightsPrepared == 0)
+	const bool bForceTutorial = bForceTutorialOnFirstNight || NightCatalog->bForceTutorialOnFirstNight;
+	if (bForceTutorial && NightsPrepared == 0)
 	{
 		return ENightConsequenceType::Tutorial;
 	}
@@ -101,6 +115,8 @@ ENightConsequenceType UNightConsequenceManager::SelectNightTypeFromCatalog(const
 
 void UNightConsequenceManager::PrepareNightConsequences()
 {
+	EnsureNightCatalog();
+
 	if (!PCGSubsystem)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("NightConsequenceManager: PCGSubsystem missing; skipping night prep."));

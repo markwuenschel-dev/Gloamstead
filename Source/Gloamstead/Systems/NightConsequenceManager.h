@@ -39,6 +39,7 @@ protected:
 	void OnStructureRestored(const FRestorationEventPayload& Payload);
 
 private:
+	void EnsureNightCatalog();
 	float ScoreRule(const FNightConsequenceRule& Rule, const FNightSanctuarySnapshot& Snapshot) const;
 	ENightConsequenceType SelectNightTypeFromCatalog(const FNightSanctuarySnapshot& Snapshot);
 

@@ -66,6 +66,10 @@ struct FNightConsequenceRule
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Night")
 	TArray<ERitualType> FavoredRitualTypes;
+
+	/** Used when NightType is Omen; broadcast at night start. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Night")
+	FName OmenClueTag = NAME_None;
 };
 
 UCLASS(BlueprintType)
@@ -85,3 +89,6 @@ public:
 };
 
 GLOAMSTEAD_API FString GetNightConsequenceTypeDisplayName(ENightConsequenceType Type);
+
+/** Fills MVP Tutorial / Corruption / Omen rules for dev PIE without a Content asset. */
+GLOAMSTEAD_API void PopulateMVPNightConsequenceRules(UNightConsequenceCatalog& Catalog);
