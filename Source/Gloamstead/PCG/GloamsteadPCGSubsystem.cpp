@@ -134,6 +134,75 @@ float UGloamsteadPCGSubsystem::GetCorruptionLevel(int32 PointIndex) const
     return PointStates.IsValidIndex(PointIndex) ? PointStates[PointIndex].CorruptionLevel : 0.0f;
 }
 
+float UGloamsteadPCGSubsystem::GetSanctuaryAverageLightLevel() const
+{
+    if (PointStates.Num() == 0)
+    {
+        return 0.0f;
+    }
+
+    float Sum = 0.0f;
+    for (const FRitualPointState& State : PointStates)
+    {
+        Sum += State.LightLevel;
+    }
+    return Sum / static_cast<float>(PointStates.Num());
+}
+
+float UGloamsteadPCGSubsystem::GetSanctuaryAverageCorruptionLevel() const
+{
+    if (PointStates.Num() == 0)
+    {
+        return 0.0f;
+    }
+
+    float Sum = 0.0f;
+    for (const FRitualPointState& State : PointStates)
+    {
+        Sum += State.CorruptionLevel;
+    }
+    return Sum / static_cast<float>(PointStates.Num());
+}
+
+int32 UGloamsteadPCGSubsystem::GetRestoredPointCount() const
+{
+    return RestoredPointIndices.Num();
+}
+
+int32 UGloamsteadPCGSubsystem::GetRestoredCountByRitualType(ERitualType Type) const
+{
+    if (Type == ERitualType::Invalid)
+    {
+        return 0;
+    }
+
+    int32 Count = 0;
+    for (int32 PointIndex : RestoredPointIndices)
+    {
+        if (!CachedPoints.IsValidIndex(PointIndex))
+        {
+            continue;
+        }
+        if (GetRitualTypeFromPoint(CachedPoints[PointIndex]) == Type)
+        {
+            ++Count;
+        }
+    }
+    return Count;
+}
+
+FNightSanctuarySnapshot UGloamsteadPCGSubsystem::BuildSanctuarySnapshot() const
+{
+    FNightSanctuarySnapshot Snapshot;
+    Snapshot.AverageLightLevel = GetSanctuaryAverageLightLevel();
+    Snapshot.AverageCorruptionLevel = GetSanctuaryAverageCorruptionLevel();
+    Snapshot.RestoredPointCount = GetRestoredPointCount();
+    Snapshot.LanternPostRestored = GetRestoredCountByRitualType(ERitualType::LanternPost);
+    Snapshot.GardenBedRestored = GetRestoredCountByRitualType(ERitualType::GardenBed);
+    Snapshot.PathPointRestored = GetRestoredCountByRitualType(ERitualType::PathPoint);
+    return Snapshot;
+}
+
 bool UGloamsteadPCGSubsystem::ApplyRestoration(int32 PointIndex, const FRestorationEventPayload& Payload)
 {
     if (!PointStates.IsValidIndex(PointIndex)) return false;
