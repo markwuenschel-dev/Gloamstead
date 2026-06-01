@@ -7,6 +7,7 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNightConsequenceStarted, ENightConsequenceType, NightType);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNightConsequenceEnded, ENightConsequenceType, NightType);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnOmenClueReady, FName, ClueTag);
 
 /**
  * Executes the prepared night plan during the Night phase (stubs in NC-3; spawn/combat later).
@@ -43,6 +44,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Night")
 	FOnNightConsequenceEnded OnNightEnded;
+
+	UPROPERTY(BlueprintAssignable, Category = "Night")
+	FOnOmenClueReady OnOmenClueReady;
 
 protected:
 	UFUNCTION()

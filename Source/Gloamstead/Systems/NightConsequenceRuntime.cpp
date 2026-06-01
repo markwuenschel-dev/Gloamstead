@@ -91,11 +91,34 @@ void UNightConsequenceRuntime::ExecuteNightStub()
 		}
 		break;
 	case ENightConsequenceType::Tutorial:
-		UE_LOG(LogTemp, Log, TEXT("NightRuntime: Tutorial night — teaching beat (no spread in stub)."));
+		if (PCG)
+		{
+			const float Before = PCG->GetSanctuaryAverageCorruptionLevel();
+			const int32 Mutated = PCG->ApplyCorruptionSpread(0.06f, 4);
+			const float After = PCG->GetSanctuaryAverageCorruptionLevel();
+			UE_LOG(LogTemp, Log, TEXT("NightRuntime: Tutorial night — teaching spread %d points, avg %.2f -> %.2f"),
+				Mutated, Before, After);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Log, TEXT("NightRuntime: Tutorial night — teaching beat (PCG missing)."));
+		}
 		break;
 	case ENightConsequenceType::Omen:
-		UE_LOG(LogTemp, Log, TEXT("NightRuntime: Omen night — environmental clue stub (delegate in wave-nc-4)."));
+	{
+		FName ClueTag = FName(TEXT("DefaultOmen"));
+		if (UNightConsequenceManager* Manager = World->GetSubsystem<UNightConsequenceManager>())
+		{
+			const FName CatalogTag = Manager->GetOmenClueTagForNightType(ENightConsequenceType::Omen);
+			if (CatalogTag != NAME_None)
+			{
+				ClueTag = CatalogTag;
+			}
+		}
+		UE_LOG(LogTemp, Log, TEXT("NightRuntime: Omen night — clue tag %s"), *ClueTag.ToString());
+		OnOmenClueReady.Broadcast(ClueTag);
 		break;
+	}
 	default:
 		UE_LOG(LogTemp, Warning, TEXT("NightRuntime: No stub for night type %s"),
 			*GetNightConsequenceTypeDisplayName(ActiveNightType));

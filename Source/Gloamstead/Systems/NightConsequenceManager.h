@@ -25,6 +25,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Night")
 	ENightConsequenceType GetLastSelectedNightType() const { return LastSelectedNightType; }
 
+	UFUNCTION(BlueprintPure, Category = "Night")
+	FName GetOmenClueTagForNightType(ENightConsequenceType NightType) const;
+
 	UPROPERTY(BlueprintAssignable, Category = "Night")
 	FOnNightPlanReady OnNightPlanReady;
 

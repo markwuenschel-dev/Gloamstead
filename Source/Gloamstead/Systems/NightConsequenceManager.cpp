@@ -29,6 +29,23 @@ void UNightConsequenceManager::Initialize(FSubsystemCollectionBase& Collection)
 	}
 }
 
+FName UNightConsequenceManager::GetOmenClueTagForNightType(ENightConsequenceType NightType) const
+{
+	if (!NightCatalog)
+	{
+		return NAME_None;
+	}
+
+	for (const FNightConsequenceRule& Rule : NightCatalog->Rules)
+	{
+		if (Rule.NightType == NightType && Rule.OmenClueTag != NAME_None)
+		{
+			return Rule.OmenClueTag;
+		}
+	}
+	return NAME_None;
+}
+
 void UNightConsequenceManager::OnStructureRestored(const FRestorationEventPayload& Payload)
 {
 	if (Payload.PathSegmentID >= 0)
