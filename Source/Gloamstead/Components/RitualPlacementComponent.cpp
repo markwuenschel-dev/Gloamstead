@@ -192,8 +192,19 @@ void URitualPlacementComponent::BuildRestorationPayload(int32 PointIndex, AActor
     OutPayload.RestoredActor = SpawnedRestoredActor;
     OutPayload.WarningTagSatisfied = Point.GetMetadataEntry<FName>("RecommendedForWarning", NAME_None);
 
-    OutPayload.LightDelta = (OutPayload.RitualType == ERitualType::LanternPost) ? 0.35f : 0.15f;
-    OutPayload.CorruptionCleared = (OutPayload.RitualType == ERitualType::LanternPost) ? 0.2f : 0.35f;
+    OutPayload.LightDelta = GetDefaultLightContribution(OutPayload.RitualType);
+    OutPayload.CorruptionCleared = GetDefaultCorruptionClearance(OutPayload.RitualType);
+
+    if (const URitualDefinition* Definition = GetRitualDefinitionForType(OutPayload.RitualType))
+    {
+        OutPayload.LightDelta = Definition->DefaultLightContribution;
+        OutPayload.CorruptionCleared = Definition->DefaultCorruptionClearance;
+
+        if (OutPayload.WarningTagSatisfied == NAME_None && Definition->SatisfiableWarningTags.Num() > 0)
+        {
+            OutPayload.WarningTagSatisfied = Definition->SatisfiableWarningTags[0];
+        }
+    }
 
     OutPayload.TimeOfDayAtRestoration = 0.5f;
     OutPayload.NightCountAtRestoration = 0;
@@ -256,6 +267,15 @@ bool URitualPlacementComponent::GetCurrentTargetTransform(FVector& OutLocation, 
     OutLocation = Info.Location;
     OutRotation = Info.Rotation;
     return true;
+}
+
+const URitualDefinition* URitualPlacementComponent::GetRitualDefinitionForType(ERitualType Type) const
+{
+    if (const TObjectPtr<URitualDefinition>* Found = RitualDefinitions.Find(Type))
+    {
+        return Found->Get();
+    }
+    return nullptr;
 }
 
 class UGloamsteadPCGSubsystem* URitualPlacementComponent::GetSubsystem() const

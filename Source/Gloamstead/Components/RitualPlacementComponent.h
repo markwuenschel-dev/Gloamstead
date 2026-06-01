@@ -4,6 +4,7 @@
 #include "Components/ActorComponent.h"
 #include "PCGPointData.h"
 #include "Data/RitualTypes.h"
+#include "Data/RitualDefinition.h"
 #include "RitualPlacementComponent.generated.h"
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
@@ -71,6 +72,8 @@ protected:
     void BuildRestorationPayload(int32 PointIndex, AActor* SpawnedRestoredActor, FRestorationEventPayload& OutPayload) const;
     FRotator CalculateAlignedRotation(const FVector& Location, const FVector& TerrainNormal) const;
 
+    const class URitualDefinition* GetRitualDefinitionForType(ERitualType Type) const;
+
     class UGloamsteadPCGSubsystem* GetSubsystem() const;
 
 private:
@@ -100,4 +103,7 @@ private:
 
     UPROPERTY(EditDefaultsOnly, Category="Placement Settings")
     float SteepSlopeCameraBias = 28.0f;
+
+    UPROPERTY(EditDefaultsOnly, Category="Ritual Definitions")
+    TMap<ERitualType, TObjectPtr<URitualDefinition>> RitualDefinitions;
 };
