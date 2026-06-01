@@ -83,6 +83,10 @@ public:
     UFUNCTION(BlueprintCallable, Category="PCG|Ritual")
     bool ApplyRestoration(int32 PointIndex, const FRestorationEventPayload& Payload);
 
+    /** Night-only corruption spread; does not alter restoration flags. MaxPoints clamped internally (default cap 32). */
+    UFUNCTION(BlueprintCallable, Category="PCG|Night")
+    int32 ApplyCorruptionSpread(float Delta, int32 MaxPoints = 8);
+
     // === Persistence (Vertical Slice Strategy) ===
     UFUNCTION(BlueprintCallable, Category="PCG|Ritual")
     TSet<int32> GetRestoredPointIndices() const;

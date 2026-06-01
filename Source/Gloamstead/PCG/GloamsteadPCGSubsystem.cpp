@@ -222,6 +222,44 @@ bool UGloamsteadPCGSubsystem::ApplyRestoration(int32 PointIndex, const FRestorat
     return true;
 }
 
+int32 UGloamsteadPCGSubsystem::ApplyCorruptionSpread(float Delta, int32 MaxPoints)
+{
+    if (PointStates.Num() == 0 || Delta <= 0.f)
+    {
+        return 0;
+    }
+
+    constexpr int32 HardCap = 32;
+    const int32 NumToMutate = FMath::Clamp(MaxPoints, 1, FMath::Min(HardCap, PointStates.Num()));
+
+    TArray<int32> Candidates;
+    Candidates.Reserve(PointStates.Num());
+    for (int32 Index = 0; Index < PointStates.Num(); ++Index)
+    {
+        Candidates.Add(Index);
+    }
+
+    for (int32 i = Candidates.Num() - 1; i > 0; --i)
+    {
+        const int32 j = FMath::RandRange(0, i);
+        Candidates.Swap(i, j);
+    }
+
+    int32 Mutated = 0;
+    for (int32 i = 0; i < NumToMutate; ++i)
+    {
+        const int32 PointIndex = Candidates[i];
+        FRitualPointState& State = PointStates[PointIndex];
+        State.CorruptionLevel = FMath::Clamp(State.CorruptionLevel + Delta, 0.f, 1.f);
+        ++Mutated;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("PCG: ApplyCorruptionSpread delta=%.2f mutated=%d avg corruption now=%.2f"),
+        Delta, Mutated, GetSanctuaryAverageCorruptionLevel());
+
+    return Mutated;
+}
+
 TSet<int32> UGloamsteadPCGSubsystem::GetRestoredPointIndices() const
 {
     return RestoredPointIndices;
