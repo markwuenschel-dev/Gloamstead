@@ -215,7 +215,14 @@ Assign a **`UNightConsequenceCatalog`** asset on the manager (or defaults) befor
 - **DayNight**: entering **Night** calls **`BeginNight`** + type stub; entering **Dawn** calls **`EndNight`** before Veil Heart reflection.
 - **Stubs**: Corruption applies spread (log avg before/after); Tutorial/Omen log-only until wave-nc-4.
 
-### Deferred (post NC-3)
+### NC-4 — Catalog defaults and type stubs (wave **night-consequence NC-4**, NC-010–NC-012)
+
+- **`PopulateMVPNightConsequenceRules`**: built-in Tutorial / Corruption / Omen rules when no catalog DA is assigned on the manager.
+- **`FNightConsequenceRule::OmenClueTag`**: catalog-driven omen hint; **`OnOmenClueReady`** on **`UNightConsequenceRuntime`** at omen night start.
+- **Tutorial night**: **`ApplyCorruptionSpread(0.06, 4)`** (half of corruption night) for a gentler first teaching beat.
+- Editor can still assign a **`UNightConsequenceCatalog`** asset to override defaults.
+
+### Deferred (post NC-4)
 
 - **Spawning / combat / VFX** per night visual language.
 - **Full night-type catalog** in code (Retrieval, Silence/Possession, Mirror, Bargain, Fracture, True Siege) and designer assets per type.
