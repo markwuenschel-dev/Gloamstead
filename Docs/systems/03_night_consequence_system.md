@@ -198,9 +198,18 @@ BlueprintPure read-only getters (safe `0` when uninitialized):
 
 Assign a **`UNightConsequenceCatalog`** asset on the manager (or defaults) before calling prep from gameplay.
 
-### Deferred (not in NC-1)
+### NC-2 — Day/night loop (wave **night-consequence NC-2**, tasks NC-004–NC-006)
+
+- **`UGloamsteadDayNightSubsystem`** (`Source/Gloamstead/Systems/GloamsteadDayNightSubsystem.*`): phases `Day → Dusk → Night → Dawn`. BlueprintCallable **`AdvanceToNextPhase`** / **`SetPhase`**. **`GetNormalizedTimeOfDay`** (0 dawn, 1 dusk) and **`GetNightCount`** (increments when leaving Dawn).
+- **Dusk**: calls **`UNightConsequenceManager::PrepareNightConsequences`**.
+- **Dawn**: finds first **`AVeilHeart`** in the world and calls **`ProcessDawnReflection`**.
+- **`URitualPlacementComponent`**: restoration payload fills **`TimeOfDayAtRestoration`** / **`NightCountAtRestoration`** from DayNight when the subsystem exists.
+- **`AVeilHeart`**: tracks satisfied warning tags from restorations; dawn reflection logs the count, then clears tags for the next cycle. **`GetSatisfiedWarningTagCount`** for Blueprint.
+
+**PIE / editor**: advance phases manually (e.g. test BP calling **`AdvanceToNextPhase`**). Assign **`UNightConsequenceCatalog`** on the night manager (NC-1 follow-up still applies).
+
+### Deferred (post NC-2)
 
 - **Spawning / runtime night mechanics** (corruption spread, omens, combat, VFX, failure states).
-- **`DayNight` / dusk–dawn subsystem** wiring to call `PrepareNightConsequences` on schedule.
 - **Full night-type catalog** in code (Retrieval, Silence/Possession, Mirror, Bargain, Fracture, True Siege) and designer assets per type.
-- **Dawn feedback**, resource rewards, and adaptation rollout hooks beyond selection logging/delegate.
+- **Dawn feedback** beyond tag clear + log (journal, resources, adaptation rollout).
