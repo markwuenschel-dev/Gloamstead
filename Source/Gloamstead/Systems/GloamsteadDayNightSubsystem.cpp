@@ -2,6 +2,7 @@
 #include "Systems/NightConsequenceManager.h"
 #include "Systems/NightConsequenceRuntime.h"
 #include "Systems/VeilHeart.h"
+#include "Data/NightConsequenceTypes.h"
 #include "Kismet/GameplayStatics.h"
 
 float UGloamsteadDayNightSubsystem::GetNormalizedTimeOfDay() const
@@ -69,15 +70,34 @@ void UGloamsteadDayNightSubsystem::ApplyPhaseChange(EGloamsteadDayPhase NewPhase
 
 void UGloamsteadDayNightSubsystem::HandleEnterDusk()
 {
-	if (UWorld* World = GetWorld())
+	UWorld* World = GetWorld();
+	if (!World)
 	{
-		if (UNightConsequenceManager* NightManager = World->GetSubsystem<UNightConsequenceManager>())
+		return;
+	}
+
+	ENightConsequenceType SelectedNight = ENightConsequenceType::Invalid;
+	if (UNightConsequenceManager* NightManager = World->GetSubsystem<UNightConsequenceManager>())
+	{
+		NightManager->PrepareNightConsequences();
+		SelectedNight = NightManager->GetLastSelectedNightType();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("DayNight: NightConsequenceManager missing at dusk."));
+	}
+
+	if (SelectedNight != ENightConsequenceType::Invalid)
+	{
+		TArray<AActor*> Hearts;
+		UGameplayStatics::GetAllActorsOfClass(World, AVeilHeart::StaticClass(), Hearts);
+		for (AActor* Actor : Hearts)
 		{
-			NightManager->PrepareNightConsequences();
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("DayNight: NightConsequenceManager missing at dusk."));
+			if (AVeilHeart* Heart = Cast<AVeilHeart>(Actor))
+			{
+				Heart->EmitWarningForNight(SelectedNight);
+				break;
+			}
 		}
 	}
 }
