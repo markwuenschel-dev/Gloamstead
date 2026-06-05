@@ -1,0 +1,8 @@
+{
+  "slug": "gloam",
+  "name": "Gloamstead",
+  "description": "Third-person dark fantasy sanctuary-restoration game vertical slice. Collaboration system slug for agent_collab.",
+  "work_branch": "agent-collab/gloam/work",
+  "primary_runtime": "grok-cursor",
+  "notes": "Used by status projections and orchestration. Keep minimal."
+}

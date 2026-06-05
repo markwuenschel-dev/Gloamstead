@@ -9,10 +9,16 @@
 UENUM(BlueprintType)
 enum class ENightConsequenceType : uint8
 {
-	Invalid    = 0 UMETA(Hidden),
-	Tutorial   = 1,
-	Corruption = 2,
-	Omen       = 3,
+	Invalid            = 0 UMETA(Hidden),
+	Tutorial           = 1,
+	Corruption         = 2,
+	Omen               = 3,
+	Retrieval          = 4,
+	SilencePossession  = 5,
+	Mirror             = 6,
+	Bargain            = 7,
+	Fracture           = 8,
+	TrueSiege          = 9,
 };
 
 /** Sanctuary aggregates used when scoring night rules at dusk */

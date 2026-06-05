@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PlannerOutput",
+  "type": "object",
+  "properties": {
+    "request_id": { "type": "string" },
+    "dag": {
+      "type": "object",
+      "properties": {
+        "tasks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "task_id": { "type": "string" },
+              "goal": { "type": "string" },
+              "depends_on": { "type": "array", "items": { "type": "string" } },
+              "file_ownership": { "type": "array", "items": { "type": "string" } },
+              "parallelizable": { "type": "boolean" },
+              "docs_impact": { "type": "boolean" },
+              "risk_level": { "type": "string", "enum": ["low", "medium", "high"] },
+              "acceptance_criteria": { "type": "array", "items": { "type": "string" } },
+              "required_capabilities": { "type": "array", "items": { "type": "string" } }
+            },
+            "required": ["task_id", "goal"]
+          }
+        }
+      }
+    },
+    "summary": { "type": "string" },
+    "risk_notes": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": ["request_id", "dag"]
+}

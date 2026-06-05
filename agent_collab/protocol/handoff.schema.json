@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Handoff",
+  "type": "object",
+  "properties": {
+    "handoff_id": { "type": "string" },
+    "task_id": { "type": "string" },
+    "role": { "type": "string" },
+    "from": { "type": "string" },
+    "to": { "type": ["string", "null"] },
+    "created": { "type": "string" },
+    "status": { "type": "string", "enum": ["claimed", "done", "blocked", "archived"] },
+    "input_artifacts": { "type": "array", "items": { "type": "string" } },
+    "output_artifacts": { "type": "array", "items": { "type": "string" } },
+    "verdict": { "type": ["string", "null"] },
+    "summary": { "type": ["string", "null"] },
+    "runtime_notes": { "type": ["string", "null"] },
+    "branch": { "type": ["string", "null"] },
+    "worktree_path": { "type": ["string", "null"] },
+    "changed_files": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": ["handoff_id", "task_id", "role", "status"]
+}

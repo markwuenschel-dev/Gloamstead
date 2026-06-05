@@ -1,0 +1,102 @@
+{
+  "generated_at": "2026-06-02T23:42:13.2316191Z",
+  "slug": "gloam",
+  "mode": "sync",
+  "run": {
+    "run_id": "run-20260602234210-663311",
+    "status": "running",
+    "ticks": 0,
+    "tasks_completed": 0,
+    "tokens_used_estimate": 0,
+    "candidate_failures": 0,
+    "runtime_failures": 0,
+    "started": "2026-06-02T23:42:10.4458439Z",
+    "last_tick": "2026-06-02T23:42:10.4458439Z",
+    "stop_reason": null
+  },
+  "counts": {
+    "active": 0,
+    "blocked": 0,
+    "done": 15
+  },
+  "active_tasks": [],
+  "waves": [
+    {
+      "wave_id": "wave-hg-1",
+      "status": "promoted",
+      "parallel": null,
+      "task_ids": [
+        "HG-001"
+      ]
+    },
+    {
+      "wave_id": "wave-nc-1",
+      "status": "promoted",
+      "parallel": null,
+      "task_ids": [
+        "NC-001",
+        "NC-002",
+        "NC-003"
+      ]
+    },
+    {
+      "wave_id": "wave-nc-2",
+      "status": "promoted",
+      "parallel": null,
+      "task_ids": [
+        "NC-004",
+        "NC-005",
+        "NC-006"
+      ]
+    },
+    {
+      "wave_id": "wave-nc-3",
+      "status": "promoted",
+      "parallel": null,
+      "task_ids": [
+        "NC-007",
+        "NC-008",
+        "NC-009"
+      ]
+    },
+    {
+      "wave_id": "wave-vh-1",
+      "status": "promoted",
+      "parallel": null,
+      "task_ids": [
+        "VH-001",
+        "VH-002",
+        "VH-003"
+      ]
+    },
+    {
+      "wave_id": "wave-rp-1",
+      "status": "promoted",
+      "parallel": null,
+      "task_ids": [
+        "RP-001",
+        "RP-002"
+      ]
+    },
+    {
+      "wave_id": "wave-nc-4",
+      "status": "promoted",
+      "parallel": null,
+      "task_ids": [
+        "NC-010",
+        "NC-011",
+        "NC-012"
+      ]
+    }
+  ],
+  "leases": [],
+  "log_tail": [
+    "# Gloamstead Collaboration Orchestrator Log",
+    "# Format: [ISO8601] LEVEL component: message",
+    "# This file is appended by the Orchestrator and by claude-code SubagentStart/Stop hooks.",
+    "# Never edited manually except for emergency annotation with clear markers.",
+    "",
+    "[2026-05-09T12:00:00Z] INFO orchestrator: Scaffold initialized. Slug=gloam. Mode=sync. Self-test pending.",
+    "[2026-05-31T16:54:25-04:00] INFO orchestrator: Cold resume /gloam-resume completed. Lock acquired. Clean reconciliation. Mode=sync. No in-flight work. Status report ready. Awaiting directive."
+  ]
+}

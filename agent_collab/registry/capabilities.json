@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "dictionary": {
+    "repo_read": "Read repository files, git history, branches, logs (no write).",
+    "edit_code": "Modify source and test files under guarded scope (requires worktree + scope enforcement for safety floor).",
+    "edit_docs": "Modify documentation under documentor_edit_roots only.",
+    "run_tests": "Execute project test/build commands and interpret results (required for final integration Critic).",
+    "web_research": "External web/API/library investigation.",
+    "dag_planning": "Produce dependency DAG + per-task metadata (task_id, depends_on, file_ownership, parallelizable, risk_level, acceptance_criteria).",
+    "file_ownership_prediction": "Predict which files a task will touch (used for conflict-free parallel scheduling).",
+    "architecture_design": "Cross-cutting design: schemas, service/API boundaries, auth/event models, major refactors, test strategy. Produces ADRs/proposals.",
+    "scope_audit": "Verify edits stayed within declared file_ownership and role roots.",
+    "integration_verification": "Run full acceptance criteria + project test suite on a candidate merge; authoritative pass/fail for promotion.",
+    "worktree": "Operate inside a git worktree sandbox (enables parallel Coders without polluting main checkout).",
+    "local_commit": "Perform git add/commit inside an assigned worktree on the task branch (never on shared branches)."
+  },
+  "notes": "Capabilities are declared by runtimes and required by tasks/handoffs. Routing is a pure function of (required_capabilities + enabled_runtimes + safety floor + preference rank)."
+}

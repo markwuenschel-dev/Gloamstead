@@ -1,0 +1,9 @@
+{
+  "slug": "gloam",
+  "session_id": "example-uuid-or-pid-timestamp",
+  "pid": 12345,
+  "created": "2026-05-09T12:00:00Z",
+  "heartbeat": "2026-05-09T12:05:00Z",
+  "cwd": "/path/to/Gloamstead",
+  "notes": "Copy this file to orchestrator.lock when acquiring. The Acquire script manages creation, heartbeat refresh, staleness detection, and removal. Never commit a live lock file."
+}

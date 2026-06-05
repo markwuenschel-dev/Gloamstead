@@ -1,0 +1,13 @@
+{
+  "run_id": "run-20260602234210-663311",
+  "status": "running",
+  "started": "2026-06-02T23:42:10.4458439Z",
+  "last_tick": "2026-06-02T23:42:10.4458439Z",
+  "updated": "2026-06-02T23:42:10.4458439Z",
+  "ticks": 0,
+  "tasks_completed": 0,
+  "tokens_used_estimate": 0,
+  "candidate_failures": 0,
+  "runtime_failures": 0,
+  "stop_reason": null
+}

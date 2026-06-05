@@ -1,0 +1,4 @@
+{
+  "leases": [],
+  "notes": "Only populated and used when scheduler_state.mode == \"async\". In sync mode this file exists for schema completeness but remains empty."
+}

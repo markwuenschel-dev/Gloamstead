@@ -1,0 +1,24 @@
+{
+  "source_roots": ["Source"],
+  "test_roots": [],
+  "docs_roots": ["docs"],
+  "collab_roots": ["agent_collab", ".claude"],
+  "coder_edit_roots": ["Source"],
+  "documentor_edit_roots": ["docs"],
+  "orchestrator_edit_roots": ["agent_collab"],
+  "forbidden_roots": [
+    ".git",
+    ".env",
+    ".venv",
+    "node_modules",
+    "dist",
+    "build",
+    ".claude/worktrees",
+    ".grok/worktrees",
+    "Binaries",
+    "DerivedDataCache",
+    "Intermediate",
+    "Saved"
+  ],
+  "notes": "All paths repo-relative. Coder may not edit docs or binary/generated dirs. Documentor restricted to docs/. Orchestrator owns only agent_collab for state. No tests discovered; test_roots empty. Content/ is asset-heavy and typically edited via Unreal Editor, not direct agent file writes; kept out of coder_edit_roots for safety. Ambiguous paths logged to decisions.md and resolved to narrowest safe set."
+}

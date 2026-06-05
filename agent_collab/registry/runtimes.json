@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "description": "Enabled runtimes and their declared capabilities. grok-cursor + claude-code + local-script for sync multi-IDE orchestration. Async-only runtimes remain extension contracts until exercised.",
+  "enabled_runtimes": ["grok-cursor", "claude-code", "local-script"],
+  "runtimes": {
+    "grok-cursor": {
+      "display_name": "Grok in Cursor (CLI + Task subagents)",
+      "launch_mode": "native",
+      "can_edit_files": true,
+      "can_run_tests": true,
+      "can_use_worktree": true,
+      "can_enforce_scope": true,
+      "can_return_schema": true,
+      "can_parallelize": true,
+      "notes": "Primary runtime for Grok sessions in Cursor. Worktrees via New-TaskWorktree.ps1 under .grok/worktrees/. Scope via Assert-EditScope in worker prompts. Projection to .grok/skills and .grok/rules. Orchestrator uses gloam-* skills; workers via Task tool + agents/grok-*.md prompts."
+    },
+    "claude-code": {
+      "display_name": "Claude Code (native subagents + worktrees)",
+      "launch_mode": "native",
+      "can_edit_files": true,
+      "can_run_tests": true,
+      "can_use_worktree": true,
+      "can_enforce_scope": true,
+      "can_return_schema": true,
+      "can_parallelize": true,
+      "notes": "Primary trusted runtime. Supports SubagentStart/Stop hooks, worktree.baseRef=head, per-agent Edit/Write scope hooks. Used for Orchestrator (main session), all worker roles in sync mode."
+    },
+    "local-script": {
+      "display_name": "Local Script Runner (pwsh/bash command execution)",
+      "launch_mode": "runner",
+      "can_edit_files": false,
+      "can_run_tests": true,
+      "can_use_worktree": false,
+      "can_enforce_scope": false,
+      "can_return_schema": false,
+      "can_parallelize": false,
+      "notes": "For bounded, non-editing work: invoking project build/test scripts, simple file transforms that produce stdout/structured output, log collection. Output is raw; requires Normalize-RuntimeResult.ps1 + validation before state transition. Cannot be used for Coder (fails safety floor) or final integration Critic."
+    }
+  },
+  "notes": "Safety floor is enforced in routing.json logic and Orchestrator: edit_code requires can_edit_files + can_use_worktree + can_enforce_scope; final Critic requires can_run_tests + repo_read. local-script is intentionally limited so it cannot accidentally mutate state or source."
+}

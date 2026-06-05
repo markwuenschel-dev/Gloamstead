@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0",
+  "description": "Autonomy policy for Gloamstead Orchestrator (grok-cursor + claude-code). Enables high autonomy on reversible, low/medium risk actions within the vertical slice while gating irreversible, high-risk, or external-side-effect actions. Used by Assert-ActionPolicy.ps1, Update-RunState.ps1, and resume flows.",
+  "autonomy_level": 2,
+  "notes": "Level 0: manual step-by-step. Level 1: ask on ask_first + high risk. Level 2+: allow reversible low/med (the default for this vertical slice). Promotion/critic/new-wave planning still surface status and respect policy. All actions still respect single-writer, scope, and mandatory integration verification.",
+  "cumulative": {
+    "max_tasks_per_run": 100,
+    "max_tokens": 2000000,
+    "max_wall_minutes": 480,
+    "max_candidate_failures": 8,
+    "max_runtime_failures": 5
+  },
+  "ask_first": [
+    "broad_refactor",
+    "data_migration"
+  ],
+  "never_without_human": [],
+  "forbidden_actions": [
+    "remote_deploy",
+    "production_data_write"
+  ],
+  "irreversible_command_patterns": [],
+  "reversible_overrides": [
+    "integration_critic",
+    "candidate_promote_local"
+  ],
+  "project_specific": {
+    "vertical_slice_only": true,
+    "prefer_small_waves": true,
+    "require_critic_for_promote": true,
+    "grok_preference_for_low_risk": true
+  }
+}

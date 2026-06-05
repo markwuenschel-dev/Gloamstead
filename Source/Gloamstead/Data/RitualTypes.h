@@ -15,7 +15,8 @@ enum class ERitualType : uint8
     LanternPost     = 1,
     GardenBed       = 2,
     PathPoint       = 3,
-    // MirrorPillar and BellShrine are deferred to Phase 2
+    MirrorPillar    = 4,
+    BellShrine      = 5,
 };
 
 /**
@@ -84,30 +85,28 @@ struct FRestorationEventPayload
 };
 
 /**
- * Lightweight base Data Asset for ritual definitions.
- * Used for tuning values without hardcoding them in C++ or Blueprints.
+ * Info struct returned by placement component for current target point.
+ * Used for Blueprint exposure of point data during placement preview/confirm.
  */
-UCLASS(BlueprintType, Abstract)
-class GLOAMSTEAD_API URitualDefinition : public UPrimaryDataAsset
+USTRUCT(BlueprintType)
+struct FRitualPointInfo
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
-public:
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ritual Definition")
-    ERitualType RitualType = ERitualType::Invalid;
+	UPROPERTY(BlueprintReadOnly, Category="Ritual|Placement")
+	int32 PointIndex = -1;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ritual Definition")
-    float DefaultLightContribution = 0.35f;
+	UPROPERTY(BlueprintReadOnly, Category="Ritual|Placement")
+	bool bIsValid = false;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ritual Definition")
-    float DefaultCorruptionClearance = 0.2f;
+	UPROPERTY(BlueprintReadOnly, Category="Ritual|Placement")
+	FVector Location = FVector::ZeroVector;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ritual Definition")
-    float RestorationRadius = 800.0f;
+	UPROPERTY(BlueprintReadOnly, Category="Ritual|Placement")
+	ERitualType RitualType = ERitualType::Invalid;
 
-    /** Tags this ritual type can satisfy for Veil Heart warnings */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ritual Definition")
-    TArray<FName> SatisfiableWarningTags;
+	UPROPERTY(BlueprintReadOnly, Category="Ritual|Placement")
+	FRotator Rotation = FRotator::ZeroRotator;
 };
 
 // Helper functions (implemented in .cpp)

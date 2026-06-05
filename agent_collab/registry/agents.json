@@ -1,0 +1,157 @@
+{
+  "schema_version": "1.0",
+  "description": "Agent templates (reusable configurations). Instances are spawned by Orchestrator with unique instance_id. writes_state MUST be false for all worker templates; Orchestrator main session owns state writes.",
+  "templates": [
+    {
+      "id": "grok-orchestrator",
+      "runtime": "grok-cursor",
+      "role": "Orchestrator",
+      "enabled": true,
+      "capabilities": ["orchestration", "routing", "integration_driver", "branch_promotion", "reconciliation", "lock_management"],
+      "max_parallel": 1,
+      "writes_state": false,
+      "notes": "Main Grok session in Cursor. Human + Grok jointly act as Orchestrator. Use /gloam-resume skill. Does not appear as a delegated worker in handoffs."
+    },
+    {
+      "id": "grok-architect",
+      "runtime": "grok-cursor",
+      "role": "Architect",
+      "enabled": true,
+      "capabilities": ["architecture_design", "schema_design", "api_boundaries", "event_model", "test_strategy", "adr_production"],
+      "max_parallel": 1,
+      "writes_state": false,
+      "notes": "Read-only. Task subagent with grok-architect.md prompt."
+    },
+    {
+      "id": "grok-planner",
+      "runtime": "grok-cursor",
+      "role": "Planner",
+      "enabled": true,
+      "capabilities": ["dag_planning", "file_ownership_prediction", "risk_assessment", "acceptance_criteria_generation"],
+      "max_parallel": 1,
+      "writes_state": false,
+      "notes": "Read-only. Emits planner_output JSON."
+    },
+    {
+      "id": "grok-researcher",
+      "runtime": "grok-cursor",
+      "role": "Researcher",
+      "enabled": true,
+      "capabilities": ["web_research", "repo_convention_audit", "library_investigation", "api_surface_exploration"],
+      "max_parallel": 3,
+      "writes_state": false,
+      "notes": "Read-only, parallelizable via Task tool."
+    },
+    {
+      "id": "grok-coder",
+      "runtime": "grok-cursor",
+      "role": "Coder",
+      "enabled": true,
+      "capabilities": ["edit_code", "implement_handoff", "local_commit_in_worktree"],
+      "max_parallel": 4,
+      "writes_state": false,
+      "notes": "Implements handoff in .grok/worktrees/<task_id>. Assert-EditScope before writes. Returns worker_summary JSON."
+    },
+    {
+      "id": "grok-critic",
+      "runtime": "grok-cursor",
+      "role": "Critic",
+      "enabled": true,
+      "capabilities": ["scope_audit", "integration_verification", "task_branch_audit", "docs_consistency_review", "acceptance_criteria_execution"],
+      "max_parallel": 2,
+      "writes_state": false,
+      "notes": "Read-only. code-reviewer subagent for integration pass. Satisfies final integration safety floor with claude-code."
+    },
+    {
+      "id": "grok-documentor",
+      "runtime": "grok-cursor",
+      "role": "Documentor",
+      "enabled": true,
+      "capabilities": ["edit_docs"],
+      "max_parallel": 1,
+      "writes_state": false,
+      "notes": "Serial. docs/ only after promotion."
+    },
+    {
+      "id": "claude-orchestrator",
+      "runtime": "claude-code",
+      "role": "Orchestrator",
+      "enabled": true,
+      "capabilities": ["orchestration", "routing", "integration_driver", "branch_promotion", "reconciliation", "lock_management"],
+      "max_parallel": 1,
+      "writes_state": false,
+      "notes": "Main Claude Code session. Human + Claude jointly act as Orchestrator. Does not appear as a delegated worker in handoffs."
+    },
+    {
+      "id": "claude-architect",
+      "runtime": "claude-code",
+      "role": "Architect",
+      "enabled": true,
+      "capabilities": ["architecture_design", "schema_design", "api_boundaries", "event_model", "test_strategy", "adr_production"],
+      "max_parallel": 1,
+      "writes_state": false,
+      "notes": "Read-only. Invoked only for cross-cutting design. Produces ADR/proposal; Orchestrator/Planner convert to tasks. Never writes handoffs or code."
+    },
+    {
+      "id": "claude-planner",
+      "runtime": "claude-code",
+      "role": "Planner",
+      "enabled": true,
+      "capabilities": ["dag_planning", "file_ownership_prediction", "risk_assessment", "acceptance_criteria_generation"],
+      "max_parallel": 1,
+      "writes_state": false,
+      "notes": "Read-only. Emits dependency DAG + per-task metadata. Output drives wave scheduling."
+    },
+    {
+      "id": "claude-researcher",
+      "runtime": "claude-code",
+      "role": "Researcher",
+      "enabled": true,
+      "capabilities": ["web_research", "repo_convention_audit", "library_investigation", "api_surface_exploration"],
+      "max_parallel": 3,
+      "writes_state": false,
+      "notes": "Read-only, highly parallelizable. Used for external knowledge or deep repo archaeology before planning/coding."
+    },
+    {
+      "id": "claude-coder",
+      "runtime": "claude-code",
+      "role": "Coder",
+      "enabled": true,
+      "capabilities": ["edit_code", "implement_handoff", "local_commit_in_worktree"],
+      "max_parallel": 4,
+      "writes_state": false,
+      "notes": "Primary implementation worker. Runs in isolated git worktree on task branch. Edits only declared file_ownership within coder_edit_roots. Returns structured summary + changed files. Never writes global state."
+    },
+    {
+      "id": "claude-critic",
+      "runtime": "claude-code",
+      "role": "Critic",
+      "enabled": true,
+      "capabilities": ["scope_audit", "integration_verification", "task_branch_audit", "docs_consistency_review", "acceptance_criteria_execution"],
+      "max_parallel": 2,
+      "writes_state": false,
+      "notes": "Read-only verification roles. Modes: task-branch audit, candidate integration (authoritative), docs review. Final integration Critic MUST run on a runtime satisfying can_run_tests + repo_read (claude-code qualifies)."
+    },
+    {
+      "id": "claude-documentor",
+      "runtime": "claude-code",
+      "role": "Documentor",
+      "enabled": true,
+      "capabilities": ["edit_docs"],
+      "max_parallel": 1,
+      "writes_state": false,
+      "notes": "Serial only. Updates docs/ after integration verified and docs_impact:true. Never runs in parallel. Never touches source/tests. Batch overlapping docs tasks."
+    },
+    {
+      "id": "local-basic-runner",
+      "runtime": "local-script",
+      "role": "Researcher",
+      "enabled": true,
+      "capabilities": ["repo_read", "run_tests"],
+      "max_parallel": 1,
+      "writes_state": false,
+      "notes": "Example local-script usage: execute build/test scripts or simple repo queries that return stdout. Output normalized before use. Cannot satisfy edit_code or final Critic safety floors."
+    }
+  ],
+  "notes": "Claude-only profile: runtime 'claude-code' + enabled:true. Grok profile: runtime 'grok-cursor' + enabled:true. Both share protocol/state/branches; coordinate via orchestrator.lock. Async runtime extension: see _EXTENSION_CONTRACT.md."
+}

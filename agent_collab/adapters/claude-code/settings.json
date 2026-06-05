@@ -1,0 +1,87 @@
+{
+  "worktree": {
+    "baseRef": "head"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh",
+            "args": [
+              "-NoProfile",
+              "-File",
+              "${CLAUDE_PROJECT_DIR}/agent_collab/adapters/claude-code/hooks/pre-edit-scope.ps1"
+            ],
+            "shell": "powershell",
+            "timeout": 15,
+            "statusMessage": "Checking edit scope..."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh",
+            "args": [
+              "-NoProfile",
+              "-File",
+              "${CLAUDE_PROJECT_DIR}/agent_collab/adapters/claude-code/hooks/pre-bash-policy.ps1"
+            ],
+            "shell": "powershell",
+            "timeout": 10,
+            "statusMessage": "Checking command policy..."
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh",
+            "args": [
+              "-NoProfile",
+              "-File",
+              "${CLAUDE_PROJECT_DIR}/agent_collab/adapters/claude-code/hooks/log-subagent-event.ps1"
+            ],
+            "shell": "powershell",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh",
+            "args": [
+              "-NoProfile",
+              "-File",
+              "${CLAUDE_PROJECT_DIR}/agent_collab/adapters/claude-code/hooks/log-subagent-event.ps1"
+            ],
+            "shell": "powershell",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "deny": [
+      "git push",
+      "git pull",
+      "git rebase",
+      "git reset --hard",
+      "rm -rf",
+      "Remove-Item -Recurse"
+    ]
+  }
+}

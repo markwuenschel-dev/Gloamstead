@@ -7,10 +7,14 @@
 
 /**
  * Base class for Ritual Definition Data Assets.
- * Create concrete assets (e.g. DA_Ritual_LanternPost) that inherit from this.
+ * Create concrete assets (e.g. DA_Ritual_LanternPost, DA_Ritual_MirrorPillar, DA_Ritual_BellShrine) that inherit from this.
  * 
  * This allows tuning LightContribution, CorruptionClearance, etc. per ritual type
  * without hardcoding values in C++ or Blueprints.
+ *
+ * New types for Phase 2+:
+ * - MirrorPillar: reflects warnings, provides clarity bonuses, vulnerable to certain nights.
+ * - BellShrine: calls or repels based on tags, affects night selection radius.
  */
 UCLASS(BlueprintType, Abstract)
 class GLOAMSTEAD_API URitualDefinition : public UPrimaryDataAsset

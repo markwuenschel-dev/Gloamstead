@@ -1,0 +1,55 @@
+{
+  "policy_version": "1.0",
+  "description": "Defense-in-depth denylist for worker command execution. Enforced by Assert-BashPolicy.ps1 (and equivalent in other adapters). Denylists are not security boundaries (alias evasion possible) but raise friction and provide audit hooks.",
+  "blocked_patterns": [
+    {
+      "pattern": "git\\s+(push|pull|fetch|remote|pr)\\b",
+      "reason": "No remote mutations or PRs from workers. Orchestrator coordinates branches locally only."
+    },
+    {
+      "pattern": "git\\s+reset\\s+--hard",
+      "reason": "Destructive history change forbidden."
+    },
+    {
+      "pattern": "git\\s+rebase",
+      "reason": "History rewrite forbidden."
+    },
+    {
+      "pattern": "git\\s+amend",
+      "reason": "History rewrite forbidden."
+    },
+    {
+      "pattern": "git\\s+filter-(branch|repo)",
+      "reason": "History rewrite forbidden."
+    },
+    {
+      "pattern": "git\\s+clean\\s+-fd",
+      "reason": "Destructive cleanup forbidden outside isolated worktrees under explicit control."
+    },
+    {
+      "pattern": "(^|;\\s*|\\|\\s*)rm\\s+-rf\\s+",
+      "reason": "Recursive destructive delete."
+    },
+    {
+      "pattern": "(^|;\\s*|\\|\\s*)Remove-Item\\s+.*-Recurse",
+      "reason": "PowerShell recursive destructive delete."
+    },
+    {
+      "pattern": "(curl|wget|iex|Invoke-WebRequest|Invoke-Expression)\\s+.*\\|\\s*(bash|sh|pwsh|powershell|iex)",
+      "reason": "Pipe-to-shell installer or remote code execution vector."
+    },
+    {
+      "pattern": "\\bsudo\\b",
+      "reason": "Privilege escalation outside controlled environment."
+    }
+  ],
+  "allowed_categories": [
+    "Ordinary file reads/writes and redirection (required for builds, tests, log capture)",
+    "git add/commit inside a Coder's own worktree on its assigned task branch only",
+    "git checkout -b (for task branch creation under Orchestrator direction)",
+    "Standard build/test commands for the project (dotnet, msbuild, Unreal build scripts, pwsh test runners)",
+    "Local analysis/linting tools that do not mutate source"
+  ],
+  "enforcement": "Scripts exit non-zero on match (BLOCKED). Orchestrator logs the violation. Coder worktrees provide additional isolation for git state.",
+  "notes": "This policy is advisory defense-in-depth. The authoritative controls are: single-writer Orchestrator, scope guards (Assert-EditScope), worktree sandboxes, mandatory integration Critic on trusted runtime, and human oversight on Orchestrator lock takeover."
+}

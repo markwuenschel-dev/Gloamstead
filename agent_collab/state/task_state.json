@@ -1,0 +1,190 @@
+{
+  "active": {},
+  "history": [
+    {
+      "task_id": "HG-001",
+      "lane": "hard-gate",
+      "wave_id": "wave-hg-1",
+      "status": "promoted",
+      "phase": "complete",
+      "assigned_to": "claude-coder#HG-001-coder-1",
+      "runtime": "claude-code",
+      "template_id": "claude-coder",
+      "instance_id": "HG-001-coder-1",
+      "lease_id": null,
+      "depends_on": [],
+      "file_ownership": ["agent_collab/scripts/Get-CollabStatus.ps1"],
+      "required_capabilities": ["edit_code"],
+      "risk_level": "low",
+      "timestamps": {
+        "created": "2026-05-31T17:20:00Z",
+        "promoted": "2026-05-31T17:35:00Z"
+      },
+      "handoff_file": "agent_collab/handoffs/done/HANDOFF-2026-05-31-HG-001-coder.md",
+      "work_branch": "agent-collab/gloam/work",
+      "task_branch": "agent-collab/gloam/task/HG-001",
+      "candidate_branch": "agent-collab/gloam/candidate/wave-hg-1",
+      "docs_impact": false
+    },
+    {
+      "task_id": "NC-004",
+      "lane": "night-consequence",
+      "wave_id": "wave-nc-2",
+      "status": "promoted",
+      "phase": "complete",
+      "runtime": "grok-cursor",
+      "template_id": "grok-coder",
+      "depends_on": [],
+      "task_branch": "agent-collab/gloam/task/NC-004",
+      "timestamps": { "promoted": "2026-06-01T12:05:00Z" }
+    },
+    {
+      "task_id": "NC-005",
+      "lane": "night-consequence",
+      "wave_id": "wave-nc-2",
+      "status": "promoted",
+      "phase": "complete",
+      "runtime": "grok-cursor",
+      "template_id": "grok-coder",
+      "depends_on": ["NC-004"],
+      "task_branch": "agent-collab/gloam/task/NC-005",
+      "timestamps": { "promoted": "2026-06-01T12:05:00Z" }
+    },
+    {
+      "task_id": "NC-006",
+      "lane": "night-consequence",
+      "wave_id": "wave-nc-2",
+      "status": "promoted",
+      "phase": "complete",
+      "runtime": "grok-cursor",
+      "template_id": "grok-coder",
+      "depends_on": ["NC-004"],
+      "task_branch": "agent-collab/gloam/task/NC-006",
+      "timestamps": { "promoted": "2026-06-01T12:05:00Z" }
+    },
+    {
+      "task_id": "NC-007",
+      "lane": "night-consequence",
+      "wave_id": "wave-nc-3",
+      "status": "promoted",
+      "phase": "complete",
+      "runtime": "grok-cursor",
+      "template_id": "grok-coder",
+      "depends_on": [],
+      "task_branch": "agent-collab/gloam/task/NC-007",
+      "timestamps": { "promoted": "2026-06-01T22:52:30Z" }
+    },
+    {
+      "task_id": "NC-008",
+      "lane": "night-consequence",
+      "wave_id": "wave-nc-3",
+      "status": "promoted",
+      "phase": "complete",
+      "runtime": "grok-cursor",
+      "template_id": "grok-coder",
+      "depends_on": [],
+      "task_branch": "agent-collab/gloam/task/NC-008",
+      "timestamps": { "promoted": "2026-06-01T22:52:30Z" }
+    },
+    {
+      "task_id": "NC-009",
+      "lane": "night-consequence",
+      "wave_id": "wave-nc-3",
+      "status": "promoted",
+      "phase": "complete",
+      "runtime": "grok-cursor",
+      "template_id": "grok-coder",
+      "depends_on": ["NC-007", "NC-008"],
+      "task_branch": "agent-collab/gloam/task/NC-009",
+      "timestamps": { "promoted": "2026-06-01T22:52:30Z" }
+    },
+    {
+      "task_id": "VH-001",
+      "lane": "veil-heart",
+      "wave_id": "wave-vh-1",
+      "status": "promoted",
+      "phase": "complete",
+      "runtime": "grok-cursor",
+      "depends_on": [],
+      "task_branch": "agent-collab/gloam/task/VH-001",
+      "timestamps": { "promoted": "2026-06-01T23:02:00Z" }
+    },
+    {
+      "task_id": "VH-002",
+      "lane": "veil-heart",
+      "wave_id": "wave-vh-1",
+      "status": "promoted",
+      "phase": "complete",
+      "runtime": "grok-cursor",
+      "depends_on": ["VH-001"],
+      "task_branch": "agent-collab/gloam/task/VH-002",
+      "timestamps": { "promoted": "2026-06-01T23:02:00Z" }
+    },
+    {
+      "task_id": "VH-003",
+      "lane": "veil-heart",
+      "wave_id": "wave-vh-1",
+      "status": "promoted",
+      "phase": "complete",
+      "runtime": "grok-cursor",
+      "depends_on": ["VH-002"],
+      "task_branch": "agent-collab/gloam/task/VH-003",
+      "timestamps": { "promoted": "2026-06-01T23:02:00Z" }
+    },
+    {
+      "task_id": "RP-001",
+      "lane": "ritual-placement",
+      "wave_id": "wave-rp-1",
+      "status": "promoted",
+      "phase": "complete",
+      "runtime": "grok-cursor",
+      "depends_on": [],
+      "task_branch": "agent-collab/gloam/task/RP-001",
+      "timestamps": { "promoted": "2026-06-01T23:02:00Z" }
+    },
+    {
+      "task_id": "RP-002",
+      "lane": "ritual-placement",
+      "wave_id": "wave-rp-1",
+      "status": "promoted",
+      "phase": "complete",
+      "runtime": "grok-cursor",
+      "depends_on": ["RP-001"],
+      "task_branch": "agent-collab/gloam/task/RP-002",
+      "timestamps": { "promoted": "2026-06-01T23:02:00Z" }
+    },
+    {
+      "task_id": "NC-010",
+      "lane": "night-consequence",
+      "wave_id": "wave-nc-4",
+      "status": "promoted",
+      "phase": "complete",
+      "runtime": "grok-cursor",
+      "depends_on": [],
+      "task_branch": "agent-collab/gloam/task/NC-010",
+      "timestamps": { "promoted": "2026-06-01T23:04:30Z" }
+    },
+    {
+      "task_id": "NC-011",
+      "lane": "night-consequence",
+      "wave_id": "wave-nc-4",
+      "status": "promoted",
+      "phase": "complete",
+      "runtime": "grok-cursor",
+      "depends_on": ["NC-010"],
+      "task_branch": "agent-collab/gloam/task/NC-011",
+      "timestamps": { "promoted": "2026-06-01T23:04:30Z" }
+    },
+    {
+      "task_id": "NC-012",
+      "lane": "night-consequence",
+      "wave_id": "wave-nc-4",
+      "status": "promoted",
+      "phase": "complete",
+      "runtime": "grok-cursor",
+      "depends_on": ["NC-010"],
+      "task_branch": "agent-collab/gloam/task/NC-011",
+      "timestamps": { "promoted": "2026-06-01T23:04:30Z" }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "runtime_id": "grok-cursor",
+  "launch_mode": "native",
+  "result_delivery": "inbox/grok-cursor/raw/",
+  "can_return_schema": true,
+  "worker_invocation": "Task tool (Cursor/Grok subagents) with prompt from adapters/grok-cursor/agents/<template>.md",
+  "worktree_script": "agent_collab/scripts/New-TaskWorktree.ps1",
+  "worktree_root": ".grok/worktrees",
+  "projection_script": "agent_collab/scripts/Project-GrokAdapter.ps1",
+  "projection_targets": [".grok/skills", ".grok/rules"],
+  "timeout_seconds": 3600,
+  "notes": "Grok CLI in Cursor. Orchestrator is the main Grok session using gloam-* skills. Workers are Task subagents; never write state or normalized artifacts—only inbox/raw if explicitly capturing out-of-band output."
+}

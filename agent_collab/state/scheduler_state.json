@@ -1,0 +1,64 @@
+{
+  "mode": "sync",
+  "dag": null,
+  "waves": [
+    {
+      "wave_id": "wave-hg-1",
+      "task_ids": ["HG-001"],
+      "status": "promoted",
+      "candidate_branch": "agent-collab/gloam/candidate/wave-hg-1",
+      "timestamps": { "created": "2026-05-31T17:20:00Z", "promoted": "2026-05-31T17:35:00Z" }
+    },
+    {
+      "wave_id": "wave-nc-1",
+      "task_ids": ["NC-001", "NC-002", "NC-003"],
+      "status": "promoted",
+      "candidate_branch": "agent-collab/gloam/candidate/wave-nc-1",
+      "timestamps": { "created": "2026-06-01T22:30:00Z", "promoted": "2026-06-01T23:00:00Z" }
+    },
+    {
+      "wave_id": "wave-nc-2",
+      "task_ids": ["NC-004", "NC-005", "NC-006"],
+      "status": "promoted",
+      "candidate_branch": null,
+      "timestamps": { "created": "2026-06-01T12:00:00Z", "promoted": "2026-06-01T12:05:00Z" }
+    },
+    {
+      "wave_id": "wave-nc-3",
+      "task_ids": ["NC-007", "NC-008", "NC-009"],
+      "status": "promoted",
+      "candidate_branch": null,
+      "timestamps": { "created": "2026-06-01T22:50:00Z", "promoted": "2026-06-01T22:52:30Z" }
+    },
+    {
+      "wave_id": "wave-vh-1",
+      "task_ids": ["VH-001", "VH-002", "VH-003"],
+      "status": "promoted",
+      "candidate_branch": null,
+      "timestamps": { "created": "2026-06-01T23:00:00Z", "promoted": "2026-06-01T23:02:00Z" }
+    },
+    {
+      "wave_id": "wave-rp-1",
+      "task_ids": ["RP-001", "RP-002"],
+      "status": "promoted",
+      "candidate_branch": null,
+      "timestamps": { "created": "2026-06-01T23:00:00Z", "promoted": "2026-06-01T23:02:00Z" }
+    },
+    {
+      "wave_id": "wave-nc-4",
+      "task_ids": ["NC-010", "NC-011", "NC-012"],
+      "status": "promoted",
+      "candidate_branch": null,
+      "timestamps": { "created": "2026-06-01T23:03:00Z", "promoted": "2026-06-01T23:04:30Z" }
+    }
+  ],
+  "max_parallel": 4,
+  "work_branch": "agent-collab/gloam/work",
+  "in_flight": [],
+  "ready_queue": [],
+  "blocked": [],
+  "completed": ["HG-001", "NC-001", "NC-002", "NC-003", "NC-004", "NC-005", "NC-006", "NC-007", "NC-008", "NC-009", "VH-001", "VH-002", "VH-003", "RP-001", "RP-002", "NC-010", "NC-011", "NC-012"],
+  "last_completed_wave": "wave-nc-4",
+  "active_wave": null,
+  "updated_at": "2026-06-02T00:00:00Z"
+}

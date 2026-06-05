@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "runtime": "local-script",
+  "description": "Configuration for executing bounded local commands/scripts as workers (Researcher or simple Critic modes only). Output is always raw text/stdout; Orchestrator must normalize + validate.",
+  "invocation": {
+    "default_shell": "pwsh",
+    "timeout_seconds": 300,
+    "capture": {
+      "stdout": true,
+      "stderr": true,
+      "exit_code": true,
+      "artifacts": "any files written to a designated temp dir for the request"
+    }
+  },
+  "allowed_command_roots": [
+    "agent_collab/scripts/",
+    "scripts/",
+    "Build/",
+    "Source/"
+  ],
+  "forbidden": [
+    "any command that would mutate source outside a declared (and for this runtime, normally empty) edit scope",
+    "git push/pull/rebase/reset --hard",
+    "rm -rf outside temp dirs"
+  ],
+  "result_delivery": "Write full raw output (stdout+stderr+exit+metadata) as a single .json or .txt file into agent_collab/inbox/local-script/raw/<request_id>.raw.json. Never attempt to parse into worker_summary or write handoffs/state.",
+  "notes": "This runtime intentionally fails the edit_code and final_integration_critic safety floors. It is useful for 'run this test script and give me the log' or 'grep the repo for X and summarize' style bounded jobs."
+}
