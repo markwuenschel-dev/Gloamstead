@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "description": "Optional model or configuration preferences per runtime/role. These are hints only and must not prevent compatible runtime-role assignments.",
+  "defaults": {
+    "claude-code": {
+      "default_model": "inherit",
+      "notes": "Uses the model's native agent/subagent capabilities."
+    },
+    "grok": {
+      "default_model": "grok-4",
+      "notes": "Uses Grok models available in the current session/environment."
+    }
+  },
+  "per_role_overrides": {},
+  "notes": "Model choice is secondary to runtime capability and lease validation."
+}

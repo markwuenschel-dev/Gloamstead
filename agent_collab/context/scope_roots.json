@@ -1,0 +1,39 @@
+{
+  "unreal_project_files": ["Gloamstead.uproject"],
+  "source_roots": ["Source/Gloamstead", "Source/GloamsteadEditor"],
+  "plugin_source_roots": [],
+  "config_roots": ["Config"],
+  "factory_roots": ["specs/data/", "Source/GloamsteadEditor/"],
+  "test_roots": [],
+  "docs_roots": ["docs"],
+  "generated_content_roots": ["Content/Data/"],
+  "vendor_content_roots": [
+    "Content/ThirdPerson",
+    "Content/Characters"
+  ],
+  "collab_roots": ["agent_collab"],
+  "coder_edit_roots": ["Source/Gloamstead", "Source/GloamsteadEditor", "Config", "specs/data"],
+  "coder_generated_output_roots": ["Content/Data/"],
+
+  "documentor_edit_roots": ["docs"],
+  "orchestrator_edit_roots": ["agent_collab", "specs", "Source/GloamsteadEditor", "Gloamstead.uproject"],
+  "readonly_roots": [
+    "Content/ThirdPerson",
+    "Content/Characters"
+  ],
+  "forbidden_roots": [
+    ".git",
+    ".env",
+    ".venv",
+    "node_modules",
+    "dist",
+    "build",
+    "Intermediate",
+    "Saved",
+    "DerivedDataCache",
+    "Binaries",
+    ".claude/worktrees",
+    ".grok/worktrees"
+  ],
+  "notes": "Factory roots added 2026-06-10 for VS-POLISH-FACTORY-DATA-01. coder_edit_roots includes Source/GloamsteadEditor and specs/data. Generated Content/Data/ for Data Asset import commandlet."
+}

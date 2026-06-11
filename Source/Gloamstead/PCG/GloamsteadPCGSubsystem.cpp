@@ -1,5 +1,7 @@
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "PCGComponent.h"
+#include "PCGData.h"
+#include "Metadata/PCGMetadata.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
 
@@ -22,8 +24,28 @@ void UGloamsteadPCGSubsystem::InitializeFromPCGComponent(UPCGComponent* PCGCompo
 {
     if (!PCGComponent) return;
 
-    UPCGData* GeneratedData = PCGComponent->GetGeneratedPCGData();
-    UPCGPointData* SourcePointData = Cast<UPCGPointData>(GeneratedData);
+    const UPCGPointData* SourcePointData = nullptr;
+
+    // Preferred: post-generation output (contains the final points + metadata authored by the PCG graph)
+    const FPCGDataCollection& GeneratedOutput = PCGComponent->GetGeneratedGraphOutput();
+    for (const FPCGTaggedData& Tagged : GeneratedOutput.TaggedData)
+    {
+        if (const UPCGPointData* PD = Cast<const UPCGPointData>(Tagged.Data))
+        {
+            SourcePointData = PD;
+            break;
+        }
+    }
+
+    // Fallback for some generation modes
+    if (!SourcePointData)
+    {
+        if (UPCGData* PCGData = PCGComponent->GetPCGData())
+        {
+            SourcePointData = Cast<UPCGPointData>(PCGData);
+        }
+    }
+
     if (!SourcePointData) return;
 
     MutablePointData = DuplicateObject<UPCGPointData>(SourcePointData, this);
@@ -76,9 +98,9 @@ TArray<FPCGPoint> UGloamsteadPCGSubsystem::GetPointsAlongPath(int32 PathSegmentI
         if (GetIntAttribute(Point, "PathSegmentID", -1) == PathSegmentID)
             Result.Add(Point);
     }
-    Result.Sort([](const FPCGPoint& A, const FPCGPoint& B)
+    Result.Sort([this](const FPCGPoint& A, const FPCGPoint& B)
     {
-        return GetFloatAttributeStatic(A, "PathPosition", 0.0f) < GetFloatAttributeStatic(B, "PathPosition", 0.0f);
+        return GetFloatAttribute(A, "PathPosition", 0.0f) < GetFloatAttribute(B, "PathPosition", 0.0f);
     });
     return Result;
 }
@@ -200,6 +222,8 @@ FNightSanctuarySnapshot UGloamsteadPCGSubsystem::BuildSanctuarySnapshot() const
     Snapshot.LanternPostRestored = GetRestoredCountByRitualType(ERitualType::LanternPost);
     Snapshot.GardenBedRestored = GetRestoredCountByRitualType(ERitualType::GardenBed);
     Snapshot.PathPointRestored = GetRestoredCountByRitualType(ERitualType::PathPoint);
+    Snapshot.MirrorPillarRestored = GetRestoredCountByRitualType(ERitualType::MirrorPillar);
+    Snapshot.BellShrineRestored = GetRestoredCountByRitualType(ERitualType::BellShrine);
     return Snapshot;
 }
 
@@ -379,41 +403,91 @@ FIntVector UGloamsteadPCGSubsystem::WorldToCell(const FVector& Location) const
 
 void UGloamsteadPCGSubsystem::SyncPointToMetadata(int32 PointIndex)
 {
-    if (!CachedPoints.IsValidIndex(PointIndex) || !MutablePointData) return;
+    if (!CachedPoints.IsValidIndex(PointIndex) || !MutablePointData || !MutablePointData->Metadata) return;
 
     const FRitualPointState& State = PointStates[PointIndex];
-    FPCGPoint& Point = CachedPoints[PointIndex];
+    const FPCGPoint& Point = CachedPoints[PointIndex];
+    UPCGMetadata* Meta = MutablePointData->Metadata;
 
-    Point.SetMetadataEntry("bIsRestored", State.bIsRestored);
-    Point.SetMetadataEntry("LightLevel", State.LightLevel);
-    Point.SetMetadataEntry("CorruptionLevel", State.CorruptionLevel);
+    if (FPCGMetadataAttribute<bool>* AttrBool = Meta->GetMutableTypedAttribute<bool>(TEXT("bIsRestored")))
+    {
+        AttrBool->SetValue(Point.MetadataEntry, State.bIsRestored);
+    }
+    if (FPCGMetadataAttribute<float>* AttrFloat = Meta->GetMutableTypedAttribute<float>(TEXT("LightLevel")))
+    {
+        AttrFloat->SetValue(Point.MetadataEntry, State.LightLevel);
+    }
+    if (FPCGMetadataAttribute<float>* AttrCorrupt = Meta->GetMutableTypedAttribute<float>(TEXT("CorruptionLevel")))
+    {
+        AttrCorrupt->SetValue(Point.MetadataEntry, State.CorruptionLevel);
+    }
 
     MutablePointData->SetPoints(CachedPoints);
 }
 
-// ==================== Private Attribute Helpers ====================
+// ==================== Private Attribute Helpers (metadata-backed) ====================
 
 bool UGloamsteadPCGSubsystem::GetBoolAttribute(const FPCGPoint& Point, FName AttributeName, bool DefaultValue) const
 {
-    return Point.GetMetadataEntry<bool>(AttributeName, DefaultValue);
+    if (const UPCGMetadata* Meta = (MutablePointData ? MutablePointData->Metadata : nullptr))
+    {
+        if (const FPCGMetadataAttribute<bool>* Attr = Meta->GetConstTypedAttribute<bool>(AttributeName))
+        {
+            return Attr->GetValueFromItemKey(Point.MetadataEntry);
+        }
+    }
+    return DefaultValue;
 }
 
 float UGloamsteadPCGSubsystem::GetFloatAttribute(const FPCGPoint& Point, FName AttributeName, float DefaultValue) const
 {
-    return Point.GetMetadataEntry<float>(AttributeName, DefaultValue);
+    if (const UPCGMetadata* Meta = (MutablePointData ? MutablePointData->Metadata : nullptr))
+    {
+        if (const FPCGMetadataAttribute<float>* Attr = Meta->GetConstTypedAttribute<float>(AttributeName))
+        {
+            return Attr->GetValueFromItemKey(Point.MetadataEntry);
+        }
+    }
+    return DefaultValue;
 }
 
 int32 UGloamsteadPCGSubsystem::GetIntAttribute(const FPCGPoint& Point, FName AttributeName, int32 DefaultValue) const
 {
-    return Point.GetMetadataEntry<int32>(AttributeName, DefaultValue);
+    if (const UPCGMetadata* Meta = (MutablePointData ? MutablePointData->Metadata : nullptr))
+    {
+        if (const FPCGMetadataAttribute<int32>* Attr = Meta->GetConstTypedAttribute<int32>(AttributeName))
+        {
+            return Attr->GetValueFromItemKey(Point.MetadataEntry);
+        }
+    }
+    return DefaultValue;
+}
+
+FName UGloamsteadPCGSubsystem::GetNameAttribute(const FPCGPoint& Point, FName AttributeName, FName DefaultValue) const
+{
+    if (const UPCGMetadata* Meta = (MutablePointData ? MutablePointData->Metadata : nullptr))
+    {
+        if (const FPCGMetadataAttribute<FName>* Attr = Meta->GetConstTypedAttribute<FName>(AttributeName))
+        {
+            return Attr->GetValueFromItemKey(Point.MetadataEntry);
+        }
+    }
+    return DefaultValue;
+}
+
+FVector UGloamsteadPCGSubsystem::GetVectorAttribute(const FPCGPoint& Point, FName AttributeName, FVector DefaultValue) const
+{
+    if (const UPCGMetadata* Meta = (MutablePointData ? MutablePointData->Metadata : nullptr))
+    {
+        if (const FPCGMetadataAttribute<FVector>* Attr = Meta->GetConstTypedAttribute<FVector>(AttributeName))
+        {
+            return Attr->GetValueFromItemKey(Point.MetadataEntry);
+        }
+    }
+    return DefaultValue;
 }
 
 ERitualType UGloamsteadPCGSubsystem::GetRitualTypeFromPoint(const FPCGPoint& Point) const
 {
     return static_cast<ERitualType>(GetIntAttribute(Point, "RitualType", 0));
-}
-
-float UGloamsteadPCGSubsystem::GetFloatAttributeStatic(const FPCGPoint& Point, FName AttributeName, float DefaultValue)
-{
-    return Point.GetMetadataEntry<float>(AttributeName, DefaultValue);
 }

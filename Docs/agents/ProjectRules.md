@@ -2,6 +2,8 @@
 
 _Always-on constraints for Cursor/LLM agents implementing the current version._
 
+**Collaboration context**: This file covers game/UE5 architecture rules. For the current agent operating model (minimal roster, playbooks, workflow activation, human gates), see the sibling `UE5-Agent-Substrate-Review.md` and `../agent_collab/context/agent_rules.md`.
+
 ## Current Game Identity
 
 Gloamstead is a third-person dark fantasy sanctuary-restoration game.

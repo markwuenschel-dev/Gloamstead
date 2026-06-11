@@ -1,0 +1,45 @@
+{
+  "mode": "sync",
+  "dag": null,
+  "waves": [
+    {
+      "timestamps": {
+        "created": "2026-06-04T19:10:23.2900263-04:00"
+      },
+      "task_ids": [
+        "VS-POLISH-DATA-FU-02",
+        "VS-POLISH-DATA-FU-03",
+        "VS-POLISH-DATA-02",
+        "VS-POLISH-UI-01",
+        "VS-POLISH-JOURNAL-01",
+        "VS-POLISH-VISUALS-01",
+        "VS-POLISH-PERSIST-01",
+        "VS-POLISH-NIGHT-01",
+        "VS-POLISH-COMBAT-01",
+        "VS-POLISH-PLAYTEST-01"
+      ],
+      "candidate_branch": null,
+      "status": "in_progress",
+      "wave_id": "wave-vs-polish-202606"
+    }
+  ],
+  "max_parallel": 4,
+  "work_branch": "agent-collab/gloam/work",
+  "in_flight": [
+    "VS-POLISH-DATA-FU-03",
+    "VS-POLISH-DATA-02",
+    "VS-POLISH-UI-01",
+    "VS-POLISH-JOURNAL-01",
+    "VS-POLISH-VISUALS-01",
+    "VS-POLISH-PERSIST-01",
+    "VS-POLISH-NIGHT-01",
+    "VS-POLISH-COMBAT-01",
+    "VS-POLISH-PLAYTEST-01"
+  ],
+  "ready_queue": [],
+  "blocked": [],
+  "completed": [
+    "VS-POLISH-DATA-FU-01",
+    "VS-POLISH-DATA-FU-02"
+  ]
+}

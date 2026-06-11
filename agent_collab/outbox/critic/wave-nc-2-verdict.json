@@ -1,0 +1,19 @@
+{
+  "request_id": "wave-nc-2-integration",
+  "verdict": "APPROVED",
+  "wave_id": "wave-nc-2",
+  "candidate_branch": "agent-collab/gloam/candidate/wave-nc-2",
+  "summary": "DayNight subsystem correctly hooks dusk PrepareNightConsequences and dawn VeilHeart reflection. Placement payload reads real phase/time. VeilHeart.cpp tracked; dawn clears SatisfiedWarningTags. No hot-path changes to ApplyRestoration or night scoring.",
+  "tasks": [
+    {"task_id": "NC-004", "passed": true},
+    {"task_id": "NC-005", "passed": true},
+    {"task_id": "NC-006", "passed": true}
+  ],
+  "follow_ups": [
+    "Create UNightConsequenceCatalog DA and assign on UNightConsequenceManager",
+    "Editor compile + PIE: place AVeilHeart, call AdvanceToNextPhase through full cycle",
+    "Optional: bind real sky/time-of-day to GetNormalizedTimeOfDay later"
+  ],
+  "reviewed_at": "2026-06-01T12:00:00Z",
+  "reviewer": "grok-orchestrator-integration"
+}

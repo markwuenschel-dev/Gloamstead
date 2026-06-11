@@ -1,0 +1,68 @@
+{
+  "request_id": "plan-wave-nc-4",
+  "wave_id": "wave-nc-4",
+  "lane": "night-consequence",
+  "depends_on_waves": ["wave-nc-3"],
+  "dag": {
+    "tasks": [
+      {
+        "task_id": "NC-010",
+        "goal": "Dev-default night catalog: UNightConsequenceCatalog subclass or C++ factory with 3 MVP rules (Tutorial/Corruption/Omen); NightConsequenceManager loads via SoftObjectPath config or EditDefaultsOnly default asset name documented for editor override.",
+        "depends_on": [],
+        "file_ownership": [
+          "Source/Gloamstead/Data/NightConsequenceTypes.h",
+          "Source/Gloamstead/Systems/NightConsequenceManager.cpp",
+          "Source/Gloamstead/Systems/NightConsequenceManager.h"
+        ],
+        "parallelizable": true,
+        "docs_impact": true,
+        "risk_level": "low",
+        "acceptance_criteria": [
+          "Fresh PIE without manual DA assign still scores non-Invalid types when default asset exists",
+          "Editor can override catalog on manager defaults"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      },
+      {
+        "task_id": "NC-011",
+        "goal": "Omen night stub: on BeginNight(Omen) broadcast FOmenClueReady(FName ClueTag) from catalog row or fixed tag; log environmental hint placeholder.",
+        "depends_on": ["NC-010"],
+        "file_ownership": [
+          "Source/Gloamstead/Systems/NightConsequenceRuntime.h",
+          "Source/Gloamstead/Systems/NightConsequenceRuntime.cpp",
+          "Source/Gloamstead/Data/NightConsequenceTypes.h"
+        ],
+        "parallelizable": false,
+        "docs_impact": true,
+        "risk_level": "low",
+        "acceptance_criteria": [
+          "Omen selection triggers delegate once per night",
+          "VH-1 can subscribe later without API break"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      },
+      {
+        "task_id": "NC-012",
+        "goal": "Tutorial night stub: first BeginNight(Tutorial) sets bTutorialNightActive, applies minimal corruption spread (half NC-007 delta), logs teaching beat id.",
+        "depends_on": ["NC-010"],
+        "file_ownership": [
+          "Source/Gloamstead/Systems/NightConsequenceRuntime.cpp"
+        ],
+        "parallelizable": false,
+        "docs_impact": false,
+        "risk_level": "low",
+        "acceptance_criteria": [
+          "First night with bForceTutorial uses tutorial stub not full corruption",
+          "Second night uses normal type dispatch"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      }
+    ]
+  },
+  "summary": "Designer-ready defaults and differentiated Tutorial/Omen behavior without new enemies.",
+  "risk_notes": [
+    "Content/DA still ideal for tuning; C++ default is dev convenience only",
+    "NC-011/012 extend ExecuteNightStub in promoted NC-009 runtime",
+    "Do not run wave-nc-4 parallel with wave-vh-1 VH-003 (both edit GloamsteadDayNightSubsystem.cpp)"
+  ]
+}

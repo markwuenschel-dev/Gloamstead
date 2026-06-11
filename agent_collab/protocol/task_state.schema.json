@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TaskState",
+  "type": "object",
+  "properties": {
+    "active": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "task_id": { "type": "string" },
+          "task_type": { "type": "string" },
+          "slice_id": { "type": ["string", "null"] },
+          "lane": { "type": "string" },
+          "wave_id": { "type": ["string", "null"] },
+          "status": { "type": "string" },
+          "phase": { "type": "string" },
+          "assigned_to": { "type": ["string", "null"] },
+          "runtime": { "type": ["string", "null"] },
+          "template_id": { "type": ["string", "null"] },
+          "instance_id": { "type": ["string", "null"] },
+          "lease_id": { "type": ["string", "null"] },
+          "depends_on": { "type": "array", "items": { "type": "string" } },
+          "file_ownership": { "type": "array", "items": { "type": "string" } },
+          "generated_output_ownership": { "type": "array", "items": { "type": "string" } },
+          "required_capabilities": { "type": "array", "items": { "type": "string" } },
+          "required_verification_profiles": { "type": "array", "items": { "type": "string" } },
+          "risk_level": { "type": "string" },
+          "turn": { "type": "integer" },
+          "cycle": { "type": "integer" },
+          "max_cycles": { "type": "integer" },
+          "timestamps": { "type": "object" },
+          "handoff_file": { "type": ["string", "null"] },
+          "work_branch": { "type": ["string", "null"] },
+          "task_branch": { "type": ["string", "null"] },
+          "candidate_branch": { "type": ["string", "null"] },
+          "worktree_path": { "type": ["string", "null"] },
+          "base_commit": { "type": ["string", "null"] },
+          "head_commit": { "type": ["string", "null"] },
+          "integration_commit": { "type": ["string", "null"] },
+          "docs_commit": { "type": ["string", "null"] },
+          "docs_impact": { "type": "boolean" },
+          "requires_human_playtest": { "type": "boolean" },
+          "human_playtest_status": { "type": ["string", "null"] },
+          "blocked_reason": { "type": ["string", "null"] },
+          "reopen_reason": { "type": ["string", "null"] }
+        },
+        "required": ["task_id", "status"]
+      }
+    },
+    "history": {
+      "type": "array",
+      "items": { "type": "object" }
+    }
+  },
+  "required": ["active", "history"]
+}

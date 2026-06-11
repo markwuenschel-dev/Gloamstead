@@ -9,10 +9,16 @@
 UENUM(BlueprintType)
 enum class ENightConsequenceType : uint8
 {
-	Invalid    = 0 UMETA(Hidden),
-	Tutorial   = 1,
-	Corruption = 2,
-	Omen       = 3,
+	Invalid            = 0 UMETA(Hidden),
+	Tutorial           = 1,
+	Corruption         = 2,
+	Omen               = 3,
+	Retrieval          = 4,
+	SilencePossession  = 5,
+	Mirror             = 6,
+	Bargain            = 7,
+	Fracture           = 8,
+	TrueSiege          = 9,
 };
 
 /** Sanctuary aggregates used when scoring night rules at dusk */
@@ -38,6 +44,13 @@ struct FNightSanctuarySnapshot
 
 	UPROPERTY(BlueprintReadOnly, Category = "Night")
 	int32 PathPointRestored = 0;
+
+	/** New ritual types supported for FavoredRitualTypes in catalog rules (post DATA-01 + FU-01) */
+	UPROPERTY(BlueprintReadOnly, Category = "Night")
+	int32 MirrorPillarRestored = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Night")
+	int32 BellShrineRestored = 0;
 };
 
 /** Designer-tunable rule row for catalog scoring */

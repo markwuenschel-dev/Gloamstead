@@ -48,4 +48,16 @@ Write-Host "`nCollab Branches:"
 git branch --list '*gloam*' 2>$null | % { "  $_" }
 
 Write-Host "Worktrees: $((git worktree list 2>$null).Count)"
+
+$rstate = J "$root/state/run_state.json"
+if ($rstate) {
+    Write-Host "RunState: $($rstate.run_id) ticks=$($rstate.ticks) tasks=$($rstate.tasks_completed) status=$($rstate.status)"
+}
+
+$apol = J "$root/../context/autonomy_policy.json"  # context relative
+if (-not $apol) { $apol = J "$root/context/autonomy_policy.json" }
+if ($apol) {
+    Write-Host "Autonomy: level=$($apol.autonomy_level) max_tasks=$($apol.cumulative.max_tasks_per_run)"
+}
+
 Write-Host "=== End ===" -ForegroundColor Cyan

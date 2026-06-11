@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CriticVerdict",
+  "type": "object",
+  "properties": {
+    "task_id": { "type": "string" },
+    "wave_id": { "type": ["string", "null"] },
+    "verdict": { "type": "string", "enum": ["APPROVED", "REJECTED", "BLOCKED"] },
+    "evidence": { "type": "array", "items": { "type": "string" } },
+    "scope_violations": { "type": "array", "items": { "type": "string" } },
+    "generated_output_violations": { "type": "array", "items": { "type": "string" } },
+    "vendor_changes_detected": { "type": "boolean" },
+    "missing_verification_profiles": { "type": "array", "items": { "type": "string" } },
+    "failed_verification": { "type": "array", "items": { "type": "string" } },
+    "human_playtest_pending": { "type": "boolean" },
+    "notes": { "type": ["string", "null"] }
+  },
+  "required": ["task_id", "verdict", "evidence"]
+}

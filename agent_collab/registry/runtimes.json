@@ -1,0 +1,100 @@
+{
+  "schema_version": "1.0",
+  "description": "Runtime-agnostic registry. Logical roles are independent of runtimes. Any enabled runtime with matching capabilities may perform any role (including Orchestrator) after acquiring the exclusive lease. Projections under .claude/, .grok/ etc. are adapters only.",
+  "enabled_runtimes": ["claude-code", "grok"],
+  "preferred_runtimes": {
+    "orchestrator": "claude-code",
+    "architect": "grok",
+    "planner": "grok",
+    "researcher": "grok",
+    "coder": "claude-code",
+    "critic": "claude-code",
+    "documentor": "grok"
+  },
+  "runtimes": {
+    "claude-code": {
+      "enabled": true,
+      "adapter": "agent_collab/adapters/claude-code",
+      "display_name": "Claude Code",
+      "supported_roles": ["orchestrator", "architect", "planner", "researcher", "coder", "critic", "documentor"],
+      "capabilities": [
+        "repository-read",
+        "durable-state-write",
+        "structured-output",
+        "runtime-invocation",
+        "git-worktree-management",
+        "git-candidate-integration",
+        "lease-management",
+        "policy-enforcement",
+        "state-reconciliation",
+        "text-file-editing",
+        "ue5-cpp",
+        "ue5-config",
+        "ue5-editor-automation",
+        "ue5-pcg-integration",
+        "asset-pack-analysis",
+        "generated-content-production",
+        "map-load-validation",
+        "automation-testing",
+        "package-smoke-testing",
+        "documentation",
+        "human-playtest-recording"
+      ],
+      "supports_structured_output": true,
+      "supports_parallel_invocations": true,
+      "supports_headless_invocation": false,
+      "may_act_as_orchestrator": true,
+      "limitations": [
+        "Requires Claude Code CLI or compatible environment.",
+        "Worktrees under .claude/worktrees/.",
+        "Hooks for edit scope and bash policy are native to the projection."
+      ],
+      "invocation": {
+        "method": "claude --agent <slug>-<role> or /<slug>-resume inside session",
+        "notes": "Uses native subagent (Task tool) for workers."
+      }
+    },
+    "grok": {
+      "enabled": true,
+      "adapter": "agent_collab/adapters/grok",
+      "display_name": "Grok (xAI / Cursor / Build)",
+      "supported_roles": ["orchestrator", "architect", "planner", "researcher", "coder", "critic", "documentor"],
+      "capabilities": [
+        "repository-read",
+        "durable-state-write",
+        "structured-output",
+        "runtime-invocation",
+        "git-worktree-management",
+        "git-candidate-integration",
+        "lease-management",
+        "policy-enforcement",
+        "state-reconciliation",
+        "text-file-editing",
+        "ue5-cpp",
+        "ue5-config",
+        "ue5-editor-automation",
+        "ue5-pcg-integration",
+        "asset-pack-analysis",
+        "generated-content-production",
+        "map-load-validation",
+        "automation-testing",
+        "package-smoke-testing",
+        "documentation",
+        "human-playtest-recording"
+      ],
+      "supports_structured_output": true,
+      "supports_parallel_invocations": true,
+      "supports_headless_invocation": true,
+      "may_act_as_orchestrator": true,
+      "limitations": [
+        "Worktrees under .grok/worktrees/ when using Cursor/Build projections.",
+        "Some capabilities (e.g. direct UE Editor automation) may require local command execution via the adapter."
+      ],
+      "invocation": {
+        "method": "Native in this Grok session, /gloam-resume skill, or Cursor rules",
+        "notes": "Can act as Orchestrator in this environment. Uses Task tool / subagents for workers when supported."
+      }
+    }
+  },
+  "notes": "Preferences in preferred_runtimes are soft defaults only. The active Orchestrator lease determines authority. Any enabled runtime with the required capabilities for a role (per roles.json and adapter_matrix) may be selected. Disabled runtimes can be enabled later by updating this file and adding their adapter."
+}

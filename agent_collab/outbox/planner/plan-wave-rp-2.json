@@ -1,0 +1,47 @@
+{
+  "request_id": "plan-wave-rp-2",
+  "wave_id": "wave-rp-2",
+  "lane": "ritual-placement",
+  "depends_on_waves": ["wave-rp-1"],
+  "dag": {
+    "tasks": [
+      {
+        "task_id": "RP-003",
+        "goal": "Alter-restoration API on URitualPlacementComponent: CanAlterRestoration(PointIndex), RequestAlterRestoration(PointIndex, EAlterMode) with validation stub (log + BP event); no PCG revert yet.",
+        "depends_on": [],
+        "file_ownership": [
+          "Source/Gloamstead/Components/RitualPlacementComponent.h",
+          "Source/Gloamstead/Components/RitualPlacementComponent.cpp",
+          "Source/Gloamstead/Data/RitualTypes.h"
+        ],
+        "parallelizable": false,
+        "docs_impact": true,
+        "risk_level": "low",
+        "acceptance_criteria": [
+          "Only restored points return true for CanAlterRestoration",
+          "RequestAlterRestoration logs mode and does not corrupt PCG state in this wave"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      },
+      {
+        "task_id": "RP-004",
+        "goal": "URitualDefinition RestoredActorClass optional; RitualPlacementComponent spawns actor at point transform on confirm when class set.",
+        "depends_on": ["RP-003"],
+        "file_ownership": [
+          "Source/Gloamstead/Data/RitualDefinition.h",
+          "Source/Gloamstead/Components/RitualPlacementComponent.cpp"
+        ],
+        "parallelizable": false,
+        "docs_impact": true,
+        "risk_level": "medium",
+        "acceptance_criteria": [
+          "Spawn uses point transform from PCG",
+          "OnRestoredActorSpawned still fires with spawned actor",
+          "Null class preserves current behavior"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      }
+    ]
+  },
+  "summary": "Alter/undo contract + optional C++ restored actor spawn from data assets."
+}

@@ -1,0 +1,25 @@
+{
+  "autonomy_level": 2,
+  "max_tasks_per_run": 5,
+  "max_parallel": 4,
+  "max_cycles_per_task": 3,
+  "max_runtime_minutes": 90,
+  "allow_local_commits": true,
+  "allow_remote_push": false,
+  "allow_pr_creation": false,
+  "allow_dependency_installs": "ask",
+  "allow_plugin_installs": "ask",
+  "allow_engine_upgrades": "ask",
+  "allow_asset_acquisition": "ask",
+  "allow_license_acceptance": "ask",
+  "allow_schema_migrations": "ask",
+  "allow_auth_security_changes": "ask",
+  "allow_deletes": "ask",
+  "allow_vendor_content_changes": false,
+  "allow_generated_binary_outputs": "explicit_handoff_only",
+  "allowed_goal_sources": [
+    "human_prompt",
+    "agent_collab/backlog/approved/"
+  ],
+  "notes": "Bounded autonomy for multi-runtime UE5 factory. The active Orchestrator (any compatible runtime holding the lease) may proceed on low/medium risk approved work with clear ownership (text and generated output) provided verification profiles can be satisfied and no human gate is triggered. Must stop for high risk, ambiguous ownership, human-gated actions (acquisition, licenses, plugins, engine changes, vendor mods, destructive work), unavailable required runtime/command, repeated verification failures, or pending human playtest."
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WorkerRequest",
+  "type": "object",
+  "properties": {
+    "request_id": { "type": "string" },
+    "task_id": { "type": "string" },
+    "role": { "type": "string" },
+    "runtime": { "type": "string" },
+    "template_id": { "type": "string" },
+    "instance_id": { "type": "string" },
+    "handoff_file": { "type": "string" },
+    "input_artifacts": { "type": "array", "items": { "type": "string" } },
+    "required_capabilities": { "type": "array", "items": { "type": "string" } },
+    "forbidden_actions": { "type": "array", "items": { "type": "string" } },
+    "allowed_roots": { "type": "array", "items": { "type": "string" } },
+    "file_ownership": { "type": "array", "items": { "type": "string" } },
+    "output_schema": { "type": "string" },
+    "lease_id": { "type": ["string", "null"] }
+  },
+  "required": ["request_id", "task_id", "role", "runtime", "template_id", "instance_id", "handoff_file"]
+}

@@ -1,0 +1,18 @@
+{
+  "request_id": "wave-vh-1-integration",
+  "verdict": "APPROVED",
+  "wave_id": "wave-vh-1",
+  "candidate_branch": "agent-collab/gloam/candidate/wave-vh-1-rp-1",
+  "summary": "Warning catalog types, catalog-driven tag satisfaction, dusk EmitWarningForNight after PrepareNightConsequences. Graceful when catalog missing.",
+  "tasks": [
+    {"task_id": "VH-001", "passed": true},
+    {"task_id": "VH-002", "passed": true},
+    {"task_id": "VH-003", "passed": true}
+  ],
+  "follow_ups": [
+    "Create UVeilHeartWarningCatalog DA with rows per MVP night type",
+    "BP implement OnWarningEmitted for UI/audio"
+  ],
+  "reviewed_at": "2026-06-01T23:01:00Z",
+  "reviewer": "grok-orchestrator-integration"
+}

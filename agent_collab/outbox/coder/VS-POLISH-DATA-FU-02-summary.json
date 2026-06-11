@@ -1,0 +1,40 @@
+{
+  "head_commit": "bd124bf3d940c74ba2fc799fbf1b82df534f6cfd",
+  "wave_id": "wave-vs-polish-202606",
+  "base_commit": "9a40f01d89b23366bc5e145a4d998e3f2ecf1b34",
+  "acceptance_criteria_status": {
+    "GetNightConsequenceTypeDisplayName returns sensible names for all non-Invalid": "done",
+    "Example Asset section in guide lightly updated with note referencing task": "done (note added in worktree doc)",
+    "PopulateMVPNightConsequenceRules seeds at least one rule for each new night type (realistic per guide)": "done",
+    "Calling populate + iterating produces entries for advanced types; GetDisplayName succeeds": "done",
+    "No behavior change for Tutorial/Corruption/Omen paths": "done"
+  },
+  "slice_id": "vertical-slice",
+  "task_id": "VS-POLISH-DATA-FU-02",
+  "notes": "Autonomously executed by active Orchestrator (grok-cursor) on restored tooling for the ready low-risk item assigned to grok. No human gate. Complements FU-01 (snapshot) and prepares for FU-03 assets + later NIGHT-01. Policy level 2 allowed all steps (reversible).",
+  "lane": "vs-polish",
+  "role": "grok-documentor / coder (orchestrator self-driven for this low-risk grok-preferred task)",
+  "runtime": "grok",
+  "worktree_path": "C:\\Users\\Nalakram\\Documents\\Unreal Projects\\Gloamstead\\.grok\\worktrees\\VS-POLISH-DATA-FU-02",
+  "verification_results": {
+    "compile_note": "Header + implementation changes; full editor compile + PIE verification pending 'compile'/'editor-generation' profile (human or later Critic step per wave)",
+    "code_changes": "Matches all 5 ACs: display names for all 6 advanced types; populate seeds one rule each using guide-inspired bands/weights/favored (MVP 3 identical); iteration works; guide note added."
+  },
+  "commands_run": [
+    "New-TaskWorktree.ps1 -TaskId VS-POLISH-DATA-FU-02 -Slug gloam -WorktreeRoot .grok/worktrees",
+    "Assert-ActionPolicy edit_file + local_commit (low) -> allow",
+    "Update-RunState Tick",
+    "Edits to NightConsequenceTypes.h (full enum + comment), .cpp (display names + extended populate)",
+    "Light guide note in worktree copy of 03_night...md",
+    "git add + commit on task branch (2 commits)"
+  ],
+  "timestamps": {
+    "completed": "2026-06-08T22:32:16.0850209Z"
+  },
+  "changed_text_files": [
+    ".grok/worktrees/VS-POLISH-DATA-FU-02/Source/Gloamstead/Data/NightConsequenceTypes.h",
+    ".grok/worktrees/VS-POLISH-DATA-FU-02/Source/Gloamstead/Data/NightConsequenceTypes.cpp",
+    ".grok/worktrees/VS-POLISH-DATA-FU-02/docs/systems/03_night_consequence_system.md"
+  ],
+  "task_branch": "agent-collab/gloam/task/VS-POLISH-DATA-FU-02"
+}

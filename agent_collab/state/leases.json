@@ -1,0 +1,17 @@
+{
+  "leases": [
+    {
+      "lease_id": "ea4a57f2-e05c-42b6-8110-1280a46de7ce",
+      "role": "orchestrator",
+      "runtime": "grok",
+      "agent_id": "DESKTOP-4V5URM8",
+      "session_id": "9fba6374-db4a-4fa8-99f6-35b445842d82",
+      "host_id": "DESKTOP-4V5URM8",
+      "process_id": 49812,
+      "acquired_at": "2026-06-08T22:25:05.5511922Z",
+      "heartbeat_at": "2026-06-08T22:32:39.8436427Z",
+      "expires_at": "2026-06-08T22:52:39.8462227Z",
+      "notes": "Acquired via Acquire-OrchestratorLease.ps1"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "waves": [
+    {
+      "wave_id": "wave-vh-journal-2",
+      "task_ids": ["VH-JOURNAL-001", "VH-JOURNAL-002"],
+      "status": "planned",
+      "candidate_branch": null,
+      "timestamps": { "created": "2026-06-03T00:08:00Z" }
+    },
+    {
+      "wave_id": "wave-persist-1",
+      "task_ids": ["PERSIST-001", "PERSIST-002", "PERSIST-003"],
+      "status": "planned",
+      "candidate_branch": null,
+      "timestamps": { "created": "2026-06-03T00:08:00Z" }
+    }
+  ],
+  "total_tasks": 5,
+  "generated": "2026-06-03T00:08:00Z"
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AuditEvent",
+  "type": "object",
+  "properties": {
+    "event_id": { "type": "string" },
+    "timestamp": { "type": "string" },
+    "actor_runtime": { "type": "string" },
+    "actor_role": { "type": "string" },
+    "lease_id": { "type": ["string", "null"] },
+    "event_type": { "type": "string" },
+    "task_id": { "type": ["string", "null"] },
+    "details": { "type": "object" },
+    "handoff_id": { "type": ["string", "null"] }
+  },
+  "required": ["event_id", "timestamp", "actor_runtime", "event_type"]
+}

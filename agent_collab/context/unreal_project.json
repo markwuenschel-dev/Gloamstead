@@ -1,0 +1,42 @@
+{
+  "uproject_files": ["Gloamstead.uproject"],
+  "engine_association": "5.7",
+  "project_type": "mixed",
+  "project_modules": ["Gloamstead"],
+  "project_plugins": [],
+  "enabled_engine_plugins": [
+    "PCG",
+    "PCGExternalDataInterop",
+    "PCGFastGeoInterop",
+    "PCGGeometryScriptInterop",
+    "PCGInstancedActorsInterop",
+    "PCGNaniteAssembliesInterop",
+    "PCGNiagaraInterop",
+    "PCGPythonInterop",
+    "PCGWaterInterop",
+    "ProceduralVegetationEditor",
+    "StateTree",
+    "GameplayStateTree",
+    "DaySequence",
+    "ModelingToolsEditorMode",
+    "StaticMeshEditorModeling"
+  ],
+  "pcg_detected": true,
+  "editor_automation_detected": false,
+  "automation_tests_detected": false,
+  "functional_tests_detected": false,
+  "packaging_scripts_detected": false,
+  "git_lfs_detected": true,
+  "notes": [
+    "Mixed C++ Runtime module (Gloamstead) + heavy Blueprint and Content usage.",
+    "Strong PCG foundation: dedicated Source/Gloamstead/PCG + numerous PCG engine plugins enabled in .uproject.",
+    "No project-owned Plugins/ directory; all plugins are engine-level enabled via .uproject.",
+    "No discovered project-owned editor automation, commandlets, or Python scripts for generation/validation in non-generated paths.",
+    "No dedicated Tests/ or automation test code discovered outside generated directories.",
+    "Git LFS configured for Content/** and standard Unreal binary extensions (.uasset, .umap, .uexp, .ubulk, *.uplugin).",
+    "Standard project Config/Default*.ini present (editable config roots).",
+    "Content/ has clear vendor/sample roots (ThirdPerson, Characters/Mannequins) alongside project roots (Gloamstead/, PCG/, Blueprints/, Data/, Variant_*, etc.).",
+    "Build process (from README): open .uproject in UE 5.7+, generate VS project files, build Development Editor for Gloamstead module. Verification is manual PIE with specific subsystem calls.",
+    "No command-line build, cook, package, or automation wrappers discovered in the repository outside agent_collab tooling."
+  ]
+}

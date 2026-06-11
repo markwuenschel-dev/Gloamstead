@@ -18,7 +18,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnGloamsteadDayPhaseChanged, EGloa
 /**
  * Thin phase authority for the vertical slice: drives dusk night prep and dawn reflection.
  */
-UCLASS()
+UCLASS(BlueprintType)
 class GLOAMSTEAD_API UGloamsteadDayNightSubsystem : public UWorldSubsystem
 {
 	GENERATED_BODY()

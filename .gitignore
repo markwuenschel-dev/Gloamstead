@@ -21,35 +21,18 @@ Build/
 *.tmp
 *.log
 
-# Agent collaboration (local tooling; not part of the Unreal game deliverable)
-.claude/
-.grok/
-AGENTS.md
-agent_collab/adapters/
-agent_collab/context/
-agent_collab/handoffs/
-agent_collab/inbox/
-agent_collab/logs/
-agent_collab/outbox/
-agent_collab/protocol/
-agent_collab/registry/
-agent_collab/state/
-agent_collab/scripts/Acquire-OrchestratorLock.ps1
-agent_collab/scripts/Assert-BashPolicy.ps1
-agent_collab/scripts/Assert-EditScope.ps1
-agent_collab/scripts/Build-WavePlan.ps1
-agent_collab/scripts/New-TaskWorktree.ps1
-agent_collab/scripts/Normalize-RuntimeResult.ps1
-agent_collab/scripts/Project-ClaudeAdapter.ps1
-agent_collab/scripts/Project-GrokAdapter.ps1
-agent_collab/scripts/Refresh-OrchestratorLock.ps1
-agent_collab/scripts/Release-OrchestratorLock.ps1
-agent_collab/scripts/Remove-TaskWorktree.ps1
-agent_collab/scripts/Select-Runtime.ps1
-agent_collab/scripts/Test-AgentCollabScaffold.ps1
-agent_collab/scripts/Validate-JsonSchema.ps1
-agent_collab/scripts/Write-InboxRaw.ps1
-docs/CollaborationSystem-Phase2-Design.md
+# Agent collaboration worktrees (local IDE/runtime sandboxes only). Projections under .claude/, .grok/ etc. are adapters only; the source of truth is agent_collab/registry/.
+.claude/worktrees/
+.grok/worktrees/
+.cursor/worktrees/
+
+# Agent collaboration volatile runtime state only (core protocol + scripts + context + registry + durable handoffs/outbox/state are committed and shared)
+agent_collab/state/orchestrator.lock
+agent_collab/logs/orchestrator.log
+
+# Note: AGENTS.md and docs/CollaborationSystem-Phase2-Design.md are now tracked as they document the system.
+# All agent_collab/ except the volatile paths above must be committed for the collab protocol to be usable after clone.
+# (See agent_collab/ source of truth, test in Test-AgentCollabScaffold.ps1)
 
 # Do NOT ignore these:
 # Config/

@@ -124,7 +124,7 @@ void URitualPlacementComponent::UpdateTargetPoint()
 
         if (CurrentTargetPointIndex != -1 && CachedSubsystem->GetPointByIndex(CurrentTargetPointIndex, Point))
         {
-            ResolvedType = static_cast<ERitualType>(Point.GetMetadataEntry<int32>("RitualType", 0));
+            ResolvedType = static_cast<ERitualType>(CachedSubsystem->GetIntAttribute(Point, "RitualType", 0));
         }
 
         const bool bValid = IsCurrentPlacementValid();
@@ -139,7 +139,7 @@ int32 URitualPlacementComponent::ResolveTargetForPlacement(int32 RawPointIndex)
     FPCGPoint Point;
     if (!CachedSubsystem->GetPointByIndex(RawPointIndex, Point)) return -1;
 
-    const int32 TypeInt = Point.GetMetadataEntry<int32>("RitualType", -1);
+    const int32 TypeInt = CachedSubsystem->GetIntAttribute(Point, "RitualType", -1);
     const ERitualType Type = static_cast<ERitualType>(TypeInt);
 
     if (Type != ERitualType::PathPoint) return RawPointIndex;
@@ -164,7 +164,7 @@ bool URitualPlacementComponent::IsPointValidForPlacement(int32 PointIndex) const
     FPCGPoint Point;
     if (!CachedSubsystem->GetPointByIndex(PointIndex, Point)) return false;
 
-    const float Radius = Point.GetMetadataEntry<float>("RestorationRadius", 800.0f);
+    const float Radius = CachedSubsystem->GetFloatAttribute(Point, "RestorationRadius", 800.0f);
     const float Distance = FVector::Dist(GetOwner()->GetActorLocation(), Point.Transform.GetLocation());
     return Distance <= Radius * 1.25f;
 }
@@ -178,21 +178,18 @@ void URitualPlacementComponent::BuildRestorationPayload(int32 PointIndex, AActor
 {
     OutPayload = FRestorationEventPayload();
 
-    if (!CachedSubsystem || !CachedSubsystem->GetPointByIndex(PointIndex, OutPayload)) // reuse GetPointByIndex to validate
-    {
-        return;
-    }
+    if (!CachedSubsystem) return;
 
     FPCGPoint Point;
     if (!CachedSubsystem->GetPointByIndex(PointIndex, Point)) return;
 
     OutPayload.PointIndex = PointIndex;
-    OutPayload.RitualType = static_cast<ERitualType>(Point.GetMetadataEntry<int32>("RitualType", 0));
+    OutPayload.RitualType = static_cast<ERitualType>(CachedSubsystem->GetIntAttribute(Point, "RitualType", 0));
     OutPayload.WorldLocation = Point.Transform.GetLocation();
-    OutPayload.PathSegmentID = Point.GetMetadataEntry<int32>("PathSegmentID", -1);
-    OutPayload.PathPosition = Point.GetMetadataEntry<float>("PathPosition", 0.0f);
+    OutPayload.PathSegmentID = CachedSubsystem->GetIntAttribute(Point, "PathSegmentID", -1);
+    OutPayload.PathPosition = CachedSubsystem->GetFloatAttribute(Point, "PathPosition", 0.0f);
     OutPayload.RestoredActor = SpawnedRestoredActor;
-    OutPayload.WarningTagSatisfied = Point.GetMetadataEntry<FName>("RecommendedForWarning", NAME_None);
+    OutPayload.WarningTagSatisfied = CachedSubsystem->GetNameAttribute(Point, "RecommendedForWarning", NAME_None);
 
     OutPayload.LightDelta = GetDefaultLightContribution(OutPayload.RitualType);
     OutPayload.CorruptionCleared = GetDefaultCorruptionClearance(OutPayload.RitualType);
@@ -252,9 +249,9 @@ FRitualPointInfo URitualPlacementComponent::GetCurrentTargetPointInfo() const
     if (!CachedSubsystem->GetPointByIndex(CurrentTargetPointIndex, Point)) return Info;
 
     Info.Location = Point.Transform.GetLocation();
-    Info.RitualType = static_cast<ERitualType>(Point.GetMetadataEntry<int32>("RitualType", 0));
+    Info.RitualType = static_cast<ERitualType>(CachedSubsystem->GetIntAttribute(Point, "RitualType", 0));
 
-    const FVector Normal = Point.GetMetadataEntry<FVector>("TerrainNormal", FVector::UpVector);
+    const FVector Normal = CachedSubsystem->GetVectorAttribute(Point, "TerrainNormal", FVector::UpVector);
     Info.Rotation = CalculateAlignedRotation(Info.Location, Normal);
     Info.Location += Normal * VerticalOffset;
 
@@ -269,6 +266,11 @@ bool URitualPlacementComponent::GetCurrentTargetTransform(FVector& OutLocation, 
     OutLocation = Info.Location;
     OutRotation = Info.Rotation;
     return true;
+}
+
+ERitualType URitualPlacementComponent::GetCurrentTargetRitualType() const
+{
+    return GetCurrentTargetPointInfo().RitualType;
 }
 
 const URitualDefinition* URitualPlacementComponent::GetRitualDefinitionForType(ERitualType Type) const

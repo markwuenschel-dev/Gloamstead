@@ -1,0 +1,122 @@
+{
+  "request_id": "plan-vh-journal-persist-202606",
+  "dag": {
+    "tasks": [
+      {
+        "task_id": "VH-JOURNAL-001",
+        "goal": "Define minimal FJournalEntry USTRUCT (SatisfiedTag, ReflectionText, CycleNumber, GameTimeAtEntry) in Data/ as the core data contract for the journal/memory system (data-driven generation logic to be added in consuming task).",
+        "depends_on": [],
+        "file_ownership": [
+          "Source/Gloamstead/Data/JournalTypes.h",
+          "Source/Gloamstead/Data/JournalTypes.cpp"
+        ],
+        "parallelizable": true,
+        "docs_impact": false,
+        "risk_level": "low",
+        "acceptance_criteria": [
+          "FJournalEntry USTRUCT exists with GENERATED_BODY and UPROPERTY(BlueprintReadOnly) fields: FName SatisfiedTag, FText ReflectionText, int32 CycleNumber, float GameTimeAtEntry",
+          "Compiles cleanly as a standalone data type (modeled after VeilHeartWarningTypes.h); no other source files modified"
+        ],
+        "required_capabilities": [
+          "edit_code"
+        ]
+      },
+      {
+        "task_id": "PERSIST-001",
+        "goal": "Create UGloamsteadSaveGame : USaveGame (in new Save/ folder) with serializable properties: TSet<int32> RestoredPCGPoints, TSet<FName> SatisfiedVeilHeartTags, int32 SavedNightCount, TArray<FJournalEntry> SavedJournalEntries (to lightly tie journal persistence).",
+        "depends_on": [],
+        "file_ownership": [
+          "Source/Gloamstead/Save/GloamsteadSaveGame.h",
+          "Source/Gloamstead/Save/GloamsteadSaveGame.cpp"
+        ],
+        "parallelizable": true,
+        "docs_impact": false,
+        "risk_level": "low",
+        "acceptance_criteria": [
+          "UGloamsteadSaveGame derives from USaveGame, declares the four UPROPERTY() fields under public:, includes JournalTypes.h and SaveGame.h, has trivial ctor",
+          "Class is instantiable via UGameplayStatics::CreateSaveGameObject and serializable via SaveGameToSlot/LoadGameFromSlot without errors"
+        ],
+        "required_capabilities": [
+          "edit_code"
+        ]
+      },
+      {
+        "task_id": "VH-JOURNAL-002",
+        "goal": "Expand AVeilHeart (builds on existing ProcessDawnReflection, SatisfiedWarningTags, Evaluate, and DayNight dawn integration): add private TArray<FJournalEntry> JournalEntries; implement tag-to-contextual-text generation (use example garden rot text + generic fallback + Cycle from DayNightSubsystem) + store + clear set; declare BPImplementableEvent OnJournalEntryAdded; add GetSatisfiedWarningTags, GetJournalEntries, Set* helpers, SaveToSaveGame/LoadFromSaveGame; perform load attempt + bind in BeginPlay; add necessary includes.",
+        "depends_on": [
+          "VH-JOURNAL-001",
+          "PERSIST-001"
+        ],
+        "file_ownership": [
+          "Source/Gloamstead/Systems/VeilHeart.h",
+          "Source/Gloamstead/Systems/VeilHeart.cpp"
+        ],
+        "parallelizable": false,
+        "docs_impact": false,
+        "risk_level": "low",
+        "acceptance_criteria": [
+          "After matching restoration (EvaluateRestorationAgainstWarnings with tag) + full cycle to dawn via DayNight AdvanceToNextPhase, ProcessDawnReflection logs + creates >=1 FJournalEntry with tag-specific ReflectionText (garden example path exercised) and CycleNumber; SatisfiedWarningTags cleared",
+          "OnJournalEntryAdded fires (testable via BP or log in child); GetJournalEntries() returns accumulated in-memory entries across cycles; SaveToSaveGame/LoadFromSaveGame roundtrip tags + journal to UGloamsteadSaveGame",
+          "Existing EmitWarningForNight, Evaluate, GetSatisfiedWarningTagCount, and listener subscription behavior unchanged; no crash if no DayNightSubsystem"
+        ],
+        "required_capabilities": [
+          "edit_code"
+        ]
+      },
+      {
+        "task_id": "PERSIST-002",
+        "goal": "Add SaveToSaveGame/LoadFromSaveGame to UGloamsteadDayNightSubsystem (for SavedNightCount); override Initialize to attempt LoadGameFromSlot + apply; insert full-state save orchestration (CreateSaveGameObject + populate self via SaveTo + direct PCG GetRestored + Veil getters + SaveGameToSlot) at end of HandleEnterDawn (strategic point after reflection); add includes and UFUNCTIONs.",
+        "depends_on": [
+          "PERSIST-001"
+        ],
+        "file_ownership": [
+          "Source/Gloamstead/Systems/GloamsteadDayNightSubsystem.h",
+          "Source/Gloamstead/Systems/GloamsteadDayNightSubsystem.cpp"
+        ],
+        "parallelizable": false,
+        "docs_impact": false,
+        "risk_level": "low",
+        "acceptance_criteria": [
+          "DayNight night count survives SaveToSaveGame/LoadFromSaveGame roundtrip",
+          "HandleEnterDawn (triggered by phase advance) performs a SaveGameToSlot that includes current restored points, tags, night count, and any journal entries",
+          "Subsystem Initialize performs load-from-slot and applies night count with no crash if no save exists; existing phase, AdvanceToNextPhase, and GetNightCount behavior preserved"
+        ],
+        "required_capabilities": [
+          "edit_code"
+        ]
+      },
+      {
+        "task_id": "PERSIST-003",
+        "goal": "Add SaveRestoredState/LoadRestoredState (per objective) to UGloamsteadPCGSubsystem (populate/apply the TSet via GetRestoredPointIndices + ReapplyRestoredState); insert save orchestration after successful ApplyRestoration (strategic point); insert full load (slot + self LoadRestoredState + DN LoadFrom + Veil LoadFrom via GetAllActors) at end of InitializeFromPCGComponent (post Empty + state build); add SaveGameState/LoadGameState static helpers + BeginPlay load wiring to AGloamsteadGameMode for level-script/explicit use; add includes.",
+        "depends_on": [
+          "PERSIST-001",
+          "PERSIST-002",
+          "VH-JOURNAL-002"
+        ],
+        "file_ownership": [
+          "Source/Gloamstead/PCG/GloamsteadPCGSubsystem.h",
+          "Source/Gloamstead/PCG/GloamsteadPCGSubsystem.cpp",
+          "Source/Gloamstead/GloamsteadGameMode.h",
+          "Source/Gloamstead/GloamsteadGameMode.cpp"
+        ],
+        "parallelizable": false,
+        "docs_impact": false,
+        "risk_level": "medium",
+        "acceptance_criteria": [
+          "UGloamsteadSaveGame serializes RestoredPCGPoints; after restorations (Apply) + night + dawn (which also saves), restart map/game, LoadGameState (or auto in init) + Reapply restores exact pre-save restored point indices/flags with no data loss or double-apply",
+          "SaveRestoredState/LoadRestoredState implemented and exercised; full state (points + SatisfiedVeilHeartTags + SavedNightCount + SavedJournalEntries) roundtrips via the load block in InitializeFromPCGComponent and GameMode helpers",
+          "GameMode exposes static SaveGameState/LoadGameState (usable from level BP/scripts); existing PCG InitializeFrom, ApplyRestoration, Reapply, and DayNight phase behavior unchanged"
+        ],
+        "required_capabilities": [
+          "edit_code"
+        ]
+      }
+    ]
+  },
+  "summary": "Two waves (5 tasks total): VH-JOURNAL-00x expands VeilHeart dawn reflection with minimal in-memory FJournalEntry generation/storage + BP hooks (builds on existing Process/Evaluate/DayNight path); PERSIST-00x adds UGloamsteadSaveGame + C++ save/load APIs + auto wiring at restoration success + dawn + inits + GameMode helpers for full dynamic ritual + tag + night + journal persistence via standard UE slot.",
+  "risk_notes": [
+    "Load timing: InitializeFromPCGComponent (BP-called) vs. actor BeginPlay vs. DayNight init; duplicated slot create/populate/save code across Apply, dawn, and GameMode (vertical slice acceptable)",
+    "Current baseline VeilHeart auto-satisfaction path (RitualPlacementComponent->OnRestorationComplete binding) is non-functional (no delegate declared/broadcast in placement); journal acceptance relies on existing dawn call + explicit EvaluateRestorationAgainstWarnings in tests or post-confirm BP",
+    "No UE SaveGame or journal existed; new Save/ and Data/ subdirs + includes must not require Build.cs changes (current pattern for PCG/Systems/Data supports this)"
+  ]
+}

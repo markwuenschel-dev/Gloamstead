@@ -1,0 +1,65 @@
+{
+  "request_id": "plan-wave-nc-1",
+  "dag": {
+    "tasks": [
+      {
+        "task_id": "NC-001",
+        "goal": "Add Phase 2 night-consequence data contracts: ENightConsequenceType, FNightConsequenceRule, FNightSanctuarySnapshot, UNightConsequenceCatalog.",
+        "depends_on": [],
+        "file_ownership": [
+          "Source/Gloamstead/Data/NightConsequenceTypes.h",
+          "Source/Gloamstead/Data/NightConsequenceTypes.cpp"
+        ],
+        "parallelizable": true,
+        "docs_impact": false,
+        "risk_level": "low",
+        "acceptance_criteria": [
+          "Types compile with BlueprintType/UENUM consistent with RitualTypes.h style",
+          "ENightConsequenceType includes Tutorial, Corruption, Omen",
+          "UNightConsequenceCatalog is Primary Data Asset with TArray<FNightConsequenceRule>"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      },
+      {
+        "task_id": "NC-002",
+        "goal": "PCG sanctuary aggregate getters for night selection (light/corruption averages, restored counts).",
+        "depends_on": [],
+        "file_ownership": [
+          "Source/Gloamstead/PCG/GloamsteadPCGSubsystem.h",
+          "Source/Gloamstead/PCG/GloamsteadPCGSubsystem.cpp"
+        ],
+        "parallelizable": true,
+        "docs_impact": false,
+        "risk_level": "medium",
+        "acceptance_criteria": [
+          "Read-only getters with safe defaults when uninitialized",
+          "No behavior change to ApplyRestoration hot path"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      },
+      {
+        "task_id": "NC-003",
+        "goal": "MVP data-driven selection in NightConsequenceManager::PrepareNightConsequences.",
+        "depends_on": ["NC-001", "NC-002"],
+        "file_ownership": [
+          "Source/Gloamstead/Systems/NightConsequenceManager.h",
+          "Source/Gloamstead/Systems/NightConsequenceManager.cpp"
+        ],
+        "parallelizable": false,
+        "docs_impact": false,
+        "risk_level": "medium",
+        "acceptance_criteria": [
+          "Selection uses catalog + PCG aggregates",
+          "Blueprint-exposed last selected night type",
+          "Safe early-out when catalog/PCG null"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      }
+    ]
+  },
+  "summary": "Three-task MVP wave for Night Consequence data + PCG reads + manager selection.",
+  "risk_notes": [
+    "NC-001 and NC-002 parallel; NC-003 serial after both",
+    "Content Data Assets created in editor after NC-001"
+  ]
+}

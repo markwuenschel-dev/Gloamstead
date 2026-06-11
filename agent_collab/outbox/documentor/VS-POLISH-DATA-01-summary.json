@@ -1,0 +1,32 @@
+{
+  "task_id": "VS-POLISH-DATA-01",
+  "generated_binary_files": [],
+  "changed_text_files": [
+    "docs/systems/03_night_consequence_system.md",
+    "docs/production/01_asset_and_tech_rules.md",
+    "Source/Gloamstead/Data/RitualTypes.h",
+    "Source/Gloamstead/Data/RitualDefinition.h",
+    "Source/Gloamstead/Data/NightConsequenceTypes.h"
+  ],
+  "verification_run": [
+    "text-only"
+  ],
+  "task_type": "documentation",
+  "notes": "Documentation task complete. See updated night consequence and asset rules docs for full NightConsequenceCatalog, VeilHeartWarningCatalog, RitualDefinition specs (incl new types). Unblocks DATA-02 and rest of wave.",
+  "acceptance_criteria_status": {
+    "Guidelines for designers to author without breaking core loop.": "done",
+    "Full data contract docs with examples matching current C++ structs.": "done",
+    "Text-only reviewable.": "done"
+  },
+  "unresolved_risks": [],
+  "slice_id": "vertical-slice",
+  "runtime": "grok",
+  "asset_pack_ids_used": [],
+  "verification_results": {
+    "text_review": "passed"
+  },
+  "commands_run": [
+    "read handoff and referenced docs",
+    "updated headers and docs with complete data asset specs"
+  ]
+}

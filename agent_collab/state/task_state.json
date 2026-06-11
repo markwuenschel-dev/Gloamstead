@@ -1,0 +1,649 @@
+{
+  "active": {
+    "VS-POLISH-DATA-01": {
+      "task_id": "VS-POLISH-DATA-01",
+      "task_type": "documentation",
+      "slice_id": "vertical-slice",
+      "lane": "vs-polish",
+      "wave_id": "wave-vs-polish-202606",
+      "status": "done",
+      "phase": "done",
+      "assigned_to": "gloam-documentor",
+      "runtime": "grok",
+      "template_id": null,
+      "instance_id": null,
+      "lease_id": null,
+      "depends_on": [],
+      "file_ownership": [
+        "docs/systems/03_night_consequence_system.md",
+        "docs/production/01_asset_and_tech_rules.md",
+        "Source/Gloamstead/Data/"
+      ],
+      "generated_output_ownership": [],
+      "required_capabilities": [
+        "documentation",
+        "asset-pack-analysis"
+      ],
+      "required_verification_profiles": [
+        "text-only"
+      ],
+      "risk_level": "low",
+      "turn": 1,
+      "cycle": 0,
+      "max_cycles": 3,
+      "timestamps": {
+        "created": "2026-06-04T19:10:23Z",
+        "completed": "2026-06-05T07:26:19.8220697-04:00"
+      },
+      "handoff_file": "agent_collab/handoffs/done/HANDOFF-2026-06-04-VS-POLISH-DATA-01.md",
+      "work_branch": null,
+      "task_branch": "agent-collab/gloam/task/VS-POLISH-DATA-01",
+      "candidate_branch": null,
+      "worktree_path": ".grok/worktrees/VS-POLISH-DATA-01",
+      "base_commit": "9a40f01d89b23366bc5e145a4d998e3f2ecf1b34",
+      "head_commit": null,
+      "integration_commit": null,
+      "docs_commit": null,
+      "docs_impact": true,
+      "requires_human_playtest": false,
+      "human_playtest_status": null,
+      "blocked_reason": null,
+      "reopen_reason": null
+    },
+    "VS-POLISH-DATA-FU-01": {
+      "task_id": "VS-POLISH-DATA-FU-01",
+      "task_type": "ue5-cpp",
+      "slice_id": "vertical-slice",
+      "lane": "vs-polish",
+      "wave_id": "wave-vs-polish-202606",
+      "status": "done",
+      "phase": "done",
+      "assigned_to": "grok-coder",
+      "runtime": "grok",
+      "template_id": null,
+      "instance_id": null,
+      "lease_id": null,
+      "depends_on": [
+        "VS-POLISH-DATA-01"
+      ],
+      "file_ownership": [
+        "Source/Gloamstead/Data/NightConsequenceTypes.h",
+        "Source/Gloamstead/Systems/NightConsequenceManager.h",
+        "Source/Gloamstead/Systems/NightConsequenceManager.cpp",
+        "Source/Gloamstead/PCG/GloamsteadPCGSubsystem.h",
+        "Source/Gloamstead/PCG/GloamsteadPCGSubsystem.cpp",
+        "Source/Gloamstead/Components/RitualPlacementComponent.*"
+      ],
+      "generated_output_ownership": [],
+      "required_capabilities": [
+        "ue5-cpp"
+      ],
+      "required_verification_profiles": [
+        "compile",
+        "editor-generation"
+      ],
+      "risk_level": "low",
+      "turn": 1,
+      "cycle": 0,
+      "max_cycles": 3,
+      "timestamps": {
+        "created": "2026-06-05T08:00:00Z",
+        "approved": "2026-06-05T08:10:00Z",
+        "started": "2026-06-05T09:00:00Z",
+        "completed": "2026-06-05T09:30:00Z"
+      },
+      "handoff_file": "agent_collab/handoffs/done/HANDOFF-2026-06-05-VS-POLISH-DATA-FU-01.md",
+      "work_branch": "agent-collab/gloam/work",
+      "task_branch": "agent-collab/gloam/task/VS-POLISH-DATA-FU-01",
+      "candidate_branch": null,
+      "worktree_path": ".grok/worktrees/VS-POLISH-DATA-FU-01",
+      "base_commit": "9a40f01d89b23366bc5e145a4d998e3f2ecf1b34",
+      "head_commit": "4f7f13c",
+      "integration_commit": null,
+      "docs_commit": null,
+      "docs_impact": true,
+      "requires_human_playtest": false,
+      "human_playtest_status": null,
+      "blocked_reason": null,
+      "reopen_reason": null
+    },
+    "VS-POLISH-DATA-FU-02": {
+      "task_id": "VS-POLISH-DATA-FU-02",
+      "task_type": "ue5-cpp",
+      "slice_id": "vertical-slice",
+      "lane": "vs-polish",
+      "wave_id": "wave-vs-polish-202606",
+      "status": "done",
+      "phase": "done",
+      "assigned_to": "gloam-documentor",
+      "runtime": "grok",
+      "template_id": null,
+      "instance_id": null,
+      "lease_id": null,
+      "depends_on": [
+        "VS-POLISH-DATA-01"
+      ],
+      "file_ownership": [
+        "Source/Gloamstead/Data/NightConsequenceTypes.h",
+        "Source/Gloamstead/Data/NightConsequenceTypes.cpp",
+        "docs/systems/03_night_consequence_system.md"
+      ],
+      "generated_output_ownership": [],
+      "required_capabilities": [
+        "ue5-cpp",
+        "documentation"
+      ],
+      "required_verification_profiles": [
+        "compile",
+        "text-only"
+      ],
+      "risk_level": "low",
+      "turn": 1,
+      "cycle": 0,
+      "max_cycles": 3,
+      "timestamps": {
+        "created": "2026-06-05T08:00:00Z",
+        "approved": "2026-06-05T08:10:00Z",
+        "started": "2026-06-08T22:30:00Z",
+        "completed": "2026-06-08T22:40:00Z"
+      },
+      "handoff_file": "agent_collab/handoffs/done/HANDOFF-2026-06-05-VS-POLISH-DATA-FU-02.md",
+      "work_branch": "agent-collab/gloam/work",
+      "task_branch": "agent-collab/gloam/task/VS-POLISH-DATA-FU-02",
+      "candidate_branch": null,
+      "worktree_path": "C:\\Users\\Nalakram\\Documents\\Unreal Projects\\Gloamstead\\.grok\\worktrees\\VS-POLISH-DATA-FU-02",
+      "base_commit": "9a40f01d89b23366bc5e145a4d998e3f2ecf1b34",
+      "head_commit": "bd124bf3d940c74ba2fc799fbf1b82df534f6cfd",
+      "integration_commit": null,
+      "docs_commit": null,
+      "docs_impact": true,
+      "requires_human_playtest": false,
+      "human_playtest_status": null,
+      "blocked_reason": null,
+      "reopen_reason": null
+    },
+    "VS-POLISH-DATA-FU-03": {
+      "task_id": "VS-POLISH-DATA-FU-03",
+      "task_type": "ue5-config",
+      "slice_id": "vertical-slice",
+      "lane": "vs-polish",
+      "wave_id": "wave-vs-polish-202606",
+      "status": "approved",
+      "phase": "approved",
+      "assigned_to": "gloam-coder",
+      "runtime": "claude-code",
+      "template_id": null,
+      "instance_id": null,
+      "lease_id": null,
+      "depends_on": [
+        "VS-POLISH-DATA-01"
+      ],
+      "file_ownership": [
+        "Content/Data/",
+        "docs/systems/03_night_consequence_system.md",
+        "Source/Gloamstead/Data/"
+      ],
+      "generated_output_ownership": [
+        "Content/Data/"
+      ],
+      "required_capabilities": [
+        "ue5-config",
+        "documentation",
+        "generated-content-production"
+      ],
+      "required_verification_profiles": [
+        "editor-generation",
+        "map-load",
+        "text-only"
+      ],
+      "risk_level": "low",
+      "turn": 1,
+      "cycle": 0,
+      "max_cycles": 3,
+      "timestamps": {
+        "created": "2026-06-05T08:00:00Z",
+        "approved": "2026-06-05T08:10:00Z"
+      },
+      "handoff_file": null,
+      "work_branch": null,
+      "task_branch": "agent-collab/gloam/task/VS-POLISH-DATA-FU-03",
+      "candidate_branch": null,
+      "worktree_path": null,
+      "base_commit": null,
+      "head_commit": null,
+      "integration_commit": null,
+      "docs_commit": null,
+      "docs_impact": true,
+      "requires_human_playtest": false,
+      "human_playtest_status": null,
+      "blocked_reason": null,
+      "reopen_reason": null
+    },
+    "VS-POLISH-DATA-02": {
+      "task_id": "VS-POLISH-DATA-02",
+      "task_type": "ue5-config",
+      "slice_id": "vertical-slice",
+      "lane": "vs-polish",
+      "wave_id": "wave-vs-polish-202606",
+      "status": "assigned",
+      "phase": "assigned",
+      "assigned_to": "gloam-coder",
+      "runtime": "claude-code",
+      "template_id": null,
+      "instance_id": null,
+      "lease_id": null,
+      "depends_on": [
+        "VS-POLISH-DATA-01",
+        "VS-POLISH-DATA-FU-03"
+      ],
+      "file_ownership": [
+        "Content/Data/",
+        "Source/Gloamstead/Data/"
+      ],
+      "generated_output_ownership": [
+        "Content/Data/"
+      ],
+      "required_capabilities": [
+        "ue5-config",
+        "generated-content-production"
+      ],
+      "required_verification_profiles": [
+        "editor-generation",
+        "map-load"
+      ],
+      "risk_level": "low",
+      "turn": 2,
+      "cycle": 0,
+      "max_cycles": 3,
+      "timestamps": {
+        "created": "2026-06-04T19:10:23Z"
+      },
+      "handoff_file": "agent_collab/handoffs/claimed/HANDOFF-2026-06-04-VS-POLISH-DATA-02.md",
+      "work_branch": null,
+      "task_branch": "agent-collab/gloam/task/VS-POLISH-DATA-02",
+      "candidate_branch": null,
+      "worktree_path": ".grok/worktrees/VS-POLISH-DATA-02",
+      "base_commit": "9a40f01d89b23366bc5e145a4d998e3f2ecf1b34",
+      "head_commit": null,
+      "integration_commit": null,
+      "docs_commit": null,
+      "docs_impact": false,
+      "requires_human_playtest": false,
+      "human_playtest_status": null,
+      "blocked_reason": null,
+      "reopen_reason": null
+    },
+    "VS-POLISH-UI-01": {
+      "task_id": "VS-POLISH-UI-01",
+      "task_type": "gameplay-loop",
+      "slice_id": "vertical-slice",
+      "lane": "vs-polish",
+      "wave_id": "wave-vs-polish-202606",
+      "status": "assigned",
+      "phase": "assigned",
+      "assigned_to": "gloam-coder",
+      "runtime": "claude-code",
+      "template_id": null,
+      "instance_id": null,
+      "lease_id": null,
+      "depends_on": [
+        "VS-POLISH-DATA-02"
+      ],
+      "file_ownership": [
+        "Content/Blueprints/UI/",
+        "Source/Gloamstead/"
+      ],
+      "generated_output_ownership": [
+        "Content/Blueprints/UI/"
+      ],
+      "required_capabilities": [
+        "ue5-config",
+        "generated-content-production"
+      ],
+      "required_verification_profiles": [
+        "editor-generation",
+        "map-load"
+      ],
+      "risk_level": "medium",
+      "turn": 3,
+      "cycle": 0,
+      "max_cycles": 3,
+      "timestamps": {
+        "created": "2026-06-04T19:10:23Z"
+      },
+      "handoff_file": "agent_collab/handoffs/claimed/HANDOFF-2026-06-04-VS-POLISH-UI-01.md",
+      "work_branch": null,
+      "task_branch": "agent-collab/gloam/task/VS-POLISH-UI-01",
+      "candidate_branch": null,
+      "worktree_path": ".grok/worktrees/VS-POLISH-UI-01",
+      "base_commit": "9a40f01d89b23366bc5e145a4d998e3f2ecf1b34",
+      "head_commit": null,
+      "integration_commit": null,
+      "docs_commit": null,
+      "docs_impact": false,
+      "requires_human_playtest": false,
+      "human_playtest_status": null,
+      "blocked_reason": null,
+      "reopen_reason": null
+    },
+    "VS-POLISH-JOURNAL-01": {
+      "task_id": "VS-POLISH-JOURNAL-01",
+      "task_type": "ue5-cpp",
+      "slice_id": "vertical-slice",
+      "lane": "vs-polish",
+      "wave_id": "wave-vs-polish-202606",
+      "status": "assigned",
+      "phase": "assigned",
+      "assigned_to": "gloam-coder",
+      "runtime": "claude-code",
+      "template_id": null,
+      "instance_id": null,
+      "lease_id": null,
+      "depends_on": [
+        "VS-POLISH-DATA-01"
+      ],
+      "file_ownership": [
+        "Source/Gloamstead/Systems/",
+        "Source/Gloamstead/Data/"
+      ],
+      "generated_output_ownership": [],
+      "required_capabilities": [
+        "ue5-cpp"
+      ],
+      "required_verification_profiles": [
+        "compile",
+        "editor-generation"
+      ],
+      "risk_level": "medium",
+      "turn": 2,
+      "cycle": 0,
+      "max_cycles": 3,
+      "timestamps": {
+        "created": "2026-06-04T19:10:23Z"
+      },
+      "handoff_file": "agent_collab/handoffs/claimed/HANDOFF-2026-06-04-VS-POLISH-JOURNAL-01.md",
+      "work_branch": null,
+      "task_branch": "agent-collab/gloam/task/VS-POLISH-JOURNAL-01",
+      "candidate_branch": null,
+      "worktree_path": ".grok/worktrees/VS-POLISH-JOURNAL-01",
+      "base_commit": "9a40f01d89b23366bc5e145a4d998e3f2ecf1b34",
+      "head_commit": null,
+      "integration_commit": null,
+      "docs_commit": null,
+      "docs_impact": false,
+      "requires_human_playtest": false,
+      "human_playtest_status": null,
+      "blocked_reason": null,
+      "reopen_reason": null
+    },
+    "VS-POLISH-VISUALS-01": {
+      "task_id": "VS-POLISH-VISUALS-01",
+      "task_type": "generated-content",
+      "slice_id": "vertical-slice",
+      "lane": "vs-polish",
+      "wave_id": "wave-vs-polish-202606",
+      "status": "assigned",
+      "phase": "assigned",
+      "assigned_to": "gloam-coder",
+      "runtime": "claude-code",
+      "template_id": null,
+      "instance_id": null,
+      "lease_id": null,
+      "depends_on": [
+        "VS-POLISH-DATA-02"
+      ],
+      "file_ownership": [
+        "Content/Blueprints/",
+        "Content/Meshes/",
+        "Content/Materials/",
+        "Content/VFX/"
+      ],
+      "generated_output_ownership": [
+        "Content/"
+      ],
+      "required_capabilities": [
+        "generated-content-production",
+        "asset-pack-analysis"
+      ],
+      "required_verification_profiles": [
+        "editor-generation",
+        "map-load"
+      ],
+      "risk_level": "medium",
+      "turn": 3,
+      "cycle": 0,
+      "max_cycles": 3,
+      "timestamps": {
+        "created": "2026-06-04T19:10:23Z"
+      },
+      "handoff_file": "agent_collab/handoffs/claimed/HANDOFF-2026-06-04-VS-POLISH-VISUALS-01.md",
+      "work_branch": null,
+      "task_branch": "agent-collab/gloam/task/VS-POLISH-VISUALS-01",
+      "candidate_branch": null,
+      "worktree_path": ".grok/worktrees/VS-POLISH-VISUALS-01",
+      "base_commit": "9a40f01d89b23366bc5e145a4d998e3f2ecf1b34",
+      "head_commit": null,
+      "integration_commit": null,
+      "docs_commit": null,
+      "docs_impact": false,
+      "requires_human_playtest": false,
+      "human_playtest_status": null,
+      "blocked_reason": null,
+      "reopen_reason": null
+    },
+    "VS-POLISH-PERSIST-01": {
+      "task_id": "VS-POLISH-PERSIST-01",
+      "task_type": "ue5-cpp",
+      "slice_id": "vertical-slice",
+      "lane": "vs-polish",
+      "wave_id": "wave-vs-polish-202606",
+      "status": "assigned",
+      "phase": "assigned",
+      "assigned_to": "gloam-coder",
+      "runtime": "claude-code",
+      "template_id": null,
+      "instance_id": null,
+      "lease_id": null,
+      "depends_on": [
+        "VS-POLISH-JOURNAL-01"
+      ],
+      "file_ownership": [
+        "Source/Gloamstead/Save/",
+        "Source/Gloamstead/"
+      ],
+      "generated_output_ownership": [],
+      "required_capabilities": [
+        "ue5-cpp"
+      ],
+      "required_verification_profiles": [
+        "compile",
+        "editor-generation"
+      ],
+      "risk_level": "low",
+      "turn": 4,
+      "cycle": 0,
+      "max_cycles": 3,
+      "timestamps": {
+        "created": "2026-06-04T19:10:23Z"
+      },
+      "handoff_file": "agent_collab/handoffs/claimed/HANDOFF-2026-06-04-VS-POLISH-PERSIST-01.md",
+      "work_branch": null,
+      "task_branch": "agent-collab/gloam/task/VS-POLISH-PERSIST-01",
+      "candidate_branch": null,
+      "worktree_path": ".grok/worktrees/VS-POLISH-PERSIST-01",
+      "base_commit": "9a40f01d89b23366bc5e145a4d998e3f2ecf1b34",
+      "head_commit": null,
+      "integration_commit": null,
+      "docs_commit": null,
+      "docs_impact": false,
+      "requires_human_playtest": false,
+      "human_playtest_status": null,
+      "blocked_reason": null,
+      "reopen_reason": null
+    },
+    "VS-POLISH-NIGHT-01": {
+      "task_id": "VS-POLISH-NIGHT-01",
+      "task_type": "gameplay-loop",
+      "slice_id": "vertical-slice",
+      "lane": "vs-polish",
+      "wave_id": "wave-vs-polish-202606",
+      "status": "assigned",
+      "phase": "assigned",
+      "assigned_to": "gloam-coder",
+      "runtime": "claude-code",
+      "template_id": null,
+      "instance_id": null,
+      "lease_id": null,
+      "depends_on": [
+        "VS-POLISH-DATA-02",
+        "VS-POLISH-COMBAT-01"
+      ],
+      "file_ownership": [
+        "Source/Gloamstead/Systems/",
+        "Source/Gloamstead/"
+      ],
+      "generated_output_ownership": [
+        "Content/Blueprints/"
+      ],
+      "required_capabilities": [
+        "ue5-cpp",
+        "ue5-config",
+        "generated-content-production"
+      ],
+      "required_verification_profiles": [
+        "compile",
+        "editor-generation",
+        "map-load"
+      ],
+      "risk_level": "medium",
+      "turn": 5,
+      "cycle": 0,
+      "max_cycles": 3,
+      "timestamps": {
+        "created": "2026-06-04T19:10:23Z"
+      },
+      "handoff_file": "agent_collab/handoffs/claimed/HANDOFF-2026-06-04-VS-POLISH-NIGHT-01.md",
+      "work_branch": null,
+      "task_branch": "agent-collab/gloam/task/VS-POLISH-NIGHT-01",
+      "candidate_branch": null,
+      "worktree_path": ".grok/worktrees/VS-POLISH-NIGHT-01",
+      "base_commit": "9a40f01d89b23366bc5e145a4d998e3f2ecf1b34",
+      "head_commit": null,
+      "integration_commit": null,
+      "docs_commit": null,
+      "docs_impact": false,
+      "requires_human_playtest": false,
+      "human_playtest_status": null,
+      "blocked_reason": null,
+      "reopen_reason": null
+    },
+    "VS-POLISH-COMBAT-01": {
+      "task_id": "VS-POLISH-COMBAT-01",
+      "task_type": "gameplay-loop",
+      "slice_id": "vertical-slice",
+      "lane": "vs-polish",
+      "wave_id": "wave-vs-polish-202606",
+      "status": "assigned",
+      "phase": "assigned",
+      "assigned_to": "gloam-coder",
+      "runtime": "claude-code",
+      "template_id": null,
+      "instance_id": null,
+      "lease_id": null,
+      "depends_on": [
+        "VS-POLISH-DATA-02"
+      ],
+      "file_ownership": [
+        "Source/Gloamstead/",
+        "Content/Blueprints/"
+      ],
+      "generated_output_ownership": [
+        "Content/Blueprints/"
+      ],
+      "required_capabilities": [
+        "ue5-cpp",
+        "generated-content-production"
+      ],
+      "required_verification_profiles": [
+        "compile",
+        "editor-generation",
+        "map-load"
+      ],
+      "risk_level": "medium",
+      "turn": 3,
+      "cycle": 0,
+      "max_cycles": 3,
+      "timestamps": {
+        "created": "2026-06-04T19:10:23Z"
+      },
+      "handoff_file": "agent_collab/handoffs/claimed/HANDOFF-2026-06-04-VS-POLISH-COMBAT-01.md",
+      "work_branch": null,
+      "task_branch": "agent-collab/gloam/task/VS-POLISH-COMBAT-01",
+      "candidate_branch": null,
+      "worktree_path": ".grok/worktrees/VS-POLISH-COMBAT-01",
+      "base_commit": "9a40f01d89b23366bc5e145a4d998e3f2ecf1b34",
+      "head_commit": null,
+      "integration_commit": null,
+      "docs_commit": null,
+      "docs_impact": false,
+      "requires_human_playtest": false,
+      "human_playtest_status": null,
+      "blocked_reason": null,
+      "reopen_reason": null
+    },
+    "VS-POLISH-PLAYTEST-01": {
+      "task_id": "VS-POLISH-PLAYTEST-01",
+      "task_type": "human-playtest",
+      "slice_id": "vertical-slice",
+      "lane": "vs-polish",
+      "wave_id": "wave-vs-polish-202606",
+      "status": "assigned",
+      "phase": "assigned",
+      "assigned_to": "human",
+      "runtime": null,
+      "template_id": null,
+      "instance_id": null,
+      "lease_id": null,
+      "depends_on": [
+        "VS-POLISH-UI-01",
+        "VS-POLISH-VISUALS-01",
+        "VS-POLISH-PERSIST-01",
+        "VS-POLISH-NIGHT-01",
+        "VS-POLISH-COMBAT-01"
+      ],
+      "file_ownership": [
+        "docs/"
+      ],
+      "generated_output_ownership": [],
+      "required_capabilities": [
+        "human-playtest",
+        "documentation"
+      ],
+      "required_verification_profiles": [
+        "human-playtest"
+      ],
+      "risk_level": "low",
+      "turn": 6,
+      "cycle": 0,
+      "max_cycles": 3,
+      "timestamps": {
+        "created": "2026-06-04T19:10:23Z"
+      },
+      "handoff_file": "agent_collab/handoffs/claimed/HANDOFF-2026-06-04-VS-POLISH-PLAYTEST-01.md",
+      "work_branch": null,
+      "task_branch": null,
+      "candidate_branch": null,
+      "worktree_path": null,
+      "base_commit": null,
+      "head_commit": null,
+      "integration_commit": null,
+      "docs_commit": null,
+      "docs_impact": true,
+      "requires_human_playtest": true,
+      "human_playtest_status": null,
+      "blocked_reason": null,
+      "reopen_reason": null
+    }
+  },
+  "history": []
+}

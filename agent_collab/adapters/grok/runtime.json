@@ -1,0 +1,7 @@
+{
+  "runtime": "grok",
+  "enabled": true,
+  "native_projection": ".grok",
+  "worktree_dir": ".grok/worktrees",
+  "notes": "Grok runtime (xAI). Supports native invocation in this environment and Cursor/Build projections. Can act as Orchestrator via lease."
+}

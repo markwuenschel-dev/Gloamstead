@@ -1,0 +1,7 @@
+{
+  "lease_id": "example-lease",
+  "runtime": "example-runtime",
+  "acquired_at": "2026-01-01T00:00:00Z",
+  "expires_at": "2026-01-01T00:15:00Z",
+  "notes": "Example only. Real leases live in leases.json. Use the lease scripts."
+}

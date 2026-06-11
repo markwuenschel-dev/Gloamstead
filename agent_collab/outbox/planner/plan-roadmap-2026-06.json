@@ -1,0 +1,88 @@
+{
+  "request_id": "plan-roadmap-2026-06",
+  "generated": "2026-06-01T23:00:00Z",
+  "baseline": {
+    "work_branch": "agent-collab/gloam/work",
+    "last_completed_wave": "wave-nc-3",
+    "promoted_commit": "5e23130",
+    "completed_tasks": [
+      "HG-001",
+      "NC-001", "NC-002", "NC-003",
+      "NC-004", "NC-005", "NC-006",
+      "NC-007", "NC-008", "NC-009"
+    ]
+  },
+  "principles": [
+    "Complete Warning -> Restoration -> Night -> Dawn before breadth (new rituals, journal UI).",
+    "wave-vh-1 + wave-rp-1 are parallel-safe (no overlapping file_ownership until VH-003).",
+    "VH-003 touches DayNight — run after VH-001/002 or serialize within wave-vh-1.",
+    "Each wave = one candidate branch; Critic APPROVED before promote."
+  ],
+  "next_waves": [
+    {
+      "order": 1,
+      "wave_id": "wave-vh-1",
+      "lane": "veil-heart",
+      "tasks": ["VH-001", "VH-002", "VH-003"],
+      "parallel_with": "wave-rp-1",
+      "rationale": "Dusk warnings + data-driven tag satisfaction — core fantasy loop."
+    },
+    {
+      "order": 1,
+      "wave_id": "wave-rp-1",
+      "lane": "ritual-placement",
+      "tasks": ["RP-001", "RP-002"],
+      "parallel_with": "wave-vh-1",
+      "rationale": "URitualDefinition drives payloads; enables designer tuning and VH-002 tags."
+    },
+    {
+      "order": 2,
+      "wave_id": "wave-nc-4",
+      "lane": "night-consequence",
+      "tasks": ["NC-010", "NC-011", "NC-012"],
+      "rationale": "PIE without manual catalog; Omen delegate; Tutorial uses half-spread."
+    },
+    {
+      "order": 3,
+      "wave_id": "wave-vh-2",
+      "lane": "veil-heart",
+      "tasks": ["VH-004", "VH-005"],
+      "depends_on_waves": ["wave-vh-1"],
+      "rationale": "Dawn summary struct + session journal."
+    },
+    {
+      "order": 4,
+      "wave_id": "wave-rp-2",
+      "lane": "ritual-placement",
+      "tasks": ["RP-003", "RP-004"],
+      "rationale": "Alter/undo API sketch + restored actor class hook."
+    },
+    {
+      "order": 5,
+      "wave_id": "wave-nc-5",
+      "lane": "night-consequence",
+      "tasks": ["NC-013", "NC-014"],
+      "rationale": "Baseline night resource + simple failure broadcast."
+    }
+  ],
+  "human_gates": [
+    "Compile + PIE full phase cycle after each wave.",
+    "After wave-nc-4: optional Content/ DA_NightConsequenceCatalog for designer tuning (C++ default covers dev).",
+    "After wave-rp-1: create DA_Ritual_LanternPost / GardenBed assets in editor."
+  ],
+  "deferred_backlog": [
+    "ERitualType: MirrorPillar, BellShrine",
+    "Extended ENightConsequenceType enum + per-type spawn/VFX",
+    "SaveGame PCG persistence",
+    "Veil Heart failure cinematics / growth axes",
+    "wave-hg-2: agent_collab paste-watcher async"
+  ],
+  "detail_plans": [
+    "agent_collab/outbox/planner/plan-wave-vh-1.json",
+    "agent_collab/outbox/planner/plan-wave-rp-1.json",
+    "agent_collab/outbox/planner/plan-wave-nc-4.json",
+    "agent_collab/outbox/planner/plan-wave-vh-2.json",
+    "agent_collab/outbox/planner/plan-wave-rp-2.json",
+    "agent_collab/outbox/planner/plan-wave-nc-5.json"
+  ]
+}

@@ -1,0 +1,136 @@
+{
+  "request_id": "plan-next-tasks",
+  "generated": "2026-06-01T23:00:00Z",
+  "status": "ready_to_execute",
+  "task_queue": [
+    {
+      "task_id": "VH-001",
+      "wave_id": "wave-vh-1",
+      "lane": "veil-heart",
+      "depends_on": [],
+      "goal": "FVeilHeartWarningFragment + UVeilHeartWarningCatalog UPrimaryDataAsset",
+      "files": ["Source/Gloamstead/Data/VeilHeartWarningTypes.h", "Source/Gloamstead/Data/VeilHeartWarningTypes.cpp"],
+      "parallel_with": ["RP-001"]
+    },
+    {
+      "task_id": "RP-001",
+      "wave_id": "wave-rp-1",
+      "lane": "ritual-placement",
+      "depends_on": [],
+      "goal": "BuildRestorationPayload from URitualDefinition map; fallback to RitualTypes defaults",
+      "files": [
+        "Source/Gloamstead/Components/RitualPlacementComponent.h",
+        "Source/Gloamstead/Components/RitualPlacementComponent.cpp"
+      ],
+      "parallel_with": ["VH-001"]
+    },
+    {
+      "task_id": "VH-002",
+      "wave_id": "wave-vh-1",
+      "lane": "veil-heart",
+      "depends_on": ["VH-001"],
+      "goal": "EvaluateRestorationAgainstWarnings via catalog + Payload.WarningTagSatisfied; remove LanternPost-only hardcode",
+      "files": ["Source/Gloamstead/Systems/VeilHeart.h", "Source/Gloamstead/Systems/VeilHeart.cpp"],
+      "parallel_with": ["RP-002"]
+    },
+    {
+      "task_id": "RP-002",
+      "wave_id": "wave-rp-1",
+      "lane": "ritual-placement",
+      "depends_on": ["RP-001"],
+      "goal": "OnRestoredActorSpawned Blueprint event after successful ApplyRestoration",
+      "files": ["Source/Gloamstead/Components/RitualPlacementComponent.cpp"],
+      "parallel_with": ["VH-002"]
+    },
+    {
+      "task_id": "VH-003",
+      "wave_id": "wave-vh-1",
+      "lane": "veil-heart",
+      "depends_on": ["VH-002"],
+      "goal": "EmitWarningForNight at dusk from DayNight after PrepareNightConsequences; BP OnWarningEmitted",
+      "files": [
+        "Source/Gloamstead/Systems/VeilHeart.h",
+        "Source/Gloamstead/Systems/VeilHeart.cpp",
+        "Source/Gloamstead/Systems/GloamsteadDayNightSubsystem.cpp"
+      ],
+      "conflicts_with": ["NC-010", "NC-011", "NC-012"],
+      "note": "Do not run wave-nc-4 in parallel with VH-003 (shared DayNight.cpp)."
+    },
+    {
+      "task_id": "NC-010",
+      "wave_id": "wave-nc-4",
+      "lane": "night-consequence",
+      "depends_on": [],
+      "goal": "C++-built default UNightConsequenceCatalog rules for Tutorial/Corruption/Omen; manager auto-assign when NightCatalog null",
+      "files": [
+        "Source/Gloamstead/Data/NightConsequenceTypes.h",
+        "Source/Gloamstead/Data/NightConsequenceTypes.cpp",
+        "Source/Gloamstead/Systems/NightConsequenceManager.h",
+        "Source/Gloamstead/Systems/NightConsequenceManager.cpp"
+      ],
+      "parallel_with": []
+    },
+    {
+      "task_id": "NC-011",
+      "wave_id": "wave-nc-4",
+      "lane": "night-consequence",
+      "depends_on": ["NC-010"],
+      "goal": "FOmenClueReady delegate; ExecuteNightStub Omen case broadcasts ClueTag from catalog or default",
+      "files": [
+        "Source/Gloamstead/Systems/NightConsequenceRuntime.h",
+        "Source/Gloamstead/Systems/NightConsequenceRuntime.cpp",
+        "Source/Gloamstead/Data/NightConsequenceTypes.h"
+      ]
+    },
+    {
+      "task_id": "NC-012",
+      "wave_id": "wave-nc-4",
+      "lane": "night-consequence",
+      "depends_on": ["NC-010"],
+      "goal": "Tutorial stub: half-delta ApplyCorruptionSpread(0.06, 4) on first tutorial night only",
+      "files": ["Source/Gloamstead/Systems/NightConsequenceRuntime.cpp"]
+    },
+    {
+      "task_id": "VH-004",
+      "wave_id": "wave-vh-2",
+      "lane": "veil-heart",
+      "depends_on": ["VH-003"],
+      "goal": "FDawnReflectionSummary + OnDawnReflectionComplete before clearing tags"
+    },
+    {
+      "task_id": "VH-005",
+      "wave_id": "wave-vh-2",
+      "lane": "veil-heart",
+      "depends_on": ["VH-004"],
+      "goal": "UGloamsteadJournalSubsystem session entries from dawn summary"
+    },
+    {
+      "task_id": "RP-003",
+      "wave_id": "wave-rp-2",
+      "lane": "ritual-placement",
+      "depends_on": ["RP-002"],
+      "goal": "CanAlterRestoration / RequestAlterRestoration API (validation stub, no full undo PCG yet)"
+    },
+    {
+      "task_id": "RP-004",
+      "wave_id": "wave-rp-2",
+      "lane": "ritual-placement",
+      "depends_on": ["RP-003"],
+      "goal": "Optional TSubclassOf<AActor> RestoredActorClass on URitualDefinition; C++ spawn when set"
+    },
+    {
+      "task_id": "NC-013",
+      "wave_id": "wave-nc-5",
+      "lane": "night-consequence",
+      "depends_on": ["wave-nc-4"],
+      "goal": "FNightSurvivalReward + grant baseline resource on EndNight when PCG avg corruption below threshold"
+    },
+    {
+      "task_id": "NC-014",
+      "wave_id": "wave-nc-5",
+      "lane": "night-consequence",
+      "depends_on": ["NC-013"],
+      "goal": "OnSanctuaryFailed delegate when avg corruption exceeds cap (log + BP hook, no game over UI)"
+    }
+  ]
+}

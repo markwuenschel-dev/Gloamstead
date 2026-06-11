@@ -1,0 +1,15 @@
+{
+  "waves": [
+    {
+      "wave_id": "wave-1",
+      "task_ids": [
+        "NC-007",
+        "NC-008",
+        "NC-009"
+      ],
+      "status": "planned"
+    }
+  ],
+  "total_tasks": 3,
+  "generated": "2026-06-01T22:47:46.7261293+00:00"
+}

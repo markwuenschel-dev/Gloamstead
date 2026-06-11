@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "BacklogItem",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "title": { "type": "string" },
+    "goal": { "type": "string" },
+    "task_type": { "type": "string" },
+    "slice_id": { "type": ["string", "null"] },
+    "why_this_matters": { "type": "string" },
+    "dependencies": { "type": "array", "items": { "type": "string" } },
+    "asset_pack_ids": { "type": "array", "items": { "type": "string" } },
+    "expected_file_ownership": { "type": "array", "items": { "type": "string" } },
+    "expected_generated_output_ownership": { "type": "array", "items": { "type": "string" } },
+    "risk_level": { "type": "string", "enum": ["low", "medium", "high"] },
+    "required_capabilities": { "type": "array", "items": { "type": "string" } },
+    "required_verification_profiles": { "type": "array", "items": { "type": "string" } },
+    "allowed_runtimes": { "type": "array", "items": { "type": "string" } },
+    "preferred_runtime": { "type": ["string", "null"] },
+    "acceptance_criteria": { "type": "array", "items": { "type": "string" } },
+    "docs_impact": { "type": "boolean" },
+    "requires_unreal_editor": { "type": "boolean" },
+    "requires_human_playtest": { "type": "boolean" },
+    "approval_status": { "type": "string", "enum": ["proposed", "approved", "in_progress", "completed", "rejected"] },
+    "created": { "type": "string" },
+    "updated": { "type": "string" },
+    "notes": { "type": ["string", "null"] }
+  },
+  "required": ["id", "goal", "task_type", "approval_status"]
+}

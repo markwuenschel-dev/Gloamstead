@@ -53,3 +53,21 @@ Avoid assets that push the game toward:
 ## Agent Implementation Rule
 
 Before implementing any feature, identify which core doc justifies it. If no doc justifies it, do not add it.
+
+## Data Asset Guidelines (for Catalogs and Ritual Definitions)
+
+See docs/systems/03_night_consequence_system.md "Data Asset Authoring Guide for Designers" for complete specs on:
+
+- UNightConsequenceCatalog and FNightConsequenceRule (for night selection).
+- UVeilHeartWarningCatalog and FVeilHeartWarningFragment (for warnings/reflection).
+- URitualDefinition and concrete assets (for per-ritual tuning, including new MirrorPillar/BellShrine).
+
+Use UPrimaryDataAsset + Data Tables/Curves for all tunable values. This keeps core loop data-driven and designer-iterable.
+
+Update enums in Source/Gloamstead/Data/*.h when adding types (e.g. new rituals or nights).
+
+Assign assets per [specs/data/WIRING.md](../../specs/data/WIRING.md). PIE smoke: Level Blueprint **Advance Gloamstead Day Phase** (see [specs/data/VERIFICATION-2026-06-11.md](../../specs/data/VERIFICATION-2026-06-11.md)).
+
+**Starter assets (2026-06-11):** Six `Content/Data/DA_*` from import factory (`specs/data/vs-polish-starter.json`). Verified on `Lvl_ThirdPerson`. **Next:** PCG level init before restoration / non-Tutorial night smoke.
+
+**Generation policy:** binary `Content/Data/` outputs only via `agent_collab/scripts/Invoke-GloamsteadDataAssetImport.ps1` + `GloamsteadImportDataAssets` commandlet (see `agent_collab/context/content_policy.json`).

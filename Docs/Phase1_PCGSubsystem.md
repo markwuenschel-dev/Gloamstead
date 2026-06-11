@@ -106,3 +106,5 @@ if (Payload.PointIndex != -1)
 - **`ApplyCorruptionSpread(Delta, MaxPoints)`:** night-only corruption bump on random points; does not alter `bIsRestored`.
 
 See [Phase2_CoreLoop.md](Phase2_CoreLoop.md).
+
+**Editor gate (2026-06-11):** Data assets and day/night PIE smoke verified without PCG ([specs/data/VERIFICATION-2026-06-11.md](../specs/data/VERIFICATION-2026-06-11.md)). **Next:** place PCG graph in `Lvl_ThirdPerson` and call `InitializeFromPCGComponent` at level start so placement, corruption spread, and catalog night scoring use real point data.

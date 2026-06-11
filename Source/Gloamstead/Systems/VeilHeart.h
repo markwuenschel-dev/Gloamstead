@@ -11,7 +11,7 @@
  * The Veil Heart - Central protected object and emotional core of Gloamstead.
  * Listens to restoration events to evaluate "I understood the warning".
  */
-UCLASS()
+UCLASS(Blueprintable, BlueprintType)
 class GLOAMSTEAD_API AVeilHeart : public AActor
 {
     GENERATED_BODY()
@@ -36,14 +36,15 @@ public:
     UFUNCTION(BlueprintImplementableEvent, Category="Veil Heart")
     void OnWarningEmitted(const FVeilHeartWarningFragment& WarningFragment);
 
+    /** Assign Content/Data/DA_VeilHeartWarningCatalog (auto-loaded at BeginPlay if left empty). */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil Heart")
+    TObjectPtr<UVeilHeartWarningCatalog> WarningCatalog;
+
 protected:
     UFUNCTION()
     void OnRestorationComplete(const FRestorationEventPayload& Payload);
 
     const FVeilHeartWarningFragment* FindWarningForNight(ENightConsequenceType NightType) const;
-
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Veil Heart")
-    TObjectPtr<UVeilHeartWarningCatalog> WarningCatalog;
 
 private:
     TSet<FName> SatisfiedWarningTags;

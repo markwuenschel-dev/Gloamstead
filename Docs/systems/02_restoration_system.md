@@ -247,7 +247,7 @@ Bells should feel ceremonial rather than utilitarian. Their restoration can rein
 
 Boundaries should feel alive, ritualized, and morally ambiguous. Restoring them defines inside and outside, but over-restoration may choke growth or create pressure. Their visual language should include root tension, stone seams, threshold markings, and subtle breathing movement.
 
-## Implementation status (2026-06-01)
+## Implementation status (June 2026 — polish wave active)
 
 Wave **ritual-placement RP-1** (tasks RP-001–RP-002):
 

@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "description": "Maps logical roles to runtimes that may perform them. Any runtime listed under allowed_runtimes for a role may be selected by the active Orchestrator if it has the capabilities and the lease is held by a compatible invocation. Preferred is only a soft default.",
+  "assignments": {
+    "orchestrator": {
+      "allowed_runtimes": ["claude-code", "grok"],
+      "preferred_runtime": "claude-code",
+      "notes": "Requires full Orchestrator capabilities + successful lease acquisition. Lease holder (not name) has authority."
+    },
+    "architect": {
+      "allowed_runtimes": ["claude-code", "grok"],
+      "preferred_runtime": "grok"
+    },
+    "planner": {
+      "allowed_runtimes": ["claude-code", "grok"],
+      "preferred_runtime": "grok"
+    },
+    "researcher": {
+      "allowed_runtimes": ["claude-code", "grok"],
+      "preferred_runtime": "grok"
+    },
+    "coder": {
+      "allowed_runtimes": ["claude-code", "grok"],
+      "preferred_runtime": "claude-code"
+    },
+    "critic": {
+      "allowed_runtimes": ["claude-code", "grok"],
+      "preferred_runtime": "claude-code"
+    },
+    "documentor": {
+      "allowed_runtimes": ["claude-code", "grok"],
+      "preferred_runtime": "grok"
+    }
+  },
+  "notes": "Preferences are overridable. The active Orchestrator chooses the runtime for each worker invocation based on capabilities, availability, and policy. No role is permanently bound to one runtime."
+}

@@ -1,0 +1,62 @@
+{
+  "schema_version": "1.0",
+  "description": "Project-scoped agent templates (gloam- prefix used in native projections for discoverable runtimes). Templates are role + capability declarations. Actual invocation binds a runtime at runtime via adapter_matrix and lease.",
+  "templates": [
+    {
+      "id": "gloam-orchestrator",
+      "role": "orchestrator",
+      "enabled": true,
+      "capabilities": ["repository-read", "durable-state-write", "structured-output", "runtime-invocation", "git-worktree-management", "git-candidate-integration", "lease-management", "policy-enforcement", "state-reconciliation", "human-playtest-recording"],
+      "max_parallel": 1,
+      "notes": "Logical Orchestrator template. Any enabled runtime that supports the role and acquires the lease may use this."
+    },
+    {
+      "id": "gloam-architect",
+      "role": "architect",
+      "enabled": false,
+      "capabilities": ["repository-read", "architecture-analysis"],
+      "max_parallel": 1,
+      "notes": "DEPRECATED (2026-06 UE5 review). Use architecture-analysis playbook instead. Kept for capability compatibility only; do not create new handoffs with this template."
+    },
+    {
+      "id": "gloam-planner",
+      "role": "planner",
+      "enabled": true,
+      "capabilities": ["repository-read", "planning", "file_ownership_prediction", "generated_output_ownership_prediction"],
+      "max_parallel": 1,
+      "notes": "Read-only planning role. May incorporate architecture-analysis and external-research playbooks as steps/attachments. See workflow_activation.json."
+    },
+    {
+      "id": "gloam-researcher",
+      "role": "researcher",
+      "enabled": false,
+      "capabilities": ["repository-read", "external-research"],
+      "max_parallel": 3,
+      "notes": "DEPRECATED (2026-06 UE5 review). Use external-research playbook. No new dedicated researcher handoffs; research is a Planner/Orchestrator step."
+    },
+    {
+      "id": "gloam-coder",
+      "role": "coder",
+      "enabled": true,
+      "capabilities": ["repository-read", "text-file-editing", "git-worktree-usage", "ue5-cpp", "ue5-config", "ue5-editor-automation", "ue5-pcg-integration", "generated-content-production"],
+      "max_parallel": 4,
+      "notes": "Coder role. Must run in worktree and respect ownership strictly. UE5-specific capabilities required for any generated content path."
+    },
+    {
+      "id": "gloam-critic",
+      "role": "critic",
+      "enabled": true,
+      "capabilities": ["repository-read", "scope_audit", "integration_verification", "vendor-immutability-audit"],
+      "max_parallel": 2,
+      "notes": "Read-only critic role. Independent integration gate is mandatory before any candidate promotion."
+    },
+    {
+      "id": "gloam-documentor",
+      "role": "documentor",
+      "enabled": false,
+      "capabilities": ["repository-read", "documentation"],
+      "max_parallel": 1,
+      "notes": "DEPRECATED (2026-06 UE5 review). Use documentation-update playbook + checklist after promotion. No new documentor handoffs."
+    }
+  ]
+}
