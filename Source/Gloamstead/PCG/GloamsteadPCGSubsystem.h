@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
-#include "PCGPointData.h"
+#include "Data/PCGPointData.h"
 #include "Data/RitualTypes.h"
 #include "Data/NightConsequenceTypes.h"
 #include "GloamsteadPCGSubsystem.generated.h"
@@ -60,6 +60,13 @@ public:
     UFUNCTION(BlueprintPure, Category="PCG|Ritual")
     float GetLightLevel(int32 PointIndex) const;
 
+    // === Attribute access (metadata-backed; safe for points from GetPointByIndex / GetPoints*) ===
+    int32 GetIntAttribute(const FPCGPoint& Point, FName AttributeName, int32 DefaultValue = -1) const;
+    float GetFloatAttribute(const FPCGPoint& Point, FName AttributeName, float DefaultValue = 0.0f) const;
+    bool GetBoolAttribute(const FPCGPoint& Point, FName AttributeName, bool DefaultValue = false) const;
+    FName GetNameAttribute(const FPCGPoint& Point, FName AttributeName, FName DefaultValue = NAME_None) const;
+    FVector GetVectorAttribute(const FPCGPoint& Point, FName AttributeName, FVector DefaultValue = FVector::UpVector) const;
+
     UFUNCTION(BlueprintPure, Category="PCG|Ritual")
     float GetCorruptionLevel(int32 PointIndex) const;
 
@@ -109,11 +116,6 @@ public:
     FOnStructureRestored OnStructureRestored;
 
 private:
-    // Internal attribute access (used during init and explicit sync)
-    bool GetBoolAttribute(const FPCGPoint& Point, FName AttributeName, bool DefaultValue = false) const;
-    float GetFloatAttribute(const FPCGPoint& Point, FName AttributeName, float DefaultValue = 0.0f) const;
-    int32 GetIntAttribute(const FPCGPoint& Point, FName AttributeName, int32 DefaultValue = -1) const;
-
     ERitualType GetRitualTypeFromPoint(const FPCGPoint& Point) const;
 
     // Spatial hash helpers

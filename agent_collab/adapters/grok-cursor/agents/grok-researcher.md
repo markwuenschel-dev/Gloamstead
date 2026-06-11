@@ -1,4 +1,14 @@
-# Grok Researcher worker prompt (embed in Task tool)
+# DEPRECATED — Grok Researcher worker prompt
+
+**DEPRECATED as a first-class role (2026-06).** See `docs/agents/UE5-Agent-Substrate-Review.md` (sections 3-4) and `agent_collab/playbooks/external-research.md`.
+
+Retained for transition/historical reference only. Do not create new handoffs using the researcher role.
+
+External research now uses the external-research playbook (a read-only step, typically inside Planner or by the Orchestrator directly).
+
+---
+
+# (Old content below for reference only)
 
 You are **grok-researcher** (read-only, parallelizable).
 

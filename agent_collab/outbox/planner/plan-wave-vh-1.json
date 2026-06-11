@@ -1,0 +1,68 @@
+{
+  "request_id": "plan-wave-vh-1",
+  "wave_id": "wave-vh-1",
+  "lane": "veil-heart",
+  "depends_on_waves": ["wave-nc-2"],
+  "dag": {
+    "tasks": [
+      {
+        "task_id": "VH-001",
+        "goal": "Warning data: FVeilHeartWarningFragment (WarningId, FText Fragment, ENightConsequenceType AssociatedNight, TArray<FName> SatisfiableTags, int32 ClarityTier) and UVeilHeartWarningCatalog UPrimaryDataAsset.",
+        "depends_on": [],
+        "file_ownership": [
+          "Source/Gloamstead/Data/VeilHeartWarningTypes.h",
+          "Source/Gloamstead/Data/VeilHeartWarningTypes.cpp"
+        ],
+        "parallelizable": true,
+        "docs_impact": true,
+        "risk_level": "low",
+        "acceptance_criteria": [
+          "USTRUCT/UCLASS compile with GENERATED_BODY",
+          "At least one sample row documentable in editor"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      },
+      {
+        "task_id": "VH-002",
+        "goal": "AVeilHeart: load WarningCatalog; implement EvaluateRestorationAgainstWarnings using Payload.WarningTagSatisfied and URitualDefinition SatisfiableWarningTags; replace hardcoded LanternPost-only path.",
+        "depends_on": ["VH-001"],
+        "file_ownership": [
+          "Source/Gloamstead/Systems/VeilHeart.h",
+          "Source/Gloamstead/Systems/VeilHeart.cpp"
+        ],
+        "parallelizable": false,
+        "docs_impact": true,
+        "risk_level": "medium",
+        "acceptance_criteria": [
+          "Restoration with matching tag adds to SatisfiedWarningTags",
+          "No tag match leaves set unchanged",
+          "OnRestorationComplete calls EvaluateRestorationAgainstWarnings"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      },
+      {
+        "task_id": "VH-003",
+        "goal": "Dusk warning emit: AVeilHeart::EmitWarningForNight(ENightConsequenceType) picks catalog row, BlueprintImplementableEvent OnWarningEmitted(FVeilHeartWarningFragment), called from DayNight HandleEnterDusk after PrepareNightConsequences (or via manager delegate).",
+        "depends_on": ["VH-002", "NC-004"],
+        "file_ownership": [
+          "Source/Gloamstead/Systems/VeilHeart.h",
+          "Source/Gloamstead/Systems/VeilHeart.cpp",
+          "Source/Gloamstead/Systems/GloamsteadDayNightSubsystem.cpp"
+        ],
+        "parallelizable": false,
+        "docs_impact": true,
+        "risk_level": "medium",
+        "acceptance_criteria": [
+          "AdvanceToNextPhase to Dusk logs/emits warning for LastSelectedNightType",
+          "Missing catalog degrades gracefully (log, no crash)"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      }
+    ]
+  },
+  "summary": "Veil Heart warnings become data-driven and fire at dusk aligned with night selection.",
+  "risk_notes": [
+    "VH-003 modifies DayNight — coordinate with any active NC wave or run after wave-nc-3",
+    "Depends on NC-004 (promoted) for dusk hook point"
+  ]
+}

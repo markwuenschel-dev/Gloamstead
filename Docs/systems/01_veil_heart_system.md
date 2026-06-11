@@ -124,7 +124,7 @@ The Heart may eventually have growth direction states based on player decisions.
 
 These are lore and ending seeds, not MVP requirements.
 
-## Implementation status (2026-06-01)
+## Implementation status (June 2026 — polish wave active)
 
 Wave **veil-heart VH-1** (tasks VH-001–VH-003):
 

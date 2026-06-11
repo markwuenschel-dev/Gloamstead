@@ -1,0 +1,67 @@
+{
+  "request_id": "plan-wave-nc-2",
+  "dag": {
+    "tasks": [
+      {
+        "task_id": "NC-004",
+        "goal": "Add UGloamsteadDayNightSubsystem: day phase enum, AdvanceToDusk/Night/Dawn, at Dusk call NightConsequenceManager::PrepareNightConsequences, at Dawn find AVeilHeart and call ProcessDawnReflection. Expose NightCount and normalized time for payloads.",
+        "depends_on": [],
+        "file_ownership": [
+          "Source/Gloamstead/Systems/GloamsteadDayNightSubsystem.h",
+          "Source/Gloamstead/Systems/GloamsteadDayNightSubsystem.cpp"
+        ],
+        "parallelizable": false,
+        "docs_impact": true,
+        "risk_level": "medium",
+        "acceptance_criteria": [
+          "World subsystem registers and survives world init",
+          "AdvancePhase or explicit BlueprintCallable transitions Day->Dusk->Night->Dawn",
+          "Dusk invokes PrepareNightConsequences on UNightConsequenceManager",
+          "Dawn invokes ProcessDawnReflection on first AVeilHeart in world",
+          "GetNormalizedTimeOfDay returns 0 dawn / 1 dusk mapping for current phase",
+          "GetNightCount increments each full cycle"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      },
+      {
+        "task_id": "NC-005",
+        "goal": "RitualPlacementComponent reads DayNight subsystem for TimeOfDayAtRestoration and NightCountAtRestoration in BuildRestorationPayload (remove 0.5f stub).",
+        "depends_on": ["NC-004"],
+        "file_ownership": [
+          "Source/Gloamstead/Components/RitualPlacementComponent.cpp"
+        ],
+        "parallelizable": false,
+        "docs_impact": false,
+        "risk_level": "low",
+        "acceptance_criteria": [
+          "Payload fields populated from DayNight when subsystem exists",
+          "Safe fallback when subsystem null (0.f / 0)"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      },
+      {
+        "task_id": "NC-006",
+        "goal": "VeilHeart dawn cycle: clear SatisfiedWarningTags after ProcessDawnReflection; optional GetActiveSatisfiedTagCount for Blueprint.",
+        "depends_on": ["NC-004"],
+        "file_ownership": [
+          "Source/Gloamstead/Systems/VeilHeart.h",
+          "Source/Gloamstead/Systems/VeilHeart.cpp"
+        ],
+        "parallelizable": true,
+        "docs_impact": true,
+        "risk_level": "low",
+        "acceptance_criteria": [
+          "ProcessDawnReflection logs payoff then clears SatisfiedWarningTags for next cycle",
+          "No change to restoration listener behavior"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      }
+    ]
+  },
+  "summary": "wave-nc-2 wires night loop: DayNight orchestrates dusk/dawn hooks; placement payload uses real time; VeilHeart clears cycle at dawn.",
+  "risk_notes": [
+    "NC-005 and NC-006 depend on NC-004; run NC-004 first then parallel 005+006 if desired",
+    "No Content/ DA creation in this wave",
+    "Manual AdvancePhase or test BP required for PIE smoke test"
+  ]
+}

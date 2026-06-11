@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RuntimeResult",
+  "type": "object",
+  "properties": {
+    "invocation_id": { "type": "string" },
+    "runtime": { "type": "string" },
+    "role": { "type": "string" },
+    "task_id": { "type": "string" },
+    "raw_output_path": { "type": "string" },
+    "structured_output": { "type": "object" },
+    "validation_passed": { "type": "boolean" },
+    "validation_errors": { "type": "array", "items": { "type": "string" } },
+    "completed_at": { "type": "string" }
+  },
+  "required": ["invocation_id", "runtime", "task_id", "raw_output_path", "validation_passed"]
+}

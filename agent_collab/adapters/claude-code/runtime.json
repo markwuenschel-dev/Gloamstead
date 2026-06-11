@@ -1,0 +1,7 @@
+{
+  "runtime": "claude-code",
+  "enabled": true,
+  "native_projection": ".claude",
+  "worktree_dir": ".claude/worktrees",
+  "notes": "Claude Code native support via agents/commands/settings in the .claude/ projection. Hooks provide edit-scope and bash policy enforcement."
+}

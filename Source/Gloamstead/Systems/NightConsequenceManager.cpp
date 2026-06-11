@@ -9,6 +9,13 @@ void UNightConsequenceManager::EnsureNightCatalog()
 		return;
 	}
 
+	if (NightCatalog = Cast<UNightConsequenceCatalog>(
+		StaticLoadObject(UNightConsequenceCatalog::StaticClass(), nullptr, TEXT("/Game/Data/DA_NightConsequenceCatalog.DA_NightConsequenceCatalog"))))
+	{
+		UE_LOG(LogTemp, Log, TEXT("NightConsequenceManager: Loaded night catalog from /Game/Data/DA_NightConsequenceCatalog."));
+		return;
+	}
+
 	NightCatalog = NewObject<UNightConsequenceCatalog>(this, TEXT("DefaultNightCatalog"));
 	PopulateMVPNightConsequenceRules(*NightCatalog);
 	UE_LOG(LogTemp, Log, TEXT("NightConsequenceManager: Using built-in MVP night catalog (assign a DA to override)."));
@@ -86,6 +93,12 @@ float UNightConsequenceManager::ScoreRule(const FNightConsequenceRule& Rule, con
 			break;
 		case ERitualType::PathPoint:
 			Score += static_cast<float>(Snapshot.PathPointRestored) * 0.25f;
+			break;
+		case ERitualType::MirrorPillar:
+			Score += static_cast<float>(Snapshot.MirrorPillarRestored) * 0.25f;
+			break;
+		case ERitualType::BellShrine:
+			Score += static_cast<float>(Snapshot.BellShrineRestored) * 0.25f;
 			break;
 		default:
 			break;

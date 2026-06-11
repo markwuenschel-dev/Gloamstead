@@ -1,0 +1,115 @@
+{
+  "policy_version": "1.0",
+  "description": "Reusable verification profiles for the UE5 agentic factory. Profiles are referenced by Planner output, handoffs, and Critic. Commands are recorded only if actually discovered. Profiles without discovered commands are marked unavailable and will block autonomous promotion for tasks requiring them.",
+  "profiles": {
+    "text-only": {
+      "purpose": "Validate text changes, schemas, specs, code, configs, manifests, and documentation without running Unreal.",
+      "required_capabilities": ["repository-read", "text-file-editing"],
+      "required_commands": [],
+      "expected_evidence": ["list of changed text files", "schema validation results if applicable", "diff review"],
+      "may_run_autonomously": true,
+      "requires_human": false,
+      "blocks_promotion_on_failure": true,
+      "availability": "available",
+      "unavailable_reason": null,
+      "notes": "Default safe profile for pure source and spec tasks."
+    },
+    "compile": {
+      "purpose": "Compile the project (Development Editor target for the Gloamstead module) to catch C++ and build errors.",
+      "required_capabilities": ["ue5-cpp"],
+      "required_commands": [],
+      "expected_evidence": ["build log showing success or specific errors for the Gloamstead module"],
+      "may_run_autonomously": false,
+      "requires_human": true,
+      "blocks_promotion_on_failure": true,
+      "availability": "unavailable",
+      "unavailable_reason": "No command-line build wrapper or discovered path to UnrealEditor-Cmd / MSBuild for the project discovered. Requires human to open .uproject or run Visual Studio build.",
+      "notes": "Per README: open .uproject, generate VS project files, build Development Editor for Gloamstead module."
+    },
+    "editor-generation": {
+      "purpose": "Run approved editor automation, commandlets, or scripts that generate or configure project-owned content.",
+      "required_capabilities": ["ue5-editor-automation", "generated-content-production"],
+      "required_commands": ["agent_collab/scripts/Invoke-GloamsteadDataAssetImport.ps1"],
+      "expected_evidence": ["manifest path and hash", "Saved/Logs/GloamsteadImportDataAssets.log success", "list of new/changed files under Content/Data/"],
+      "may_run_autonomously": false,
+      "requires_human": true,
+      "blocks_promotion_on_failure": true,
+      "availability": "available",
+      "unavailable_reason": null,
+      "notes": "Whitelisted wrapper invokes GloamsteadImportDataAssets commandlet. Human runs compile + import script; see specs/data/HUMAN_RUN_IMPORT.md."
+    },
+    "map-load": {
+      "purpose": "Open generated or modified maps to confirm they load without errors, missing references, or PCG failures.",
+      "required_capabilities": ["map-load-validation"],
+      "required_commands": [],
+      "expected_evidence": ["map open success confirmation", "relevant log excerpts showing no critical load errors"],
+      "may_run_autonomously": false,
+      "requires_human": true,
+      "blocks_promotion_on_failure": true,
+      "availability": "unavailable",
+      "unavailable_reason": "No command-line map load validator discovered. Requires human to load in Unreal Editor or PIE with log capture.",
+      "notes": "Critical for any task producing or modifying maps."
+    },
+    "automation-test": {
+      "purpose": "Run UE Automation Framework tests (unit or functional) relevant to the task or slice.",
+      "required_capabilities": ["automation-testing"],
+      "required_commands": [],
+      "expected_evidence": ["test results report (passed/failed counts and logs)"],
+      "may_run_autonomously": false,
+      "requires_human": true,
+      "blocks_promotion_on_failure": true,
+      "availability": "unavailable",
+      "unavailable_reason": "No automation test code or runner entry points discovered in the repository.",
+      "notes": ""
+    },
+    "functional-test": {
+      "purpose": "Execute functional or integration tests (may overlap with automation-test or manual PIE flows).",
+      "required_capabilities": ["functional-test"],
+      "required_commands": [],
+      "expected_evidence": ["test execution log and pass/fail summary"],
+      "may_run_autonomously": false,
+      "requires_human": true,
+      "blocks_promotion_on_failure": true,
+      "availability": "unavailable",
+      "unavailable_reason": "No functional test infrastructure or scripts discovered.",
+      "notes": ""
+    },
+    "package-smoke": {
+      "purpose": "Cook and package a minimal build and perform a launch smoke test.",
+      "required_capabilities": ["package-smoke-testing"],
+      "required_commands": [],
+      "expected_evidence": ["packaging log success", "packaged output exists", "launch smoke result (no immediate crash)"],
+      "may_run_autonomously": false,
+      "requires_human": true,
+      "blocks_promotion_on_failure": true,
+      "availability": "unavailable",
+      "unavailable_reason": "No packaging or cook scripts discovered in the repository.",
+      "notes": ""
+    },
+    "candidate-integration": {
+      "purpose": "Full integration verification on a candidate branch, combining applicable profiles based on the wave's tasks.",
+      "required_capabilities": ["integration_verification"],
+      "required_commands": [],
+      "expected_evidence": ["results from all required profiles for the wave", "Critic verdict"],
+      "may_run_autonomously": false,
+      "requires_human": true,
+      "blocks_promotion_on_failure": true,
+      "availability": "partially available",
+      "unavailable_reason": "Depends on other profiles; text-only aspects can be automated, UE-dependent aspects require human.",
+      "notes": "The active Orchestrator assembles the set of profiles required by the tasks in the wave."
+    },
+    "human-playtest": {
+      "purpose": "Capture structured human feedback on playability, fun, coherence, pacing, visuals, and readiness of a slice.",
+      "required_capabilities": ["human-playtest"],
+      "required_commands": [],
+      "expected_evidence": ["recorded result in outbox/playtest/ with ratings for visual coherence, navigation clarity, objective clarity, combat feel, pacing, performance feel, overall readiness, plus free-text notes"],
+      "may_run_autonomously": false,
+      "requires_human": true,
+      "blocks_promotion_on_failure": true,
+      "availability": "available (human only)",
+      "unavailable_reason": null,
+      "notes": "Mandatory gate for any task or slice that declares requires_human_playtest: true. Orchestrator records the result; does not perform the playtest."
+    }
+  },
+  "usage": "Planner includes required_verification_profiles per task. Handoffs pass the list. Critic verifies execution and results (or proper documented reasons for skips). Unavailable profiles block promotion for tasks that list them as required."
+}

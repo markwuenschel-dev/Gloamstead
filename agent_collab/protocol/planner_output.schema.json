@@ -3,32 +3,35 @@
   "title": "PlannerOutput",
   "type": "object",
   "properties": {
-    "request_id": { "type": "string" },
-    "dag": {
-      "type": "object",
-      "properties": {
-        "tasks": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "task_id": { "type": "string" },
-              "goal": { "type": "string" },
-              "depends_on": { "type": "array", "items": { "type": "string" } },
-              "file_ownership": { "type": "array", "items": { "type": "string" } },
-              "parallelizable": { "type": "boolean" },
-              "docs_impact": { "type": "boolean" },
-              "risk_level": { "type": "string", "enum": ["low", "medium", "high"] },
-              "acceptance_criteria": { "type": "array", "items": { "type": "string" } },
-              "required_capabilities": { "type": "array", "items": { "type": "string" } }
-            },
-            "required": ["task_id", "goal"]
-          }
-        }
+    "wave_id": { "type": "string" },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "task_id": { "type": "string" },
+          "task_type": { "type": "string" },
+          "slice_id": { "type": ["string", "null"] },
+          "goal": { "type": "string" },
+          "depends_on": { "type": "array", "items": { "type": "string" } },
+          "file_ownership": { "type": "array", "items": { "type": "string" } },
+          "generated_output_ownership": { "type": "array", "items": { "type": "string" } },
+          "parallelizable": { "type": "boolean" },
+          "docs_impact": { "type": "boolean" },
+          "risk_level": { "type": "string", "enum": ["low", "medium", "high"] },
+          "acceptance_criteria": { "type": "array", "items": { "type": "string" } },
+          "required_capabilities": { "type": "array", "items": { "type": "string" } },
+          "required_verification_profiles": { "type": "array", "items": { "type": "string" } },
+          "asset_pack_ids": { "type": "array", "items": { "type": "string" } },
+          "requires_unreal_editor": { "type": "boolean" },
+          "requires_human_playtest": { "type": "boolean" },
+          "allowed_runtimes": { "type": "array", "items": { "type": "string" } },
+          "preferred_runtime": { "type": ["string", "null"] }
+        },
+        "required": ["task_id", "goal", "task_type"]
       }
     },
-    "summary": { "type": "string" },
-    "risk_notes": { "type": "array", "items": { "type": "string" } }
+    "notes": { "type": ["string", "null"] }
   },
-  "required": ["request_id", "dag"]
+  "required": ["wave_id", "tasks"]
 }

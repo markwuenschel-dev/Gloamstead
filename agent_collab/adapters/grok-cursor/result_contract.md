@@ -6,10 +6,11 @@ Workers return a **final message** containing valid JSON matching the role schem
 
 | Role | Schema |
 |------|--------|
-| Coder, Documentor, Researcher | `protocol/worker_summary.schema.json` |
+| Coder | `protocol/worker_summary.schema.json` |
 | Critic | `protocol/critic_verdict.schema.json` |
 | Planner | `protocol/planner_output.schema.json` |
-| Architect | ADR/proposal markdown + optional JSON artifact path in summary |
+
+(Architect / Researcher / Documentor are deprecated — their concerns are routed through playbooks/ and the three active worker schemas above. See UE5-Agent-Substrate-Review.md.)
 
 The Orchestrator parses JSON directly from the Task subagent return value. **No inbox round-trip required.**
 

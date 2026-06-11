@@ -1,95 +1,186 @@
 {
-  "generated_at": "2026-06-02T23:42:13.2316191Z",
-  "slug": "gloam",
+  "generated_at": "2026-06-08T22:34:25.6394799Z",
+  "slug": null,
   "mode": "sync",
   "run": {
-    "run_id": "run-20260602234210-663311",
+    "run_id": "run-20260608223408-d71a97",
     "status": "running",
-    "ticks": 0,
+    "ticks": 1,
     "tasks_completed": 0,
     "tokens_used_estimate": 0,
     "candidate_failures": 0,
     "runtime_failures": 0,
-    "started": "2026-06-02T23:42:10.4458439Z",
-    "last_tick": "2026-06-02T23:42:10.4458439Z",
+    "started": "2026-06-08T22:34:08.8866477Z",
+    "last_tick": "2026-06-08T22:34:09.2089224Z",
     "stop_reason": null
   },
   "counts": {
-    "active": 0,
+    "active": 12,
     "blocked": 0,
-    "done": 15
+    "done": 0
   },
-  "active_tasks": [],
+  "active_tasks": [
+    {
+      "task_id": "VS-POLISH-DATA-01",
+      "status": "done",
+      "phase": "done",
+      "assigned_to": "gloam-documentor",
+      "runtime": "grok",
+      "lane": "vs-polish",
+      "risk_level": "low",
+      "cycle": 0,
+      "wave_id": "wave-vs-polish-202606"
+    },
+    {
+      "task_id": "VS-POLISH-DATA-FU-01",
+      "status": "done",
+      "phase": "done",
+      "assigned_to": "grok-coder",
+      "runtime": "grok",
+      "lane": "vs-polish",
+      "risk_level": "low",
+      "cycle": 0,
+      "wave_id": "wave-vs-polish-202606"
+    },
+    {
+      "task_id": "VS-POLISH-DATA-FU-02",
+      "status": "done",
+      "phase": "done",
+      "assigned_to": "gloam-documentor",
+      "runtime": "grok",
+      "lane": "vs-polish",
+      "risk_level": "low",
+      "cycle": 0,
+      "wave_id": "wave-vs-polish-202606"
+    },
+    {
+      "task_id": "VS-POLISH-DATA-FU-03",
+      "status": "approved",
+      "phase": "approved",
+      "assigned_to": "gloam-coder",
+      "runtime": "claude-code",
+      "lane": "vs-polish",
+      "risk_level": "low",
+      "cycle": 0,
+      "wave_id": "wave-vs-polish-202606"
+    },
+    {
+      "task_id": "VS-POLISH-DATA-02",
+      "status": "assigned",
+      "phase": "assigned",
+      "assigned_to": "gloam-coder",
+      "runtime": "claude-code",
+      "lane": "vs-polish",
+      "risk_level": "low",
+      "cycle": 0,
+      "wave_id": "wave-vs-polish-202606"
+    },
+    {
+      "task_id": "VS-POLISH-UI-01",
+      "status": "assigned",
+      "phase": "assigned",
+      "assigned_to": "gloam-coder",
+      "runtime": "claude-code",
+      "lane": "vs-polish",
+      "risk_level": "medium",
+      "cycle": 0,
+      "wave_id": "wave-vs-polish-202606"
+    },
+    {
+      "task_id": "VS-POLISH-JOURNAL-01",
+      "status": "assigned",
+      "phase": "assigned",
+      "assigned_to": "gloam-coder",
+      "runtime": "claude-code",
+      "lane": "vs-polish",
+      "risk_level": "medium",
+      "cycle": 0,
+      "wave_id": "wave-vs-polish-202606"
+    },
+    {
+      "task_id": "VS-POLISH-VISUALS-01",
+      "status": "assigned",
+      "phase": "assigned",
+      "assigned_to": "gloam-coder",
+      "runtime": "claude-code",
+      "lane": "vs-polish",
+      "risk_level": "medium",
+      "cycle": 0,
+      "wave_id": "wave-vs-polish-202606"
+    },
+    {
+      "task_id": "VS-POLISH-PERSIST-01",
+      "status": "assigned",
+      "phase": "assigned",
+      "assigned_to": "gloam-coder",
+      "runtime": "claude-code",
+      "lane": "vs-polish",
+      "risk_level": "low",
+      "cycle": 0,
+      "wave_id": "wave-vs-polish-202606"
+    },
+    {
+      "task_id": "VS-POLISH-NIGHT-01",
+      "status": "assigned",
+      "phase": "assigned",
+      "assigned_to": "gloam-coder",
+      "runtime": "claude-code",
+      "lane": "vs-polish",
+      "risk_level": "medium",
+      "cycle": 0,
+      "wave_id": "wave-vs-polish-202606"
+    },
+    {
+      "task_id": "VS-POLISH-COMBAT-01",
+      "status": "assigned",
+      "phase": "assigned",
+      "assigned_to": "gloam-coder",
+      "runtime": "claude-code",
+      "lane": "vs-polish",
+      "risk_level": "medium",
+      "cycle": 0,
+      "wave_id": "wave-vs-polish-202606"
+    },
+    {
+      "task_id": "VS-POLISH-PLAYTEST-01",
+      "status": "assigned",
+      "phase": "assigned",
+      "assigned_to": "human",
+      "runtime": null,
+      "lane": "vs-polish",
+      "risk_level": "low",
+      "cycle": 0,
+      "wave_id": "wave-vs-polish-202606"
+    }
+  ],
   "waves": [
     {
-      "wave_id": "wave-hg-1",
-      "status": "promoted",
+      "wave_id": "wave-vs-polish-202606",
+      "status": "in_progress",
       "parallel": null,
       "task_ids": [
-        "HG-001"
-      ]
-    },
-    {
-      "wave_id": "wave-nc-1",
-      "status": "promoted",
-      "parallel": null,
-      "task_ids": [
-        "NC-001",
-        "NC-002",
-        "NC-003"
-      ]
-    },
-    {
-      "wave_id": "wave-nc-2",
-      "status": "promoted",
-      "parallel": null,
-      "task_ids": [
-        "NC-004",
-        "NC-005",
-        "NC-006"
-      ]
-    },
-    {
-      "wave_id": "wave-nc-3",
-      "status": "promoted",
-      "parallel": null,
-      "task_ids": [
-        "NC-007",
-        "NC-008",
-        "NC-009"
-      ]
-    },
-    {
-      "wave_id": "wave-vh-1",
-      "status": "promoted",
-      "parallel": null,
-      "task_ids": [
-        "VH-001",
-        "VH-002",
-        "VH-003"
-      ]
-    },
-    {
-      "wave_id": "wave-rp-1",
-      "status": "promoted",
-      "parallel": null,
-      "task_ids": [
-        "RP-001",
-        "RP-002"
-      ]
-    },
-    {
-      "wave_id": "wave-nc-4",
-      "status": "promoted",
-      "parallel": null,
-      "task_ids": [
-        "NC-010",
-        "NC-011",
-        "NC-012"
+        "VS-POLISH-DATA-FU-02",
+        "VS-POLISH-DATA-FU-03",
+        "VS-POLISH-DATA-02",
+        "VS-POLISH-UI-01",
+        "VS-POLISH-JOURNAL-01",
+        "VS-POLISH-VISUALS-01",
+        "VS-POLISH-PERSIST-01",
+        "VS-POLISH-NIGHT-01",
+        "VS-POLISH-COMBAT-01",
+        "VS-POLISH-PLAYTEST-01"
       ]
     }
   ],
-  "leases": [],
+  "leases": [
+    {
+      "lease_id": "ea4a57f2-e05c-42b6-8110-1280a46de7ce",
+      "task_id": null,
+      "runtime": "grok",
+      "status": null,
+      "expires": null
+    }
+  ],
   "log_tail": [
     "# Gloamstead Collaboration Orchestrator Log",
     "# Format: [ISO8601] LEVEL component: message",

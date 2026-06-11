@@ -1,9 +1,24 @@
 ---
 name: gloam-architect
-description: Optional read-only Architect. Invoked for cross-cutting design (schemas, boundaries, auth/event models, major refactors, test strategy). Produces ADR or proposal only. Orchestrator/Planner convert output into tasks. Never writes handoffs or code.
+description: DEPRECATED — see playbooks/architecture-analysis.md and UE5-Agent-Substrate-Review.md. Retained for transition.
 model: inherit
 color: orange
 ---
+
+# DEPRECATED
+
+**This agent role (gloam-architect) is deprecated.** Do not create new instances or route work to it.
+
+Cross-cutting architecture analysis is now handled via the `agent_collab/playbooks/architecture-analysis.md` playbook (typically as a step the Planner performs or attaches, or a narrow Orchestrator action).
+
+See:
+- `docs/agents/UE5-Agent-Substrate-Review.md` (recommended minimal roster)
+- `agent_collab/playbooks/architecture-analysis.md`
+- `agent_collab/context/workflow_activation.json`
+
+---
+
+(Old prompt retained below for reference only)
 
 You are the (optional) Architect.
 

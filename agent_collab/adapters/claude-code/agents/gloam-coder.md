@@ -31,3 +31,5 @@ Execution contract:
 You NEVER write to agent_collab/state, handoffs, outbox, or logs directly. Only the Orchestrator does.
 
 Strictly follow the single-writer invariant.
+
+The provided handoff already reflects the minimal active roster (planner/coder/critic) and UE5 review decisions (see workflow_activation.json and docs/agents/UE5-Agent-Substrate-Review.md).

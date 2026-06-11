@@ -1,30 +1,37 @@
-# Gloamstead Project Goal (for Collaboration System)
+# Gloamstead — Agent Collaboration Goal (Multi-Runtime UE5 Vertical Slice Factory)
 
-**Vertical slice**: Prove the core loop "Warning → Understanding → Restoration → Consequence → Reflection" in a focused third-person dark fantasy experience centered on the Veil Heart.
+The purpose of this collaboration system is to enable a **runtime-agnostic, agentic Unreal Engine 5 vertical-slice factory**.
 
-## Current Baseline (Phase 1.5 Complete)
-- Ritual data contracts (ERitualType, UritualDefinition Data Assets, FRestorationEventPayload)
-- Optimized hybrid PCG subsystem with spatial hash grid for ritual point queries/mutations
-- Player placement component (C++ base + BP) with snapping, preview, validation, payload construction
-- Multiple variant maps exercising the placement + PCG restoration flow
+Future work should be able to assemble playable vertical slices from:
 
-## Near-term Objectives (Phase 2 Priority)
-- Night Consequence System (data-driven consequence types, selection/spawning modulated by LightLevel/CorruptionLevel and restoration state)
-- Veil Heart dawn reflection and contextual payoff based on satisfied warning tags
-- Journal/memory system tied to restorations
-- Restored actor visual/behavior integration (LanternPost, GardenBed, etc.)
-- Expanded ritual archetypes (MirrorPillar, BellShrine prototypes)
-- Persistence of dynamic ritual state
+- Curated Marketplace or Fab asset packs (read-only vendor inputs)
+- Project-owned gameplay systems (C++ and Blueprint)
+- PCG biome and world-building systems
+- Text-based slice specifications (SliceSpec)
+- Asset-pack manifests and compatibility adapters
+- Project-owned Unreal Editor automation and commandlets
+- Automated validation, map-load, automation tests, and package-smoke checks
+- Human playtest feedback loops
+- Cooking, packaging, and playtest workflows
 
-## Constraints (non-negotiable for this collaboration)
-- Third-person perspective is core.
-- Restoration and interpretation are primary; combat is simple and secondary.
-- No tower defense, horde survival, village/colony management, survival crafting grind, or large open-world scope in the vertical slice.
-- Prefer C++ for core systems + data models; Blueprints for designer iteration, effects, UI.
-- Strong data-driven design via Data Assets, Curves, Data Tables.
-- Small vertical slices that validate the warning-restoration-night loop before broadening.
+## Core Principle (non-negotiable)
+Agents must not manually place assets or directly author/patch Unreal binary content (.uasset, .umap, etc.).
 
-## Success Criteria for Collaboration
-All agent work must preserve the core fantasy, respect the vertical slice boundary, produce auditable changes on task/candidate branches, pass integration verification on a trusted runtime before promotion to the work branch, and keep docs in sync only after code is green.
+Agents create and modify deterministic source: text specifications, manifests, adapters, C++/Blueprint source, config, editor automation, validation logic, build/packaging scripts, and documentation.
 
-See docs/ for detailed phase notes and ArchitectureOverview.md.
+Unreal binary assets are treated strictly as controlled generated outputs, produced only by approved automation under explicit ownership and verification.
+
+## Current Baseline (for context)
+- Mixed C++/Blueprint UE 5.7 project with existing vertical slice core loop (restoration-warning-night consequence-reflection) and strong PCG investment.
+- Git LFS for all binary content.
+- No project-level automation or packaging scripts discovered yet.
+
+## Collaboration Mandate
+The scaffold must be:
+- Runtime-agnostic (role != runtime)
+- Lease-based for exclusive Orchestrator authority (any compatible runtime may hold the lease)
+- Strict about scope, ownership (file + generated output), vendor immutability, and verification
+- Cold-restartable by any enabled compatible runtime
+- Auditable with full reconciliation on every Orchestrator activation
+
+All future factory tasks must respect these boundaries so the system can safely scale without corrupting the project or violating third-party terms.

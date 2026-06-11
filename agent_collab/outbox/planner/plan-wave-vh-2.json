@@ -1,0 +1,50 @@
+{
+  "request_id": "plan-wave-vh-2",
+  "wave_id": "wave-vh-2",
+  "lane": "veil-heart",
+  "depends_on_waves": ["wave-vh-1"],
+  "dag": {
+    "tasks": [
+      {
+        "task_id": "VH-004",
+        "goal": "FDawnReflectionSummary (tags satisfied, night type, night count) built in ProcessDawnReflection; multicast OnDawnReflectionComplete for UI/audio.",
+        "depends_on": ["VH-002"],
+        "file_ownership": [
+          "Source/Gloamstead/Systems/VeilHeart.h",
+          "Source/Gloamstead/Systems/VeilHeart.cpp",
+          "Source/Gloamstead/Data/VeilHeartWarningTypes.h"
+        ],
+        "parallelizable": false,
+        "docs_impact": true,
+        "risk_level": "low",
+        "acceptance_criteria": [
+          "Summary populated before SatisfiedWarningTags cleared",
+          "Blueprint can bind to delegate"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      },
+      {
+        "task_id": "VH-005",
+        "goal": "UGloamsteadJournalSubsystem: AppendEntry(FJournalEntry) on dawn from VeilHeart summary; entries store FText + associated warning/night ids; no UI widget in this wave.",
+        "depends_on": ["VH-004"],
+        "file_ownership": [
+          "Source/Gloamstead/Systems/GloamsteadJournalSubsystem.h",
+          "Source/Gloamstead/Systems/GloamsteadJournalSubsystem.cpp"
+        ],
+        "parallelizable": false,
+        "docs_impact": true,
+        "risk_level": "low",
+        "acceptance_criteria": [
+          "Subsystem persists entries for world lifetime",
+          "GetRecentEntries BlueprintPure returns last N",
+          "Dawn cycle appends one entry when tags satisfied > 0"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      }
+    ]
+  },
+  "summary": "Structured dawn feedback and in-memory journal feed the reflection fantasy.",
+  "risk_notes": [
+    "SaveGame out of scope; session-only journal acceptable for slice"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "request_id": "wave-nc-3-integration",
+  "verdict": "APPROVED",
+  "wave_id": "wave-nc-3",
+  "candidate_branch": "agent-collab/gloam/candidate/wave-nc-3",
+  "summary": "Runnable night phase: runtime subscribes to plan, DayNight triggers Begin/End, corruption spread mutates PCG state without touching ApplyRestoration. Tutorial/Omen stubs safe.",
+  "tasks": [
+    {"task_id": "NC-007", "passed": true},
+    {"task_id": "NC-008", "passed": true},
+    {"task_id": "NC-009", "passed": true}
+  ],
+  "follow_ups": [
+    "Editor compile required",
+    "PIE: AdvanceToNextPhase through Night; confirm corruption avg log on Corruption selection",
+    "wave-nc-4 for default catalog and Omen delegate"
+  ],
+  "reviewed_at": "2026-06-01T22:52:00Z",
+  "reviewer": "grok-orchestrator-integration"
+}

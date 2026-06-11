@@ -1,0 +1,45 @@
+{
+  "request_id": "plan-wave-nc-5",
+  "wave_id": "wave-nc-5",
+  "lane": "night-consequence",
+  "depends_on_waves": ["wave-nc-4"],
+  "dag": {
+    "tasks": [
+      {
+        "task_id": "NC-013",
+        "goal": "Night survival reward: on EndNight if sanctuary avg corruption below configurable threshold, broadcast FNightSurvivalReward (baseline float + bonus from satisfied warning count via VeilHeart query stub).",
+        "depends_on": [],
+        "file_ownership": [
+          "Source/Gloamstead/Data/NightConsequenceTypes.h",
+          "Source/Gloamstead/Systems/NightConsequenceRuntime.cpp",
+          "Source/Gloamstead/Systems/NightConsequenceRuntime.h"
+        ],
+        "parallelizable": false,
+        "docs_impact": true,
+        "risk_level": "low",
+        "acceptance_criteria": [
+          "Surviving corruption night logs reward amount",
+          "High corruption skips or reduces reward per doc baseline rule"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      },
+      {
+        "task_id": "NC-014",
+        "goal": "Sanctuary failure hook: if avg corruption >= FailureCorruptionThreshold after night spread, broadcast OnSanctuaryPressureCritical (no game over flow yet).",
+        "depends_on": ["NC-013"],
+        "file_ownership": [
+          "Source/Gloamstead/Systems/NightConsequenceRuntime.cpp"
+        ],
+        "parallelizable": false,
+        "docs_impact": true,
+        "risk_level": "low",
+        "acceptance_criteria": [
+          "Delegate fires at most once per night when threshold crossed",
+          "Does not block EndNight or dawn flow"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      }
+    ]
+  },
+  "summary": "Baseline night resource safety valve + readable failure pressure signal."
+}

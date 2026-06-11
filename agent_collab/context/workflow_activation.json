@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.0",
+  "description": "UE5-specific workflow activation rules for the Gloamstead agent_collab substrate. Small tasks must not pull the full roster. See docs/agents/UE5-Agent-Substrate-Review.md section 6 for the full matrix and rationale.",
+  "default_activation": {
+    "description": "Small tasks default to minimal roster. Planner only when justified by size, ownership risk, or human gates.",
+    "small_task": ["orchestrator", "coder", "critic"],
+    "requires_planner": "task_count > 1 OR ownership_prediction_risk = high OR docs_impact = true OR requires_human_playtest = true OR task_type in ['feature-implementation', 'refactor', 'migration', 'large-multi-file', 'schema-change']",
+    "optional_readonly": ["architecture-analysis (playbook)", "external-research (playbook)"]
+  },
+  "workflow_classes": {
+    "small_bug_fix": {
+      "roles": ["orchestrator", "coder", "critic"],
+      "planner": false,
+      "typical_profiles": ["text-only"],
+      "human_gate_risk": "low (if text-only available)",
+      "notes": "Pure text change in owned Source/ or Config/. No generated content."
+    },
+    "feature_implementation": {
+      "roles": ["orchestrator", "planner", "coder", "critic"],
+      "planner": true,
+      "typical_profiles": ["text-only", "compile", "editor-generation", "map-load"],
+      "human_gate_risk": "high (UE verification mostly unavailable)",
+      "notes": "Always route through Planner for ownership in C++/BP/PCG/Data mixes."
+    },
+    "refactor": {
+      "roles": ["orchestrator", "planner", "coder", "critic"],
+      "planner": true,
+      "typical_profiles": ["text-only", "compile"],
+      "human_gate_risk": "medium-high",
+      "notes": "Planner ownership prediction is primary collision defense under LFS."
+    },
+    "dependency_or_asset_change": {
+      "roles": ["orchestrator"],
+      "planner": false,
+      "typical_profiles": ["text-only"],
+      "human_gate_risk": "very high (always ask per autonomy_policy)",
+      "notes": "Plugins, engine association, Marketplace/Fab packs, licenses = human only."
+    },
+    "migration_schema_change": {
+      "roles": ["orchestrator", "planner", "coder", "critic"],
+      "planner": true,
+      "typical_profiles": ["text-only", "compile", "map-load"],
+      "human_gate_risk": "high + often requires human-playtest",
+      "notes": "Data contracts for rituals, night consequences, restoration, saves are high-risk."
+    },
+    "documentation_only": {
+      "roles": ["orchestrator", "critic"],
+      "planner": false,
+      "typical_profiles": ["text-only"],
+      "human_gate_risk": "low",
+      "notes": "After the triggering code change is green. Use documentation-update playbook, not a dedicated documentor role."
+    },
+    "large_vertical_slice_wave": {
+      "roles": ["orchestrator", "planner", "coder(s)", "critic"],
+      "planner": true,
+      "typical_profiles": ["per-task + candidate-integration", "human-playtest (if flagged)"],
+      "human_gate_risk": "high",
+      "notes": "Full path: candidate branch + Critic APPROVED + recorded playtest before work branch promotion. Never skip for generated content."
+    }
+  },
+  "enforcement": "Orchestrator prompts, /gloam-start-task, and Build-WavePlan must consult this file. Planner is not a default tax on every task.",
+  "references": [
+    "docs/agents/UE5-Agent-Substrate-Review.md",
+    "agent_collab/context/agent_rules.md",
+    "agent_collab/context/autonomy_policy.json",
+    "agent_collab/context/verification_profiles.json"
+  ]
+}

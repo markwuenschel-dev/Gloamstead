@@ -2,7 +2,7 @@
 
 ## Orchestrator (you — main Grok session)
 
-1. Project adapter (once per session or after adapter edits):
+1. Project adapter (once per session or after adapter edits — this now also projects agents/ prompts):
    ```powershell
    pwsh -NoProfile -File agent_collab/scripts/Project-GrokAdapter.ps1
    ```
@@ -28,14 +28,15 @@
    - Require final JSON per `result_contract.md`
 5. Parse result → validate schema → write `outbox/<role>/` + update `task_state.json` + log `decisions.md`.
 
-### Task tool mapping
+### Task tool mapping (minimal roster)
 
 | Role | Suggested `subagent_type` |
 |------|---------------------------|
 | Coder | `generalPurpose` |
-| Planner, Researcher, Architect | `generalPurpose` |
+| Planner | `generalPurpose` |
 | Critic (integration) | `code-reviewer` |
-| Documentor | `generalPurpose` |
+
+Only the four active roles (orchestrator, planner, coder, critic) per `docs/agents/UE5-Agent-Substrate-Review.md`. Architecture, research, and documentation concerns are handled via playbooks/ instead of separate roles.
 
 ## Coexistence with Claude Code
 

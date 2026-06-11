@@ -1,55 +1,56 @@
 {
   "policy_version": "1.0",
-  "description": "Defense-in-depth denylist for worker command execution. Enforced by Assert-BashPolicy.ps1 (and equivalent in other adapters). Denylists are not security boundaries (alias evasion possible) but raise friction and provide audit hooks.",
+  "description": "Defense-in-depth command policy. Unreal generation, cooking, packaging, and similar high-privilege commands are never treated as generally safe. They require explicit per-handoff permission, assigned generated output ownership, and will be audited. Discovered commands only; no invention of paths or wrappers.",
   "blocked_patterns": [
     {
-      "pattern": "git\\s+(push|pull|fetch|remote|pr)\\b",
-      "reason": "No remote mutations or PRs from workers. Orchestrator coordinates branches locally only."
+      "pattern": "git\\s+(push|pull|fetch\\s+origin|remote|pr)\\b",
+      "reason": "No remote mutations or PRs from any agent. Orchestrator coordinates branches locally only."
     },
     {
-      "pattern": "git\\s+reset\\s+--hard",
-      "reason": "Destructive history change forbidden."
-    },
-    {
-      "pattern": "git\\s+rebase",
+      "pattern": "git\\s+reset\\s+--hard|git\\s+rebase|git\\s+amend|git\\s+filter-(branch|repo)",
       "reason": "History rewrite forbidden."
     },
     {
-      "pattern": "git\\s+amend",
-      "reason": "History rewrite forbidden."
-    },
-    {
-      "pattern": "git\\s+filter-(branch|repo)",
-      "reason": "History rewrite forbidden."
-    },
-    {
-      "pattern": "git\\s+clean\\s+-fd",
-      "reason": "Destructive cleanup forbidden outside isolated worktrees under explicit control."
-    },
-    {
-      "pattern": "(^|;\\s*|\\|\\s*)rm\\s+-rf\\s+",
+      "pattern": "(^|;\\s*|\\|\\s*)rm\\s+-rf\\s+|Remove-Item\\s+.*-Recurse",
       "reason": "Recursive destructive delete."
     },
     {
-      "pattern": "(^|;\\s*|\\|\\s*)Remove-Item\\s+.*-Recurse",
-      "reason": "PowerShell recursive destructive delete."
-    },
-    {
       "pattern": "(curl|wget|iex|Invoke-WebRequest|Invoke-Expression)\\s+.*\\|\\s*(bash|sh|pwsh|powershell|iex)",
-      "reason": "Pipe-to-shell installer or remote code execution vector."
+      "reason": "Pipe-to-shell or remote code execution vector."
     },
     {
       "pattern": "\\bsudo\\b",
       "reason": "Privilege escalation outside controlled environment."
     }
   ],
-  "allowed_categories": [
-    "Ordinary file reads/writes and redirection (required for builds, tests, log capture)",
-    "git add/commit inside a Coder's own worktree on its assigned task branch only",
-    "git checkout -b (for task branch creation under Orchestrator direction)",
-    "Standard build/test commands for the project (dotnet, msbuild, Unreal build scripts, pwsh test runners)",
-    "Local analysis/linting tools that do not mutate source"
-  ],
-  "enforcement": "Scripts exit non-zero on match (BLOCKED). Orchestrator logs the violation. Coder worktrees provide additional isolation for git state.",
-  "notes": "This policy is advisory defense-in-depth. The authoritative controls are: single-writer Orchestrator, scope guards (Assert-EditScope), worktree sandboxes, mandatory integration Critic on trusted runtime, and human oversight on Orchestrator lock takeover."
+  "unreal_command_classification": {
+    "read_only": [
+      "Basic repository reads, git status/log/diff (within worktree), text inspection of .uproject/Config/Content (text parts only)."
+    ],
+    "text_verification": [
+      "Schema validation, JSON/YAML linting, custom project-owned text validators (when they exist under factory roots)."
+    ],
+    "compile": "No discovered safe command-line compile wrapper. Building requires human (open .uproject or run VS build for Development Editor target of Gloamstead module).",
+    "editor_generation": "Whitelisted: agent_collab/scripts/Invoke-GloamsteadDataAssetImport.ps1 with -Manifest under specs/data/. Underlying UnrealEditor-Cmd -run=GloamsteadImportDataAssets only via that wrapper.",
+    "map_load": "No discovered command-line map validator. Requires human Editor/PIE load with evidence capture.",
+    "automation_test": "No discovered automation test runner or test code. Requires human.",
+    "functional_test": "No discovered functional test infrastructure. Requires human.",
+    "package_smoke": "No discovered cook or package scripts. Requires human.",
+    "integration_verification": "Combination of applicable profiles above + Critic audit of diff and binary file list. UE-dependent steps currently require human.",
+    "requires_human_approval": [
+      "Any command that would install plugins, change EngineAssociation, download/purchase assets, accept licenses.",
+      "UnrealEditor-Cmd, RunUAT, BuildCookRun, or any cooking/packaging/automation command (even if the binary exists on the local machine) until explicitly whitelisted for a specific task with assigned generated_output_ownership."
+    ],
+    "forbidden": [
+      "Commands that write to Intermediate/, Saved/, DerivedDataCache/, Binaries/ from within scripts.",
+      "Direct modification of .uasset/.umap etc. outside of approved automation on an owned task branch."
+    ]
+  },
+  "enforcement_notes": "Shell policy is defense-in-depth only. Authoritative controls are: runtime capability validation in registry, exclusive Orchestrator lease, explicit handoff file_ownership + generated_output_ownership, edit-scope guards, worktree isolation, vendor immutability, structured result validation, Critic binary audits, and candidate integration verification.",
+  "whitelisted_commands": [
+    {
+      "pattern": "Invoke-GloamsteadDataAssetImport\\.ps1",
+      "reason": "Approved Data Asset factory wrapper (VS-POLISH-FACTORY-DATA-01). Must use -Manifest under specs/data/."
+    }
+  ]
 }

@@ -21,14 +21,12 @@ Build/
 *.tmp
 *.log
 
-# Agent collaboration projections (local IDE runtimes; not game deliverable)
-.claude/
-.grok/
+# Agent collaboration worktrees (local IDE/runtime sandboxes only). Projections under .claude/, .grok/ etc. are adapters only; the source of truth is agent_collab/registry/.
 .claude/worktrees/
 .grok/worktrees/
+.cursor/worktrees/
 
 # Agent collaboration volatile runtime state only (core protocol + scripts + context + registry + durable handoffs/outbox/state are committed and shared)
-agent_collab/inbox/*/raw/
 agent_collab/state/orchestrator.lock
 agent_collab/logs/orchestrator.log
 

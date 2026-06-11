@@ -16,7 +16,7 @@
  * - MirrorPillar: reflects warnings, provides clarity bonuses, vulnerable to certain nights.
  * - BellShrine: calls or repels based on tags, affects night selection radius.
  */
-UCLASS(BlueprintType, Abstract)
+UCLASS(BlueprintType)
 class GLOAMSTEAD_API URitualDefinition : public UPrimaryDataAsset
 {
     GENERATED_BODY()

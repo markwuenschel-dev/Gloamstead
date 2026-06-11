@@ -1,4 +1,14 @@
-# Grok Documentor worker prompt (embed in Task tool)
+# DEPRECATED — Grok Documentor worker prompt
+
+**DEPRECATED as a first-class role (2026-06).** See `docs/agents/UE5-Agent-Substrate-Review.md` and `agent_collab/playbooks/documentation-update.md`.
+
+This is now a post-promotion checklist/playbook executed (when `docs_impact: true`) after Critic APPROVED. No separate documentor handoff or worker should be created.
+
+Retained for reference during transition.
+
+---
+
+# (Old content below for reference only)
 
 You are **grok-documentor** (serial). Run only after integration APPROVED and promotion.
 

@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0",
+  "description": "Logical roles defined independently of any runtime. Capabilities required for a role are used to validate runtime assignments in adapter_matrix and at lease acquisition time.",
+  "roles": {
+    "orchestrator": {
+      "required_capabilities": [
+        "repository-read",
+        "durable-state-write",
+        "structured-output",
+        "runtime-invocation",
+        "git-worktree-management",
+        "git-candidate-integration",
+        "lease-management",
+        "policy-enforcement",
+        "state-reconciliation"
+      ],
+      "forbidden_for_workers": true,
+      "notes": "Only the holder of the active exclusive Orchestrator lease may perform these actions. Any compatible runtime may hold the lease."
+    },
+    "architect": {
+      "required_capabilities": ["repository-read", "architecture-analysis"],
+      "forbidden_for_workers": false,
+      "notes": "DEPRECATED as first-class role (2026-06 per UE5-Agent-Substrate-Review). Convert usage to architecture-analysis playbook (agent_collab/playbooks/architecture-analysis.md) invoked inside Planner or by Orchestrator. Role entry retained only for capability registry during transition."
+    },
+    "planner": {
+      "required_capabilities": ["repository-read", "planning", "file_ownership_prediction", "generated_output_ownership_prediction"],
+      "forbidden_for_workers": false,
+      "notes": "Read-only. Produces DAG with task_type, ownership, verification profiles, allowed_runtimes, etc. Must avoid overlapping ownership. May absorb architecture-analysis and external-research as structured attachments (see playbooks/)."
+    },
+    "researcher": {
+      "required_capabilities": ["repository-read", "external-research"],
+      "forbidden_for_workers": false,
+      "notes": "DEPRECATED as first-class role (2026-06 per UE5-Agent-Substrate-Review). Convert to external-research playbook (agent_collab/playbooks/external-research.md). Use for parallel read-only investigation only; no dedicated handoff for new work."
+    },
+    "coder": {
+      "required_capabilities": ["repository-read", "text-file-editing", "git-worktree-usage"],
+      "forbidden_for_workers": false,
+      "notes": "Runs in isolated worktree. Strict adherence to assigned file_ownership and generated_output_ownership. Never direct binary edits. UE5-specialized via ue5-* capabilities."
+    },
+    "critic": {
+      "required_capabilities": ["repository-read", "scope_audit", "integration_verification"],
+      "forbidden_for_workers": false,
+      "notes": "Read-only. Returns exactly one of APPROVED/REJECTED/BLOCKED with evidence. Enforces all ownership, vendor, and verification rules. Must remain independent of the producing coder."
+    },
+    "documentor": {
+      "required_capabilities": ["repository-read", "documentation"],
+      "forbidden_for_workers": false,
+      "notes": "DEPRECATED as first-class role (2026-06 per UE5-Agent-Substrate-Review). Convert to documentation-update playbook + checklist (agent_collab/playbooks/documentation-update.md). Execute serially only after Critic APPROVED + promotion when docs_impact=true. Role entry retained only for capability registry during transition."
+    }
+  }
+}

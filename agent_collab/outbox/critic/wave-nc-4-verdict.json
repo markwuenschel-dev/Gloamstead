@@ -1,0 +1,19 @@
+{
+  "request_id": "wave-nc-4-integration",
+  "verdict": "APPROVED",
+  "wave_id": "wave-nc-4",
+  "candidate_branch": "agent-collab/gloam/candidate/wave-nc-4",
+  "summary": "MVP catalog auto-populates for PIE; Omen broadcasts OnOmenClueReady with catalog GardenRot tag; Tutorial uses half spread. Manager/catalog override path preserved.",
+  "tasks": [
+    {"task_id": "NC-010", "passed": true},
+    {"task_id": "NC-011", "passed": true},
+    {"task_id": "NC-012", "passed": true}
+  ],
+  "follow_ups": [
+    "Compile and PIE: first night Tutorial, later nights score from snapshot",
+    "BP bind OnOmenClueReady for environmental VFX",
+    "Optional Content DA to tune rule bands"
+  ],
+  "reviewed_at": "2026-06-01T23:04:00Z",
+  "reviewer": "grok-orchestrator-integration"
+}

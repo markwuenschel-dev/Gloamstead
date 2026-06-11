@@ -1,0 +1,16 @@
+{
+  "request_id": "research-nc-1",
+  "task_id": "RESEARCH-NC-1",
+  "role": "Researcher",
+  "runtime": "grok-cursor",
+  "instance_id": "research-nc-1",
+  "verdict": "DONE",
+  "summary": "Stubs wired to OnStructureRestored; PrepareNightConsequences and ProcessDawnReflection are TODO; no night types or dusk/dawn orchestration yet.",
+  "artifacts": [
+    "Source/Gloamstead/Systems/NightConsequenceManager.h",
+    "Source/Gloamstead/Systems/NightConsequenceManager.cpp",
+    "Source/Gloamstead/Systems/VeilHeart.h",
+    "Source/Gloamstead/Systems/VeilHeart.cpp",
+    "docs/systems/03_night_consequence_system.md"
+  ]
+}

@@ -3,23 +3,10 @@
   "title": "SchedulerState",
   "type": "object",
   "properties": {
-    "mode": { "type": "string", "enum": ["sync", "async"] },
+    "mode": { "type": "string" },
     "dag": { "type": ["object", "null"] },
-    "waves": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "wave_id": { "type": "string" },
-          "task_ids": { "type": "array", "items": { "type": "string" } },
-          "status": { "type": "string", "enum": ["planned", "running", "candidate_testing", "promoted", "failed", "partially_failed"] },
-          "candidate_branch": { "type": ["string", "null"] },
-          "timestamps": { "type": "object" }
-        },
-        "required": ["wave_id", "task_ids", "status"]
-      }
-    },
-    "max_parallel": { "type": "integer", "minimum": 1 },
+    "waves": { "type": "array", "items": { "type": "object" } },
+    "max_parallel": { "type": "integer" },
     "work_branch": { "type": "string" },
     "in_flight": { "type": "array", "items": { "type": "string" } },
     "ready_queue": { "type": "array", "items": { "type": "string" } },

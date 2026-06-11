@@ -1,33 +1,25 @@
 {
-  "schema_version": "1.0",
-  "description": "Autonomy policy for Gloamstead Orchestrator (grok-cursor + claude-code). Enables high autonomy on reversible, low/medium risk actions within the vertical slice while gating irreversible, high-risk, or external-side-effect actions. Used by Assert-ActionPolicy.ps1, Update-RunState.ps1, and resume flows.",
   "autonomy_level": 2,
-  "notes": "Level 0: manual step-by-step. Level 1: ask on ask_first + high risk. Level 2+: allow reversible low/med (the default for this vertical slice). Promotion/critic/new-wave planning still surface status and respect policy. All actions still respect single-writer, scope, and mandatory integration verification.",
-  "cumulative": {
-    "max_tasks_per_run": 100,
-    "max_tokens": 2000000,
-    "max_wall_minutes": 480,
-    "max_candidate_failures": 8,
-    "max_runtime_failures": 5
-  },
-  "ask_first": [
-    "broad_refactor",
-    "data_migration"
+  "max_tasks_per_run": 5,
+  "max_parallel": 4,
+  "max_cycles_per_task": 3,
+  "max_runtime_minutes": 90,
+  "allow_local_commits": true,
+  "allow_remote_push": false,
+  "allow_pr_creation": false,
+  "allow_dependency_installs": "ask",
+  "allow_plugin_installs": "ask",
+  "allow_engine_upgrades": "ask",
+  "allow_asset_acquisition": "ask",
+  "allow_license_acceptance": "ask",
+  "allow_schema_migrations": "ask",
+  "allow_auth_security_changes": "ask",
+  "allow_deletes": "ask",
+  "allow_vendor_content_changes": false,
+  "allow_generated_binary_outputs": "explicit_handoff_only",
+  "allowed_goal_sources": [
+    "human_prompt",
+    "agent_collab/backlog/approved/"
   ],
-  "never_without_human": [],
-  "forbidden_actions": [
-    "remote_deploy",
-    "production_data_write"
-  ],
-  "irreversible_command_patterns": [],
-  "reversible_overrides": [
-    "integration_critic",
-    "candidate_promote_local"
-  ],
-  "project_specific": {
-    "vertical_slice_only": true,
-    "prefer_small_waves": true,
-    "require_critic_for_promote": true,
-    "grok_preference_for_low_risk": true
-  }
+  "notes": "Bounded autonomy for multi-runtime UE5 factory. The active Orchestrator (any compatible runtime holding the lease) may proceed on low/medium risk approved work with clear ownership (text and generated output) provided verification profiles can be satisfied and no human gate is triggered. Must stop for high risk, ambiguous ownership, human-gated actions (acquisition, licenses, plugins, engine changes, vendor mods, destructive work), unavailable required runtime/command, repeated verification failures, or pending human playtest."
 }

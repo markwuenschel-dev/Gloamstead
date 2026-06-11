@@ -1,0 +1,49 @@
+{
+  "request_id": "plan-wave-rp-1",
+  "wave_id": "wave-rp-1",
+  "lane": "ritual-placement",
+  "depends_on_waves": [],
+  "dag": {
+    "tasks": [
+      {
+        "task_id": "RP-001",
+        "goal": "URitualPlacementComponent: TMap<ERitualType, URitualDefinition*> or per-type soft refs; BuildRestorationPayload reads LightDelta/CorruptionCleared/WarningTagSatisfied from definition + point metadata instead of hardcoded switches.",
+        "depends_on": [],
+        "file_ownership": [
+          "Source/Gloamstead/Components/RitualPlacementComponent.h",
+          "Source/Gloamstead/Components/RitualPlacementComponent.cpp"
+        ],
+        "parallelizable": true,
+        "docs_impact": true,
+        "risk_level": "medium",
+        "acceptance_criteria": [
+          "Missing definition falls back to GetDefaultLightContribution helpers",
+          "Existing placement flow unchanged when map empty",
+          "WarningTagSatisfied prefers point metadata then definition tags"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      },
+      {
+        "task_id": "RP-002",
+        "goal": "Post-confirm restored actor hook: BlueprintImplementableEvent OnRestoredActorSpawned(AActor*, FRitualPointInfo) after successful ApplyRestoration; optional C++ spawn of placeholder class from RitualDefinition if added later (stub: log only).",
+        "depends_on": ["RP-001"],
+        "file_ownership": [
+          "Source/Gloamstead/Components/RitualPlacementComponent.cpp"
+        ],
+        "parallelizable": false,
+        "docs_impact": true,
+        "risk_level": "low",
+        "acceptance_criteria": [
+          "Event fires once per successful ConfirmPlacement",
+          "No mandatory Content/ mesh in this wave"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      }
+    ]
+  },
+  "summary": "Placement uses designer data assets; BP can attach visuals without C++ hardcoding.",
+  "risk_notes": [
+    "Can run parallel to wave-vh-1 if file paths respected (no VeilHeart edits)",
+    "Synergy with VH-002 warning tags via URitualDefinition"
+  ]
+}

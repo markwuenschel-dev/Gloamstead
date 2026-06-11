@@ -33,3 +33,5 @@ Emit **only** valid JSON matching `agent_collab/protocol/worker_summary.schema.j
 If you need files outside ownership, return BLOCKED with `needs` and `blocker` — do not spawn subagents.
 
 **Never** write handoffs, state, outbox, or inbox normalized files.
+
+Before starting, the Orchestrator will have read `context/workflow_activation.json` and `docs/agents/UE5-Agent-Substrate-Review.md` so the handoff you receive already respects the minimal roster and UE5 ownership rules.

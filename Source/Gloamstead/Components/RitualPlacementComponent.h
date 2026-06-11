@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "PCGPointData.h"
+#include "Data/PCGPointData.h"
 #include "Data/RitualTypes.h"
 #include "Data/RitualDefinition.h"
 #include "RitualPlacementComponent.generated.h"
@@ -79,6 +79,9 @@ protected:
 
     class UGloamsteadPCGSubsystem* GetSubsystem() const;
 
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ritual Definitions")
+    TMap<ERitualType, TObjectPtr<URitualDefinition>> RitualDefinitions;
+
 private:
     UPROPERTY()
     TObjectPtr<class UGloamsteadPCGSubsystem> CachedSubsystem;
@@ -106,7 +109,4 @@ private:
 
     UPROPERTY(EditDefaultsOnly, Category="Placement Settings")
     float SteepSlopeCameraBias = 28.0f;
-
-    UPROPERTY(EditDefaultsOnly, Category="Ritual Definitions")
-    TMap<ERitualType, TObjectPtr<URitualDefinition>> RitualDefinitions;
 };

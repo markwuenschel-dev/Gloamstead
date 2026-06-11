@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RuntimeInvocation",
+  "type": "object",
+  "properties": {
+    "invocation_id": { "type": "string" },
+    "runtime": { "type": "string" },
+    "role": { "type": "string" },
+    "task_id": { "type": "string" },
+    "handoff_path": { "type": "string" },
+    "worktree_path": { "type": "string" },
+    "context_paths": { "type": "array", "items": { "type": "string" } },
+    "output_schema_path": { "type": "string" },
+    "timeout_seconds": { "type": "integer" },
+    "created_at": { "type": "string" }
+  },
+  "required": ["invocation_id", "runtime", "role", "task_id", "handoff_path", "worktree_path", "output_schema_path"]
+}

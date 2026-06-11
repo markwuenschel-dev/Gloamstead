@@ -1,0 +1,69 @@
+{
+  "request_id": "plan-wave-nc-3",
+  "wave_id": "wave-nc-3",
+  "lane": "night-consequence",
+  "dag": {
+    "tasks": [
+      {
+        "task_id": "NC-007",
+        "goal": "Add bounded PCG night mutation API: ApplyCorruptionSpread(float Delta, int32 MaxPoints) mutates unrestored or restored point CorruptionLevel with clamp [0,1], updates metadata, does not change restoration flags.",
+        "depends_on": [],
+        "file_ownership": [
+          "Source/Gloamstead/PCG/GloamsteadPCGSubsystem.h",
+          "Source/Gloamstead/PCG/GloamsteadPCGSubsystem.cpp"
+        ],
+        "parallelizable": true,
+        "docs_impact": true,
+        "risk_level": "medium",
+        "acceptance_criteria": [
+          "API is BlueprintCallable with documented MaxPoints cap",
+          "ApplyRestoration path unchanged",
+          "BuildSanctuarySnapshot reflects mutations after spread"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      },
+      {
+        "task_id": "NC-008",
+        "goal": "UNightConsequenceRuntime world subsystem: subscribes to UNightConsequenceManager::OnNightPlanReady, stores active type, exposes BeginNight/EndNight, OnNightStarted/OnNightEnded delegates.",
+        "depends_on": [],
+        "file_ownership": [
+          "Source/Gloamstead/Systems/NightConsequenceRuntime.h",
+          "Source/Gloamstead/Systems/NightConsequenceRuntime.cpp"
+        ],
+        "parallelizable": true,
+        "docs_impact": true,
+        "risk_level": "low",
+        "acceptance_criteria": [
+          "BeginNight logs type and broadcasts OnNightStarted",
+          "EndNight is idempotent and broadcasts OnNightEnded",
+          "No spawn/combat in this task"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      },
+      {
+        "task_id": "NC-009",
+        "goal": "Wire UGloamsteadDayNightSubsystem: on enter Night call Runtime BeginNight + type stub dispatch; on enter Dawn (before VeilHeart) call EndNight. Implement Corruption stub via NC-007; Tutorial/Omen stubs log + delegate only.",
+        "depends_on": ["NC-007", "NC-008"],
+        "file_ownership": [
+          "Source/Gloamstead/Systems/GloamsteadDayNightSubsystem.cpp",
+          "Source/Gloamstead/Systems/NightConsequenceRuntime.cpp"
+        ],
+        "parallelizable": false,
+        "docs_impact": true,
+        "risk_level": "medium",
+        "acceptance_criteria": [
+          "Full cycle Day->Dusk->Night->Dawn runs BeginNight once per night",
+          "Corruption night increases sanctuary corruption average in logs",
+          "Tutorial/Omen do not crash when catalog selects those types"
+        ],
+        "required_capabilities": ["edit_code", "worktree", "local_commit"]
+      }
+    ]
+  },
+  "summary": "First runnable night: runtime subsystem + PCG corruption tick + DayNight phase hooks.",
+  "risk_notes": [
+    "NC-009 touches DayNight and Runtime — single coder or strict merge order",
+    "PIE requires catalog asset or manager falls back to Corruption"
+  ],
+  "estimated_parallel_levels": 2
+}

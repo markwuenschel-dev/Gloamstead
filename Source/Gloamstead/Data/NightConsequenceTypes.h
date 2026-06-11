@@ -44,6 +44,13 @@ struct FNightSanctuarySnapshot
 
 	UPROPERTY(BlueprintReadOnly, Category = "Night")
 	int32 PathPointRestored = 0;
+
+	/** New ritual types supported for FavoredRitualTypes in catalog rules (post DATA-01 + FU-01) */
+	UPROPERTY(BlueprintReadOnly, Category = "Night")
+	int32 MirrorPillarRestored = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Night")
+	int32 BellShrineRestored = 0;
 };
 
 /** Designer-tunable rule row for catalog scoring */

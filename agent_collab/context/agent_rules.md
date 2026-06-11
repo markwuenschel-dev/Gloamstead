@@ -1,45 +1,86 @@
-# Agent Collaboration Rules for Gloamstead
+# Agent Collaboration Rules for Gloamstead (Multi-Runtime UE5 Vertical Slice Factory)
 
-These rules apply to all participants in the agent_collab system (Orchestrator, Planner, Coder, Critic, etc.). They are in addition to the per-runtime agent definitions.
+These rules apply to all participants regardless of which runtime is performing which logical role. They are in addition to per-runtime adapter prompts and registry definitions.
 
-## Core Identity (always preserved)
-Gloamstead is a third-person dark fantasy sanctuary-restoration game. The player interprets cryptic warnings, performs ritualistic restorations of meaningful structures, and faces narrative/mechanical consequences at night. "I understood the warning. I restored the right place."
+## Foundational Rule: Role Independence from Runtime
+Logical role != runtime.
 
-## Implementation Bias
-- Use C++ for core systems, components, interfaces, data structs, subsystems, save logic.
-- Use Blueprints for designer-facing iteration, effects, tuning, UI hookup, prototypes.
-- Keep mechanics data-driven (Data Assets, Data Tables, Curves).
-- Prefer small vertical slices validating the restoration-warning-consequence loop.
-- Avoid broad frameworks, backward-compat shims, or unrelated systems before the core loop proves fun.
-- When modifying Unreal C++: update .h and .cpp together; follow UE naming; practical UPROPERTY metadata; Blueprint-readable where useful.
+Any enabled runtime that declares support and has the required capabilities may perform any role (including Orchestrator) after successfully acquiring the exclusive Orchestrator lease.
 
-## Naming & Scope Discipline
-- Do not invent canonical names for mechanics, enemies, factions, places, or resources unless explicitly approved in docs/.
-- Use generic safe terms until terms are locked: LightSource, ProtectedObject, RestorationSite, NightConsequence, Corruption, WarningFragment, RestorationPiece, Darkness.
-- Allowed current terms: Gloamstead, Veil Heart.
-- Before coding, identify the specific system doc being implemented (e.g. Phase2 docs or ADR).
-- After coding, summarize changed files + any editor setup steps required.
+A runtime acting as a worker must never implicitly gain Orchestrator authority. It must separately acquire the lease before performing Orchestrator actions.
 
-## Collaboration Hard Rules (this system)
-- Only the Orchestrator writes durable state (agent_collab/state/**, handoffs/**, outbox/**, logs/**, decisions.md).
-- Workers never spawn workers. Return BLOCKED + needs/request if help required.
-- Coder edits ONLY within its file_ownership inside coder_edit_roots; never touches docs/.
-- Documentor edits ONLY documentor_edit_roots after integration verification; never touches source/tests.
-- No push, PR, rebase, amend, hard reset, filter-branch, or history rewrite on any branch.
-- Work branch (agent-collab/gloam/work) must always be green after promotion.
-- Every candidate wave is verified by integration Critic on a test-capable trusted runtime before any promotion.
-- Scope guards (Assert-EditScope) and command policy (Assert-BashPolicy) are enforced; violations are BLOCKED.
-- All routing decisions and state transitions are logged with reason in orchestrator.log and decisions.md.
+## UE5 Content-Generation Rule (mandatory)
+Agents must not manually place assets or directly edit, patch, or synthesize Unreal binary files (.uasset, .umap, .ubulk, .uexp, etc.) through file-editing tools.
 
-## Existing Agent Guidance
-See docs/agents/ProjectRules.md and .cursor/rules/gloamstead.mdc for project-specific constraints. These take precedence for game content decisions.
+Binary content may only be produced when **all** of the following are true:
+- The active handoff explicitly permits generated binary outputs.
+- The exact output paths are assigned in generated_output_ownership.
+- The paths are inside approved coder_generated_output_roots.
+- An approved Unreal automation command (Editor or command-line) produced the changes on the isolated task worktree.
+- The task branch owns those paths.
+- The Critic audits the resulting changed binary files.
+- Required map-load and candidate integration verification passes.
 
-## Runtimes (Grok + Claude)
-- **grok-cursor**: Grok in Cursor — `/gloam-resume`, Task subagents, `.grok/worktrees/`, projection via `Project-GrokAdapter.ps1`.
-- **claude-code**: Claude Code — `claude --agent gloam-orchestrator`, native worktrees, projection via `Project-ClaudeAdapter.ps1`.
-- **local-script**: bounded runner only; raw output to `inbox/local-script/raw/`.
+## Vendor and Third-Party Content
+- All Marketplace, Fab, sample, and vendor content (e.g. Content/ThirdPerson, Content/Characters) is **read-only**.
+- Never modify vendor packs in place.
+- Integration must occur through project-owned adapters, manifests, derived assets, or generated content **outside** vendor roots.
+- Asset acquisition, license acceptance, plugin installation, and engine upgrades **always require human approval** (autonomy_policy "ask" or human gate).
 
-Only one Orchestrator session should hold `orchestrator.lock` at a time across IDEs.
+## Role Boundaries (strict, runtime-independent)
+- **Only the invocation currently holding the active Orchestrator lease** may delegate, update durable state (state/, handoffs/, outbox/, logs/decisions.md, audit.jsonl), manage leases, create worktrees/candidates, promote branches, or record human playtest results.
+- Workers (any role other than the active Orchestrator) must never delegate, never modify durable collaboration state, never write durable outbox records, and must return structured results for validation by the active Orchestrator.
 
-## Restart & Audit
-On every Orchestrator start: acquire lock, reconcile ground truth (git + handoffs + inbox/raw + leases), rebuild state caches if they diverge, log to decisions.md, report status, wait for human instruction.
+**Minimal roster (per UE5-Agent-Substrate-Review.md)**: orchestrator, planner, coder, critic. Architect/researcher/documentor are deprecated as first-class roles. Use the playbooks under agent_collab/playbooks/ (architecture-analysis, external-research, documentation-update) as steps inside Planner or post-promotion Orchestrator actions. See workflow_activation.json for when Planner is required vs optional for small tasks.
+
+- **Coder**: edits only inside assigned file_ownership within coder_edit_roots. Produces generated binaries only inside assigned generated_output_ownership via approved automation. Never edits binaries directly. Never touches docs or vendor content.
+- **Critic**: read-only. Must return APPROVED / REJECTED / BLOCKED with evidence. Must reject on scope violations, vendor changes, missing/failed required verification, unrecorded human playtest when required, etc. Independence from the producing coder is mandatory.
+- **Planner**: must produce DAGs that avoid overlapping file_ownership or generated_output_ownership for parallel tasks and must separate text-edit, generation, validation, packaging, and human-playtest concerns. May incorporate architecture-analysis and external-research playbook outputs as structured fields or attachments. Planner is not required for every small single-file owned text task (see workflow_activation.json).
+- (Deprecated roles converted to playbooks: see agent_collab/playbooks/ and the review document. Their old prompts remain for transition reference only.)
+
+## Git & Worktree Model
+- All Coder work happens in isolated git worktrees under the task branch (agent-collab/<slug>/task/<task_id>).
+- Task branches are **never** merged directly into the work branch (agent-collab/<slug>/work).
+- Always merge approved task branches into a candidate/<wave_id> first.
+- Run all required verification profiles on the candidate.
+- Promote to work branch **only** when candidate is green + Critic APPROVED.
+- Never push, PR, rebase, amend, hard-reset, rewrite history, or modify remotes.
+- Never copy or track transient Unreal dirs (Intermediate/, Saved/, DerivedDataCache/, Binaries/).
+
+## Verification and Human Gates
+- Use only verification profiles from verification_profiles.json.
+- Unavailable profiles block promotion for tasks that require them.
+- When requires_human_playtest: true, the active Orchestrator must stop and obtain/record a human result in outbox/playtest/ before marking complete.
+- All high-privilege actions (generated binary, packaging, etc.) require explicit handoff + ownership + audit.
+
+## Autonomy & Human Gates
+Follow autonomy_policy.json exactly. The active Orchestrator (lease holder) must stop for any high-risk, ambiguous ownership, human-gated action, unavailable required runtime/command, repeated failures, or pending human playtest.
+
+## Restart & Reconciliation (runtime-neutral)
+On every activation as Orchestrator:
+- Verify the runtime supports Orchestrator role + has required capabilities.
+- Acquire the exclusive Orchestrator lease.
+- Read all context, registry, state, leases, and logs.
+- Reconcile against Git + worktrees + handoffs + outbox + candidate branches + actual generated files + runtime_raw + playtest records.
+- State JSONs are caches; rebuild from ground truth as needed.
+- Report status.
+- Continue only safe approved work or wait.
+
+Git, handoffs, outbox (incl playtest/), leases, branches, worktrees, candidates, and actual generated files are ground truth.
+
+## Hard Rules (non-negotiable)
+- No direct binary Unreal asset editing.
+- No vendor content modification.
+- No generated output outside approved roots + explicit handoff.
+- No task branch promotion to work without candidate + verification + Critic APPROVED.
+- No human-playtest-required task marked complete without recorded result.
+- Workers never write durable state or delegate.
+- Coder never edits docs or vendor content.
+- Documentor never edits anything but docs/.
+- Only the lease holder performs Orchestrator actions.
+- No push/PR/rebase/amend/hard-reset/rewrite.
+- No invention of commands or runtime availability.
+
+Violations must result in BLOCKED by Critic and be logged.
+
+These rules enable safe scaling of the UE5 vertical-slice factory across multiple runtimes.

@@ -1,11 +1,26 @@
 {
-  "source_roots": ["Source"],
+  "unreal_project_files": ["Gloamstead.uproject"],
+  "source_roots": ["Source/Gloamstead", "Source/GloamsteadEditor"],
+  "plugin_source_roots": [],
+  "config_roots": ["Config"],
+  "factory_roots": ["specs/data/", "Source/GloamsteadEditor/"],
   "test_roots": [],
   "docs_roots": ["docs"],
-  "collab_roots": ["agent_collab", ".claude"],
-  "coder_edit_roots": ["Source"],
+  "generated_content_roots": ["Content/Data/"],
+  "vendor_content_roots": [
+    "Content/ThirdPerson",
+    "Content/Characters"
+  ],
+  "collab_roots": ["agent_collab"],
+  "coder_edit_roots": ["Source/Gloamstead", "Source/GloamsteadEditor", "Config", "specs/data"],
+  "coder_generated_output_roots": ["Content/Data/"],
+
   "documentor_edit_roots": ["docs"],
-  "orchestrator_edit_roots": ["agent_collab"],
+  "orchestrator_edit_roots": ["agent_collab", "specs", "Source/GloamsteadEditor", "Gloamstead.uproject"],
+  "readonly_roots": [
+    "Content/ThirdPerson",
+    "Content/Characters"
+  ],
   "forbidden_roots": [
     ".git",
     ".env",
@@ -13,12 +28,12 @@
     "node_modules",
     "dist",
     "build",
-    ".claude/worktrees",
-    ".grok/worktrees",
-    "Binaries",
-    "DerivedDataCache",
     "Intermediate",
-    "Saved"
+    "Saved",
+    "DerivedDataCache",
+    "Binaries",
+    ".claude/worktrees",
+    ".grok/worktrees"
   ],
-  "notes": "All paths repo-relative. Coder may not edit docs or binary/generated dirs. Documentor restricted to docs/. Orchestrator owns only agent_collab for state. No tests discovered; test_roots empty. Content/ is asset-heavy and typically edited via Unreal Editor, not direct agent file writes; kept out of coder_edit_roots for safety. Ambiguous paths logged to decisions.md and resolved to narrowest safe set."
+  "notes": "Factory roots added 2026-06-10 for VS-POLISH-FACTORY-DATA-01. coder_edit_roots includes Source/GloamsteadEditor and specs/data. Generated Content/Data/ for Data Asset import commandlet."
 }

@@ -3,17 +3,17 @@
   "title": "CriticVerdict",
   "type": "object",
   "properties": {
-    "request_id": { "type": "string" },
-    "task_id": { "type": ["string", "null"] },
+    "task_id": { "type": "string" },
     "wave_id": { "type": ["string", "null"] },
-    "mode": { "type": "string", "enum": ["task_branch_audit", "integration_verification", "docs_consistency"] },
     "verdict": { "type": "string", "enum": ["APPROVED", "REJECTED", "BLOCKED"] },
     "evidence": { "type": "array", "items": { "type": "string" } },
-    "criteria_results": { "type": "array", "items": { "type": "object" } },
-    "recommendations": { "type": "array", "items": { "type": "string" } },
-    "runtime": { "type": "string" },
-    "instance_id": { "type": "string" },
-    "raw_output_path": { "type": ["string", "null"] }
+    "scope_violations": { "type": "array", "items": { "type": "string" } },
+    "generated_output_violations": { "type": "array", "items": { "type": "string" } },
+    "vendor_changes_detected": { "type": "boolean" },
+    "missing_verification_profiles": { "type": "array", "items": { "type": "string" } },
+    "failed_verification": { "type": "array", "items": { "type": "string" } },
+    "human_playtest_pending": { "type": "boolean" },
+    "notes": { "type": ["string", "null"] }
   },
-  "required": ["request_id", "mode", "verdict", "evidence"]
+  "required": ["task_id", "verdict", "evidence"]
 }

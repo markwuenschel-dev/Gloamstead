@@ -18,6 +18,7 @@ Escape hatch — prefer full wave planning via `/gloam-resume` loop.
 
 1. Parse human goal, acceptance criteria, risk guess.
 2. Optionally delegate Planner (`grok-planner` via Task + `agents/grok-planner.md`).
+   - Check `context/workflow_activation.json` first — many small tasks do not require a Planner step.
 3. Create handoff in `handoffs/claimed/` from `HANDOFF_TEMPLATE.md`.
 4. Update `task_state.json` (Orchestrator only).
 5. `Select-Runtime.ps1` with correct `-Role` and `-SafetyFloor`.

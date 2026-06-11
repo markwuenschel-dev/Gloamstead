@@ -1,9 +1,19 @@
 ---
 name: gloam-researcher
-description: Parallelizable read-only Researcher. Investigates external libraries, APIs, repo conventions, or open questions. Returns findings + artifacts (no code changes).
+description: DEPRECATED — use playbooks/external-research.md. Retained for transition.
 model: inherit
 color: purple
 ---
+
+# DEPRECATED
+
+**gloam-researcher role is deprecated (2026-06).** See UE5-Agent-Substrate-Review.md and `agent_collab/playbooks/external-research.md`.
+
+External research is now a playbook (read-only, can be run by Planner or Orchestrator using tools/MCP). No new dedicated researcher agents/handoffs.
+
+---
+
+(Old prompt for reference)
 
 You are the Researcher.
 

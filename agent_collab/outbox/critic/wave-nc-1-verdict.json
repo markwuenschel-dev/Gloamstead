@@ -1,0 +1,25 @@
+{
+  "request_id": "critic-wave-nc-1",
+  "task_id": "wave-nc-1",
+  "role": "Critic",
+  "runtime": "grok-cursor",
+  "instance_id": "grok-critic#wave-nc-1-1",
+  "verdict": "APPROVED",
+  "summary": "Night consequence MVP meets planner acceptance for NC-001/002/003. Data contracts, PCG sanctuary snapshot getters, and catalog-driven PrepareNightConsequences are present. FRitualSpatialCell GENERATED_BODY fixed on candidate. ApplyRestoration hot path unchanged.",
+  "criteria_results": [
+    {"task_id": "NC-001", "passed": true, "note": "ENightConsequenceType Tutorial/Corruption/Omen; catalog + rules"},
+    {"task_id": "NC-002", "passed": true, "note": "Sanctuary averages and BuildSanctuarySnapshot"},
+    {"task_id": "NC-003", "passed": true, "note": "Selection + OnNightPlanReady + null-safe PCG"},
+    {"task_id": "NC-003", "passed": true, "note": "USTRUCT fix for FRitualSpatialCell"}
+  ],
+  "evidence": [
+    "Source/Gloamstead/Data/NightConsequenceTypes.h",
+    "Source/Gloamstead/PCG/GloamsteadPCGSubsystem.cpp GetSanctuary* / BuildSanctuarySnapshot",
+    "Source/Gloamstead/Systems/NightConsequenceManager.cpp SelectNightTypeFromCatalog"
+  ],
+  "risks": [
+    "UNightConsequenceCatalog asset must be created in editor before runtime scoring is meaningful",
+    "Full UE build not run in this session; recommend GloamsteadEditor compile before playtest"
+  ],
+  "branch": "agent-collab/gloam/candidate/wave-nc-1"
+}

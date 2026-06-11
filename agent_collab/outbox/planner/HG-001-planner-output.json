@@ -1,0 +1,31 @@
+{
+  "request_id": "planner-hg001-001",
+  "dag": {
+    "tasks": [
+      {
+        "task_id": "HG-001",
+        "goal": "Add Get-CollabStatus.ps1 script for quick collaboration system status (Hard Gate task)",
+        "depends_on": [],
+        "file_ownership": ["agent_collab/scripts/Get-CollabStatus.ps1"],
+        "parallelizable": false,
+        "docs_impact": false,
+        "risk_level": "low",
+        "acceptance_criteria": [
+          "Script exists at exact path agent_collab/scripts/Get-CollabStatus.ps1",
+          "Script is executable: pwsh -NoProfile -File agent_collab/scripts/Get-CollabStatus.ps1 succeeds with exit 0",
+          "Output includes at minimum: Mode, Lock status+age, Wave/Queue summary, Recent handoffs count, Inbox raw counts (per runtime), Last 5 decisions, Current git branch + collab branches, Worktree count",
+          "Script is read-only (no mutations) and handles missing files/empty state gracefully",
+          "Script uses Assert-EditScope style discipline in comments (even though read-only)",
+          "Critic (integration verification) approves after reviewing the script and running it"
+        ],
+        "required_capabilities": ["edit_code", "local_commit_in_worktree"]
+      }
+    ]
+  },
+  "summary": "Single-task wave. Narrow scope: one new read-heavy script under scripts/. Low risk. No docs impact. File ownership prediction is accurate and minimal. Should run serially in one Coder worktree.",
+  "risk_notes": [
+    "Very low risk — only touches new file in allowed scripts/ directory.",
+    "Main value is exercising the full Coder + Critic + promotion + restart flow for the Hard Gate.",
+    "Acceptance criteria are executable (script must actually run and produce expected sections)."
+  ]
+}

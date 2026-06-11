@@ -1,61 +1,50 @@
-# Restart and Reconciliation Instructions (Orchestrator)
+# Restart and Reconciliation Instructions (Runtime-Neutral Orchestrator)
 
-## On Every Orchestrator Invocation (including cold restart)
+## Short Restart Phrase (use on every cold/warm start, any compatible runtime)
+"Acquire the exclusive Orchestrator lease (verifying this runtime supports the role and has required capabilities); read project_goal.md, agent_rules.md, scope_roots.json, command_policy.json, autonomy_policy.json, content_policy.json, unreal_project.json, verification_profiles.json, all registry/*.json, task_state.json + scheduler_state.json + leases.json + logs/ (orchestrator.log, decisions.md, audit.jsonl); reconcile against handoffs/*, outbox/* (incl playtest/ and runtime_raw/), git branches + worktrees + candidate branches + actual generated binary files + vendor immutability (ground truth); report current status; continue safe approved work or wait when no work is approved or a human playtest is pending."
 
-1. **Acquire the lock** (or fail with clear guidance):
-   - Run `agent_collab/scripts/Acquire-OrchestratorLock.ps1 -Slug gloam`
-   - If fresh lock held by another session → stop, report owner, do not proceed.
-   - If stale lock → ask human explicitly before takeover (record in decisions.md).
+Git, handoffs, outbox (incl playtest/ and runtime_raw/), leases, candidate branches, and actual on-disk generated files are ground truth. State JSON files are caches that may be rebuilt.
 
-2. **Read ground truth sources** (in order):
-   - agent_collab/context/project_goal.md
-   - agent_collab/context/agent_rules.md
-   - agent_collab/context/environment.md
-   - agent_collab/context/scope_roots.json
-   - agent_collab/context/command_policy.json
-   - Registries for **enabled runtimes only**:
-     - agent_collab/registry/runtimes.json (filter enabled_runtimes)
-     - agent_collab/registry/agents.json (only templates for enabled runtimes)
-     - agent_collab/registry/capabilities.json
-     - agent_collab/registry/routing.json
-   - Protocol schemas (lazily, only those needed for current enabled runtimes)
-   - agent_collab/state/task_state.json
-   - agent_collab/state/scheduler_state.json
-   - agent_collab/state/leases.json (if mode == "async")
-   - Last 50 lines of agent_collab/logs/orchestrator.log
-   - agent_collab/logs/decisions.md (recent entries)
+## Full Restart Instructions (runtime-neutral process)
 
-3. **Reconcile against ground truth** (state files are caches):
-   - Git: current branch, worktrees (git worktree list), status of task/candidate/work branches, uncommitted changes in any worktree.
-   - Handoffs: claimed/, done/, blocked/, archived/ — cross-check task_ids, verdicts, branches.
-   - inbox/<runtime>/raw/ — any unprocessed outputs from watchers/runners/human pastes.
-   - Active leases (if async): validate heartbeats/expiry against wall time.
-   - If task_state.json or scheduler_state.json disagree with ground truth → rebuild caches from git + handoffs + inbox + leases; append reconciliation diff + rationale to decisions.md.
+1. Verify this runtime is enabled in registry/runtimes.json, supports the "orchestrator" role, and declares all required Orchestrator capabilities.
+2. Acquire the exclusive Orchestrator lease:
+   - Use Acquire-OrchestratorLease.ps1 (or equivalent for the runtime).
+   - Provide runtime id, agent/session identifiers, etc.
+   - If another non-expired lease exists for a compatible runtime, stop and report.
+   - If stale/expired, acquire after reconciliation.
+3. Read (read-only, in order):
+   - All context/ files listed in the short phrase.
+   - Registries (runtimes, roles, agents, capabilities, adapter_matrix, models).
+   - Protocol schemas as needed.
+   - State files (task_state, scheduler_state, leases).
+   - Logs (orchestrator.log tail, decisions.md, audit.jsonl).
+4. Reconcile against ground truth:
+   - Git branches (agent-collab/<slug>/*), worktree list, HEADs, uncommitted changes in any worktree.
+   - Handoffs (claimed/done/blocked/archived) vs task_state.
+   - Outbox (all role dirs + integration + playtest + runtime_raw) for unconsumed results.
+   - Actual on-disk generated files vs assigned generated_output_ownership in state/handoffs.
+   - Vendor content immutability (no changes under vendor_content_roots).
+   - Pending human playtest requirements.
+   - Orphan task/candidate branches or worktrees not reflected in state.
+   - If divergence: rebuild state caches from ground truth; append reconciliation record to decisions.md and audit.jsonl.
+5. Report current status (include multi-runtime and UE5 specifics):
+   - Current lease holder (runtime + identifiers)
+   - Active waves, queues, blocked items
+   - Any pending human playtests
+   - Status of generated content vs ownership
+   - Vendor immutability status
+   - Availability of required verification profiles and runtimes
+   - Budget remaining
+6. Continue or wait:
+   - Only on goals from human or approved backlog.
+   - Respect all human gates and unavailable profiles.
+   - For generated binary work: only with explicit handoff permission + ownership + verification path.
+   - Halt for high risk, ambiguous ownership, no compatible runtime available, etc.
 
-4.5 **Autonomy bootstrap** (new in fill-out for reduced check-ins):
-   - `Update-RunState.ps1 -Action Init -Force` (or Tick if continuing run).
-   - Read autonomy_policy.json; use Assert-ActionPolicy for every state-changing step.
-   - Rebuild status projection for observability.
+## Runtime-Specific Launch Notes
+See the launcher.md and onboarding.md inside each runtime's adapter under agent_collab/adapters/<runtime-id>/ for how to invoke that runtime as Orchestrator (e.g. claude --agent <slug>-orchestrator or equivalent for grok).
 
-4. **Report status** (concise) + autonomous continuation where safe:
-   - Active mode, run_id + budget spend (from run_state), waves/queues from scheduler, lock, inbox/handoff counts.
-   - Recommendation: (auto-continue safe work | plan next wave | reconcile X | release). Only pause for human if policy gate or no safe work remains.
+The lease (not the runtime name) grants Orchestrator authority. Any compatible runtime may acquire it after release/expiry and continue.
 
-5. **Autonomous progress (policy-gated) + human handoff only when required**:
-   - Run Update-RunState Tick + Check (exit 10 on budget hit → stop).
-   - Before mutations/delegations run Assert-ActionPolicy.ps1. If "allow" (reversible low/med risk) → proceed autonomously (no per-step check-in).
-   - Auto-reconcile any inbox/raw, auto-delegate next safe ready_queue items (up to parallelism), auto-run Critic on candidates, auto-promote when green (if policy allows).
-   - Stop and surface for human ONLY on: policy "ask"/"deny", high risk, new wave planning, budget exceed, BLOCKED tasks, or explicit "pause" directive.
-   - Sync mode: stay in session for multiple autonomous steps within the resume.
-   - Async: issue + lease, release lock, later resume reconciles.
-   - Always log policy decisions + actions to decisions.md.
-
-## Cold Restart Safety
-- The system is designed so that no in-flight worker holds exclusive state.
-- Leases (async) + heartbeats provide timeout-based recovery.
-- Git branches + handoff files are the durable source of work product.
-- Never assume a synchronous wait for any runtime that declared launch_mode other than "native" in the current session.
-
-## After Reconciliation
-- Refresh lock heartbeat if long operation follows.
-- On clean exit or handoff to human: release the lock via Release-OrchestratorLock.ps1.
+Re-run full reconciliation on every activation before delegation or state mutation.

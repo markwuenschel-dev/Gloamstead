@@ -1,0 +1,17 @@
+{
+  "request_id": "wave-rp-1-integration",
+  "verdict": "APPROVED",
+  "wave_id": "wave-rp-1",
+  "candidate_branch": "agent-collab/gloam/candidate/wave-vh-1-rp-1",
+  "summary": "RitualDefinitions map drives payload light/corruption/tags with RitualTypes fallback. OnRestoredActorSpawned fires after successful confirm.",
+  "tasks": [
+    {"task_id": "RP-001", "passed": true},
+    {"task_id": "RP-002", "passed": true}
+  ],
+  "follow_ups": [
+    "Assign DA_Ritual_* per type on placement component defaults",
+    "BP hook OnRestoredActorSpawned for meshes/VFX"
+  ],
+  "reviewed_at": "2026-06-01T23:01:00Z",
+  "reviewer": "grok-orchestrator-integration"
+}

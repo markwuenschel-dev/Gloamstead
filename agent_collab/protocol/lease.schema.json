@@ -4,15 +4,16 @@
   "type": "object",
   "properties": {
     "lease_id": { "type": "string" },
-    "task_id": { "type": "string" },
-    "request_id": { "type": "string" },
     "role": { "type": "string" },
     "runtime": { "type": "string" },
-    "instance_id": { "type": "string" },
-    "status": { "type": "string", "enum": ["active", "completed", "expired", "released", "failed"] },
-    "created": { "type": "string" },
-    "heartbeat": { "type": "string" },
-    "expires": { "type": "string" }
+    "agent_id": { "type": ["string", "null"] },
+    "session_id": { "type": ["string", "null"] },
+    "host_id": { "type": ["string", "null"] },
+    "process_id": { "type": ["string", "null"] },
+    "acquired_at": { "type": "string" },
+    "heartbeat_at": { "type": "string" },
+    "expires_at": { "type": "string" },
+    "notes": { "type": ["string", "null"] }
   },
-  "required": ["lease_id", "task_id", "request_id", "role", "runtime", "instance_id", "status", "created", "heartbeat", "expires"]
+  "required": ["lease_id", "role", "runtime", "acquired_at", "heartbeat_at", "expires_at"]
 }

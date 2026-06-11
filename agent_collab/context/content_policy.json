@@ -1,0 +1,29 @@
+{
+  "policy_version": "1.0",
+  "description": "Strict UE5 content policy for agentic vertical-slice factory. Agents must not directly author or patch Unreal binary assets. Binary content must be produced exclusively by approved Unreal automation from deterministic text sources (specs, manifests, adapters, code).",
+  "direct_binary_asset_editing": false,
+  "allow_generated_binary_outputs": true,
+  "generated_outputs_require_explicit_handoff": true,
+  "vendor_content_read_only": true,
+  "modify_vendor_assets_in_place": false,
+  "asset_acquisition_requires_human": true,
+  "license_acceptance_requires_human": true,
+  "plugin_install_requires_human": true,
+  "engine_upgrade_requires_human": true,
+  "content_deletion_requires_human": true,
+  "rules": {
+    "text_editable": "Project-owned source (Source/), config (Config/), future factory roots (specs, manifests, adapters, editor scripts, validators, build scripts), and docs/. Primary targets for Coder and Documentor.",
+    "generated_binary": "Only inside explicitly assigned paths under coder_generated_output_roots. Must be produced by handoff-approved Unreal Editor automation or commandlet on isolated task worktree. Task branch must own the paths. Must pass Critic audit + map-load/integration verification on candidate.",
+    "vendor_content": "Marketplace, Fab, sample (e.g. ThirdPerson, Characters/Mannequins), third-party, or vendor roots are read-only. Never modify in place. Integration must use project-owned adapters, manifests, derived assets, or generated content outside vendor roots.",
+    "forbidden": "Never directly edit or write to Intermediate/, Saved/, DerivedDataCache/, Binaries/, or any transient/generated cache directories. Never synthesize .u* binary files via text edits or direct binary manipulation.",
+    "human_gates": [
+      "Acquiring or purchasing Marketplace/Fab asset packs",
+      "Accepting licenses for assets, plugins, or content",
+      "Installing or enabling new plugins",
+      "Changing EngineAssociation in .uproject",
+      "Destructive deletes of project content",
+      "Any modification to vendor content roots"
+    ]
+  },
+  "enforcement": "Enforced via scope_roots.json (readonly_roots, vendor_content_roots, forbidden_roots), Assert-EditScope.ps1, Assert-BashPolicy.ps1, explicit handoff fields (file_ownership + generated_output_ownership), Critic audits of diffs and binary file lists, and candidate integration verification that generated content loads correctly."
+}

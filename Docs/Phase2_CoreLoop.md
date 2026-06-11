@@ -1,6 +1,6 @@
 # Phase 2 – Core Loop (Implementation)
 
-**Status:** Core C++ loop complete on `main` (June 2026). Combat spawns, journal UI, and persistence are not in this phase.
+**Status:** Core C++ loop complete on `main` (June 2026). Polish wave (visuals, data assets, UI, persistence, night/combat pressure) active under agent_collab. Human editor verification required for generated content. Combat spawns, full journal, and deeper persistence are part of the current polish efforts.
 
 ---
 
@@ -45,7 +45,7 @@ BlueprintCallable: `AdvanceToNextPhase`, `SetPhase`, `GetNormalizedTimeOfDay`, `
 
 - Listens to `OnStructureRestored` (path light coverage tracked for future use).
 - `PrepareNightConsequences`: `BuildSanctuarySnapshot` → score rules → `OnNightPlanReady`.
-- If no catalog asset is assigned, **`PopulateMVPNightConsequenceRules`** fills a runtime default catalog (Tutorial / Corruption / Omen).
+- If no catalog asset is assigned, **`PopulateMVPNightConsequenceRules`** fills a runtime default catalog (Tutorial / Corruption / Omen). See VS-POLISH-DATA-FU-02 for extension to all documented night types per the complete authoring guide in systems/03_night_consequence_system.md.
 
 ---
 
@@ -78,7 +78,7 @@ Sanctuary getters feed night scoring: `BuildSanctuarySnapshot`, averages, per-ri
 
 **`AVeilHeart`**
 
-- **`UVeilHeartWarningCatalog`**: rows with `AssociatedNightType`, `SatisfiableTags`, `Fragment` text.
+- **`UVeilHeartWarningCatalog`**: rows with `AssociatedNightType`, `SatisfiableTags`, `Fragment` text. Full designer contract + examples in the Data Asset Authoring Guide (systems/03); concrete assets via VS-POLISH-DATA-FU-03 + DATA-02.
 - **`EvaluateRestorationAgainstWarnings`**: matches `Payload.WarningTagSatisfied` (or ritual name fallback).
 - **`EmitWarningForNight`**: picks catalog row, calls BP **`OnWarningEmitted`**.
 - **`ProcessDawnReflection`**: logs satisfied tags, clears set for next cycle.
@@ -89,7 +89,7 @@ Sanctuary getters feed night scoring: `BuildSanctuarySnapshot`, averages, per-ri
 
 **`URitualPlacementComponent`**
 
-- `TMap<ERitualType, URitualDefinition*>` for light/corruption/tag defaults.
+- `TMap<ERitualType, URitualDefinition*>` for light/corruption/tag defaults. Extended enum (MirrorPillar, BellShrine) and full URitualDefinition specs + example tuning values in authoring guide (systems/03). Snapshot/scoring support for new types in VS-POLISH-DATA-FU-01. Concrete DAs via FU-03.
 - Point metadata `RecommendedForWarning` overrides when set.
 - **`OnRestoredActorSpawned`** after successful `ConfirmPlacement` (BP implements visuals).
 
@@ -97,10 +97,17 @@ Sanctuary getters feed night scoring: `BuildSanctuarySnapshot`, averages, per-ri
 
 ## Editor checklist
 
-1. Build **Gloamstead** module.
-2. Optional: create and assign data assets (catalog, warning catalog, ritual definitions).
-3. Map: PCG initialized, **AVeilHeart** placed, player with placement component.
-4. Test BP: call **`AdvanceToNextPhase`** through full cycle; read **Output Log**.
+| Step | Status (2026-06-11) |
+|------|---------------------|
+| 1. Build **Gloamstead** + **GloamsteadEditor** | Done |
+| 2. Data assets in `Content/Data/` (import factory) | Done — [specs/data/VERIFICATION-2026-06-11.md](../specs/data/VERIFICATION-2026-06-11.md) |
+| 3. **AVeilHeart** placed; catalogs assigned / auto-loaded | Done on `Lvl_ThirdPerson` |
+| 4. **URitualPlacementComponent** + ritual DAs on player BP | Done |
+| 5. Level BP test key → **`Advance Gloamstead Day Phase`** | Done |
+| 6. PCG initialized (`InitializeFromPCGComponent`) | **Next** |
+| 7. Restore ritual; non-Tutorial night + dusk warning in PIE | Blocked on step 6 |
+
+Wiring: [specs/data/WIRING.md](../specs/data/WIRING.md).
 
 ---
 

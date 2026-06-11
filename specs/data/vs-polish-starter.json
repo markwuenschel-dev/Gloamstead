@@ -1,0 +1,136 @@
+{
+  "manifest_version": "1.0",
+  "content_path": "/Game/Data",
+  "assets": [
+    {
+      "asset_name": "DA_NightConsequenceCatalog",
+      "class": "NightConsequenceCatalog",
+      "properties": {
+        "FallbackNightType": "Corruption",
+        "bForceTutorialOnFirstNight": true,
+        "Rules": [
+          {
+            "NightType": "Tutorial",
+            "Weight": 10,
+            "MinAverageLight": 0,
+            "MaxAverageLight": 1,
+            "MinAverageCorruption": 0,
+            "MaxAverageCorruption": 1,
+            "FavoredRitualTypes": []
+          },
+          {
+            "NightType": "Corruption",
+            "Weight": 5,
+            "MinAverageLight": 0,
+            "MaxAverageLight": 0.6,
+            "MinAverageCorruption": 0.15,
+            "MaxAverageCorruption": 1,
+            "FavoredRitualTypes": ["LanternPost"],
+            "OmenClueTag": ""
+          },
+          {
+            "NightType": "Omen",
+            "Weight": 4,
+            "MinAverageLight": 0.2,
+            "MaxAverageLight": 1,
+            "MinAverageCorruption": 0,
+            "MaxAverageCorruption": 0.5,
+            "FavoredRitualTypes": ["GardenBed"],
+            "OmenClueTag": "GardenRot"
+          },
+          {
+            "NightType": "Retrieval",
+            "Weight": 3,
+            "MinAverageLight": 0.3,
+            "MaxAverageLight": 1,
+            "MinAverageCorruption": 0,
+            "MaxAverageCorruption": 0.4,
+            "FavoredRitualTypes": ["MirrorPillar"]
+          },
+          {
+            "NightType": "Mirror",
+            "Weight": 2,
+            "MinAverageLight": 0.4,
+            "MaxAverageLight": 1,
+            "MinAverageCorruption": 0,
+            "MaxAverageCorruption": 0.35,
+            "FavoredRitualTypes": ["MirrorPillar", "BellShrine"]
+          }
+        ]
+      }
+    },
+    {
+      "asset_name": "DA_VeilHeartWarningCatalog",
+      "class": "VeilHeartWarningCatalog",
+      "properties": {
+        "Warnings": [
+          {
+            "WarningId": "PathBlocked",
+            "Fragment": "The way is veiled until the light returns.",
+            "AssociatedNightType": "Omen",
+            "SatisfiableTags": ["LightPath", "LanternPost"],
+            "ClarityTier": 0
+          },
+          {
+            "WarningId": "GardenRot",
+            "Fragment": "What grows in darkness must be tended before the bell tolls.",
+            "AssociatedNightType": "Corruption",
+            "SatisfiableTags": ["GardenBed"],
+            "ClarityTier": 1
+          },
+          {
+            "WarningId": "HiddenReflection",
+            "Fragment": "Reflections that reveal the hidden stir when the mirror stands unbroken.",
+            "AssociatedNightType": "Mirror",
+            "SatisfiableTags": ["MirrorPillar", "Reflection"],
+            "ClarityTier": 1
+          }
+        ]
+      }
+    },
+    {
+      "asset_name": "DA_Ritual_LanternPost",
+      "class": "RitualDefinition",
+      "properties": {
+        "RitualType": "LanternPost",
+        "DefaultLightContribution": 0.4,
+        "DefaultCorruptionClearance": 0.15,
+        "RestorationRadius": 600,
+        "SatisfiableWarningTags": ["LightPath"]
+      }
+    },
+    {
+      "asset_name": "DA_Ritual_GardenBed",
+      "class": "RitualDefinition",
+      "properties": {
+        "RitualType": "GardenBed",
+        "DefaultLightContribution": 0.25,
+        "DefaultCorruptionClearance": 0.3,
+        "RestorationRadius": 500,
+        "SatisfiableWarningTags": ["Garden", "Growth"]
+      }
+    },
+    {
+      "asset_name": "DA_Ritual_MirrorPillar",
+      "class": "RitualDefinition",
+      "properties": {
+        "RitualType": "MirrorPillar",
+        "DefaultLightContribution": 0.3,
+        "DefaultCorruptionClearance": 0.1,
+        "RestorationRadius": 400,
+        "SatisfiableWarningTags": ["Reflection", "Hidden"]
+      }
+    },
+    {
+      "asset_name": "DA_Ritual_BellShrine",
+      "class": "RitualDefinition",
+      "properties": {
+        "RitualType": "BellShrine",
+        "DefaultLightContribution": 0.2,
+        "DefaultCorruptionClearance": 0.25,
+        "RestorationRadius": 700,
+        "SatisfiableWarningTags": ["Resonance", "Call"]
+      }
+    }
+  ]
+}

@@ -1,7 +1,6 @@
 #include "Systems/VeilHeart.h"
-#include "Components/RitualPlacementComponent.h"
+#include "PCG/GloamsteadPCGSubsystem.h"
 #include "Engine/World.h"
-#include "Kismet/GameplayStatics.h"
 
 AVeilHeart::AVeilHeart()
 {
@@ -12,17 +11,22 @@ void AVeilHeart::BeginPlay()
 {
 	Super::BeginPlay();
 
+	if (!WarningCatalog)
+	{
+		WarningCatalog = Cast<UVeilHeartWarningCatalog>(
+			StaticLoadObject(UVeilHeartWarningCatalog::StaticClass(), nullptr,
+				TEXT("/Game/Data/DA_VeilHeartWarningCatalog.DA_VeilHeartWarningCatalog")));
+		if (WarningCatalog)
+		{
+			UE_LOG(LogTemp, Log, TEXT("VeilHeart: Loaded warning catalog from /Game/Data/DA_VeilHeartWarningCatalog."));
+		}
+	}
+
 	if (UWorld* World = GetWorld())
 	{
-		TArray<AActor*> FoundActors;
-		UGameplayStatics::GetAllActorsOfClass(World, AActor::StaticClass(), FoundActors);
-
-		for (AActor* Actor : FoundActors)
+		if (UGloamsteadPCGSubsystem* PCGSub = World->GetSubsystem<UGloamsteadPCGSubsystem>())
 		{
-			if (URitualPlacementComponent* RitualComp = Actor->FindComponentByClass<URitualPlacementComponent>())
-			{
-				RitualComp->OnRestorationComplete.AddDynamic(this, &AVeilHeart::OnRestorationComplete);
-			}
+			PCGSub->OnStructureRestored.AddDynamic(this, &AVeilHeart::OnRestorationComplete);
 		}
 	}
 }

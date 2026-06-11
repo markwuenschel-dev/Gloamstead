@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Gloamstead Data Asset Manifest",
+  "type": "object",
+  "required": ["manifest_version", "content_path", "assets"],
+  "properties": {
+    "manifest_version": { "type": "string" },
+    "content_path": { "type": "string", "default": "/Game/Data" },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["asset_name", "class", "properties"],
+        "properties": {
+          "asset_name": { "type": "string" },
+          "class": {
+            "type": "string",
+            "enum": ["NightConsequenceCatalog", "VeilHeartWarningCatalog", "RitualDefinition"]
+          },
+          "properties": { "type": "object" }
+        }
+      }
+    }
+  }
+}

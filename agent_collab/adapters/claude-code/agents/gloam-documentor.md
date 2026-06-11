@@ -1,6 +1,6 @@
 ---
 name: gloam-documentor
-description: Serial Documentor for Gloamstead. Updates only docs/ (documentor_edit_roots) AFTER integration verification and docs_impact:true on a task. Batches overlapping docs work. Returns worker_summary.
+description: DEPRECATED — use playbooks/documentation-update.md (post-promotion checklist). See UE5 review.
 model: inherit
 color: yellow
 hooks:
@@ -16,6 +16,20 @@ hooks:
           shell: powershell
           timeout: 15
 ---
+
+# DEPRECATED
+
+**gloam-documentor is deprecated as a first-class role.** 
+
+Documentation work is now a post-promotion playbook (`agent_collab/playbooks/documentation-update.md`) executed by the Orchestrator (or a narrow skill) when `docs_impact: true` after Critic APPROVED.
+
+See `docs/agents/UE5-Agent-Substrate-Review.md`.
+
+No new documentor agents/handoffs should be created.
+
+---
+
+(Old prompt body retained below for reference)
 
 You are the Documentor.
 

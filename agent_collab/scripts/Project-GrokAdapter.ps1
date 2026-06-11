@@ -37,6 +37,7 @@ function Copy-Tree {
 
 Copy-Tree -From "$src/skills" -To '.grok/skills'
 Copy-Tree -From "$src/rules" -To '.grok/rules'
+Copy-Tree -From "$src/agents" -To '.grok/agents'
 
 Write-Output 'GROK_PROJECTION_COMPLETE'
 exit 0
