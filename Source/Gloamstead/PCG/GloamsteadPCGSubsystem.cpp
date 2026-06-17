@@ -4,6 +4,8 @@
 #include "Metadata/PCGMetadata.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
+#include "Save/GloamsteadSaveGame.h"
+#include "Kismet/GameplayStatics.h"
 
 void UGloamsteadPCGSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -299,6 +301,58 @@ void UGloamsteadPCGSubsystem::ReapplyRestoredState(const TSet<int32>& RestoredIn
         }
     }
     RestoredPointIndices = RestoredIndices;
+}
+
+void UGloamsteadPCGSubsystem::CaptureToSaveGame(UGloamsteadSaveGame* SaveGame) const
+{
+    if (!SaveGame)
+    {
+        return;
+    }
+    SaveGame->PointStates           = PointStates;
+    SaveGame->RestoredPointIndices  = RestoredPointIndices.Array();
+    SaveGame->WorldSeed             = CurrentWorldSeed;
+    SaveGame->SaveVersion           = 1;
+}
+
+void UGloamsteadPCGSubsystem::RestoreFromSaveGame(const UGloamsteadSaveGame* SaveGame)
+{
+    if (!SaveGame)
+    {
+        return;
+    }
+    // Full per-point restore (light + corruption + flags), unlike ReapplyRestoredState which only flips flags.
+    PointStates          = SaveGame->PointStates;
+    RestoredPointIndices = TSet<int32>(SaveGame->RestoredPointIndices);
+    CurrentWorldSeed     = SaveGame->WorldSeed;
+}
+
+bool UGloamsteadPCGSubsystem::SaveToSlot(const FString& SlotName, int32 UserIndex) const
+{
+    UGloamsteadSaveGame* SaveGame = Cast<UGloamsteadSaveGame>(
+        UGameplayStatics::CreateSaveGameObject(UGloamsteadSaveGame::StaticClass()));
+    if (!SaveGame)
+    {
+        return false;
+    }
+    CaptureToSaveGame(SaveGame);
+    return UGameplayStatics::SaveGameToSlot(SaveGame, SlotName, UserIndex);
+}
+
+bool UGloamsteadPCGSubsystem::LoadFromSlot(const FString& SlotName, int32 UserIndex)
+{
+    if (!UGameplayStatics::DoesSaveGameExist(SlotName, UserIndex))
+    {
+        return false;
+    }
+    UGloamsteadSaveGame* SaveGame = Cast<UGloamsteadSaveGame>(
+        UGameplayStatics::LoadGameFromSlot(SlotName, UserIndex));
+    if (!SaveGame)
+    {
+        return false;
+    }
+    RestoreFromSaveGame(SaveGame);
+    return true;
 }
 
 void UGloamsteadPCGSubsystem::DrawDebugRitualPoints(float Duration) const
