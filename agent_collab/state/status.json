@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-06-08T22:34:25.6394799Z",
+  "generated_at": "2026-06-17T00:13:36.0288574Z",
   "slug": null,
   "mode": "sync",
   "run": {
     "run_id": "run-20260608223408-d71a97",
-    "status": "running",
+    "status": "idle",
     "ticks": 1,
     "tasks_completed": 0,
     "tokens_used_estimate": 0,
@@ -12,58 +12,14 @@
     "runtime_failures": 0,
     "started": "2026-06-08T22:34:08.8866477Z",
     "last_tick": "2026-06-08T22:34:09.2089224Z",
-    "stop_reason": null
+    "stop_reason": "reconciled-2026-06-16"
   },
   "counts": {
-    "active": 12,
+    "active": 8,
     "blocked": 0,
-    "done": 0
+    "done": 4
   },
   "active_tasks": [
-    {
-      "task_id": "VS-POLISH-DATA-01",
-      "status": "done",
-      "phase": "done",
-      "assigned_to": "gloam-documentor",
-      "runtime": "grok",
-      "lane": "vs-polish",
-      "risk_level": "low",
-      "cycle": 0,
-      "wave_id": "wave-vs-polish-202606"
-    },
-    {
-      "task_id": "VS-POLISH-DATA-FU-01",
-      "status": "done",
-      "phase": "done",
-      "assigned_to": "grok-coder",
-      "runtime": "grok",
-      "lane": "vs-polish",
-      "risk_level": "low",
-      "cycle": 0,
-      "wave_id": "wave-vs-polish-202606"
-    },
-    {
-      "task_id": "VS-POLISH-DATA-FU-02",
-      "status": "done",
-      "phase": "done",
-      "assigned_to": "gloam-documentor",
-      "runtime": "grok",
-      "lane": "vs-polish",
-      "risk_level": "low",
-      "cycle": 0,
-      "wave_id": "wave-vs-polish-202606"
-    },
-    {
-      "task_id": "VS-POLISH-DATA-FU-03",
-      "status": "approved",
-      "phase": "approved",
-      "assigned_to": "gloam-coder",
-      "runtime": "claude-code",
-      "lane": "vs-polish",
-      "risk_level": "low",
-      "cycle": 0,
-      "wave_id": "wave-vs-polish-202606"
-    },
     {
       "task_id": "VS-POLISH-DATA-02",
       "status": "assigned",
@@ -172,15 +128,7 @@
       ]
     }
   ],
-  "leases": [
-    {
-      "lease_id": "ea4a57f2-e05c-42b6-8110-1280a46de7ce",
-      "task_id": null,
-      "runtime": "grok",
-      "status": null,
-      "expires": null
-    }
-  ],
+  "leases": [],
   "log_tail": [
     "# Gloamstead Collaboration Orchestrator Log",
     "# Format: [ISO8601] LEVEL component: message",
