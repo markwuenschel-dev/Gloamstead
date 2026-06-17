@@ -10,6 +10,33 @@ After clone or adapter changes: `pwsh -NoProfile -File agent_collab/scripts/Proj
 Start orchestrator: **`/gloam-resume`**
 Status only: **`/gloam-status`**
 
+## Git / PR / merge workflow (ALL agents)
+
+Applies to every agent and runtime (Claude Code, Grok, Codex, etc.). This is the GitHub
+integration flow to `main`; it complements — does not replace — the agent_collab promotion rules below.
+
+1. **Branch first — never commit directly to `main`.** One branch per logical change
+   (`feat/…`, `test/…`, `chore/…`, `docs/…`).
+2. **Green before PR.** `./gate.ps1` must pass (build green + all automation tests green) before opening a
+   PR. Do not open a PR on red. New tests live under `Source/Gloamstead/Tests/` and run via the
+   `Gloamstead` filter automatically.
+3. **Stage only intended paths.** Never commit local tooling dirs (`.claude/`, `.grok/`) or build
+   intermediates. Use explicit `git add <paths>`, not `git add -A`.
+4. **Push auth (HTTPS remote).** `origin` is HTTPS; configure `gh` as the git credential helper once
+   (`gh auth setup-git`). After pushing, **verify the ref actually landed**
+   (`git ls-remote origin <branch>`) — push stdout can falsely look successful.
+5. **Open the PR** with `gh pr create --base main` and a body describing what changed + how it was verified.
+6. **Merge policy (human standing order):** squash-merge and delete the branch:
+   `gh pr merge <n> --squash --delete-branch`, then `git checkout main && git pull --prune` and delete the
+   local branch (`git branch -d <branch>`).
+7. **Never bypass protections.** Do **not** pass `--admin` to override a branch-protection / required-check
+   gate. If a gate blocks the merge, **stop and report to the human**; use `--admin` only when the human
+   explicitly authorizes it for that specific merge.
+8. **Attribution.** End commit messages with a `Co-Authored-By:` trailer naming the acting agent/model; end
+   PR bodies with the agent's "generated with" line.
+9. **Line endings / LFS.** Repo blobs are LF; non-Windows clients must set `core.autocrlf=input` and have
+   git-lfs installed, or `Content/*` and sources will show phantom churn.
+
 ## Multi-agent collaboration (agent_collab)
 
 This repo uses the **agent_collab** protocol (v8.1). Source of truth: `agent_collab/` (not `.grok/` or `.claude/`).
