@@ -16,8 +16,8 @@ Applies to every agent and runtime (Claude Code, Grok, Codex, etc.). This is the
 integration flow to `main`; it complements — does not replace — the agent_collab promotion rules below.
 
 **Standing order — agents own the full lifecycle.** For a change you are authorized to make, take
-it all the way without waiting for a human to click buttons: **commit → push → open PR → squash-merge →
-delete the branch (local + remote) → prune**. The human has pre-authorized the squash-merge-and-delete
+it all the way without waiting for a human to click buttons: **commit → push → open PR → merge (merge commit) →
+delete the branch (local + remote) → prune**. The human has pre-authorized the merge-and-delete
 policy (step 6). The only hard stops are: (a) `./gate.ps1` is red, (b) a branch-protection / required-check
 gate would need `--admin` (step 7), or (c) a conflict you cannot cleanly resolve — in those cases **stop and
 report**. Doc/config-only changes with no build impact (e.g. Markdown, `.gitignore`) do not require a UE5
@@ -34,9 +34,9 @@ build; say so in the PR body instead of skipping silently.
    (`gh auth setup-git`). After pushing, **verify the ref actually landed**
    (`git ls-remote origin <branch>`) — push stdout can falsely look successful.
 5. **Open the PR** with `gh pr create --base main` and a body describing what changed + how it was verified.
-6. **Merge policy (human standing order):** squash-merge and delete the branch:
-   `gh pr merge <n> --squash --delete-branch`, then `git checkout main && git pull --prune` and delete the
-   local branch (`git branch -d <branch>`).
+6. **Merge policy (human standing order):** merge with a real **merge commit** — **not** squash, **not**
+   rebase — and delete the branch: `gh pr merge <n> --merge --delete-branch`, then
+   `git checkout main && git pull --prune` and delete the local branch (`git branch -d <branch>`).
 7. **Never bypass protections.** Do **not** pass `--admin` to override a branch-protection / required-check
    gate. If a gate blocks the merge, **stop and report to the human**; use `--admin` only when the human
    explicitly authorizes it for that specific merge.
@@ -49,7 +49,7 @@ build; say so in the PR body instead of skipping silently.
 > with the env token — the git credential helper already injects `${GH_TOKEN:-$GITHUB_TOKEN}` for HTTPS
 > `git push`. Substitute:
 > - Create PR → `POST /repos/{owner}/{repo}/pulls` with `{"title","head","base","body"}`
-> - Merge (squash) → `PUT /repos/{owner}/{repo}/pulls/{n}/merge` with `{"merge_method":"squash"}`
+> - Merge (merge commit) → `PUT /repos/{owner}/{repo}/pulls/{n}/merge` with `{"merge_method":"merge"}`
 > - Delete remote branch → `DELETE /repos/{owner}/{repo}/git/refs/heads/{branch}`
 >
 > e.g. `set -a; . ./.env; set +a; curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/...`
@@ -65,8 +65,9 @@ build; say so in the PR body instead of skipping silently.
 - **Local:** `git checkout main && git pull --prune` (drops local refs to remote branches that are now gone),
   then delete merged locals:
   `git branch --merged main | grep -vE '^\*|^\s*main$' | xargs -r git branch -d`.
-- **Safety:** use `git branch -d` (refuses unmerged); only `-D` (force) an unmerged branch when the human
-  explicitly says so.
+- **Safety:** `git branch -d` (refuses unmerged) is the default and works cleanly under the merge-commit
+  policy — once merged, the branch is a true ancestor of `main`, so git recognizes it (no squash-style `-D`
+  workaround needed). Only `-D` (force) an unmerged branch when the human explicitly says so.
 
 ### Providing GitHub credentials (PAT)
 
