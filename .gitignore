@@ -26,6 +26,10 @@ Build/
 .grok/worktrees/
 .cursor/worktrees/
 
+# Local agent settings — may hold secrets (e.g. GH_TOKEN/GITHUB_TOKEN). NEVER commit.
+.claude/settings.local.json
+.grok/settings.local.json
+
 # Agent collaboration volatile runtime state only (core protocol + scripts + context + registry + durable handoffs/outbox/state are committed and shared)
 agent_collab/state/orchestrator.lock
 agent_collab/logs/orchestrator.log
