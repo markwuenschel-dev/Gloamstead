@@ -28,6 +28,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Night")
 	FName GetOmenClueTagForNightType(ENightConsequenceType NightType) const;
 
+	/** Test seam: deterministic night selection over the assigned catalog, without needing a world/PCG subsystem. */
+	ENightConsequenceType Test_SelectNightType(const FNightSanctuarySnapshot& Snapshot) { return SelectNightTypeFromCatalog(Snapshot); }
+
 	UPROPERTY(BlueprintAssignable, Category = "Night")
 	FOnNightPlanReady OnNightPlanReady;
 

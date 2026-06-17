@@ -7,6 +7,8 @@
 #include "Data/NightConsequenceTypes.h"
 #include "GloamsteadPCGSubsystem.generated.h"
 
+class UGloamsteadSaveGame;
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStructureRestored, const FRestorationEventPayload&, Payload);
 
 USTRUCT()
@@ -14,8 +16,13 @@ struct FRitualPointState
 {
     GENERATED_BODY()
 
+    UPROPERTY()
     bool bIsRestored = false;
+
+    UPROPERTY()
     float LightLevel = 0.0f;
+
+    UPROPERTY()
     float CorruptionLevel = 0.0f;
 };
 
@@ -100,6 +107,23 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="PCG|Ritual")
     void ReapplyRestoredState(const TSet<int32>& RestoredIndices);
+
+    // === Full persistence (per-point state, not just restored flags) ===
+    /** Copy full per-point state (light/corruption/restored) + restored set + seed into a save object. */
+    UFUNCTION(BlueprintCallable, Category="PCG|Persistence")
+    void CaptureToSaveGame(UGloamsteadSaveGame* SaveGame) const;
+
+    /** Replace current per-point state with the save object's contents (full round-trip, unlike ReapplyRestoredState). */
+    UFUNCTION(BlueprintCallable, Category="PCG|Persistence")
+    void RestoreFromSaveGame(const UGloamsteadSaveGame* SaveGame);
+
+    /** Convenience: capture into a fresh save object and write it to a named slot. */
+    UFUNCTION(BlueprintCallable, Category="PCG|Persistence")
+    bool SaveToSlot(const FString& SlotName, int32 UserIndex = 0) const;
+
+    /** Convenience: load a named slot and apply it. Returns false if the slot is missing/invalid. */
+    UFUNCTION(BlueprintCallable, Category="PCG|Persistence")
+    bool LoadFromSlot(const FString& SlotName, int32 UserIndex = 0);
 
     // === Debugging ===
     UFUNCTION(BlueprintCallable, Category="PCG|Ritual|Debug")

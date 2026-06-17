@@ -27,7 +27,7 @@ Success is measured by whether the player correctly interprets the world and res
 
 The **vertical-slice core loop** (placement → restoration → dusk warning → night selection from catalog → night runtime → dawn reflection) is implemented in C++ on `main`.
 
-Development is driven by the **agent_collab** substrate (see `docs/agents/UE5-Agent-Substrate-Review.md`). The `wave-vs-polish-202606` polish wave is active. **Data asset factory verified 2026-06-11:** JSON manifest → `GloamsteadImportDataAssets` commandlet → six `Content/Data/DA_*` assets, wired on `Lvl_ThirdPerson`, PIE day/night smoke passed ([specs/data/VERIFICATION-2026-06-11.md](specs/data/VERIFICATION-2026-06-11.md)). Next gate: PCG init for restoration and varied night selection.
+Development is driven by the **agent_collab** substrate (see `docs/agents/UE5-Agent-Substrate-Review.md`). The `wave-vs-polish-202606` polish wave is active. **Data asset factory verified 2026-06-11:** JSON manifest → `GloamsteadImportDataAssets` commandlet → six `Content/Data/DA_*` assets, wired on `Lvl_ThirdPerson`, PIE day/night smoke passed ([specs/data/VERIFICATION-2026-06-11.md](specs/data/VERIFICATION-2026-06-11.md)). Next gate: PCG init for restoration and varied night selection. A headless automation gate (`gate.ps1`) now grounds shipped logic — **16 tests green** (PCG state/persistence, night selection, Veil Heart warnings); see [Roadmap](docs/ROADMAP.md).
 
 | Phase | Focus | Status |
 |-------|-------|--------|
@@ -93,6 +93,7 @@ Start here: **[docs/README.md](docs/README.md)**
 | Doc | Description |
 |-----|-------------|
 | [Architecture Overview](docs/ArchitectureOverview.md) | Layers, data flow, maturity |
+| [Roadmap](docs/ROADMAP.md) | Tracks, triggers, and the `gate.ps1` automation oracle |
 | [Phase 2 – Core Loop](docs/Phase2_CoreLoop.md) | Day/night + night + Heart (implementation) |
 | [Phase 0 – Ritual Data](docs/Phase0_RitualData.md) | Payloads and ritual definitions |
 | [Phase 1 – PCG](docs/Phase1_PCGSubsystem.md) | Subsystem and performance model |
