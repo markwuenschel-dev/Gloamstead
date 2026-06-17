@@ -1,13 +1,13 @@
 {
   "run_id": "run-20260608223408-d71a97",
-  "status": "running",
+  "status": "idle",
   "started": "2026-06-08T22:34:08.8866477Z",
   "last_tick": "2026-06-08T22:34:09.2089224Z",
-  "updated": "2026-06-08T22:34:09.2089224Z",
+  "updated": "2026-06-16T00:00:00Z",
   "ticks": 1,
   "tasks_completed": 0,
   "tokens_used_estimate": 0,
   "candidate_failures": 0,
   "runtime_failures": 0,
-  "stop_reason": null
+  "stop_reason": "reconciled-2026-06-16"
 }

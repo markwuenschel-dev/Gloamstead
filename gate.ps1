@@ -4,7 +4,7 @@ $ErrorActionPreference = 'Stop'
 $Engine = 'C:\Program Files\Epic Games\UE_5.7'
 $Proj   = 'C:\Users\Nalakram\Documents\Unreal Projects\Gloamstead\Gloamstead.uproject'
 $Target = 'GloamsteadEditor'
-$Filter = 'Gloamstead.Spine'
+$Filter = 'Gloamstead'
 $Report = Join-Path $env:TEMP 'GloamsteadGate'
 
 function Fail($m) { Write-Host "GATE FAIL: $m" -ForegroundColor Red; exit 1 }
