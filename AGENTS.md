@@ -37,6 +37,28 @@ integration flow to `main`; it complements — does not replace — the agent_co
 9. **Line endings / LFS.** Repo blobs are LF; non-Windows clients must set `core.autocrlf=input` and have
    git-lfs installed, or `Content/*` and sources will show phantom churn.
 
+### Providing GitHub credentials (PAT)
+
+Auth must never block a push / PR / merge. `gh` is the credential path for this repo (HTTPS `origin`).
+A human can supply a Personal Access Token so any agent can push **without the token ever entering the repo**:
+
+- **Preferred — gh keyring:** `gh auth login --with-token` (token on stdin), then `gh auth setup-git`.
+  Stored in the OS keyring, persists across sessions, and git push over HTTPS uses it. *(This is the current setup.)*
+- **Or — environment variable:** export `GH_TOKEN` (or `GITHUB_TOKEN`) in the profile the agent's commands
+  inherit (`~/.bashrc`, Windows user env). gh and the git credential helper read it automatically. A one-off
+  `export` in an interactive prompt may **not** carry into an agent's separate tool calls — set it in the
+  profile so it persists.
+
+**Hand the token over out-of-band** — your own terminal, profile, or keyring — **not by pasting it into the
+chat/transcript** (anything in the conversation is retained, and so is any command line that echoes it).
+
+Token scope — keep it minimal: classic PAT `repo` (add `workflow` only if touching Actions), or a
+fine-grained PAT scoped to this repo with **Contents + Pull requests: read/write**. SSO-authorize if the org requires it.
+
+**NEVER:** commit a token or write it into any tracked file, commit message, or PR body; pass it on a
+command line that gets logged; or stash it in `.claude/`/`.grok/` expecting privacy. Rotate/revoke when no
+longer needed, and revoke immediately if one is ever exposed.
+
 ## Multi-agent collaboration (agent_collab)
 
 This repo uses the **agent_collab** protocol (v8.1). Source of truth: `agent_collab/` (not `.grok/` or `.claude/`).
