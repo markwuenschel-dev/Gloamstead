@@ -115,6 +115,12 @@ public:
     UPROPERTY(BlueprintAssignable, Category="PCG|Ritual")
     FOnStructureRestored OnStructureRestored;
 
+    // === Test seam (unconditional inline; unused in shipping → linker emits nothing) ===
+    /** Test-only seam: install a known synthetic point-state set, bypassing PCG init. */
+    void Test_SeedPointStates(const TArray<FRitualPointState>& InStates) { PointStates = InStates; }
+    /** Test-only seam: read current point state for assertions. */
+    const TArray<FRitualPointState>& Test_PeekPointStates() const { return PointStates; }
+
 private:
     ERitualType GetRitualTypeFromPoint(const FPCGPoint& Point) const;
 
