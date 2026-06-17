@@ -15,6 +15,14 @@ Status only: **`/gloam-status`**
 Applies to every agent and runtime (Claude Code, Grok, Codex, etc.). This is the GitHub
 integration flow to `main`; it complements — does not replace — the agent_collab promotion rules below.
 
+**Standing order — agents own the full lifecycle.** For a change you are authorized to make, take
+it all the way without waiting for a human to click buttons: **commit → push → open PR → squash-merge →
+delete the branch (local + remote) → prune**. The human has pre-authorized the squash-merge-and-delete
+policy (step 6). The only hard stops are: (a) `./gate.ps1` is red, (b) a branch-protection / required-check
+gate would need `--admin` (step 7), or (c) a conflict you cannot cleanly resolve — in those cases **stop and
+report**. Doc/config-only changes with no build impact (e.g. Markdown, `.gitignore`) do not require a UE5
+build; say so in the PR body instead of skipping silently.
+
 1. **Branch first — never commit directly to `main`.** One branch per logical change
    (`feat/…`, `test/…`, `chore/…`, `docs/…`).
 2. **Green before PR.** `./gate.ps1` must pass (build green + all automation tests green) before opening a
@@ -37,17 +45,45 @@ integration flow to `main`; it complements — does not replace — the agent_co
 9. **Line endings / LFS.** Repo blobs are LF; non-Windows clients must set `core.autocrlf=input` and have
    git-lfs installed, or `Content/*` and sources will show phantom churn.
 
+> **If `gh` is not installed** (e.g. this WSL runtime), the steps above still work via the GitHub REST API
+> with the env token — the git credential helper already injects `${GH_TOKEN:-$GITHUB_TOKEN}` for HTTPS
+> `git push`. Substitute:
+> - Create PR → `POST /repos/{owner}/{repo}/pulls` with `{"title","head","base","body"}`
+> - Merge (squash) → `PUT /repos/{owner}/{repo}/pulls/{n}/merge` with `{"merge_method":"squash"}`
+> - Delete remote branch → `DELETE /repos/{owner}/{repo}/git/refs/heads/{branch}`
+>
+> e.g. `set -a; . ./.env; set +a; curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/...`
+> — never put the token on a logged command line or echo it.
+
+### Stale-branch cleanup (after every merge, and periodically)
+
+"Own the lifecycle" includes leaving no orphan branches.
+
+- **Remote:** merging with `--delete-branch` (or the REST `DELETE …/git/refs/heads/<branch>`) removes the PR
+  branch. To sweep others, list remote branches already merged into `main`
+  (`git branch -r --merged origin/main`) and delete the ones you own — **never** `main` or `HEAD`.
+- **Local:** `git checkout main && git pull --prune` (drops local refs to remote branches that are now gone),
+  then delete merged locals:
+  `git branch --merged main | grep -vE '^\*|^\s*main$' | xargs -r git branch -d`.
+- **Safety:** use `git branch -d` (refuses unmerged); only `-D` (force) an unmerged branch when the human
+  explicitly says so.
+
 ### Providing GitHub credentials (PAT)
 
 Auth must never block a push / PR / merge. `gh` is the credential path for this repo (HTTPS `origin`).
 A human can supply a Personal Access Token so any agent can push **without the token ever entering the repo**:
 
-- **Preferred — gh keyring:** `gh auth login --with-token` (token on stdin), then `gh auth setup-git`.
-  Stored in the OS keyring, persists across sessions, and git push over HTTPS uses it. *(This is the current setup.)*
-- **Or — environment variable:** export `GH_TOKEN` (or `GITHUB_TOKEN`) in the profile the agent's commands
-  inherit (`~/.bashrc`, Windows user env). gh and the git credential helper read it automatically. A one-off
-  `export` in an interactive prompt may **not** carry into an agent's separate tool calls — set it in the
-  profile so it persists.
+- **Current setup — `.env` at repo root:** `GH_TOKEN=…` (and/or `GITHUB_TOKEN=…`) live in `.env`, which is
+  **git-ignored and must stay that way**. It is not auto-exported into the shell, so agents load it per command
+  (`set -a; . ./.env; set +a; <cmd>`). The repo's git credential helper reads `${GH_TOKEN:-$GITHUB_TOKEN}`, so
+  HTTPS `git push` authenticates with no token in the repo. `gh` (when installed) also reads `GH_TOKEN`
+  automatically.
+- **Or — gh keyring:** `gh auth login --with-token` (token on stdin), then `gh auth setup-git`.
+  Stored in the OS keyring, persists across sessions, and git push over HTTPS uses it.
+- **Or — environment variable in the profile:** export `GH_TOKEN` (or `GITHUB_TOKEN`) in the profile the
+  agent's commands inherit (`~/.bashrc`, Windows user env). gh and the git credential helper read it
+  automatically. A one-off `export` in an interactive prompt may **not** carry into an agent's separate tool
+  calls — set it in the profile (or use `.env` above) so it persists.
 
 **Hand the token over out-of-band** — your own terminal, profile, or keyring — **not by pasting it into the
 chat/transcript** (anything in the conversation is retained, and so is any command line that echoes it).

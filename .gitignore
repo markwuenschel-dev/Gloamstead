@@ -26,6 +26,11 @@ Build/
 .grok/worktrees/
 .cursor/worktrees/
 
+# Environment secrets — API keys, DB URL, GH_TOKEN/GITHUB_TOKEN. NEVER commit.
+.env
+.env.*
+!.env.example
+
 # Local agent settings — may hold secrets (e.g. GH_TOKEN/GITHUB_TOKEN). NEVER commit.
 .claude/settings.local.json
 .grok/settings.local.json
