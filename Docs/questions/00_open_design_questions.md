@@ -109,15 +109,11 @@ Avoid implementing this as a generic morality meter unless proven necessary.
 
 ## Unresolved / Needs Ideation
 
-### What is the Heart?
+### What is the Heart? — DECIDED (2026-06-18)
 
-Candidate directions:
-
-- alchemical world-seal
-- last seed of a dead sanctuary
-- failed cure for the Gloam
-- captured Gloam made gentle
-- memory engine that restores coherence
+**A wounded memory-engine** that holds the remembered shape of the place against the unremembering —
+ambiguously an old alchemical work or a gentled fragment of the Gloam (the tie is kept open for endings).
+Proper name: **the Gloamheart**. See [../world/02_naming_and_voice_decision.md](../world/02_naming_and_voice_decision.md).
 
 ### What is Heart alchemy?
 
@@ -135,19 +131,16 @@ Unresolved. Key options:
 - discovered after the world broke
 - born from a failed restoration ritual
 
-### What is the Gloam?
+### What is the Gloam? — DECIDED (2026-06-18)
 
-Unresolved. Strong candidates:
+**The unremembering:** a semi-intentional decay that erases meaning, warmth, and the identity of places.
+See [../world/02_naming_and_voice_decision.md](../world/02_naming_and_voice_decision.md).
 
-- unremembering
-- entropy with intent
-- broken night
-- rejected shadow of the old world
-- failed alchemy
+### Is the Heart tied to the Gloam? — INTENTIONALLY OPEN
 
-### Is the Heart tied to the Gloam?
-
-Unresolved but promising. The strongest version may be that the Heart is not pure opposition to the Gloam; it may be a transformed, wounded, or partially redeemed piece of the same force.
+Kept ambiguous by design (the proper name *Gloamheart* seeds the question). The Heart may be a
+transformed / gentled piece of the same force; this stays unresolved to feed endings.
+See [../world/02_naming_and_voice_decision.md](../world/02_naming_and_voice_decision.md).
 
 ### How much combat belongs in the MVP?
 

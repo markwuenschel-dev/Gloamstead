@@ -4,7 +4,7 @@ _The Veil Heart as guide, protected object, and mystery._
 
 ## Role
 
-The Veil Heart is the current working-name central character-like object of Gloamstead. It is not a conventional NPC and not a simple objective marker. The final name is unresolved.
+The Heart (proper name **the Gloamheart**, locked 2026-06-18 — see [02_naming_and_voice_decision.md](02_naming_and_voice_decision.md)) is the central character-like object of Gloamstead. It is not a conventional NPC and not a simple objective marker. Everyday text calls it "the Heart"; the proper name "the Gloamheart" is revealed gradually. ("Veil Heart" / `VeilHeart` survives only as the code/system identifier.)
 
 It should feel:
 
@@ -88,7 +88,7 @@ Current decisions:
 - the Heart is confused and wounded
 - the Heart is hard to understand, not currently intended to be wrong
 - the Heart's apparent contradiction should usually come from incomplete language, damaged memory, or the player's limited context
-- `Veil Heart` is a working term, not final naming
+- naming **locked**: everyday "the Heart", proper name "the Gloamheart"; "Veil Heart"/`VeilHeart` is the code term only (see [02_naming_and_voice_decision.md](02_naming_and_voice_decision.md))
 
 ## Can the Heart Be Wrong?
 

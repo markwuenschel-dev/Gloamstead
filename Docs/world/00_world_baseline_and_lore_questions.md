@@ -4,13 +4,13 @@ _Current lore decisions, open questions, and usable origin directions._
 
 ## Current Known Direction
 
-The world is bleak, damaged, and half-forgotten. The player accidentally awakens the working-name Heart, which becomes the emotional and mechanical center of the sanctuary. The Heart is confused and wounded. It communicates through fragments that are difficult to understand but not currently intended to be false.
+The world is bleak, damaged, and half-forgotten. The player accidentally awakens the Heart — **the Gloamheart** — which becomes the emotional and mechanical center of the sanctuary. The Heart is confused and wounded. It communicates through fragments that are difficult to understand but not currently intended to be false.
 
-The Gloam is not yet defined. Its relationship to the Heart is unresolved.
+The Gloam is locked as **the unremembering** (see [02_naming_and_voice_decision.md](02_naming_and_voice_decision.md)); the Heart is a **wounded memory-engine** whose tie to the Gloam is deliberately ambiguous to keep endings open.
 
-## Naming Status
+## Naming Status — LOCKED (2026-06-18)
 
-`Veil Heart` is a working term only. Do not lock final naming yet. Use generic language such as `the Heart`, `central light`, or `living light` when a final name is not required.
+Naming is locked; see [02_naming_and_voice_decision.md](02_naming_and_voice_decision.md). Everyday term: **the Heart**. Proper / lore name (revealed gradually): **the Gloamheart**. `Veil Heart` / `VeilHeart` survives only as the code/system identifier.
 
 ## What Is the Heart? Candidate Directions
 
@@ -107,11 +107,11 @@ The Gloam came from an alchemical attempt to preserve life, stop death, or bind 
 
 The Gloam is the force that makes places forget what they are. It is why paths vanish, structures lose purpose, and warnings become hard to understand.
 
-## Recommended Lore Blend For Now
+## Locked Lore Blend (2026-06-18)
 
-Best current working blend:
+Locked (see [02_naming_and_voice_decision.md](02_naming_and_voice_decision.md)):
 
-> The Gloam is unremembering: a dark, semi-intentional decay that erases meaning, warmth, and stable reality. The Heart is either an alchemical memory-seed or a transformed piece of the Gloam that can restore coherence through fixed ritual structures.
+> The Gloam is the **unremembering**: a semi-intentional decay that erases meaning, warmth, and the identity of places. The Heart — **the Gloamheart** — is a **wounded memory-engine** (an old alchemical work, or a gentled fragment of the Gloam — left ambiguous) that restores coherence through fixed ritual structures. The Heart is never false; its recall is damaged.
 
 This blend supports:
 
@@ -124,8 +124,12 @@ This blend supports:
 
 ## Unresolved Lore Questions
 
+_Resolved 2026-06-18: the Heart's nature (wounded memory-engine) and the Gloam (the unremembering) are
+locked. The Heart's **origin** and **exact tie** to the Gloam are kept open on purpose — they feed endings
+(see [02_naming_and_voice_decision.md](02_naming_and_voice_decision.md))._
+
 - Was the Heart created, grown, captured, discovered, or born from the sanctuary?
-- Is the Heart opposed to the Gloam, made from the Gloam, or both?
+- Is the Heart opposed to the Gloam, made from the Gloam, or both? (kept ambiguous by design)
 - Did the old world deserve what happened to it?
 - Is restoration healing the world or reactivating a dangerous old system?
 - Does the player's final choice free, feed, bind, transform, or silence the Heart?

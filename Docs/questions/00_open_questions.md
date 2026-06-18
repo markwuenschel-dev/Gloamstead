@@ -12,7 +12,7 @@ _Questions still unresolved in the current direction._
 
 ## Veil Heart Questions
 
-1. Is `Veil Heart` now approved as the final term or still a working term?
+1. ~~Is `Veil Heart` now approved as the final term?~~ **Decided 2026-06-18:** everyday "the Heart", proper name **"the Gloamheart"**; "Veil Heart"/`VeilHeart` is the code term only. See [../world/02_naming_and_voice_decision.md](../world/02_naming_and_voice_decision.md).
 2. Is the Heart benevolent, confused, self-interested, wounded, or unknowable?
 3. Can the Heart be wrong, or only hard to understand?
 4. Does the Heart choose the player, or does the player awaken it accidentally?

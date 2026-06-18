@@ -8,6 +8,10 @@ features get built when they're a real MVP gap; flavor/docs when they unblock au
 Source of truth for humans *and* coding agents is markdown — so the automation gate is documented
 here (it was previously untracked, so agents couldn't know the oracle existed).
 
+> **Build-out plan:** the sequenced plan to turn this shipped loop into a ~6-hour playable experience
+> lives in [`Phase3_SixHourExperience.md`](Phase3_SixHourExperience.md) — six day→night cycles, the
+> critical-path wiring (Track B below), reused `Variant_Combat` night threats, UI, and the first ending.
+
 ---
 
 ## The oracle: `gate.ps1`
@@ -69,6 +73,11 @@ verified headlessly by the loop.** Runbook for a human:
 **Payoff once green:** a full end-to-end functional test on real point data — the integration oracle
 that retires a class of manual PIE checks. Trigger: real playability blocker, justified now.
 
+**Now scriptable, not human-only:** `Phase3_SixHourExperience.md` Track A1 makes this an
+`AGloamsteadSanctuaryBootstrap` C++ actor (waits for PCG generation, then calls `InitializeFromPCGComponent`)
+plus a NeoStack-authored PCG graph + level placement — so the wiring becomes gate-testable rather than a
+manual editor checklist.
+
 ---
 
 ## Track C — MVP features, sequenced by checkability
@@ -116,14 +125,14 @@ so building them now would mean inventing the data model speculatively. Prerequi
 spec (`04_combat_and_interaction_system.md` is still intent, not spec), and this testing-approach record
 (done — see top).
 
-**Lore that blocks content authoring** (warnings, dawn lines, night flavor can't be written coherently
-until resolved; flagged unresolved in `Docs/questions/`):
-- **What is the Heart?** (working blend: alchemical memory-seed / transformed Gloam-piece) — sets every fragment's voice.
-- **What is the Gloam?** (working answer: "unremembering") — shapes night-consequence flavor.
-- **Naming:** "Veil Heart" is a working term; do a naming pass before UI/journal text is written.
+**Lore that blocks content authoring** — **naming + voice now LOCKED (2026-06-18,
+[`world/02_naming_and_voice_decision.md`](world/02_naming_and_voice_decision.md)); workstreams G + J unblocked:**
+- **What is the Heart?** ✅ Decided: a **wounded memory-engine** (ambiguously tied to the Gloam, for ending headroom) — sets every fragment's voice.
+- **What is the Gloam?** ✅ Decided: **the unremembering** — semi-intentional decay that erases the identity of places; shapes night-consequence flavor.
+- **Naming:** ✅ Decided: everyday **"the Heart"**, proper name **"the Gloamheart"**; "Veil Heart"/`VeilHeart` is the code term only.
+- **Heart's voice guide:** ✅ Decided: 4–12-word present-tense sensory fragments, never false, ≥2 support channels, clarity tiers 0→2 earned by restoration (full guide in the decision doc).
 - **"Can the Heart be wrong?"** Locked: no — cryptic but never false. Load-bearing for Fair Crypticism (truthful Heart ⇒ every warning must be inferable).
 - **Endings:** seeds only, but write down the axes (benevolent/possessive, lucid/confused, bound/resisting) so restoration choices know what they feed.
-- **Heart's voice guide:** once the Heart's nature is picked, turn the 4 example fragments into an authoring guide (cadence, clarity-tier progression, fragment→night-rule mapping).
 
 ---
 
