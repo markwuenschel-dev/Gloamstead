@@ -2,7 +2,7 @@
 
 Design and implementation docs for the Gloamstead vertical slice. Markdown in this tree is the source of truth for humans and coding agents.
 
-**Last updated:** 2026-06-11 (data asset factory verified on `Lvl_ThirdPerson`; see [specs/data/VERIFICATION-2026-06-11.md](../specs/data/VERIFICATION-2026-06-11.md))
+**Last updated:** 2026-06-18 (naming + Heart/Gloam nature + voice guide locked — see [world/02_naming_and_voice_decision.md](world/02_naming_and_voice_decision.md))
 
 **Agent collaboration operating model**: See [agents/UE5-Agent-Substrate-Review.md](agents/UE5-Agent-Substrate-Review.md) (diagnosis + minimal roster) + `../agent_collab/` (living protocol, playbooks, policies, state). Use `agent_collab/context/workflow_activation.json` and playbooks/ for architecture/research/docs concerns instead of deprecated roles.
 
@@ -28,6 +28,7 @@ Design and implementation docs for the Gloamstead vertical slice. Markdown in th
 | 1 | [Phase1_PCGSubsystem.md](Phase1_PCGSubsystem.md) | Complete |
 | 1.5 | [Phase1.5_PlacementComponent.md](Phase1.5_PlacementComponent.md) | Complete |
 | 2 | [Phase2_CoreLoop.md](Phase2_CoreLoop.md) | **Core loop in C++**; data assets verified in editor |
+| 3 | [Phase3_SixHourExperience.md](Phase3_SixHourExperience.md) | **Planned** — sequenced build-out of the ~6-hour playable experience (wiring → 6 cycles → ending) |
 
 ---
 
@@ -58,6 +59,7 @@ Each file includes an **Implementation status** section where the vertical slice
 | Player experience | [game/03_player_experience.md](game/03_player_experience.md) |
 | Premise & lore | [world/00_premise_and_lore_boundaries.md](world/00_premise_and_lore_boundaries.md) |
 | Veil Heart character | [world/01_veil_heart_character.md](world/01_veil_heart_character.md) |
+| Naming, voice & Gloam (locked) | [world/02_naming_and_voice_decision.md](world/02_naming_and_voice_decision.md) |
 
 ---
 
