@@ -4,7 +4,7 @@ _Central protected object, cryptic guide, progression anchor, and emotional core
 
 ## Purpose
 
-The Veil Heart is the working-name center of the game. It protects, guides, reacts, suffers, and grows. The final name is unresolved.
+The Heart (proper name **the Gloamheart**) is the center of the game. It protects, guides, reacts, suffers, and grows. Naming is locked (see [../world/02_naming_and_voice_decision.md](../world/02_naming_and_voice_decision.md)); "Veil Heart" / `VeilHeart` persists as the code/system identifier used throughout this module.
 
 It should not be implemented as a generic base core with dialogue attached. Its mechanics and presentation should reinforce that it is alive or semi-alive.
 

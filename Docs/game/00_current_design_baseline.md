@@ -35,7 +35,7 @@ Gloamstead is a third-person dark fantasy sanctuary-restoration game. The player
 
 ## Core Experience
 
-The player explores a ruined place, receives cryptic warnings from the working-name Veil Heart, restores or alters fixed ancient structures, prepares at dusk, and survives nights that test whether the player understood the warning and the world rule behind it.
+The player explores a ruined place, receives cryptic warnings from the Heart (proper name the Gloamheart), restores or alters fixed ancient structures, prepares at dusk, and survives nights that test whether the player understood the warning and the world rule behind it.
 
 The most satisfying outcome is not "I killed everything." It is:
 
@@ -87,9 +87,9 @@ The current MVP shape is:
 - enough dawn feedback to prove the loop
 - possible ending direction seeds, but not necessarily full multiple-ending implementation
 
-## Working Name Note
+## Naming (locked)
 
-`Veil Heart` remains a working term for the central light/heart. Do not treat it as final naming.
+Naming is locked (2026-06-18, see [../world/02_naming_and_voice_decision.md](../world/02_naming_and_voice_decision.md)): everyday term **"the Heart"**, proper / lore name **"the Gloamheart"** (revealed gradually). "Veil Heart" / `VeilHeart` remains only as the code/system identifier.
 
 ## Implementation Snapshot (June 2026)
 

@@ -10,7 +10,7 @@ The player finds or awakens the Veil Heart, a mysterious growing source of light
 
 ## The Veil Heart
 
-The Veil Heart is a current working/core term used in the latest direction. It functions as:
+The Heart (proper name **the Gloamheart**; naming locked — see [02_naming_and_voice_decision.md](02_naming_and_voice_decision.md)) functions as:
 
 - protected object
 - cryptic guide
@@ -23,7 +23,7 @@ It should not be reduced to a health bar.
 
 ## The Darkness
 
-The darkness should not be simple cartoon evil unless later chosen. It may be:
+**The darkness is the Gloam — the *unremembering*** (locked 2026-06-18; see [02_naming_and_voice_decision.md](02_naming_and_voice_decision.md)): a semi-intentional decay that erases meaning, warmth, and the identity of places. It is not simple cartoon evil. Its deeper character — among these facets — stays open:
 
 - absence left by a broken light
 - a natural counterforce
@@ -32,7 +32,7 @@ The darkness should not be simple cartoon evil unless later chosen. It may be:
 - an old rule trying to reassert itself
 - something that does not understand people at all
 
-Keep this unresolved early. Mystery is useful.
+Keep the Gloam's deeper origin and facets unresolved early. Mystery is useful — the *name* and *function* are locked, not the full backstory.
 
 ## Lore Delivery
 
