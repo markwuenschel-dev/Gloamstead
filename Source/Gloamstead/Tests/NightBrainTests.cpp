@@ -30,6 +30,14 @@ bool FGloamNightMVPCatalogTest::RunTest(const FString& /*Parameters*/)
     TestTrue(TEXT("fallback is Corruption"), Catalog->FallbackNightType == ENightConsequenceType::Corruption);
     TestTrue(TEXT("force-tutorial-on-first-night set"), Catalog->bForceTutorialOnFirstNight);
     TestTrue(TEXT("Omen rule carries its clue tag"), Catalog->Rules[2].OmenClueTag == FName(TEXT("GardenRot")));
+    TestNotEqual(TEXT("Retrieval has display name"), GetNightConsequenceTypeDisplayName(ENightConsequenceType::Retrieval), FString(TEXT("Invalid")));
+    TestNotEqual(TEXT("SilencePossession has display name"), GetNightConsequenceTypeDisplayName(ENightConsequenceType::SilencePossession), FString(TEXT("Invalid")));
+    TestNotEqual(TEXT("Mirror has display name"), GetNightConsequenceTypeDisplayName(ENightConsequenceType::Mirror), FString(TEXT("Invalid")));
+    TestNotEqual(TEXT("Bargain has display name"), GetNightConsequenceTypeDisplayName(ENightConsequenceType::Bargain), FString(TEXT("Invalid")));
+    TestNotEqual(TEXT("Fracture has display name"), GetNightConsequenceTypeDisplayName(ENightConsequenceType::Fracture), FString(TEXT("Invalid")));
+    TestNotEqual(TEXT("TrueSiege has display name"), GetNightConsequenceTypeDisplayName(ENightConsequenceType::TrueSiege), FString(TEXT("Invalid")));
+    TestNotEqual(TEXT("MirrorPillar has display name"), GetRitualTypeDisplayName(ERitualType::MirrorPillar), FString(TEXT("Invalid")));
+    TestNotEqual(TEXT("BellShrine has display name"), GetRitualTypeDisplayName(ERitualType::BellShrine), FString(TEXT("Invalid")));
     return true;
 }
 
