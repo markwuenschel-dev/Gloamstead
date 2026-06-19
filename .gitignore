@@ -9,6 +9,7 @@ Saved/
 Build/
 
 *.sln
+*.slnx
 *.VC.db
 *.opensdf
 *.opendb
