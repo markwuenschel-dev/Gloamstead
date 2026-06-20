@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "GloamsteadSanctuaryBootstrap.generated.h"
 
+class UBoxComponent;
 class UPCGComponent;
 class USceneComponent;
 
@@ -33,6 +34,11 @@ public:
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Gloamstead|PCG")
 	TObjectPtr<USceneComponent> SceneRoot;
+
+	/** Supplies spatial bounds so the PCGComponent registers with the PCG scheduler; without a
+	 *  bounds source PCG logs "Component has invalid bounds, not registered" and emits zero points. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Gloamstead|PCG")
+	TObjectPtr<UBoxComponent> Bounds;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Gloamstead|PCG")
 	TObjectPtr<UPCGComponent> PCGComponent;

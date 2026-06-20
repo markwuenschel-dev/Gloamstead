@@ -1,5 +1,6 @@
 #include "PCG/GloamsteadSanctuaryBootstrap.h"
 
+#include "Components/BoxComponent.h"
 #include "Components/SceneComponent.h"
 #include "Engine/World.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
@@ -12,6 +13,14 @@ AGloamsteadSanctuaryBootstrap::AGloamsteadSanctuaryBootstrap()
 
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	SetRootComponent(SceneRoot);
+
+	// PCG schedules a component only if its actor has valid bounds; this box is the bounds source.
+	// Without it: LogPCG "Component has invalid bounds, not registered" and zero points generated.
+	Bounds = CreateDefaultSubobject<UBoxComponent>(TEXT("Bounds"));
+	Bounds->SetupAttachment(SceneRoot);
+	Bounds->SetBoxExtent(FVector(800.0f, 800.0f, 400.0f));
+	Bounds->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Bounds->SetGenerateOverlapEvents(false);
 
 	PCGComponent = CreateDefaultSubobject<UPCGComponent>(TEXT("PCGComponent"));
 	PCGComponent->GenerationTrigger = EPCGComponentGenerationTrigger::GenerateOnLoad;
