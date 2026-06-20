@@ -11,7 +11,7 @@
 **allowed_runtimes**: ["grok", "claude-code"]
 **preferred_runtime**: grok
 **created**: 2026-06-04T19:30:00Z
-**status**: claimed
+**status**: archived
 
 ## Goal
 Conduct structured human playtest of the polished vertical slice. Record feedback on core loop clarity, interpretation, restoration agency, night consequence fairness, UI/journal, visuals, pacing, and overall readiness. Create follow-up tasks from results.
@@ -63,3 +63,4 @@ true
 
 ## History
 - 2026-06-04: Created by Orchestrator. This is the human gate handoff; no runtime worker, Orchestrator will record results in outbox/playtest/ upon completion.
+- 2026-06-20: ARCHIVED. Task never executed; no worktree was ever created (`git worktree list` shows only the main checkout; `.grok/worktrees/` does not exist). Superseded by direct Phase-3 branch development on `feat/a1-sanctuary-bootstrap` (Phase 3 — Six-Hour Experience, see docs/Phase3_SixHourExperience.md). Wave wave-vs-polish-202606 closed as superseded during /gloam-status reconcile.

@@ -3,11 +3,11 @@
   "status": "idle",
   "started": "2026-06-08T22:34:08.8866477Z",
   "last_tick": "2026-06-08T22:34:09.2089224Z",
-  "updated": "2026-06-16T00:00:00Z",
+  "updated": "2026-06-20T11:10:36Z",
   "ticks": 1,
   "tasks_completed": 0,
   "tokens_used_estimate": 0,
   "candidate_failures": 0,
   "runtime_failures": 0,
-  "stop_reason": "reconciled-2026-06-16"
+  "stop_reason": "reconciled-2026-06-20-wave-vs-polish-superseded"
 }

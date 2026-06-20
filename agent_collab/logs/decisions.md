@@ -513,3 +513,27 @@ Recorded by active Orchestrator (grok-cursor) on /gloam-resume.
 - **Deferred:** Catalog dusk warning on Tutorial nights (no manifest row); non-Tutorial night selection until PCG `InitializeFromPCGComponent`; ritual restore smoke.
 - **Handoffs:** FACTORY-DATA-01 complete; FU-03 marked done with noted deferred criteria.
 - **Next gate:** PCG level hookup on `Lvl_ThirdPerson`.
+
+## 2026-06-20 — /gloam-status reconcile (wave-vs-polish-202606 superseded)
+
+Reconcile-only session. Lock acquired (agent_collab/state/orchestrator.lock, holder gloam-orchestrator, runtime claude-code). No worker spawned, no integration, no build, no push. Touched ONLY agent_collab/**. A parallel coding agent is editing Source/Content/specs/docs in the same checkout; committed history on feat/a1-sanctuary-bootstrap treated as ground truth.
+
+**Ground truth verified.** Orchestrator has not truly driven a wave since 2026-06-08. `git worktree list` shows ONLY the main checkout; `.grok/worktrees/` does not exist — so the 8 in_flight wave tasks were never claimed/executed. Real dev moved on directly on feat/a1-sanctuary-bootstrap (UE 5.8 migration, PCG sanctuary bootstrap, first-night director, captions) without the handoff/worktree machinery. We are now in Phase 3 — Six-Hour Experience (docs/Phase3_SixHourExperience.md) via direct branch development, not via this orchestrator.
+
+**Wave superseded.** wave-vs-polish-202606 -> status `superseded` in scheduler_state.json and status.json (superseded_reason recorded). Its 8 never-started tasks (DATA-02, UI-01, JOURNAL-01, VISUALS-01, PERSIST-01, NIGHT-01, COMBAT-01, PLAYTEST-01) moved task_state.active -> history with status `cancelled` (phase cancelled, blocked_reason "never executed; superseded by direct Phase-3 branch development on feat/a1-sanctuary-bootstrap", reopen_reason detailing each missing worktree). scheduler_state.in_flight emptied; the 8 listed under a new `cancelled` array.
+
+**FU-03 drift fixed.** VS-POLISH-DATA-FU-03 was already in task_state.history as done but was still listed in scheduler_state.in_flight and absent from completed; added to scheduler_state.completed, removed from in_flight.
+
+**FACTORY-DATA-01 moved.** decisions.md (2026-06-11) recorded VS-POLISH-FACTORY-DATA-01 complete + FU-03 done, but the handoff lingered in claimed/. Moved agent_collab/handoffs/claimed/HANDOFF-2026-06-10-VS-POLISH-FACTORY-DATA-01.md -> done/ (git mv; its body already had status: done). Backfilled a `done` task_state.history entry for it (no prior entry existed) and added it to scheduler_state.completed.
+
+**Handoffs tidied.** The 8 dead-wave handoffs moved claimed/ -> archived/ (git mv); each body status field updated claimed -> archived with a 2026-06-20 supersession history bullet. handoffs/claimed/ is now empty.
+
+**run_state.json.** updated/stop_reason refreshed from stale `reconciled-2026-06-16` to `reconciled-2026-06-20-wave-vs-polish-superseded` (updated=2026-06-20T11:10:36Z). run_id/started/ticks/tasks_completed unchanged (no new orchestrated work performed).
+
+**status.json.** regenerated: parked=true, active_wave=null, counts {active:0, blocked:0, done:5, cancelled:8}, empty active_tasks/leases.
+
+**orchestrator.log note (no rewrite).** Since 2026-06-17 the log is just `[ts] unknown agent=unknown task=` lines — that is SubagentStart/Stop hook noise mis-parsing, NOT orchestrator activity. The orchestrator itself has not run since 2026-06-08. Append-only log left untouched; recorded here only.
+
+Files changed (agent_collab/** only): state/scheduler_state.json, state/task_state.json, state/run_state.json, state/status.json, state/orchestrator.lock (acquired; released at session end), logs/decisions.md (this entry); handoff moves done/HANDOFF-2026-06-10-VS-POLISH-FACTORY-DATA-01.md (from claimed/) and archived/HANDOFF-2026-06-04-VS-POLISH-{COMBAT-01,DATA-02,JOURNAL-01,NIGHT-01,PERSIST-01,PLAYTEST-01,UI-01,VISUALS-01}.md (from claimed/, status+history edited). State files validated against agent_collab/protocol/*.schema.json.
+
+Recorded by reconcile session (gloam-orchestrator / claude-code) on /gloam-status reconcile. No new work started; awaiting human directive.

@@ -4,7 +4,8 @@
   "waves": [
     {
       "timestamps": {
-        "created": "2026-06-04T19:10:23.2900263-04:00"
+        "created": "2026-06-04T19:10:23.2900263-04:00",
+        "superseded": "2026-06-20T11:10:36Z"
       },
       "task_ids": [
         "VS-POLISH-DATA-FU-02",
@@ -19,14 +20,17 @@
         "VS-POLISH-PLAYTEST-01"
       ],
       "candidate_branch": null,
-      "status": "in_progress",
-      "wave_id": "wave-vs-polish-202606"
+      "status": "superseded",
+      "wave_id": "wave-vs-polish-202606",
+      "superseded_reason": "Wave never executed past the DATA-FU items; the 8 remaining tasks (DATA-02, UI-01, JOURNAL-01, VISUALS-01, PERSIST-01, NIGHT-01, COMBAT-01, PLAYTEST-01) never started (no worktrees ever created). Superseded by direct Phase-3 branch development on feat/a1-sanctuary-bootstrap (Phase 3 - Six-Hour Experience, docs/Phase3_SixHourExperience.md). Closed during /gloam-status reconcile 2026-06-20."
     }
   ],
   "max_parallel": 4,
   "work_branch": "agent-collab/gloam/work",
-  "in_flight": [
-    "VS-POLISH-DATA-FU-03",
+  "in_flight": [],
+  "ready_queue": [],
+  "blocked": [],
+  "cancelled": [
     "VS-POLISH-DATA-02",
     "VS-POLISH-UI-01",
     "VS-POLISH-JOURNAL-01",
@@ -36,10 +40,10 @@
     "VS-POLISH-COMBAT-01",
     "VS-POLISH-PLAYTEST-01"
   ],
-  "ready_queue": [],
-  "blocked": [],
   "completed": [
     "VS-POLISH-DATA-FU-01",
-    "VS-POLISH-DATA-FU-02"
+    "VS-POLISH-DATA-FU-02",
+    "VS-POLISH-DATA-FU-03",
+    "VS-POLISH-FACTORY-DATA-01"
   ]
 }

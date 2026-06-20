@@ -11,7 +11,7 @@
 **allowed_runtimes**: ["claude-code"]
 **preferred_runtime**: claude-code
 **created**: 2026-06-04T19:30:00Z
-**status**: claimed
+**status**: archived
 
 ## Goal
 Create or extend Content/Data/ assets for catalogs and definitions (UDataAsset subclasses or Data Tables). Implement defaults for MVP nights and at least 2 new ritual types. Use editor tools where possible. Builds directly on the exact starter examples/seeds from the promoted VS-POLISH-DATA-FU-03 (see its handoff + backlog + authoring guide "Example Assets").
@@ -68,3 +68,4 @@ false
 ## History
 - 2026-06-04: Created by Orchestrator (grok) upon approval of wave-vs-polish-202606. Handoff created in claimed/ for worker.
 - 2026-06-05: Updated by Orchestrator on backlog promotion: goal/context/attachments refreshed to note direct dep on new VS-POLISH-DATA-FU-03 (and its handoff + exact guide examples). Wave plan now includes all 3 FUs as promoted tasks; scheduler/task_state updated; roadmap/docs/priority list created. DATA-02 now sequenced after FU-03 for asset creation gate.
+- 2026-06-20: ARCHIVED. Task never executed; no worktree was ever created (`git worktree list` shows only the main checkout; `.grok/worktrees/` does not exist). Superseded by direct Phase-3 branch development on `feat/a1-sanctuary-bootstrap` (Phase 3 — Six-Hour Experience, see docs/Phase3_SixHourExperience.md). Wave wave-vs-polish-202606 closed as superseded during /gloam-status reconcile.

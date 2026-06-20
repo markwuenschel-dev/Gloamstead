@@ -11,7 +11,7 @@
 **allowed_runtimes**: ["claude-code"]
 **preferred_runtime**: claude-code
 **created**: 2026-06-04T19:30:00Z
-**status**: claimed
+**status**: archived
 
 ## Goal
 Implement basic Journal subsystem in C++ (FJournalEntry struct, storage in AVeilHeart or DayNight, BPImplementableEvent OnJournalEntryAdded). Populate from dawn reflection and satisfied tags. Per README wave-vh-2.
@@ -63,3 +63,4 @@ false
 
 ## History
 - 2026-06-04: Created by Orchestrator.
+- 2026-06-20: ARCHIVED. Task never executed; no worktree was ever created (`git worktree list` shows only the main checkout; `.grok/worktrees/` does not exist). Superseded by direct Phase-3 branch development on `feat/a1-sanctuary-bootstrap` (Phase 3 — Six-Hour Experience, see docs/Phase3_SixHourExperience.md). Wave wave-vs-polish-202606 closed as superseded during /gloam-status reconcile.
