@@ -7,6 +7,12 @@ FString GetNightConsequenceTypeDisplayName(ENightConsequenceType Type)
 	case ENightConsequenceType::Tutorial:   return TEXT("Tutorial");
 	case ENightConsequenceType::Corruption: return TEXT("Corruption");
 	case ENightConsequenceType::Omen:       return TEXT("Omen");
+	case ENightConsequenceType::Retrieval:  return TEXT("Retrieval");
+	case ENightConsequenceType::SilencePossession: return TEXT("Silence Possession");
+	case ENightConsequenceType::Mirror:     return TEXT("Mirror");
+	case ENightConsequenceType::Bargain:    return TEXT("Bargain");
+	case ENightConsequenceType::Fracture:   return TEXT("Fracture");
+	case ENightConsequenceType::TrueSiege:  return TEXT("True Siege");
 	default:                                return TEXT("Invalid");
 	}
 }

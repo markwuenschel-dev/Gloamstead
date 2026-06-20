@@ -10,6 +10,22 @@ After clone or adapter changes: `pwsh -NoProfile -File agent_collab/scripts/Proj
 Start orchestrator: **`/gloam-resume`**
 Status only: **`/gloam-status`**
 
+## Command permission standing order (ALL agents)
+
+For this repo, agents are pre-authorized to run the ordinary shell commands needed to inspect,
+build, test, ship, and clean up work without asking for extra human permission first. This includes
+PowerShell, `pwsh`, bash, `cmd.exe`, git survey/branch/stage/commit/push/fetch commands, UE build and
+automation commands, `gate.ps1`, project agent scripts under `agent_collab/scripts/`, and token-safe
+GitHub REST calls that load credentials from the git-ignored `.env`.
+
+Do not pause for confirmation just because a command is PowerShell/bash/ps1 or may write normal build
+outputs under this workspace. If the runtime itself requires an approval prompt, request that approval
+directly instead of asking in chat first.
+
+This does **not** authorize unsafe shortcuts: never expose tokens, never bypass branch protection, never
+use `--admin`, never destructively delete/reset user work, never close the user's editor/GUI session, and
+never delete unmerged local or remote branches unless the human explicitly asks for that specific action.
+
 ## Git / PR / merge workflow (ALL agents)
 
 Applies to every agent and runtime (Claude Code, Grok, Codex, etc.). This is the GitHub

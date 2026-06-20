@@ -1,8 +1,8 @@
 #requires -Version 7
 $ErrorActionPreference = 'Stop'
 
-$Engine = 'C:\Program Files\Epic Games\UE_5.7'
-$Proj   = 'C:\Users\Nalakram\Documents\Unreal Projects\Gloamstead\Gloamstead.uproject'
+$Engine = 'C:\Program Files\Epic Games\UE_5.8'
+$Proj   = 'C:\Users\Nalakram\Documents\Unreal Projects\Gloamstead5_8\Gloamstead5_8.uproject'
 $Target = 'GloamsteadEditor'
 $Filter = 'Gloamstead'
 $Report = Join-Path $env:TEMP 'GloamsteadGate'
@@ -10,7 +10,10 @@ $Report = Join-Path $env:TEMP 'GloamsteadGate'
 function Fail($m) { Write-Host "GATE FAIL: $m" -ForegroundColor Red; exit 1 }
 
 # 1. Build - exit code IS the oracle here.
-& "$Engine\Engine\Build\BatchFiles\Build.bat" $Target Win64 Development -Project="$Proj" -WaitMutex
+#    -MaxParallelActions=6 keeps UBA from kill-looping on RAM with the heavy NeoStackAI TUs.
+#    Requires the editor/game to be closed: it links UnrealEditor-Gloamstead.dll, which a running
+#    editor holds open (LNK1104 otherwise).
+& "$Engine\Engine\Build\BatchFiles\Build.bat" $Target Win64 Development -Project="$Proj" -WaitMutex -MaxParallelActions=6
 if ($LASTEXITCODE -ne 0) { Fail "build returned $LASTEXITCODE" }
 
 # 2. Tests - editor-cmd exit code is unreliable; parse the report, fail closed.

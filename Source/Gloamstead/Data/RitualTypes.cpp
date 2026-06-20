@@ -7,6 +7,8 @@ FString GetRitualTypeDisplayName(ERitualType Type)
         case ERitualType::LanternPost:   return TEXT("Lantern Post");
         case ERitualType::GardenBed:     return TEXT("Garden Bed");
         case ERitualType::PathPoint:     return TEXT("Path Point");
+        case ERitualType::MirrorPillar:  return TEXT("Mirror Pillar");
+        case ERitualType::BellShrine:    return TEXT("Bell Shrine");
         default:                         return TEXT("Invalid");
     }
 }

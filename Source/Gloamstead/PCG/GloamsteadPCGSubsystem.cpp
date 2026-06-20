@@ -1,6 +1,7 @@
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "PCGComponent.h"
 #include "PCGData.h"
+#include "Data/PCGSpatialData.h"
 #include "Metadata/PCGMetadata.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
@@ -26,13 +27,30 @@ void UGloamsteadPCGSubsystem::InitializeFromPCGComponent(UPCGComponent* PCGCompo
 {
     if (!PCGComponent) return;
 
+    // Resolve any point representation to legacy UPCGPointData.
+    // UE 5.5+ emits UPCGPointArrayData (SoA) by default; it is a sibling of UPCGPointData
+    // under UPCGBasePointData, so a direct Cast<UPCGPointData> fails. Convert via the spatial
+    // interface so the rest of the subsystem (FPCGPoint / GetPoints / MetadataEntry) is unchanged.
+    auto AsLegacyPointData = [](const UPCGData* Data) -> const UPCGPointData*
+    {
+        if (const UPCGPointData* PD = Cast<const UPCGPointData>(Data))
+        {
+            return PD; // already legacy
+        }
+        if (const UPCGSpatialData* Spatial = Cast<const UPCGSpatialData>(Data))
+        {
+            return Spatial->ToPointData(nullptr); // UPCGPointArrayData (or other spatial) -> legacy
+        }
+        return nullptr;
+    };
+
     const UPCGPointData* SourcePointData = nullptr;
 
     // Preferred: post-generation output (contains the final points + metadata authored by the PCG graph)
     const FPCGDataCollection& GeneratedOutput = PCGComponent->GetGeneratedGraphOutput();
     for (const FPCGTaggedData& Tagged : GeneratedOutput.TaggedData)
     {
-        if (const UPCGPointData* PD = Cast<const UPCGPointData>(Tagged.Data))
+        if (const UPCGPointData* PD = AsLegacyPointData(Tagged.Data))
         {
             SourcePointData = PD;
             break;
@@ -42,15 +60,32 @@ void UGloamsteadPCGSubsystem::InitializeFromPCGComponent(UPCGComponent* PCGCompo
     // Fallback for some generation modes
     if (!SourcePointData)
     {
-        if (UPCGData* PCGData = PCGComponent->GetPCGData())
+        SourcePointData = AsLegacyPointData(PCGComponent->GetPCGData());
+    }
+
+    if (!SourcePointData)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UGloamsteadPCGSubsystem: PCG component produced no point data (output empty or not yet generated)."));
+        return;
+    }
+
+    // The generated output's metadata is typically parented to upstream graph data. A plain
+    // UObject duplicate can't preserve that parent link, leaving attributes with dangling parent
+    // ids that crash on access (ensure in FPCGMetadataAttributeBase, then null-deref). Flatten the
+    // (freshly converted) source so its metadata is self-contained before taking an owned copy.
+    if (UPCGPointData* MutableSource = const_cast<UPCGPointData*>(SourcePointData))
+    {
+        if (MutableSource->Metadata)
         {
-            SourcePointData = Cast<UPCGPointData>(PCGData);
+            MutableSource->Metadata->Flatten();
         }
     }
 
-    if (!SourcePointData) return;
-
     MutablePointData = DuplicateObject<UPCGPointData>(SourcePointData, this);
+    if (MutablePointData && MutablePointData->Metadata)
+    {
+        MutablePointData->Metadata->Flatten(); // ensure the owned copy is fully self-contained
+    }
     CachedPoints = MutablePointData->GetPoints();
 
     // Build fast parallel state
