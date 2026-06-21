@@ -43,17 +43,17 @@ The most satisfying outcome is not "I killed everything." It is:
 
 ## Art Direction Baseline
 
-The recommended production-facing art direction is:
+**Updated 2026-06-21 — stylized pivot.** The production-facing art direction is now **stylized**, not realism (driver: cohesive, affordable assets for a small/solo team). The emotional *tone* is unchanged — bleak, melancholic, fragile hope; Pillars 1, 5, 7 stand. (The deeper art corpus — `docs/art/`, `docs/reference/` — still reads "Withered Gothic Realism" and needs a follow-up rewrite pass.)
 
-> **Withered Gothic Realism** — a painterly, romantic dark-fantasy realism with liminal memory atmospherics and ritualized restoration.
+> **Withered Gothic Stylization** — hand-painted / cartoon dark-fantasy with a bleak, melancholic tone, liminal-memory atmospherics, and ritualized restoration. Realism is subordinated to silhouette and readability. Reference register: *Hollow Knight*, *Darkest Dungeon*, *Don't Starve*, *Inscryption* — stylized **and** grim, never cozy or toy.
 
-This direction blends:
+This direction keeps:
 
-- **Withered Romantic Realism** as the emotional foundation: mournful, sacred, weathered, and grounded.
-- **Painterly Gothic Realism** as the rendering philosophy: believable materials and lighting shaped by strong composition, readable silhouettes, and controlled texture density.
-- **Liminal Memory Realism** as the world-behavior layer: corrupted spaces feel half-remembered, unstable, and soft at the edges; restored spaces regain clarity and perceptual coherence.
-- **Ritualistic Naturalism** as the object and structure language: lanterns, gardens, mirrors, bells, roots, shrines, and boundaries should feel symbolic, ancient, and place-specific rather than like generic construction pieces.
-- **Luminous Ruin Fantasy** as the restraint-based accent: warmth, teal-gold glow, motes, and miraculous beauty appear mainly through the Veil Heart, restoration, dawn feedback, and rare sacred reveals.
+- **Withered Romantic mood** as the emotional foundation: mournful, sacred, weathered.
+- **Painterly stylization** as the rendering philosophy: hand-crafted forms, strong value contrast, readable silhouettes; texture restraint over photogrammetry detail.
+- **Liminal memory** as the world-behavior layer: corrupted spaces feel half-remembered, unstable, and soft at the edges; restored spaces regain clarity and perceptual coherence.
+- **Ritualistic object language**: lanterns, gardens, mirrors, bells, roots, shrines, and boundaries should feel symbolic, ancient, and place-specific rather than like generic construction pieces.
+- **Luminous restraint** as the accent: warmth, teal-gold glow, motes, and miraculous beauty appear mainly through the Veil Heart, restoration, dawn feedback, and rare sacred reveals.
 
 The art direction should make restoration feel like reality becoming trustworthy again, not merely like objects becoming cleaner or brighter.
 

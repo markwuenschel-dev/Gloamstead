@@ -58,6 +58,6 @@ The art direction exists to reinforce the pillars, not to chase realism for its 
 - The world is bleak but recoverable, so baseline environments should be cold, withered, and half-forgotten while restored zones become sacred pockets of warmth.
 - Mystery must be fair, so fog, darkness, stylization, and post-processing cannot obscure the clues the player needs.
 
-Recommended visual identity:
+Recommended visual identity _(updated 2026-06-21 — stylized pivot; emotional tone unchanged)_:
 
-> **Withered Gothic Realism** — painterly, romantic dark-fantasy realism with liminal memory atmospherics and ritualized restoration.
+> **Withered Gothic Stylization** — hand-painted / cartoon dark-fantasy with a bleak, melancholic tone, liminal-memory atmospherics, and ritualized restoration; realism subordinated to silhouette and readability (refs: *Hollow Knight*, *Darkest Dungeon*, *Don't Starve* — stylized **and** grim, never cozy or toy).

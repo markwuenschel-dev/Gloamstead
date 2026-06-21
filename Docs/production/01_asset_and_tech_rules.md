@@ -32,9 +32,12 @@ Avoid importing large survival/crafting/base-defense frameworks unless used only
 
 ## Art Asset Selection
 
+_Updated 2026-06-21 — **stylized** (dark/grim hand-painted), not realistic, for asset cohesion and cost. Tone stays bleak; see `docs/game/00_current_design_baseline.md` "Withered Gothic Stylization."_
+
 Prefer assets that support:
 
-- realistic dark fantasy
+- **stylized dark fantasy** (hand-painted / cartoon, grounded and grim — refs: Hollow Knight, Darkest Dungeon, Don't Starve)
+- cohesive single-style packs spanning environment + props + creatures + VFX (the whole point of going stylized)
 - ruined environments
 - bleak natural spaces
 - readable silhouettes
@@ -43,11 +46,11 @@ Prefer assets that support:
 
 Avoid assets that push the game toward:
 
-- cartoon cozy village sim
+- **cheerful / cozy** stylization (cozy village sim, cute/chibi, toy style) — stylized is fine, *cheerful* is not
 - bright MMO fantasy
+- photoreal "UE5 Megascans gray soup" (the old realism direction)
 - gothic horror gore
 - sci-fi
-- tower defense toy style
 - survival-crafting clutter
 
 ## Agent Implementation Rule
