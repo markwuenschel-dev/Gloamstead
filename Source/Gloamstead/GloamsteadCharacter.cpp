@@ -10,6 +10,8 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
+#include "Components/RitualPlacementComponent.h"
+#include "Components/GloamInteractionComponent.h"
 #include "Gloamstead.h"
 
 AGloamsteadCharacter::AGloamsteadCharacter()
@@ -46,6 +48,10 @@ AGloamsteadCharacter::AGloamsteadCharacter()
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
 
+	// Gloamstead gameplay components: ritual-point restoration + world-object interaction verbs.
+	RitualPlacement = CreateDefaultSubobject<URitualPlacementComponent>(TEXT("RitualPlacement"));
+	Interaction = CreateDefaultSubobject<UGloamInteractionComponent>(TEXT("Interaction"));
+
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 }
@@ -65,6 +71,20 @@ void AGloamsteadCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 
 		// Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AGloamsteadCharacter::Look);
+
+		// Gloamstead verbs (null-checked: their IA assets may not be assigned in early Blueprints yet).
+		if (RestoreAction)
+		{
+			EnhancedInputComponent->BindAction(RestoreAction, ETriggerEvent::Started, this, &AGloamsteadCharacter::OnRestoreInput);
+		}
+		if (InteractAction)
+		{
+			EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &AGloamsteadCharacter::OnInteractInput);
+		}
+		if (ExamineAction)
+		{
+			EnhancedInputComponent->BindAction(ExamineAction, ETriggerEvent::Started, this, &AGloamsteadCharacter::OnExamineInput);
+		}
 	}
 	else
 	{
@@ -130,4 +150,41 @@ void AGloamsteadCharacter::DoJumpEnd()
 {
 	// signal the character to stop jumping
 	StopJumping();
+}
+
+void AGloamsteadCharacter::OnRestoreInput()
+{
+	if (!RitualPlacement)
+	{
+		return;
+	}
+
+	// First press arms placement (the preview begins); a press while a valid target is previewed confirms
+	// the restoration — this is the player action the FirstNightDirector's dusk gate waits on.
+	if (!RitualPlacement->IsInPlacementMode())
+	{
+		RitualPlacement->EnterPlacementMode();
+		return;
+	}
+
+	if (RitualPlacement->IsCurrentPlacementValid())
+	{
+		RitualPlacement->ConfirmPlacement();
+	}
+}
+
+void AGloamsteadCharacter::OnInteractInput()
+{
+	if (Interaction)
+	{
+		Interaction->TryInteract();
+	}
+}
+
+void AGloamsteadCharacter::OnExamineInput()
+{
+	if (Interaction)
+	{
+		Interaction->TryExamine();
+	}
 }
