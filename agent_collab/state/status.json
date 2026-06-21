@@ -1,7 +1,10 @@
 {
-  "generated_at": "2026-06-17T00:13:36.0288574Z",
-  "slug": null,
+  "generated_at": "2026-06-20T11:10:36Z",
+  "slug": "gloam",
   "mode": "sync",
+  "parked": true,
+  "active_wave": null,
+  "note": "Parked. wave-vs-polish-202606 superseded; no active orchestrated wave. Real development proceeds by direct branch work on feat/a1-sanctuary-bootstrap (Phase 3 - Six-Hour Experience, docs/Phase3_SixHourExperience.md). Orchestrator has not driven a wave since 2026-06-08.",
   "run": {
     "run_id": "run-20260608223408-d71a97",
     "status": "idle",
@@ -12,107 +15,20 @@
     "runtime_failures": 0,
     "started": "2026-06-08T22:34:08.8866477Z",
     "last_tick": "2026-06-08T22:34:09.2089224Z",
-    "stop_reason": "reconciled-2026-06-16"
+    "updated": "2026-06-20T11:10:36Z",
+    "stop_reason": "reconciled-2026-06-20-wave-vs-polish-superseded"
   },
   "counts": {
-    "active": 8,
+    "active": 0,
     "blocked": 0,
-    "done": 4
+    "done": 5,
+    "cancelled": 8
   },
-  "active_tasks": [
-    {
-      "task_id": "VS-POLISH-DATA-02",
-      "status": "assigned",
-      "phase": "assigned",
-      "assigned_to": "gloam-coder",
-      "runtime": "claude-code",
-      "lane": "vs-polish",
-      "risk_level": "low",
-      "cycle": 0,
-      "wave_id": "wave-vs-polish-202606"
-    },
-    {
-      "task_id": "VS-POLISH-UI-01",
-      "status": "assigned",
-      "phase": "assigned",
-      "assigned_to": "gloam-coder",
-      "runtime": "claude-code",
-      "lane": "vs-polish",
-      "risk_level": "medium",
-      "cycle": 0,
-      "wave_id": "wave-vs-polish-202606"
-    },
-    {
-      "task_id": "VS-POLISH-JOURNAL-01",
-      "status": "assigned",
-      "phase": "assigned",
-      "assigned_to": "gloam-coder",
-      "runtime": "claude-code",
-      "lane": "vs-polish",
-      "risk_level": "medium",
-      "cycle": 0,
-      "wave_id": "wave-vs-polish-202606"
-    },
-    {
-      "task_id": "VS-POLISH-VISUALS-01",
-      "status": "assigned",
-      "phase": "assigned",
-      "assigned_to": "gloam-coder",
-      "runtime": "claude-code",
-      "lane": "vs-polish",
-      "risk_level": "medium",
-      "cycle": 0,
-      "wave_id": "wave-vs-polish-202606"
-    },
-    {
-      "task_id": "VS-POLISH-PERSIST-01",
-      "status": "assigned",
-      "phase": "assigned",
-      "assigned_to": "gloam-coder",
-      "runtime": "claude-code",
-      "lane": "vs-polish",
-      "risk_level": "low",
-      "cycle": 0,
-      "wave_id": "wave-vs-polish-202606"
-    },
-    {
-      "task_id": "VS-POLISH-NIGHT-01",
-      "status": "assigned",
-      "phase": "assigned",
-      "assigned_to": "gloam-coder",
-      "runtime": "claude-code",
-      "lane": "vs-polish",
-      "risk_level": "medium",
-      "cycle": 0,
-      "wave_id": "wave-vs-polish-202606"
-    },
-    {
-      "task_id": "VS-POLISH-COMBAT-01",
-      "status": "assigned",
-      "phase": "assigned",
-      "assigned_to": "gloam-coder",
-      "runtime": "claude-code",
-      "lane": "vs-polish",
-      "risk_level": "medium",
-      "cycle": 0,
-      "wave_id": "wave-vs-polish-202606"
-    },
-    {
-      "task_id": "VS-POLISH-PLAYTEST-01",
-      "status": "assigned",
-      "phase": "assigned",
-      "assigned_to": "human",
-      "runtime": null,
-      "lane": "vs-polish",
-      "risk_level": "low",
-      "cycle": 0,
-      "wave_id": "wave-vs-polish-202606"
-    }
-  ],
+  "active_tasks": [],
   "waves": [
     {
       "wave_id": "wave-vs-polish-202606",
-      "status": "in_progress",
+      "status": "superseded",
       "parallel": null,
       "task_ids": [
         "VS-POLISH-DATA-FU-02",
@@ -128,14 +44,27 @@
       ]
     }
   ],
+  "done_tasks": [
+    "VS-POLISH-DATA-01",
+    "VS-POLISH-DATA-FU-01",
+    "VS-POLISH-DATA-FU-02",
+    "VS-POLISH-DATA-FU-03",
+    "VS-POLISH-FACTORY-DATA-01"
+  ],
+  "cancelled_tasks": [
+    "VS-POLISH-DATA-02",
+    "VS-POLISH-UI-01",
+    "VS-POLISH-JOURNAL-01",
+    "VS-POLISH-VISUALS-01",
+    "VS-POLISH-PERSIST-01",
+    "VS-POLISH-NIGHT-01",
+    "VS-POLISH-COMBAT-01",
+    "VS-POLISH-PLAYTEST-01"
+  ],
   "leases": [],
   "log_tail": [
     "# Gloamstead Collaboration Orchestrator Log",
-    "# Format: [ISO8601] LEVEL component: message",
-    "# This file is appended by the Orchestrator and by claude-code SubagentStart/Stop hooks.",
-    "# Never edited manually except for emergency annotation with clear markers.",
-    "",
-    "[2026-05-09T12:00:00Z] INFO orchestrator: Scaffold initialized. Slug=gloam. Mode=sync. Self-test pending.",
-    "[2026-05-31T16:54:25-04:00] INFO orchestrator: Cold resume /gloam-resume completed. Lock acquired. Clean reconciliation. Mode=sync. No in-flight work. Status report ready. Awaiting directive."
+    "[2026-05-31T16:54:25-04:00] INFO orchestrator: Cold resume /gloam-resume completed. Clean reconciliation. Awaiting directive.",
+    "[2026-06-17..2026-06-20] NOTE: 'unknown agent=unknown task=' lines are SubagentStart/Stop hook noise (mis-parse), NOT orchestrator activity. Orchestrator itself has not run since 2026-06-08."
   ]
 }
