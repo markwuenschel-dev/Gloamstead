@@ -20,8 +20,9 @@ if (-not $ProjectRoot) {
     }
 }
 
-$UProject = Join-Path $ProjectRoot 'Gloamstead.uproject'
-if (-not (Test-Path $UProject)) { throw "Missing uproject: $UProject" }
+# Resolve the single .uproject in the repo root (drift-proof: no hardcoded name).
+$UProject = (Get-ChildItem -Path $ProjectRoot -Filter '*.uproject' -File -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+if (-not $UProject -or -not (Test-Path $UProject)) { throw "No .uproject found in $ProjectRoot" }
 
 $ManifestRel = ($Manifest -replace '\\', '/')
 if ([IO.Path]::IsPathRooted($Manifest)) {
@@ -30,18 +31,38 @@ if ([IO.Path]::IsPathRooted($Manifest)) {
 $ManifestFull = Join-Path $ProjectRoot ($ManifestRel -replace '/', [IO.Path]::DirectorySeparatorChar)
 if (-not (Test-Path $ManifestFull)) { throw "Missing manifest: $ManifestFull" }
 
+# Resolve the engine for this .uproject's EngineAssociation, portable across install
+# locations: UE_ROOT arg > GLOAMSTEAD_UE_ENGINE env > registry InstalledDirectory >
+# D:\UE_<ver> / Program Files. (This machine's 5.8 is at D:\UE_5.8, not Program Files.)
 function Find-UnrealEditorCmd {
-    param([string]$Root)
+    param([string]$Root, [string]$UProjectPath)
     if ($Root) {
         $Candidate = Join-Path $Root 'Engine/Binaries/Win64/UnrealEditor-Cmd.exe'
         if (Test-Path $Candidate) { return $Candidate }
     }
-    $Guess = 'C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor-Cmd.exe'
-    if (Test-Path $Guess) { return $Guess }
-    throw 'UnrealEditor-Cmd.exe not found. Set UE_ROOT to your engine install.'
+    $assoc = (Get-Content $UProjectPath -Raw | ConvertFrom-Json).EngineAssociation
+    $candidates = @()
+    foreach ($hive in @(
+        "HKLM:\SOFTWARE\EpicGames\Unreal Engine\$assoc",
+        "HKLM:\SOFTWARE\WOW6432Node\EpicGames\Unreal Engine\$assoc"
+    )) {
+        try {
+            $d = (Get-ItemProperty -Path $hive -ErrorAction Stop).InstalledDirectory
+            if ($d) { $candidates += $d }
+        } catch { }
+    }
+    $candidates += @($env:GLOAMSTEAD_UE_ENGINE, "D:\UE_$assoc", "C:\Program Files\Epic Games\UE_$assoc")
+    foreach ($c in $candidates) {
+        if ($c) {
+            $Candidate = Join-Path $c 'Engine/Binaries/Win64/UnrealEditor-Cmd.exe'
+            if (Test-Path $Candidate) { return $Candidate }
+        }
+    }
+    throw "UnrealEditor-Cmd.exe not found for EngineAssociation '$assoc'. Set UE_ROOT or GLOAMSTEAD_UE_ENGINE."
 }
 
-$EditorCmd = Find-UnrealEditorCmd -Root $UeRoot
+$EditorCmd  = Find-UnrealEditorCmd -Root $UeRoot -UProjectPath $UProject
+$EngineRoot = (Resolve-Path (Join-Path (Split-Path $EditorCmd) '../../..')).Path
 $LogDir = Join-Path $ProjectRoot 'Saved/Logs'
 New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
 $LogName = 'GloamsteadImportDataAssets.log'
@@ -54,8 +75,8 @@ if (-not (Test-Path $EditorModuleDll)) {
     throw @"
 GloamsteadEditor is not compiled (missing $EditorModuleDll).
 
-Build Development Editor first:
-  & `"C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\Build.bat`" GloamsteadEditor Win64 Development `"-Project=$UProject`"
+Build Development Editor first (or run gate.ps1):
+  & `"$EngineRoot\Engine\Build\BatchFiles\Build.bat`" GloamsteadEditor Win64 Development `"-Project=$UProject`"
 "@
 }
 

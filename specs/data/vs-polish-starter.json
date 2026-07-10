@@ -100,6 +100,17 @@
       }
     },
     {
+      "asset_name": "DA_Ritual_PathPoint",
+      "class": "RitualDefinition",
+      "properties": {
+        "RitualType": "PathPoint",
+        "DefaultLightContribution": 0.35,
+        "DefaultCorruptionClearance": 0.15,
+        "RestorationRadius": 600,
+        "SatisfiableWarningTags": ["LightPath"]
+      }
+    },
+    {
       "asset_name": "DA_Ritual_GardenBed",
       "class": "RitualDefinition",
       "properties": {
