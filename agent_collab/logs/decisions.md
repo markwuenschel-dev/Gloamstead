@@ -556,3 +556,22 @@ Cold resume by gloam-orchestrator (claude-code, Opus 4.8). Lock acquired cleanly
 **Next:** run gate.ps1 for a real first baseline (editor must be closed). Then Wave 1 = verify-then-wire: (W1a) capture live-PCG PIE proof (needs editor open + NeoStack runtime — currently not running), (W1b) wire the dead SaveToSlot/LoadFromSlot API into autosave-at-dawn/load-on-start, (W1c) author DA_Ritual_PathPoint via the whitelisted import commandlet. The night-runtime stub expansion is explicitly out of the first slice.
 
 Recorded by gloam-orchestrator (claude-code) on /gloam-resume.
+
+## 2026-07-10 — First real gate baseline GREEN + W1c authored (pilot session outcome)
+
+Continuation of the same session. On branch `gloamstead/gloamsteadforge-adapter-pilot`.
+
+**Baseline captured (first ever on this machine): `GATE PASS — build green, 25 tests green`** (~6.5 min; UBA briefly killed+retried one NeoStack TU on memory pressure, no impact). Gloamstead + GloamsteadEditor compile clean against UE 5.8; only third-party (NeoStack) deprecation warnings. Note the suite is **25 tests**, not the 16 the briefing estimated. Commit `863b9f0`.
+
+**W1c authored (commit `62d664f`):** added `DA_Ritual_PathPoint` row to `specs/data/vs-polish-starter.json` (RitualType=PathPoint, SatisfiableWarningTags=[LightPath], mirroring LanternPost); manifest now 7 assets, JSON validated. The `.uasset` generation is still the human/editor-gated import step. While here, fixed the SAME env-drift class on `Invoke-GloamsteadDataAssetImport.ps1` and `Build-GloamsteadEditor.ps1` (both hardcoded `Gloamstead.uproject` -> threw, and hardcoded 5.7 engine) — now resolve the .uproject by glob and the engine via UE_ROOT/GLOAMSTEAD_UE_ENGINE > registry > D:\UE_<ver> > Program Files. Updated `HUMAN_RUN_IMPORT.md` (5.7->5.8, name, 6->7). All scripts parse-checked.
+
+**Pending / human-gated (all converge on opening the editor):**
+- **W1a (blocks the GloamsteadForge layer):** capture the live-PCG PIE proof — restore -> rest -> dusk warning -> night -> dawn — in `Lvl_ThirdPerson`. Needs the editor open + NeoStack runtime (currently not connected). This is the true unmet Phase-0 acceptance; drive via `neostack-game-testing`.
+- **W1b (held, verify-then-wire):** wire `SaveToSlot`/`LoadFromSlot` (dead API) into autosave at `GloamsteadDayNightSubsystem::HandleEnterDawn` (after ProcessDawnReflection) + load-on-start after `GloamsteadSanctuaryBootstrap::TryInitializeSanctuary` InitializeFromPCGComponent. Compile+test verifiable via gate; runtime verification belongs in the W1a editor session. Deliberately not written before the loop is PIE-proven.
+- **W1c import:** run `Invoke-GloamsteadDataAssetImport.ps1 -Manifest specs/data/vs-polish-starter.json` (editor closed) to generate `Content/Data/DA_Ritual_PathPoint.uasset`; verify map-load.
+
+**Infra observation:** `Refresh-OrchestratorLock.ps1` fails PID_MISMATCH under Claude Code — each pwsh call is a fresh process, so the PID-heartbeat model can't refresh across invocations. Harmless single-session (lock acquired fine, no contention), but next cold resume will see the lock as stale-by-dead-PID and should just reconcile/take over. Not fixed here (tangential to game work); flag if the multi-session lease model needs to work under this harness.
+
+**Left untouched (your domain / gates):** `.uproject` MCP-plugin change (MCPClientToolset, ModelContextProtocol), untracked vendor content (`Content/{BlackAlder,CommonHazel,EuropeanHornbeam,MSPresets}/`, `Plugins/`).
+
+Recorded by gloam-orchestrator (claude-code) on the pilot session.
