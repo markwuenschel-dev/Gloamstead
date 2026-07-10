@@ -575,3 +575,27 @@ Continuation of the same session. On branch `gloamstead/gloamsteadforge-adapter-
 **Left untouched (your domain / gates):** `.uproject` MCP-plugin change (MCPClientToolset, ModelContextProtocol), untracked vendor content (`Content/{BlackAlder,CommonHazel,EuropeanHornbeam,MSPresets}/`, `Plugins/`).
 
 Recorded by gloam-orchestrator (claude-code) on the pilot session.
+
+## 2026-07-10 — W1a PIE attempt: BLOCKED by broken player Blueprint (paused by human)
+
+Same pilot session. Editor opened (UE 5.8, pid 188956), NeoStack MCP bridge attached after a `/mcp` reconnect, drove PIE via `execute_script` (NeoStack Lua `playtest_*`).
+
+**W1a is blocked by a real bug that the green gate cannot see.** PIE launched (`PlayLevel` on `Lvl_ThirdPerson`, `22:49:46`) but immediately: `BlueprintLog: Warning: Blueprint failed to compile: BP_ThirdPersonCharacter`. Root cause (editor log line ~2120): `Internal Compiler Error: Tried to create a property RitualPlacement in scope BP_ThirdPersonCharacter_C, but another object (/Script/Gloamstead.GloamsteadCharacter:RitualPlacement) already exists there.`
+
+- `AGloamsteadCharacter` (C++) owns the `RitualPlacement` subobject: `GloamsteadCharacter.h:38` + `.cpp:52` (`CreateDefaultSubobject<URitualPlacementComponent>(TEXT("RitualPlacement"))`); restoration input logic is in C++ (`.cpp:157-172`).
+- `BP_ThirdPersonCharacter` reparents to `AGloamsteadCharacter` and *also* declares a `RitualPlacement` component → duplicate-property collision → the player pawn BP does not compile → restoration path (which runs through that component) is dead in PIE → the loop cannot be driven/proven.
+- **Why the gate misses it:** gate.ps1 builds C++ and runs 25 C++ automation tests (all green); a *Blueprint* compile error only manifests on asset load in-editor/PIE. Green gate != working PIE — exactly why the briefing made the PIE proof the true Phase-0 acceptance. Likely a regression introduced after the 2026-06-11 PIE verification (RitualPlacement moved into C++ without removing the BP's copy).
+
+**Fix (deferred — human chose "stop and save for later"):** remove the duplicate `RitualPlacement` component from `BP_ThirdPersonCharacter`, recompile+save. Wrinkles for the resuming session: (a) the editor went down during the broken-BP PIE and must be restarted; (b) `BP_ThirdPersonCharacter` is under `Content/ThirdPerson/` = vendor-read-only per guardrails, but it is already project-customized (reparented + RitualPlacement) — fixing it is a deliberate gated binary-asset edit; prefer the NeoStack Blueprint API (auditable automation) over a manual edit, after confirming the BP component has no event-graph wiring.
+
+**MCP bridge instability observed:** the first PIE launch on a fresh build saturates the editor with shader compilation, which stalls the editor's MCP HTTP server (port 9315) and drops the `neostack-connect` bridge (needed `/mcp` reconnect twice). Also, `execute_script` has a 60s tool ceiling — drive PIE in small sub-60s steps once shaders are warm.
+
+**State at pause (all on branch `gloamstead/gloamsteadforge-adapter-pilot`, base `main` ef7add4):**
+- Commits this session: `863b9f0` (gate/env-drift fix, baseline GREEN 25 tests), `62d664f` (W1c manifest DA_Ritual_PathPoint + import-script drift fix), `d4f16a1` (decisions), + this entry.
+- W1c: manifest row authored; the import (`.uasset` generation) has NOT been run yet.
+- W1b (save wiring): NOT written (held for verify-then-wire; attach points pinned — see prior entry).
+- Untouched (human domain): `.uproject` MCP-plugin change, untracked vendor content.
+
+**Resume recipe (next session):** `/gloam-resume` (lock will look stale-by-dead-PID — reconcile/take over) -> restart editor + `/mcp` reconnect -> fix `BP_ThirdPersonCharacter` dup RitualPlacement -> re-run gate (confirm still green) -> drive W1a PIE proof (assert `"Initialized with N points"`, `"initialized sanctuary PCG state"`; watch for `"produced no point data"` and the missing Tutorial warning-catalog row) -> W1c import -> W1b save wiring.
+
+Recorded by gloam-orchestrator (claude-code); session paused by human directive ("stop and save for later").
