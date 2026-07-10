@@ -537,3 +537,22 @@ Reconcile-only session. Lock acquired (agent_collab/state/orchestrator.lock, hol
 Files changed (agent_collab/** only): state/scheduler_state.json, state/task_state.json, state/run_state.json, state/status.json, state/orchestrator.lock (acquired; released at session end), logs/decisions.md (this entry); handoff moves done/HANDOFF-2026-06-10-VS-POLISH-FACTORY-DATA-01.md (from claimed/) and archived/HANDOFF-2026-06-04-VS-POLISH-{COMBAT-01,DATA-02,JOURNAL-01,NIGHT-01,PERSIST-01,PLAYTEST-01,UI-01,VISUALS-01}.md (from claimed/, status+history edited). State files validated against agent_collab/protocol/*.schema.json.
 
 Recorded by reconcile session (gloam-orchestrator / claude-code) on /gloam-status reconcile. No new work started; awaiting human directive.
+
+## 2026-07-10 — /gloam-resume + GloamsteadForge pilot rebaseline (env drift fixed)
+
+Cold resume by gloam-orchestrator (claude-code, Opus 4.8). Lock acquired cleanly (session DESKTOP-4V5URM8-167888, no contention). Reconciliation confirmed state caches already match git ground truth from the 2026-06-20 reconcile: parked, wave-vs-polish-202606 superseded, no active tasks/leases/worktrees, main @ ef7add4. A1/A2/A3 (sanctuary bootstrap, rest-driven first-night orchestration, display-name fix) confirmed done + merged to main per briefing; the real open work is verification (live-PCG PIE proof), save-wiring, and DA_Ritual_PathPoint.
+
+**Environment drift diagnosed and fixed (the reason gate could never build):**
+- UE 5.8 IS installed but at a **non-standard path `D:\UE_5.8`** (5.8.0 promoted build), not the hardcoded `C:\Program Files\Epic Games\UE_5.8`. Only 5.7 lives under Program Files.
+- The checkout is `D:\Unreal Projects\Gloamstead5_8`, not gate's hardcoded `C:\Users\Nalakram\Documents\...` (which does not exist).
+- `gate.ps1` rewritten to be portable: `$Proj` resolves relative to `$PSScriptRoot`; `$Engine` resolves via `-Engine` arg > `GLOAMSTEAD_UE_ENGINE` env > registry `InstalledDirectory` for the .uproject EngineAssociation > `D:\UE_<ver>` / Program Files candidates; fails closed with a clear message. Root cause (hardcoded machine-specific absolutes) removed, not just patched.
+- `scope_roots.json`: `Gloamstead.uproject` -> `Gloamstead5_8.uproject` (unreal_project_files + orchestrator_edit_roots); added `gate.ps1` to orchestrator_edit_roots.
+- `command_policy.json`: `compile` and `automation_test` no longer claim "no runner exists" — both now describe `gate.ps1` as the build+test oracle; `gate.ps1` added to `whitelisted_commands` (reversible: writes only Intermediate/Binaries + TEMP report).
+
+**Pilot branch:** `gloamstead/gloamsteadforge-adapter-pilot` created off `main` @ ef7add4.
+
+**Uncommitted human-domain changes present in working tree (not touched):** `.uproject` adds `MCPClientToolset` + `ModelContextProtocol` plugins (NeoStack MCP bridge); untracked vendor content packs `Content/{BlackAlder,CommonHazel,EuropeanHornbeam,MSPresets}/`, `Plugins/`, `.neostack/`, `skills-lock.json`.
+
+**Next:** run gate.ps1 for a real first baseline (editor must be closed). Then Wave 1 = verify-then-wire: (W1a) capture live-PCG PIE proof (needs editor open + NeoStack runtime — currently not running), (W1b) wire the dead SaveToSlot/LoadFromSlot API into autosave-at-dawn/load-on-start, (W1c) author DA_Ritual_PathPoint via the whitelisted import commandlet. The night-runtime stub expansion is explicitly out of the first slice.
+
+Recorded by gloam-orchestrator (claude-code) on /gloam-resume.

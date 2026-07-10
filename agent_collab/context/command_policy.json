@@ -30,10 +30,10 @@
     "text_verification": [
       "Schema validation, JSON/YAML linting, custom project-owned text validators (when they exist under factory roots)."
     ],
-    "compile": "No discovered safe command-line compile wrapper. Building requires human (open .uproject or run VS build for Development Editor target of Gloamstead module).",
+    "compile": "Project build+test oracle is gate.ps1 (repo root): builds GloamsteadEditor Win64 Development via UE 5.8 Build.bat then runs 'Automation RunTests Gloamstead' and fails closed on the report. Writes only to Intermediate/Binaries and the TEMP report dir; no content mutation. Whitelisted (see whitelisted_commands). Requires the editor closed (LNK1104 otherwise).",
     "editor_generation": "Whitelisted: agent_collab/scripts/Invoke-GloamsteadDataAssetImport.ps1 with -Manifest under specs/data/. Underlying UnrealEditor-Cmd -run=GloamsteadImportDataAssets only via that wrapper.",
     "map_load": "No discovered command-line map validator. Requires human Editor/PIE load with evidence capture.",
-    "automation_test": "No discovered automation test runner or test code. Requires human.",
+    "automation_test": "Automation tests run via gate.ps1 (UnrealEditor-Cmd -ExecCmds 'Automation RunTests Gloamstead'), report parsed and failed-closed. 16 Gloamstead C++ tests as of 2026-07-10; note all PCG tests use the synthetic Test_SeedPointStates seam, none exercise live InitializeFromPCGComponent.",
     "functional_test": "No discovered functional test infrastructure. Requires human.",
     "package_smoke": "No discovered cook or package scripts. Requires human.",
     "integration_verification": "Combination of applicable profiles above + Critic audit of diff and binary file list. UE-dependent steps currently require human.",
@@ -51,6 +51,10 @@
     {
       "pattern": "Invoke-GloamsteadDataAssetImport\\.ps1",
       "reason": "Approved Data Asset factory wrapper (VS-POLISH-FACTORY-DATA-01). Must use -Manifest under specs/data/."
+    },
+    {
+      "pattern": "gate\\.ps1",
+      "reason": "Approved build+test oracle (2026-07-10 rebaseline). Builds GloamsteadEditor + runs Gloamstead automation tests, fails closed on the report. Reversible: writes only Intermediate/Binaries + TEMP report, no content or history mutation. Requires the editor closed."
     }
   ]
 }
