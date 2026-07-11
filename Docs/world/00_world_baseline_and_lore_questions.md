@@ -77,7 +77,7 @@ The Heart is a vessel built to remember the world correctly after reality began 
 
 Strengths:
 
-- perfectly supports Liminal Memory Realism
+- perfectly supports the Liminal Memory layer of the art direction
 - explains why restoration restores perceptual coherence
 - ties warnings to half-broken memory
 

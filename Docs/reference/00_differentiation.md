@@ -2,6 +2,8 @@
 
 _How the current direction avoids crowded genre overlap._
 
+_Updated 2026-07-11 — realigned from "Withered Gothic Realism" to "Withered Gothic Stylization" per docs/game/00_current_design_baseline.md._
+
 ## Not Drake Hollow
 
 Avoid becoming:
@@ -96,15 +98,15 @@ Gloamstead should avoid becoming a generic UE5 dark fantasy ruin showcase. The g
 
 The ownable visual lane is:
 
-> **Withered Gothic Realism:** grounded dark fantasy shaped by painterly composition, romantic melancholy, ritualized environmental design, and liminal memory effects.
+> **Withered Gothic Stylization:** hand-painted, cartoon-leaning dark fantasy shaped by painterly composition, romantic melancholy, ritualized environmental design, and liminal memory effects — silhouette and readability over photoreal fidelity, bleak and grim rather than cozy or toy.
 
 This differentiates Gloamstead from crowded neighboring aesthetics:
 
 - **Not generic Soulslike ruins:** less combat spectacle, more sanctuary meaning, ritual objects, and fair environmental clues.
 - **Not cozy fantasy:** warmth is precious and earned, not the default mood.
 - **Not survival-builder realism:** restored structures are symbolic instruments, not generic utility buildings.
-- **Not UE5 Megascans gray soup:** high-fidelity assets must be subordinated to readable silhouettes, value contrast, and emotional light language.
-- **Not pure photoreal horror:** the world is grounded, but it should still feel interpreted, mythic, and partially unstable.
+- **Not UE5 Megascans gray soup:** any high-fidelity source assets must be subordinated to hand-crafted, readable silhouettes, strong value contrast, texture restraint, and emotional light language.
+- **Not pure photoreal horror:** the world is hand-painted and stylized, but it should still feel interpreted, mythic, partially unstable, and unrelentingly bleak.
 
 Visual design should strengthen the core sentence:
 

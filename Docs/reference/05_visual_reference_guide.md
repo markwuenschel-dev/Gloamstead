@@ -2,21 +2,27 @@
 
 _Reference language and usage guide for Gloamstead's art direction._
 
+_Updated 2026-07-11 — realigned from "Withered Gothic Realism" to "Withered Gothic Stylization" per docs/game/00_current_design_baseline.md._
+
 ## Purpose
 
 This document explains how to use visual references without reducing Gloamstead to “Game A plus Game B.” References are directional tools, not identity statements.
 
 The internal art-direction label is:
 
-> **Withered Gothic Realism**
+> **Withered Gothic Stylization**
 
 Expanded description:
 
-> A painterly, romantic dark-fantasy realism with liminal memory atmospherics and ritualized restoration.
+> A hand-painted, romantic dark-fantasy stylization with liminal memory atmospherics and ritualized restoration — silhouette and readability over photoreal fidelity.
+
+Reference register:
+
+> *Hollow Knight*, *Darkest Dungeon*, *Don't Starve*, *Inscryption* — stylized **and** grim, never cozy or toy. Lean on these before any photoreal source.
 
 ## Reference Buckets
 
-### 1. Withered Romantic Realism
+### 1. Withered Romantic Stylization
 
 Use for emotional tone, composition, and melancholy beauty.
 
@@ -37,27 +43,27 @@ Production translation:
 - atmospheric depth
 - quiet ruin staging
 
-### 2. Painterly Gothic Realism
+### 2. Painterly Gothic Stylization
 
 Use for the main rendering philosophy.
 
 Reference qualities:
 
-- believable materials
+- readable, hand-crafted materials
 - gothic forms
 - painterly texture restraint
 - stylized silhouettes
 - cinematic fog and rim light
-- grounded but emotionally directed lighting
+- hand-painted but emotionally directed lighting
 
 Production translation:
 
-- PBR base with controlled roughness and color grading
+- stylized base with controlled roughness, strong value grading, and texture restraint over photogrammetry
 - reduced texture noise in secondary surfaces
 - stronger shape readability on important objects
 - architectural decay that feels authored, not random
 
-### 3. Liminal Memory Realism
+### 3. Liminal Memory Stylization
 
 Use for atmosphere, corruption, perception, and special night states.
 
@@ -111,7 +117,7 @@ Reference qualities:
 
 Production translation:
 
-- Veil Heart glow
+- the Heart glow
 - lantern warmth
 - dawn payoff
 - restored garden bloom
@@ -169,7 +175,7 @@ A reference is useful when it answers one of these:
 - How should fog behave?
 - How should a night consequence read visually?
 - How should a symbolic structure communicate its function?
-- How should the Veil Heart feel wounded, alive, and miraculous?
+- How should the Heart feel wounded, alive, and miraculous?
 
 ### Bad Reference Use
 
@@ -185,7 +191,8 @@ A reference is risky when it only answers:
 
 Use these terms to gather references:
 
-- withered gothic realism
+- withered gothic stylization
+- hollow knight darkest dungeon dark fantasy
 - romantic dark fantasy ruins
 - painterly gothic ruins fog
 - sacred lantern ruins mist
@@ -213,4 +220,4 @@ For every major art reference, ask:
 
 Use this when describing the visual target quickly:
 
-> Gloamstead is grounded dark fantasy shaped like a melancholy painting, where a dying world regains warmth, clarity, and sacred light through ritual restoration.
+> Gloamstead is hand-painted, stylized dark fantasy shaped like a melancholy painting, where a dying world regains warmth, clarity, and sacred light through ritual restoration.

@@ -6,9 +6,9 @@ _Current world premise without over-locking unexplored lore._
 
 The world is bleak, half-dead, and diminished. A darkness, absence, or hostile force has spread through it. The exact origin remains unresolved, but current direction suggests a rift, severance, or ancient wound in reality.
 
-The player finds or awakens the Veil Heart, a mysterious growing source of light in or near ancient ruins. The Heart is tied to the old world and may be the last fragment of something once much larger.
+The player finds or awakens the Heart, a mysterious growing source of light in or near ancient ruins. The Heart is tied to the old world and may be the last fragment of something once much larger.
 
-## The Veil Heart
+## The Heart
 
 The Heart (proper name **the Gloamheart**; naming locked — see [02_naming_and_voice_decision.md](02_naming_and_voice_decision.md)) functions as:
 
@@ -56,7 +56,7 @@ Avoid:
 
 The player should gradually ask:
 
-- What is the Veil Heart?
+- What is the Heart?
 - Why does the dark want to silence or reclaim it?
 - Is restoring the light healing the world, waking something, or both?
 - Can the Heart be trusted?

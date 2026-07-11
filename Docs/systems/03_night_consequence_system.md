@@ -108,7 +108,7 @@ Visual language: beautiful but suspicious warmth, over-saturated glow, false san
 
 ### Fracture Night
 
-Visual language: spatial discontinuity, misaligned paths, memory afterimages, drifting architecture edges, fog that cuts space into uncertain layers. Use Liminal Memory Realism most strongly here.
+Visual language: spatial discontinuity, misaligned paths, memory afterimages, drifting architecture edges, fog that cuts space into uncertain layers. Use the Liminal Memory layer of the stylization most strongly here.
 
 ### True Siege Night
 

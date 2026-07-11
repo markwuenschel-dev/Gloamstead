@@ -8,7 +8,7 @@ _Always-on constraints for Cursor/LLM agents implementing the current version._
 
 Gloamstead is a third-person dark fantasy sanctuary-restoration game.
 
-The player protects and interprets the Veil Heart, a mysterious growing source of light in a bleak, half-dead world. The main gameplay is not tower defense, horde survival, village management, colony simulation, RTS command, or survival crafting.
+The player protects and interprets the Heart, a mysterious growing source of light in a bleak, half-dead world. The main gameplay is not tower defense, horde survival, village management, colony simulation, RTS command, or survival crafting.
 
 ## Design North Star
 
@@ -42,7 +42,7 @@ Agents should preserve this fantasy in every system decision.
 
 - Do not invent canonical names for mechanics, enemies, factions, places, or resources unless explicitly asked.
 - Use generic names in code until terms are approved.
-- Allowed current terms: `Gloamstead`, `Veil Heart`.
+- Allowed current terms: `Gloamstead`; **"the Heart"** (everyday player-facing name), **"the Gloamheart"** (proper/lore name, revealed gradually). `Veil Heart` / `VeilHeart` is the **code/system identifier only** — never player-facing prose. See `../world/02_naming_and_voice_decision.md` (locked 2026-06-18).
 - Generic safe terms: `LightSource`, `ProtectedObject`, `RestorationSite`, `NightConsequence`, `Corruption`, `WarningFragment`, `RestorationPiece`, `Darkness`.
 
 ## First Prototype Target
@@ -51,7 +51,7 @@ The first prototype should include:
 
 1. Third-person controller.
 2. One small ruined area.
-3. One protected Veil Heart object.
+3. One protected Heart object (`VeilHeart` in code).
 4. One cryptic warning.
 5. One restoration interaction.
 6. One night consequence.

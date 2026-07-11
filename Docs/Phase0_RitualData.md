@@ -18,11 +18,12 @@ enum class ERitualType : uint8
     LanternPost     = 1,
     GardenBed       = 2,
     PathPoint       = 3,
-    // MirrorPillar and BellShrine deferred to Phase 2
+    MirrorPillar    = 4,
+    BellShrine      = 5,
 };
 ```
 
-**Phase 1 Scope:** Only `LanternPost`, `GardenBed`, and `PathPoint` are active.
+**Phase 1 Scope:** Only `LanternPost`, `GardenBed`, and `PathPoint` are active. `MirrorPillar` and `BellShrine` are now present in the enum, but their full runtime behavior branches are still a later workstream (see `Phase3_SixHourExperience.md`).
 
 **Design Rule:**  
 `PathPoint` types are **not directly restorable** in Phase 1. The `RitualPlacementComponent` redirects the player to the nearest `LanternPost` when a PathPoint is targeted.

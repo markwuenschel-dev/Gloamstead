@@ -75,7 +75,7 @@ An art choice belongs if it strengthens at least one of these:
 - restoration feels meaningful and place-specific
 - the sanctuary feels warmer without becoming cozy
 - night consequences become more legible
-- the Veil Heart feels alive, wounded, and miraculous
+- the Heart feels alive, wounded, and miraculous
 - the world feels bleak but recoverable
 
 An art choice is suspect if it primarily adds realism, spectacle, density, or prettiness without supporting interpretation, restoration, or consequence.

@@ -13,7 +13,7 @@ Two design decisions are **locked** for this phase (they change the build, not j
    The non-goals in `production/06_scope_cuts_and_non_goals.md` (no combos, no weapon trees, no horde)
    are the guardrails.
 2. **Phase cadence — player-driven rest at the Heart.** Day→Dusk and Dusk→Night advance when the player
-   chooses to *rest / commune* at the Veil Heart (agency + a natural autosave point). Night→Dawn resolves
+   chooses to *rest / commune* at the Heart (agency + a natural autosave point). Night→Dawn resolves
    on the night's win-condition or a fallback timer. No wall-clock day timer.
 
 Legend for effort/owner tags: **G** = gate-checkable C++ (`gate.ps1` is the oracle) · **N** =

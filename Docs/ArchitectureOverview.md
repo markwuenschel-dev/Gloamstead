@@ -97,7 +97,7 @@ EndNight → VeilHeart::ProcessDawnReflection
 | Phase 1 – PCG | Complete |
 | Phase 1.5 – Placement | Complete |
 | Phase 2 – Core loop | **Complete in C++** (stubs, no spawn pipeline) |
-| Phase 2 – Polish | Journal, assets, VFX, persistence — planned |
+| Phase 2 – Polish | Journal, assets, VFX — planned. Persistence — **built** (`UGloamsteadSaveGame`, full per-point state, test green) but not yet wired to the loop |
 
 The event pipeline **Placement → PCG → Listeners → Day/Night → Night runtime → Dawn** is implemented and testable in PIE.
 
@@ -105,7 +105,7 @@ The event pipeline **Placement → PCG → Listeners → Day/Night → Night run
 
 ## Future Expansion
 
-- `MirrorPillar`, `BellShrine` ritual types
+- Full runtime behavior branches for the `MirrorPillar`, `BellShrine` ritual types (the enum values already exist)
 - Full night-type enum and entity spawning
-- Save/load of dynamic attributes
+- Wiring the existing save/load (autosave-at-dawn, load-on-start); optional full serialization of derived dynamic attributes
 - Optional spatial structure upgrade (e.g. loose octree) for larger worlds

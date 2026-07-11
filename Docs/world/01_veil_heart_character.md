@@ -1,6 +1,6 @@
 # Veil Heart Character
 
-_The Veil Heart as guide, protected object, and mystery._
+_The Heart as guide, protected object, and mystery._
 
 ## Role
 
@@ -63,7 +63,7 @@ If the Heart can fail, failure should be tragic and meaningful, not just a stand
 
 ## Visual Character Direction
 
-The Veil Heart should be the purest expression of the art direction's hopeful side, but not in a generic magical-object way.
+The Heart should be the purest expression of the art direction's hopeful side, but not in a generic magical-object way.
 
 It should feel like:
 
