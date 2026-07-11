@@ -1,0 +1,16 @@
+{
+  "schema": "GloamsteadForgeRuntimeReport/v1",
+  "scenario_id": "bad_failure_but_improved",
+  "generated_at_utc": "2026-07-11T18:00:00Z",
+  "git_commit": "fixturefixturefixturefixturefixturebad9",
+  "git_branch": "fixtures",
+  "engine": "UE5.8",
+  "quiet": false, "continuity": false, "human_playtest": false,
+  "pcg_init": { "initialized": true, "point_count": 4 },
+  "restoration": { "attempted": false, "applied": false, "point_index": -1 },
+  "night_loop": { "started": true, "night_type": "Corruption", "objective_kind": "CleanseCorruptionBloom", "target_point_index": 0, "objective_resolved": false, "ended_intentionally": true, "outcome_result": "Failure", "result_tag": "CorruptionScar" },
+  "sanctuary_state": { "avg_corruption_before": 0.50, "avg_corruption_after": 0.20, "target_corruption_before": 0.8, "target_corruption_after": 0.2, "mutated": true },
+  "dawn_reflection": { "consumed_outcome": true, "outcome_result": "Failure" },
+  "save_load": { "checked": false, "roundtrip_ok": false },
+  "failure_codes": []
+}

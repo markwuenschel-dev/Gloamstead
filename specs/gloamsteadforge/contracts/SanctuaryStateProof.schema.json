@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "GloamsteadForge/SanctuaryStateProof/v1",
+  "title": "SanctuaryStateProof",
+  "description": "Evidence that the night actually mutated sanctuary/PCG corruption state.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "avg_corruption_before", "avg_corruption_after",
+    "target_corruption_before", "target_corruption_after", "mutated"
+  ],
+  "properties": {
+    "avg_corruption_before": { "type": "number", "minimum": 0, "maximum": 1 },
+    "avg_corruption_after": { "type": "number", "minimum": 0, "maximum": 1 },
+    "target_corruption_before": { "type": "number", "minimum": 0, "maximum": 1 },
+    "target_corruption_after": { "type": "number", "minimum": 0, "maximum": 1 },
+    "mutated": { "type": "boolean" }
+  }
+}
