@@ -175,6 +175,14 @@ void AGloamsteadCharacter::OnRestoreInput()
 
 void AGloamsteadCharacter::OnInteractInput()
 {
+	// While arming a restoration, Interact doubles as cancel — the player can back out of placement
+	// (Restore itself is a place/confirm toggle with no other exit).
+	if (RitualPlacement && RitualPlacement->IsInPlacementMode())
+	{
+		RitualPlacement->ExitPlacementMode();
+		return;
+	}
+
 	if (Interaction)
 	{
 		Interaction->TryInteract();

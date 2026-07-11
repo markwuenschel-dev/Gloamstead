@@ -1,10 +1,62 @@
 #include "Systems/VeilHeart.h"
+#include "Systems/GloamsteadDayNightSubsystem.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Engine/World.h"
 
 AVeilHeart::AVeilHeart()
 {
 	PrimaryActorTick.bCanEverTick = false;
+}
+
+namespace
+{
+	UGloamsteadDayNightSubsystem* GetDayNight(const AActor* Actor)
+	{
+		const UWorld* World = Actor ? Actor->GetWorld() : nullptr;
+		return World ? World->GetSubsystem<UGloamsteadDayNightSubsystem>() : nullptr;
+	}
+}
+
+// ===== IGloamInteractable — the Heart as the player's rest point =====
+
+bool AVeilHeart::CanInteract_Implementation(AActor* /*Interactor*/) const
+{
+	// Interactable only during the resting phases (Day/Dawn); inert once dusk gathers.
+	const UGloamsteadDayNightSubsystem* DayNight = GetDayNight(this);
+	return DayNight && DayNight->CanRestNow();
+}
+
+FText AVeilHeart::GetInteractionPrompt_Implementation() const
+{
+	const UGloamsteadDayNightSubsystem* DayNight = GetDayNight(this);
+	if (DayNight && DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dawn)
+	{
+		return NSLOCTEXT("Gloamstead", "HeartWake", "Greet the dawn");
+	}
+	return NSLOCTEXT("Gloamstead", "HeartRest", "Rest at the Heart");
+}
+
+void AVeilHeart::Interact_Implementation(AActor* /*Interactor*/)
+{
+	UGloamsteadDayNightSubsystem* DayNight = GetDayNight(this);
+	if (!DayNight)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("VeilHeart: rest requested but no DayNight subsystem."));
+		return;
+	}
+	if (DayNight->RequestRest())
+	{
+		UE_LOG(LogTemp, Log, TEXT("VeilHeart: the player rests at the Heart; the cycle turns."));
+	}
+}
+
+void AVeilHeart::Examine_Implementation(AActor* /*Interactor*/)
+{
+	// The Heart speaks its memory of the last night (the outcome dawn recorded).
+	UE_LOG(LogTemp, Log, TEXT("VeilHeart: examined - last night '%s' resolved %s (tag %s)."),
+		*GetNightConsequenceTypeDisplayName(LastNightOutcome.NightType),
+		*GetNightOutcomeResultDisplayName(LastNightOutcome.Result),
+		*LastNightOutcome.ResultTag.ToString());
 }
 
 void AVeilHeart::BeginPlay()

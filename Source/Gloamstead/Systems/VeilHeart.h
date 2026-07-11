@@ -6,14 +6,19 @@
 #include "Data/NightConsequenceTypes.h"
 #include "Data/NightRuntimeTypes.h"
 #include "Data/VeilHeartWarningTypes.h"
+#include "Interfaces/GloamInteractable.h"
 #include "VeilHeart.generated.h"
 
 /**
  * The Veil Heart - Central protected object and emotional core of Gloamstead.
  * Listens to restoration events to evaluate "I understood the warning".
+ *
+ * It is also the player's "rest point": implementing IGloamInteractable, the Interact verb rests through
+ * the resting phases (Day -> Dusk to bring the night, Dawn -> Day to wake), the player-driven advance that
+ * carries the recurring loop; Examine speaks the Heart's memory of the last night.
  */
 UCLASS(Blueprintable, BlueprintType)
-class GLOAMSTEAD_API AVeilHeart : public AActor
+class GLOAMSTEAD_API AVeilHeart : public AActor, public IGloamInteractable
 {
     GENERATED_BODY()
 
@@ -21,6 +26,12 @@ public:
     AVeilHeart();
 
     virtual void BeginPlay() override;
+
+    // IGloamInteractable — the Heart is the player's rest point.
+    virtual bool CanInteract_Implementation(AActor* Interactor) const override;
+    virtual FText GetInteractionPrompt_Implementation() const override;
+    virtual void Interact_Implementation(AActor* Interactor) override;
+    virtual void Examine_Implementation(AActor* Interactor) override;
 
     UFUNCTION(BlueprintCallable, Category="Veil Heart")
     void EvaluateRestorationAgainstWarnings(const FRestorationEventPayload& Payload);

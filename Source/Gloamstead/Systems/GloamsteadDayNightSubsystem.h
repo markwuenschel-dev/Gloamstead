@@ -40,6 +40,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DayNight")
 	void SetPhase(EGloamsteadDayPhase NewPhase);
 
+	/**
+	 * Player-driven "rest" advance: the only phases the player controls at the Heart are the resting ones.
+	 * Day -> Dusk (rest to bring the night) and Dawn -> Day (wake into the new day). Inert during Dusk/Night
+	 * (those are timer/objective-driven). Returns true if it advanced. This is what drives the recurring loop
+	 * once the scripted first-night director has gone dormant. */
+	UFUNCTION(BlueprintCallable, Category = "DayNight")
+	bool RequestRest();
+
+	/** True when the current phase is one the player may rest through (Day or Dawn). */
+	UFUNCTION(BlueprintPure, Category = "DayNight")
+	bool CanRestNow() const;
+
 	UPROPERTY(BlueprintAssignable, Category = "DayNight")
 	FOnGloamsteadDayPhaseChanged OnPhaseChanged;
 
