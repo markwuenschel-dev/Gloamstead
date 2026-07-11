@@ -37,6 +37,36 @@ void UGloamsteadDayNightSubsystem::AdvanceToNextPhase()
 	SetPhase(Next);
 }
 
+bool UGloamsteadDayNightSubsystem::CanRestNow() const
+{
+	// Dawn is always wake-able (including the FIRST dawn — nothing else advances Dawn->Day in-game).
+	if (CurrentPhase == EGloamsteadDayPhase::Dawn)
+	{
+		return true;
+	}
+	// Day is rest-able only AFTER the scripted first night has completed (NightCount>0). During night one
+	// the FirstNightDirector owns Day->Dusk (gated on the lantern tutorial), so rest must not bypass it.
+	if (CurrentPhase == EGloamsteadDayPhase::Day)
+	{
+		return NightCount > 0;
+	}
+	return false;
+}
+
+bool UGloamsteadDayNightSubsystem::RequestRest()
+{
+	// Only the resting phases are player-advanceable; Dusk/Night resolve on their own.
+	if (!CanRestNow())
+	{
+		UE_LOG(LogTemp, Log, TEXT("DayNight: rest requested but the night is already upon us (phase=%d)."),
+			static_cast<int32>(CurrentPhase));
+		return false;
+	}
+	UE_LOG(LogTemp, Log, TEXT("DayNight: player rests at the Heart (phase=%d)."), static_cast<int32>(CurrentPhase));
+	AdvanceToNextPhase();
+	return true;
+}
+
 void UGloamsteadDayNightSubsystem::SetPhase(EGloamsteadDayPhase NewPhase)
 {
 	if (NewPhase == CurrentPhase)
