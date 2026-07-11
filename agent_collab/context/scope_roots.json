@@ -1,5 +1,5 @@
 {
-  "unreal_project_files": ["Gloamstead.uproject"],
+  "unreal_project_files": ["Gloamstead5_8.uproject"],
   "source_roots": ["Source/Gloamstead", "Source/GloamsteadEditor"],
   "plugin_source_roots": [],
   "config_roots": ["Config"],
@@ -16,7 +16,7 @@
   "coder_generated_output_roots": ["Content/Data/"],
 
   "documentor_edit_roots": ["docs"],
-  "orchestrator_edit_roots": ["agent_collab", "specs", "Source/GloamsteadEditor", "Gloamstead.uproject"],
+  "orchestrator_edit_roots": ["agent_collab", "specs", "Source/GloamsteadEditor", "Gloamstead5_8.uproject", "gate.ps1"],
   "readonly_roots": [
     "Content/ThirdPerson",
     "Content/Characters"
@@ -35,5 +35,5 @@
     ".claude/worktrees",
     ".grok/worktrees"
   ],
-  "notes": "Factory roots added 2026-06-10 for VS-POLISH-FACTORY-DATA-01. coder_edit_roots includes Source/GloamsteadEditor and specs/data. Generated Content/Data/ for Data Asset import commandlet."
+  "notes": "Factory roots added 2026-06-10 for VS-POLISH-FACTORY-DATA-01. coder_edit_roots includes Source/GloamsteadEditor and specs/data. Generated Content/Data/ for Data Asset import commandlet. 2026-07-10 rebaseline: project file renamed Gloamstead.uproject -> Gloamstead5_8.uproject (5.8 migration); added gate.ps1 (build+test oracle) to orchestrator_edit_roots."
 }

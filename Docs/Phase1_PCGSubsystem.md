@@ -69,7 +69,7 @@ Metadata is **not** updated here.
 - Store only `TSet<int32> RestoredPointIndices` + World Seed
 - On load: Regenerate PCG data → call `ReapplyRestoredState()`
 
-Full serialization of `LightLevel`/`CorruptionLevel` can be added later.
+This vertical-slice strategy is now **implemented** in `UGloamsteadSaveGame` (full per-point state round-trips; `Gloamstead.PCG.SaveGameFullRoundTrip` is green) — it is not yet wired into the gameplay loop (no autosave-at-dawn / load-on-start). Full serialization of derived `LightLevel`/`CorruptionLevel` can still be added later.
 
 ## Debug Tools
 

@@ -2,9 +2,9 @@
 
 _Design pillars for the current direction._
 
-## Pillar 1: The Veil Heart Speaks, But Does Not Explain
+## Pillar 1: The Heart Speaks, But Does Not Explain
 
-The Veil Heart is not a quest marker, tutorial bot, or normal NPC. It gives poetic, esoteric, incomplete, and sometimes seemingly contradictory fragments.
+The Heart is not a quest marker, tutorial bot, or normal NPC. It gives poetic, esoteric, incomplete, and sometimes seemingly contradictory fragments.
 
 The player gradually learns that these fragments are not flavor. They are clues to the world's rules.
 
@@ -51,7 +51,7 @@ Cryptic is good. Random-feeling punishment is bad.
 
 The art direction exists to reinforce the pillars, not to chase realism for its own sake.
 
-- The Veil Heart speaks through fragments, so the environment must provide readable visual echoes of those fragments.
+- The Heart speaks through fragments, so the environment must provide readable visual echoes of those fragments.
 - Restoration is the main action, so restored places must visibly regain warmth, coherence, and symbolic function.
 - Night is consequence, so each night type should have a distinct visual pressure language rather than defaulting to hordes in darkness.
 - Combat is simple pressure, so threat readability matters more than animation complexity or visual noise.

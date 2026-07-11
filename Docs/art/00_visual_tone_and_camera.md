@@ -2,9 +2,11 @@
 
 _Dark fantasy restoration with simple third-person play._
 
+_Updated 2026-07-11 — art direction realigned from "Withered Gothic Realism" to "Withered Gothic Stylization" per docs/game/00_current_design_baseline.md._
+
 ## Visual Target
 
-Gloamstead should feel like realistic UE5 dark fantasy with enough stylized readability to support interpretation, silhouette reading, and supernatural clarity.
+Gloamstead should feel like hand-painted, stylized UE5 dark fantasy — grim and painterly, never cozy or toy — with strong silhouette reading and supernatural clarity to support interpretation.
 
 The world is bleak, cold, and damaged. The sanctuary/light is warm, fragile, and meaningful.
 

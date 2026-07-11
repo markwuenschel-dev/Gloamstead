@@ -4,9 +4,11 @@ _The clearest current expression of what the player does._
 
 ## Core Sentence
 
-> I noticed the warning. I studied the place. I restored or altered the right thing. Night answered my choice. Dawn showed me what I learned.
+> I noticed the warning. I studied the place. I restored, altered, or built the right thing. Night answered my choice. Dawn showed me what I learned.
 
 This is the spine of Gloamstead. Combat, resources, exploration, art direction, and progression should support this loop rather than bury it.
+
+The player's meaningful action is to **restore, alter, or build** the right thing — which of the three applies depends on the situation (what the place remembers, what the warning asks, what the player chooses). Building here is ritual, place-specific restoration, not generic base construction (see `01_core_pillars.md`, `../agents/ProjectRules.md`).
 
 ## Moment-to-Moment Loop
 

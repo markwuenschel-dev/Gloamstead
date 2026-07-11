@@ -1,6 +1,8 @@
 # Technical Art Notes
 
-_Implementation-facing notes for supporting the Withered Gothic Realism art direction._
+_Implementation-facing notes for supporting the Withered Gothic Stylization art direction._
+
+_Updated 2026-07-11 — art direction realigned from "Withered Gothic Realism" to "Withered Gothic Stylization" per docs/game/00_current_design_baseline.md._
 
 ## Core Technical Goal
 

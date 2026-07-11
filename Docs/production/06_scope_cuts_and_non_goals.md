@@ -40,7 +40,7 @@ The game may have some open exploration, but should not begin as a large open-wo
 
 Any removed system must justify itself by strengthening the core sentence:
 
-> I understood the warning. I restored the right place. I built the right thing. I survived because I learned the world.
+> I understood the warning. I restored the right place. I built or altered the right thing. I survived because I learned the world.
 
 If it does not strengthen that sentence, it probably belongs outside the game.
 
@@ -75,7 +75,7 @@ An art choice belongs if it strengthens at least one of these:
 - restoration feels meaningful and place-specific
 - the sanctuary feels warmer without becoming cozy
 - night consequences become more legible
-- the Veil Heart feels alive, wounded, and miraculous
+- the Heart feels alive, wounded, and miraculous
 - the world feels bleak but recoverable
 
 An art choice is suspect if it primarily adds realism, spectacle, density, or prettiness without supporting interpretation, restoration, or consequence.

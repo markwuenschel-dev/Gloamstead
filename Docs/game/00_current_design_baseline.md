@@ -8,7 +8,7 @@ _The canonical current version of Gloamstead._
 
 ## Game Identity
 
-Gloamstead is a third-person dark fantasy sanctuary-restoration game. The player protects a mysterious growing source of light, currently called the Veil Heart, in a bleak and half-dead world. The game is about learning the Heart's strange language, restoring meaningful structures, and surviving nights that respond to what the player understood, neglected, disturbed, or misread.
+Gloamstead is a third-person dark fantasy sanctuary-restoration game. The player protects a mysterious growing source of light — everyday **the Heart**, proper name **the Gloamheart** — in a bleak and half-dead world. The game is about learning the Heart's strange language, restoring meaningful structures, and surviving nights that respond to what the player understood, neglected, disturbed, or misread.
 
 ## What The Game Is
 
@@ -39,11 +39,11 @@ The player explores a ruined place, receives cryptic warnings from the Heart (pr
 
 The most satisfying outcome is not "I killed everything." It is:
 
-> I understood the warning. I restored the right place. I built the right thing. I survived because I learned the world.
+> I understood the warning. I restored the right place. I built or altered the right thing. I survived because I learned the world.
 
 ## Art Direction Baseline
 
-**Updated 2026-06-21 — stylized pivot.** The production-facing art direction is now **stylized**, not realism (driver: cohesive, affordable assets for a small/solo team). The emotional *tone* is unchanged — bleak, melancholic, fragile hope; Pillars 1, 5, 7 stand. (The deeper art corpus — `docs/art/`, `docs/reference/` — still reads "Withered Gothic Realism" and needs a follow-up rewrite pass.)
+**Updated 2026-06-21 — stylized pivot.** The production-facing art direction is now **stylized**, not realism (driver: cohesive, affordable assets for a small/solo team). The emotional *tone* is unchanged — bleak, melancholic, fragile hope; Pillars 1, 5, 7 stand. (The deeper art corpus — `docs/art/`, `docs/reference/` — was realigned to "Withered Gothic Stylization" in the 2026-07-11 docs sweep.)
 
 > **Withered Gothic Stylization** — hand-painted / cartoon dark-fantasy with a bleak, melancholic tone, liminal-memory atmospherics, and ritualized restoration. Realism is subordinated to silhouette and readability. Reference register: *Hollow Knight*, *Darkest Dungeon*, *Don't Starve*, *Inscryption* — stylized **and** grim, never cozy or toy.
 
@@ -53,7 +53,7 @@ This direction keeps:
 - **Painterly stylization** as the rendering philosophy: hand-crafted forms, strong value contrast, readable silhouettes; texture restraint over photogrammetry detail.
 - **Liminal memory** as the world-behavior layer: corrupted spaces feel half-remembered, unstable, and soft at the edges; restored spaces regain clarity and perceptual coherence.
 - **Ritualistic object language**: lanterns, gardens, mirrors, bells, roots, shrines, and boundaries should feel symbolic, ancient, and place-specific rather than like generic construction pieces.
-- **Luminous restraint** as the accent: warmth, teal-gold glow, motes, and miraculous beauty appear mainly through the Veil Heart, restoration, dawn feedback, and rare sacred reveals.
+- **Luminous restraint** as the accent: warmth, teal-gold glow, motes, and miraculous beauty appear mainly through the Heart, restoration, dawn feedback, and rare sacred reveals.
 
 The art direction should make restoration feel like reality becoming trustworthy again, not merely like objects becoming cleaner or brighter.
 
@@ -101,6 +101,6 @@ The **first playable loop** exists in C++ on `main`:
 - Night: corruption or tutorial spread / omen clue delegate (`UNightConsequenceRuntime`).
 - Dawn: Veil Heart reflection and cleared warning tags.
 
-Not yet in code: combat encounters, journal UI, save persistence, full art pass.
+Not yet in code: combat encounters, journal UI, full art pass. Save/load is **implemented** in C++ (`UGloamsteadSaveGame`, `Gloamstead.PCG.SaveGameFullRoundTrip` green) but **not yet wired into the gameplay loop** (no autosave-at-dawn / load-on-start).
 
 See [../Phase2_CoreLoop.md](../Phase2_CoreLoop.md) and [../systems/](../systems/) implementation sections.

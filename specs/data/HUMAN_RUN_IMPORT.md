@@ -2,17 +2,17 @@
 
 ## Prerequisites
 
-- Unreal Engine 5.7 installed
-- `UE_ROOT` set optionally (defaults to `C:\Program Files\Epic Games\UE_5.7`)
+- Unreal Engine 5.8 installed (this machine: `D:\UE_5.8`)
+- Engine auto-detected from the `.uproject` EngineAssociation (registry / `D:\UE_<ver>` / Program Files). Override with `UE_ROOT` or `GLOAMSTEAD_UE_ENGINE` if needed.
 
 ## Steps
 
 ### 1. Compile (Development Editor)
 
-1. Open `Gloamstead.uproject` in Unreal Editor (or generate VS project files and build).
+1. Open `Gloamstead5_8.uproject` in Unreal Editor (or generate VS project files and build).
 2. Build **Development Editor** for targets **Gloamstead** and **GloamsteadEditor**.
 
-Close the editor before command-line builds if Live Coding blocks compile. Helper: `agent_collab/scripts/Build-GloamsteadEditor.ps1`.
+Close the editor before command-line builds if Live Coding blocks compile. Helper: `agent_collab/scripts/Build-GloamsteadEditor.ps1`, or the full build+test gate `gate.ps1` at the repo root.
 
 ### 2. Import assets from manifest
 
@@ -38,7 +38,7 @@ Logs: `Saved/Logs/GloamsteadImportDataAssets.log`, `Saved/Logs/GloamsteadImportD
 Capture for handoff (see **[VERIFICATION-2026-06-11.md](VERIFICATION-2026-06-11.md)** for a completed example):
 
 - Import script exit code 0
-- Log excerpt: `GloamsteadImportDataAssets: success (6 assets)`
+- Log excerpt: `GloamsteadImportDataAssets: success (7 assets)` (6 original + `DA_Ritual_PathPoint`, added 2026-07-10 / W1c)
 - List of files in `Content/Data/DA_*.uasset`
 - Map open success (no critical load errors)
 - PIE: `NightConsequenceManager: Loaded night catalog from /Game/Data/DA_NightConsequenceCatalog`

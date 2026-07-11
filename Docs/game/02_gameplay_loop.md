@@ -7,7 +7,7 @@ For the clearest version of the loop, see `00_core_loop.md`. This file expands t
 ## Core Loop
 
 1. Explore a ruined, bleak area in third-person.
-2. Receive or discover a cryptic warning from the Veil Heart.
+2. Receive or discover a cryptic warning from the Heart.
 3. Study the environment for context clues.
 4. Restore a meaningful structure or place.
 5. Prepare for night based on interpretation.
@@ -17,7 +17,7 @@ For the clearest version of the loop, see `00_core_loop.md`. This file expands t
 
 ## Day Phase
 
-Day is quiet, uneasy, and exploratory. The player walks through the ruined space, examines objects, restores structures, listens to the Veil Heart, and decides what kind of sanctuary they are creating.
+Day is quiet, uneasy, and exploratory. The player walks through the ruined space, examines objects, restores structures, listens to the Heart, and decides what kind of sanctuary they are creating.
 
 Day activities may include:
 
@@ -86,7 +86,7 @@ At dawn, the Heart's glow steadies. The world feels slightly less dead. The play
 The visual loop should mirror the mechanical loop.
 
 1. **Explore:** the world feels cold, weathered, misted, and partially illegible.
-2. **Warning:** the Veil Heart's fragment is echoed by small environmental signals: a light direction, a reacting object, a color shift, a sound source, a silhouette, or a material change.
+2. **Warning:** the Heart's fragment is echoed by small environmental signals: a light direction, a reacting object, a color shift, a sound source, a silhouette, or a material change.
 3. **Study:** important clues have stronger value contrast and cleaner silhouettes than background decay.
 4. **Restore:** the object or place regains warmth, clarity, and symbolic presence.
 5. **Prepare:** restored structures visibly imply what they may protect, reveal, invite, or endanger.

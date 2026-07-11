@@ -115,7 +115,7 @@ Wiring: [specs/data/WIRING.md](../specs/data/WIRING.md).
 
 - Night entities, VFX, combat per night visual language.
 - Journal subsystem and structured dawn rewards.
-- SaveGame for point state.
+- Wiring SaveGame for point state into the loop. (The `UGloamsteadSaveGame` implementation itself is **done** and test-green — `Gloamstead.PCG.SaveGameFullRoundTrip` — it is simply not yet called at dawn/start.)
 - Extended `ENightConsequenceType` enum and designer tooling.
 
 See [systems/03_night_consequence_system.md](systems/03_night_consequence_system.md) for design detail and per-wave implementation notes.

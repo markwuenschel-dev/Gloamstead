@@ -2,7 +2,7 @@
 
 Design and implementation docs for the Gloamstead vertical slice. Markdown in this tree is the source of truth for humans and coding agents.
 
-**Last updated:** 2026-06-18 (naming + Heart/Gloam nature + voice guide locked — see [world/02_naming_and_voice_decision.md](world/02_naming_and_voice_decision.md))
+**Last updated:** 2026-07-11 (docs consistency sweep — art direction realigned to stylization, naming pass, save/enum status corrected, duplicate logs consolidated). Naming + Heart/Gloam nature + voice guide were locked 2026-06-18 — see [world/02_naming_and_voice_decision.md](world/02_naming_and_voice_decision.md).
 
 **Agent collaboration operating model**: See [agents/UE5-Agent-Substrate-Review.md](agents/UE5-Agent-Substrate-Review.md) (diagnosis + minimal roster) + `../agent_collab/` (living protocol, playbooks, policies, state). Use `agent_collab/context/workflow_activation.json` and playbooks/ for architecture/research/docs concerns instead of deprecated roles.
 
@@ -36,7 +36,7 @@ Design and implementation docs for the Gloamstead vertical slice. Markdown in th
 
 Each file includes an **Implementation status** section where the vertical slice has landed in code.
 
-**Current active wave**: `wave-vs-polish-202606`. **Data asset factory + map wiring verified 2026-06-11** ([specs/data/VERIFICATION-2026-06-11.md](../specs/data/VERIFICATION-2026-06-11.md)): six `Content/Data/DA_*`, PIE catalog load + day/night cycle on `Lvl_ThirdPerson`. **Next editor gate:** PCG init for restoration smoke. Agent substrate: 4 core roles + playbooks (`../agent_collab/`).
+**Current track**: Phase 3 (`Phase3_SixHourExperience.md`), built via direct branch development. The old `wave-vs-polish-202606` wave was **superseded** (2026-06-20 — never executed; see `../agent_collab/logs/decisions.md`). **Data asset factory + map wiring verified 2026-06-11** ([specs/data/VERIFICATION-2026-06-11.md](../specs/data/VERIFICATION-2026-06-11.md)): six `Content/Data/DA_*`, PIE catalog load + day/night cycle on `Lvl_ThirdPerson` (a 7th, `DA_Ritual_PathPoint`, is authored in the manifest but not yet imported). **Next editor gate:** live-PCG PIE restoration proof. Agent substrate: 4 core roles + playbooks (`../agent_collab/`).
 
 | System | Document |
 |--------|----------|
@@ -45,7 +45,7 @@ Each file includes an **Implementation status** section where the vertical slice
 | Night consequences | [systems/03_night_consequence_system.md](systems/03_night_consequence_system.md) |
 | Combat & interaction | [systems/04_combat_and_interaction_system.md](systems/04_combat_and_interaction_system.md) |
 | Progression & endings | [systems/05_progression_and_endings.md](systems/05_progression_and_endings.md) |
-| Scope & non-goals | [systems/06_scope_cuts_and_non_goals.md](systems/06_scope_cuts_and_non_goals.md) |
+| Scope & non-goals | [production/06_scope_cuts_and_non_goals.md](production/06_scope_cuts_and_non_goals.md) (canonical superset — genre + art + MVP + endings) |
 
 ---
 

@@ -41,7 +41,8 @@ player context — never deception. This makes the already-locked *"cryptic but 
 As the player restores the fixed structures the Heart remembers, its recall sharpens: it speaks more
 clearly, reveals more of the past, and its glow steadies (see `01_veil_heart_character.md`).
 
-**Why memory-engine:** it is the reading the locked **"Liminal Memory Realism"** art direction and the
+**Why memory-engine:** it is the reading the locked **"Withered Gothic Stylization"** art direction (its
+liminal-memory layer) and the
 **fixed-point PCG ritual model** already demand — restoration works because the Heart re-asserts the
 remembered pattern of *specific places*. See candidate #5 in `00_world_baseline_and_lore_questions.md`.
 
