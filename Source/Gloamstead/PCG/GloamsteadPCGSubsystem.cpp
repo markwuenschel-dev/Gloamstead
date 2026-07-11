@@ -323,6 +323,37 @@ int32 UGloamsteadPCGSubsystem::ApplyCorruptionSpread(float Delta, int32 MaxPoint
     return Mutated;
 }
 
+float UGloamsteadPCGSubsystem::AddCorruptionAtIndex(int32 PointIndex, float Delta)
+{
+    if (!PointStates.IsValidIndex(PointIndex))
+    {
+        return -1.f;
+    }
+    FRitualPointState& State = PointStates[PointIndex];
+    State.CorruptionLevel = FMath::Clamp(State.CorruptionLevel + Delta, 0.f, 1.f);
+    return State.CorruptionLevel;
+}
+
+int32 UGloamsteadPCGSubsystem::FindMostCorruptedPointIndex(bool bOnlyUnrestored) const
+{
+    int32 BestIndex = -1;
+    float BestCorruption = -1.f;
+    for (int32 Index = 0; Index < PointStates.Num(); ++Index)
+    {
+        const FRitualPointState& State = PointStates[Index];
+        if (bOnlyUnrestored && State.bIsRestored)
+        {
+            continue;
+        }
+        if (State.CorruptionLevel > BestCorruption)
+        {
+            BestCorruption = State.CorruptionLevel;
+            BestIndex = Index;
+        }
+    }
+    return BestIndex;
+}
+
 TSet<int32> UGloamsteadPCGSubsystem::GetRestoredPointIndices() const
 {
     return RestoredPointIndices;

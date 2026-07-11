@@ -87,6 +87,7 @@ void AGloamsteadFirstNightDirector::BindDelegates()
 	if (CachedRuntime)
 	{
 		CachedRuntime->OnNightStarted.AddDynamic(this, &AGloamsteadFirstNightDirector::HandleNightStarted);
+		CachedRuntime->OnNightShouldEnd.AddDynamic(this, &AGloamsteadFirstNightDirector::HandleNightShouldEnd);
 	}
 
 	bDelegatesBound = true;
@@ -110,6 +111,7 @@ void AGloamsteadFirstNightDirector::UnbindDelegates()
 	if (CachedRuntime)
 	{
 		CachedRuntime->OnNightStarted.RemoveDynamic(this, &AGloamsteadFirstNightDirector::HandleNightStarted);
+		CachedRuntime->OnNightShouldEnd.RemoveDynamic(this, &AGloamsteadFirstNightDirector::HandleNightShouldEnd);
 	}
 
 	bDelegatesBound = false;
@@ -257,6 +259,17 @@ void AGloamsteadFirstNightDirector::HandleNightStarted(ENightConsequenceType Nig
 			RequestAdvanceToDawn();
 		}
 	}
+}
+
+void AGloamsteadFirstNightDirector::HandleNightShouldEnd()
+{
+	// Intentional early end: the player resolved the night objective before the deadline.
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(NightDurationTimer);
+	}
+	UE_LOG(LogTemp, Log, TEXT("FirstNightDirector: night objective resolved — advancing to dawn early."));
+	RequestAdvanceToDawn();
 }
 
 void AGloamsteadFirstNightDirector::RequestAdvanceToDusk()

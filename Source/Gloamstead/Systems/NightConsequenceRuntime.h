@@ -3,14 +3,25 @@
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Data/NightConsequenceTypes.h"
+#include "Data/NightRuntimeTypes.h"
+#include "Data/RitualTypes.h"
 #include "NightConsequenceRuntime.generated.h"
+
+class UNightStrategy;
+class UGloamsteadPCGSubsystem;
+class ANightPressureActor;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNightConsequenceStarted, ENightConsequenceType, NightType);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNightConsequenceEnded, ENightConsequenceType, NightType);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnOmenClueReady, FName, ClueTag);
+/** Broadcast when the night's objective resolves early — the phase authority should advance to dawn. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnNightShouldEnd);
 
 /**
- * Executes the prepared night plan during the Night phase (stubs in NC-3; spawn/combat later).
+ * Runs the selected night as a real consequence (Corrected Wave 2): builds a context, delegates
+ * behavior to a per-type UNightStrategy, applies escalating pressure on a cadence, observes
+ * restorations to resolve the objective (ending the night intentionally), and produces an
+ * FNightRuntimeOutcome that dawn reflection consumes.
  */
 UCLASS()
 class GLOAMSTEAD_API UNightConsequenceRuntime : public UWorldSubsystem
@@ -18,6 +29,8 @@ class GLOAMSTEAD_API UNightConsequenceRuntime : public UWorldSubsystem
 	GENERATED_BODY()
 
 public:
+	UNightConsequenceRuntime();
+
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
@@ -26,9 +39,6 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Night")
 	void EndNight();
-
-	/** MVP type dispatch (corruption spread, tutorial/omen log stubs). */
-	void ExecuteNightStub();
 
 	UFUNCTION(BlueprintPure, Category = "Night")
 	ENightConsequenceType GetPlannedNightType() const { return PlannedNightType; }
@@ -39,6 +49,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Night")
 	bool IsNightActive() const { return bNightActive; }
 
+	UFUNCTION(BlueprintPure, Category = "Night")
+	FNightRuntimeOutcome GetLastOutcome() const { return LastOutcome; }
+
+	UFUNCTION(BlueprintPure, Category = "Night")
+	bool IsObjectiveResolved() const;
+
 	UPROPERTY(BlueprintAssignable, Category = "Night")
 	FOnNightConsequenceStarted OnNightStarted;
 
@@ -48,9 +64,57 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Night")
 	FOnOmenClueReady OnOmenClueReady;
 
+	UPROPERTY(BlueprintAssignable, Category = "Night")
+	FOnNightShouldEnd OnNightShouldEnd;
+
+	/** Seconds between escalating pressure steps during the night. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night", meta = (ClampMin = "0.1"))
+	float PressureStepSeconds = 2.0f;
+
+	/** Spawn the optional light-reactive pressure actor during a threat night (game world only). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night")
+	bool bSpawnPressureActor = true;
+
+	/** Class of the optional pressure actor; defaults to ANightPressureActor if unset. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night")
+	TSubclassOf<ANightPressureActor> PressureActorClass;
+
+	// === Test seams (headless; no world/timer required) ===
+	/** Force the planned night type before BeginNight (bypasses the manager). */
+	void Test_SetPlannedNightType(ENightConsequenceType Type) { PlannedNightType = Type; }
+	/** Manually advance one pressure step (what the timer would do). */
+	void Test_StepPressure() { HandlePressureStep(); }
+	/** The active strategy instance (for assertions). */
+	UNightStrategy* Test_GetActiveStrategy() const { return ActiveStrategy; }
+	/** Instantiate the strategy the runtime would use for a night type (proves the type->class mapping). */
+	UNightStrategy* Test_MakeStrategyFor(ENightConsequenceType Type);
+
 protected:
 	UFUNCTION()
 	void HandleNightPlanReady(ENightConsequenceType SelectedNightType);
+
+	UFUNCTION()
+	void HandleRestorationDuringNight(const FRestorationEventPayload& Payload);
+
+private:
+	FNightRuntimeContext BuildContext(UGloamsteadPCGSubsystem* PCG) const;
+	TSubclassOf<UNightStrategy> ResolveStrategyClass(ENightConsequenceType Type) const;
+	void HandlePressureStep();
+	void BroadcastOmenClueIfNeeded();
+	void MaybeSpawnPressureActor(UGloamsteadPCGSubsystem* PCG);
+	void DestroyPressureActor();
+
+	UPROPERTY()
+	TMap<ENightConsequenceType, TSubclassOf<UNightStrategy>> StrategyClasses;
+
+	UPROPERTY()
+	TObjectPtr<UNightStrategy> ActiveStrategy = nullptr;
+
+	UPROPERTY()
+	FNightRuntimeContext ActiveContext;
+
+	UPROPERTY()
+	FNightRuntimeOutcome LastOutcome;
 
 	UPROPERTY()
 	ENightConsequenceType PlannedNightType = ENightConsequenceType::Invalid;
@@ -60,4 +124,9 @@ protected:
 
 	UPROPERTY()
 	bool bNightActive = false;
+
+	UPROPERTY()
+	TObjectPtr<ANightPressureActor> ActivePressureActor = nullptr;
+
+	FTimerHandle PressureTimer;
 };
