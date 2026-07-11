@@ -125,6 +125,9 @@ public:
     UFUNCTION(BlueprintCallable, Category="PCG|Persistence")
     bool LoadFromSlot(const FString& SlotName, int32 UserIndex = 0);
 
+    /** Shared default slot for the sanctuary's persistent state (dawn autosave + load-on-start). */
+    static const FString DefaultSaveSlot;
+
     // === Debugging ===
     UFUNCTION(BlueprintCallable, Category="PCG|Ritual|Debug")
     void DrawDebugRitualPoints(float Duration = 0.0f) const;

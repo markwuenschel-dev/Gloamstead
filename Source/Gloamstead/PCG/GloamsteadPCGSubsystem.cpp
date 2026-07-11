@@ -8,6 +8,8 @@
 #include "Save/GloamsteadSaveGame.h"
 #include "Kismet/GameplayStatics.h"
 
+const FString UGloamsteadPCGSubsystem::DefaultSaveSlot = TEXT("GloamsteadSanctuary");
+
 void UGloamsteadPCGSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);

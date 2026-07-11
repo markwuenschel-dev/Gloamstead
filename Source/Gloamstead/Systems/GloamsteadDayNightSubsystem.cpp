@@ -2,6 +2,7 @@
 #include "Systems/NightConsequenceManager.h"
 #include "Systems/NightConsequenceRuntime.h"
 #include "Systems/VeilHeart.h"
+#include "PCG/GloamsteadPCGSubsystem.h"
 #include "Data/NightConsequenceTypes.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -138,6 +139,14 @@ void UGloamsteadDayNightSubsystem::HandleEnterDawn()
 		else
 		{
 			UE_LOG(LogTemp, Warning, TEXT("DayNight: No AVeilHeart found for dawn reflection."));
+		}
+
+		// Autosave the sanctuary's full per-point state at dawn, once the night has been resolved.
+		if (UGloamsteadPCGSubsystem* PCG = World->GetSubsystem<UGloamsteadPCGSubsystem>())
+		{
+			const bool bSaved = PCG->SaveToSlot(UGloamsteadPCGSubsystem::DefaultSaveSlot);
+			UE_LOG(LogTemp, Log, TEXT("DayNight: dawn autosave (slot=%s) -> %s"),
+				*UGloamsteadPCGSubsystem::DefaultSaveSlot, bSaved ? TEXT("ok") : TEXT("FAILED"));
 		}
 	}
 }
