@@ -3,6 +3,7 @@
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Save/GloamsteadSaveGame.h"
 #include "Data/RitualTypes.h"
+#include "Kismet/GameplayStatics.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -148,6 +149,60 @@ bool FGloamPCGSaveGameRoundTripTest::RunTest(const FString& /*Parameters*/)
     }
     TestEqual(TEXT("restored set size round-trips"), Reloaded->GetRestoredPointIndices().Num(), Sub->GetRestoredPointIndices().Num());
     TestTrue(TEXT("restored index 2 present after load"), Reloaded->GetRestoredPointIndices().Contains(2));
+    return true;
+}
+
+// Disk round-trip via SaveToSlot/LoadFromSlot (the API W1b wires into dawn-autosave + load-on-start):
+// save to a named slot, load into a fresh subsystem, and confirm full per-point state survives the disk
+// round-trip. Also covers the "no such slot" -> false contract.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FGloamPCGSaveSlotDiskRoundTripTest,
+    "Gloamstead.PCG.SaveSlotDiskRoundTrip",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamPCGSaveSlotDiskRoundTripTest::RunTest(const FString& /*Parameters*/)
+{
+    const FString Slot = TEXT("GloamsteadTest_SaveSlotDiskRoundTrip");
+    if (UGameplayStatics::DoesSaveGameExist(Slot, 0))
+    {
+        UGameplayStatics::DeleteGameInSlot(Slot, 0);
+    }
+
+    TArray<FRitualPointState> States;
+    States.SetNum(4);
+    for (int32 i = 0; i < States.Num(); ++i)
+    {
+        States[i].LightLevel = 0.1f * static_cast<float>(i);
+        States[i].CorruptionLevel = 0.05f * static_cast<float>(i);
+        States[i].bIsRestored = (i == 1);
+    }
+
+    UGloamsteadPCGSubsystem* Sub = MakeSeeded(States);
+    FRestorationEventPayload Payload;
+    Payload.LightDelta = 0.2f;
+    Sub->ApplyRestoration(2, Payload); // mutate + register one point
+
+    TestTrue(TEXT("SaveToSlot succeeds"), Sub->SaveToSlot(Slot, 0));
+
+    UGloamsteadPCGSubsystem* Reloaded = NewObject<UGloamsteadPCGSubsystem>();
+    TestFalse(TEXT("LoadFromSlot on a missing slot returns false"),
+        Reloaded->LoadFromSlot(TEXT("GloamsteadTest_NoSuchSlot_ZZZ"), 0));
+    TestTrue(TEXT("LoadFromSlot on the saved slot succeeds"), Reloaded->LoadFromSlot(Slot, 0));
+
+    const TArray<FRitualPointState>& A = Sub->Test_PeekPointStates();
+    const TArray<FRitualPointState>& B = Reloaded->Test_PeekPointStates();
+    if (TestEqual(TEXT("point count survives disk round-trip"), B.Num(), A.Num()))
+    {
+        for (int32 i = 0; i < A.Num(); ++i)
+        {
+            TestEqual(FString::Printf(TEXT("light[%d] survives disk"), i), B[i].LightLevel, A[i].LightLevel, KINDA_SMALL_NUMBER);
+            TestEqual(FString::Printf(TEXT("corruption[%d] survives disk"), i), B[i].CorruptionLevel, A[i].CorruptionLevel, KINDA_SMALL_NUMBER);
+            TestEqual(FString::Printf(TEXT("restored[%d] survives disk"), i), B[i].bIsRestored, A[i].bIsRestored);
+        }
+    }
+    TestTrue(TEXT("restored index 2 present after disk load"), Reloaded->GetRestoredPointIndices().Contains(2));
+
+    UGameplayStatics::DeleteGameInSlot(Slot, 0); // teardown
     return true;
 }
 

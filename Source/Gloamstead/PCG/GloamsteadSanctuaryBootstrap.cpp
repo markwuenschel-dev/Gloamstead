@@ -73,6 +73,14 @@ bool AGloamsteadSanctuaryBootstrap::TryInitializeSanctuary()
 	}
 
 	PCGSubsystem->InitializeFromPCGComponent(PCGComponent, WorldSeed);
+
+	// Load-on-start: if a prior save exists, restore the persisted per-point state over the fresh baseline.
+	if (PCGSubsystem->LoadFromSlot(UGloamsteadPCGSubsystem::DefaultSaveSlot))
+	{
+		UE_LOG(LogTemp, Log, TEXT("GloamsteadSanctuaryBootstrap '%s': loaded saved sanctuary state (slot=%s)."),
+			*GetName(), *UGloamsteadPCGSubsystem::DefaultSaveSlot);
+	}
+
 	bInitializedSanctuary = true;
 
 	UE_LOG(LogTemp, Log, TEXT("GloamsteadSanctuaryBootstrap '%s': initialized sanctuary PCG state with seed %d."), *GetName(), WorldSeed);
