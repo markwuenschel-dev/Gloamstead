@@ -705,3 +705,13 @@ Not runtime-verified in PIE yet (unit-verified via the disk round-trip; hooks si
 Branch `gloamstead/w1a-fix-bp-ritualplacement` now: 2ed975b (W1a fix) + fca180e (W1a docs) + a326ad1 (W1b) [+ this docs entry]. W1c (DA_Ritual_PathPoint import) still pending.
 
 Recorded by gloam-orchestrator (claude-code).
+
+## 2026-07-11 (cont.) — W1c: DA_Ritual_PathPoint generated (import commandlet)
+
+Ran `Invoke-GloamsteadDataAssetImport.ps1 -Manifest specs/data/vs-polish-starter.json` (editor closed). Commandlet reported "Import succeeded" (0 errors; the lone warning was the expected pre-import "object not found"). Generated `Content/Data/DA_Ritual_PathPoint.uasset` (commit d6d8298). The manifest's other 6 assets were re-serialized (byte churn, data unchanged) and reverted so only the genuinely-new asset is committed.
+
+**Map-load verification still pending** (needs an editor session) — the asset is import-validated and structurally mirrors the working DA_Ritual_LanternPost, so risk is low; a full in-editor Lvl_ThirdPerson load check is the remaining acceptance, best bundled with W1b runtime verification.
+
+**Wave 1 status:** all authorable items committed on `gloamstead/w1a-fix-bp-ritualplacement` (off main @ 77f8e86): W1a (2ed975b + fca180e), W1b (a326ad1 + 6c278e7), W1c (d6d8298). Branch is gate-green (build + 26 tests) and ready for review/ship after the optional in-editor verification.
+
+Recorded by gloam-orchestrator (claude-code).
