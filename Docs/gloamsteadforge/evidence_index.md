@@ -16,8 +16,18 @@ evidence emitter, and hostile fail-closed validators. Gloamstead owns meaning; G
 
 `Source/Gloamstead/Tests/GloamsteadForgeEvidenceTests.cpp` (via `Source/Gloamstead/Systems/GloamsteadForgeEvidence.*`)
 runs the **real** Wave 2 strategies/PCG per scenario and writes conformant JSON to
-`procedural/reports/gloamsteadforge/` (git-ignored). Each report stamps the repo `git_commit` at emit time,
-so stale evidence is detectable. **Regenerate:** run `gate.ps1` (the emitter is an automation test).
+`procedural/reports/gloamsteadforge/` (git-ignored) plus a `_run_manifest.json`. Each report stamps the repo
+`git_commit` and a **per-run nonce**. **Regenerate:** run `gate.ps1` (the emitter is an automation test).
+
+### Provenance (unforgeable per-run nonce) + gate wiring
+
+`gate.ps1` generates a fresh random `GLOAMSTEAD_FORGE_NONCE` each run, the emitter stamps it on every report
+and the run manifest, and — in the **same** `gate.ps1` invocation, right after emission — the PS validators
+run fail-closed with `-ExpectedNonce`. The integrity validator rejects any report whose `run_nonce` doesn't
+match the run, or that isn't in the manifest set (**GF070**/**GF068**). A hand-authored report cannot know
+the fresh nonce, so a fabricated "success" dropped into the reports dir is rejected even when every semantic
+field is internally consistent and it carries the correct `git_commit`. The hostile PS layer is therefore
+part of the automated gate, not a separate manual tier.
 
 ## Scenario matrix (`specs/gloamsteadforge/scenario_matrix.json`)
 
@@ -50,9 +60,10 @@ earlier report-gated version.
 
 ## Fixtures (`specs/gloamsteadforge/fixtures/`)
 
-`good/` (3) — valid reference reports the validators must ACCEPT. `bad/` (16) — one contract violation each,
-mapped to their expected GF code in the negatives suite; validators must REJECT them. Two of the bad
-fixtures claim a real matrix `scenario_id` to test the matrix-authority binding (GF043 / GF072).
+`good/` (3) — valid reference reports the validators must ACCEPT. `bad/` (17) — one contract violation each,
+mapped to their expected GF code in the negatives suite; validators must REJECT them. Some bad fixtures claim
+a real matrix `scenario_id` to test the matrix-authority binding (GF043 / GF072) and a cleanse objective on a
+non-Corruption night (GF043).
 
 ## How to reproduce (acceptance order)
 

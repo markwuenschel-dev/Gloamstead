@@ -14,7 +14,7 @@ if (-not $Path) { $Path = Join-Path $RepoRoot 'procedural/reports/gloamsteadforg
 $ScenarioMap = Get-GFScenarioMap -MatrixPath (Join-Path $RepoRoot 'specs/gloamsteadforge/scenario_matrix.json')
 
 $files = @()
-if (Test-Path -PathType Container $Path) { $files = @(Get-ChildItem -LiteralPath $Path -Filter *.json -File) }
+if (Test-Path -PathType Container $Path) { $files = @(Get-ChildItem -LiteralPath $Path -Filter *.json -File | Where-Object { $_.Name -ne '_run_manifest.json' }) }
 elseif (Test-Path -PathType Leaf $Path) { $files = @(Get-Item -LiteralPath $Path) }
 
 if ($files.Count -eq 0) {

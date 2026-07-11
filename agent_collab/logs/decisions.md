@@ -789,3 +789,31 @@ contracts/runtime/integrity all pass on fresh live reports; negatives 16/16; fuz
 success bypass is closed.
 
 Recorded by gloam-orchestrator (claude-code).
+
+## 2026-07-11 (cont.) — Wave 3 provenance hardening (2nd critic broke it again; fixed + gate-wired)
+
+A fresh hostile critic on 9bba487 confirmed the earlier skip-substantiation bypass was closed but FALSIFIED
+the headline again: a fully-substantiated FORGERY (`fakeA`: corruption_success, git_commit=HEAD, every field
+self-consistent) passed both -Strict validators, because `git_commit` was the only (public, copyable)
+provenance anchor and the PS validators were not wired into `gate.ps1`. Also `fakeC` (Omen + cleanse) dodged
+the corruption-tag check (gated on night_type==Corruption).
+
+**Fix (per human directive "harden provenance, then ship"):**
+- **Unforgeable per-run nonce:** `gate.ps1` generates a random `GLOAMSTEAD_FORGE_NONCE`; the C++ emitter
+  stamps it on every report and a new `_run_manifest.json` (nonce + git + scenario set). Integrity validator
+  rejects any report whose `run_nonce` != the run (GF070) or that's absent from the manifest (GF068). A
+  hand-authored report can't know the fresh nonce -> fabricated evidence fails.
+- **Gate wiring:** `gate.ps1` now runs all 5 PS validators (contracts/runtime/integrity(-ExpectedNonce)/
+  negatives/fuzz) fail-closed in the SAME invocation right after emission (closes TOCTOU). The hostile layer
+  is now part of the automated gate, not a manual tier.
+- **fakeC closed:** a cleanse objective on a non-Corruption night -> GF043; cleanse result-tag enforced for
+  any cleanse. New regression fixture `cleanse_wrong_night_type.json` (GF043).
+- Integrity + validators exclude `_run_manifest.json`; per-report integrity is property-safe + try/catch
+  (nonce-less forgery -> clean GF070, not a crash).
+- Schema: optional `run_nonce`. evidence_index documents the provenance model.
+
+**Re-verified:** gate GREEN (build + 35 tests + contracts + runtime + integrity + negatives + fuzz). Forgery
+reproduced: a nonce-less hand-authored report dropped into the reports dir -> REJECTED (GF065+GF070), other 5
+pass, exit 1. negatives now 17/17; fuzz 300/300. The fabricated-success class is closed and the layer gates.
+
+Recorded by gloam-orchestrator (claude-code).

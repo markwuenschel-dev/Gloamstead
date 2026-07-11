@@ -6,6 +6,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/DateTime.h"
 #include "HAL/FileManager.h"
+#include "HAL/PlatformMisc.h"
 
 namespace
 {
@@ -155,6 +156,7 @@ FString GloamsteadForgeEvidence::ToJson(const FGloamsteadForgeReport& Report)
 	Root->SetStringField(TEXT("git_commit"), ReadGitCommit());
 	Root->SetStringField(TEXT("git_branch"), ReadGitBranch());
 	Root->SetStringField(TEXT("engine"), Report.Engine);
+	Root->SetStringField(TEXT("run_nonce"), FPlatformMisc::GetEnvironmentVariable(TEXT("GLOAMSTEAD_FORGE_NONCE")));
 	Root->SetBoolField(TEXT("quiet"), Report.bQuiet);
 	Root->SetBoolField(TEXT("continuity"), Report.bContinuity);
 	Root->SetBoolField(TEXT("human_playtest"), Report.bHumanPlaytest);
@@ -184,4 +186,30 @@ bool GloamsteadForgeEvidence::WriteReport(const FGloamsteadForgeReport& Report, 
 	IFileManager::Get().MakeDirectory(*OutDir, /*Tree*/ true);
 	OutPath = FPaths::Combine(OutDir, Report.ScenarioId + TEXT(".json"));
 	return FFileHelper::SaveStringToFile(ToJson(Report), *OutPath);
+}
+
+bool GloamsteadForgeEvidence::WriteRunManifest(const FString& OutDir, const TArray<FString>& ScenarioIds, FString& OutPath)
+{
+	IFileManager::Get().MakeDirectory(*OutDir, /*Tree*/ true);
+
+	TSharedPtr<FJsonObject> Root = MakeShared<FJsonObject>();
+	Root->SetStringField(TEXT("schema"), TEXT("GloamsteadForgeRunManifest/v1"));
+	Root->SetStringField(TEXT("run_nonce"), FPlatformMisc::GetEnvironmentVariable(TEXT("GLOAMSTEAD_FORGE_NONCE")));
+	Root->SetStringField(TEXT("git_commit"), ReadGitCommit());
+	Root->SetStringField(TEXT("git_branch"), ReadGitBranch());
+	Root->SetStringField(TEXT("generated_at_utc"), FDateTime::UtcNow().ToIso8601());
+
+	TArray<TSharedPtr<FJsonValue>> Arr;
+	for (const FString& Id : ScenarioIds)
+	{
+		Arr.Add(MakeShared<FJsonValueString>(Id));
+	}
+	Root->SetArrayField(TEXT("scenarios"), Arr);
+
+	FString Out;
+	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
+	FJsonSerializer::Serialize(Root.ToSharedRef(), Writer);
+
+	OutPath = FPaths::Combine(OutDir, TEXT("_run_manifest.json"));
+	return FFileHelper::SaveStringToFile(Out, *OutPath);
 }

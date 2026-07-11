@@ -13,7 +13,7 @@ $SchemaPath = Join-Path $RepoRoot 'specs/gloamsteadforge/contracts/GloamsteadFor
 $schema = Get-Content -Raw -LiteralPath $SchemaPath
 
 $files = @()
-if (Test-Path -PathType Container $Path) { $files = @(Get-ChildItem -LiteralPath $Path -Filter *.json -File) }
+if (Test-Path -PathType Container $Path) { $files = @(Get-ChildItem -LiteralPath $Path -Filter *.json -File | Where-Object { $_.Name -ne '_run_manifest.json' }) }
 elseif (Test-Path -PathType Leaf $Path) { $files = @(Get-Item -LiteralPath $Path) }
 
 if ($files.Count -eq 0) {

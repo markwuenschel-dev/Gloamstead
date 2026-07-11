@@ -35,6 +35,7 @@ $expect = @{
     # objective_kind:None to try to skip substantiation). Caught only because authority = the matrix.
     'matrix_objective_none_success' = @{ code = 'GF043'; kind = 'semantic' }
     'matrix_fake_quiet'             = @{ code = 'GF072'; kind = 'semantic' }
+    'cleanse_wrong_night_type'      = @{ code = 'GF043'; kind = 'semantic' }
 }
 
 $files = @(Get-ChildItem -LiteralPath $FixturesDir -Filter *.json -File)

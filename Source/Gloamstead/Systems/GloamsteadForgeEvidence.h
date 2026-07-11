@@ -86,6 +86,11 @@ namespace GloamsteadForgeEvidence
 	/** Default emit dir: <ProjectDir>/procedural/reports/gloamsteadforge. */
 	GLOAMSTEAD_API FString DefaultReportDir();
 
+	/** Write the per-run manifest (_run_manifest.json): run nonce, git commit, and the emitted scenario set.
+	 *  The nonce comes from the GLOAMSTEAD_FORGE_NONCE env var set by gate.ps1, so a hand-authored report
+	 *  (which cannot know the fresh nonce) is rejected by the integrity validator. */
+	GLOAMSTEAD_API bool WriteRunManifest(const FString& OutDir, const TArray<FString>& ScenarioIds, FString& OutPath);
+
 	/** Best-effort short git commit SHA read from <ProjectDir>/.git (loose or packed ref). Empty if unavailable. */
 	GLOAMSTEAD_API FString ReadGitCommit();
 

@@ -89,7 +89,7 @@ Band allocation:
 - **GF067** — `generated_at_utc` unparseable/implausible (future, or epoch-zero).
 - **GF068** — Scenario matrix marks overall pass while a listed scenario has no report.
 - **GF069** — Scenario matrix marks overall pass while a listed report contains failure codes.
-- **GF070** — Report references telemetry/artifact paths that do not exist.
+- **GF070** — Provenance failure: the report's `run_nonce` is missing or does not match the current gate run's nonce (recorded in `_run_manifest.json` and passed by `gate.ps1`). A hand-authored report cannot know the fresh per-run nonce, so a fabricated report — even one internally consistent and carrying the correct `git_commit` — is rejected. Also raised when the run manifest is absent or its nonce doesn't match the gate run.
 - **GF071** — Duplicate `scenario_id` across the matrix.
 - **GF072** — Report's self-declared `quiet` (or benign `outcome_result: None`) contradicts the scenario matrix's declared `quiet` for that `scenario_id`. A report may not self-certify a quiet/benign night to skip substantiation — authority is the matrix.
 

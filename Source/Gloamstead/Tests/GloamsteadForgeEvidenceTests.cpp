@@ -115,6 +115,7 @@ bool FGloamForgeEmitEvidenceTest::RunTest(const FString& /*Parameters*/)
 	const FString Dir = GloamsteadForgeEvidence::DefaultReportDir();
 	int32 Emitted = 0;
 	FString OutPath;
+	TArray<FString> EmittedIds;
 
 	// --- corruption_success: cleanse the bloom -> Success ---
 	{
@@ -136,7 +137,7 @@ bool FGloamForgeEmitEvidenceTest::RunTest(const FString& /*Parameters*/)
 		TestTrue(TEXT("corruption_success is Success"), R.NightLoop.OutcomeResult == TEXT("Success"));
 		TestTrue(TEXT("corruption_success mutated"), R.Sanctuary.bMutated);
 		TestTrue(TEXT("corruption_success dawn consumed"), R.Dawn.bConsumedOutcome);
-		if (GloamsteadForgeEvidence::WriteReport(R, Dir, OutPath)) { ++Emitted; }
+		if (GloamsteadForgeEvidence::WriteReport(R, Dir, OutPath)) { ++Emitted; EmittedIds.Add(R.ScenarioId); }
 	}
 
 	// --- corruption_partial: reduce but not clear -> Partial ---
@@ -157,7 +158,7 @@ bool FGloamForgeEmitEvidenceTest::RunTest(const FString& /*Parameters*/)
 		R.Restoration = { true, true, Ctx.TargetPointIndex };
 		FillFromRun(R, PCG, S, Ctx, AvgBefore, Outcome);
 		TestTrue(TEXT("corruption_partial is Partial"), R.NightLoop.OutcomeResult == TEXT("Partial"));
-		if (GloamsteadForgeEvidence::WriteReport(R, Dir, OutPath)) { ++Emitted; }
+		if (GloamsteadForgeEvidence::WriteReport(R, Dir, OutPath)) { ++Emitted; EmittedIds.Add(R.ScenarioId); }
 	}
 
 	// --- corruption_failure: untouched -> Failure ---
@@ -176,7 +177,7 @@ bool FGloamForgeEmitEvidenceTest::RunTest(const FString& /*Parameters*/)
 		R.Restoration = { false, false, -1 }; // player never acted
 		FillFromRun(R, PCG, S, Ctx, AvgBefore, Outcome);
 		TestTrue(TEXT("corruption_failure is Failure"), R.NightLoop.OutcomeResult == TEXT("Failure"));
-		if (GloamsteadForgeEvidence::WriteReport(R, Dir, OutPath)) { ++Emitted; }
+		if (GloamsteadForgeEvidence::WriteReport(R, Dir, OutPath)) { ++Emitted; EmittedIds.Add(R.ScenarioId); }
 	}
 
 	// --- tutorial_success ---
@@ -194,7 +195,7 @@ bool FGloamForgeEmitEvidenceTest::RunTest(const FString& /*Parameters*/)
 		R.Restoration = { false, false, -1 }; // the tutorial teaches; it performs no restoration
 		FillFromRun(R, PCG, S, Ctx, AvgBefore, Outcome);
 		TestTrue(TEXT("tutorial_success is Success"), R.NightLoop.OutcomeResult == TEXT("Success"));
-		if (GloamsteadForgeEvidence::WriteReport(R, Dir, OutPath)) { ++Emitted; }
+		if (GloamsteadForgeEvidence::WriteReport(R, Dir, OutPath)) { ++Emitted; EmittedIds.Add(R.ScenarioId); }
 	}
 
 	// --- quiet_fallback: no bloom -> benign quiet night ---
@@ -214,7 +215,7 @@ bool FGloamForgeEmitEvidenceTest::RunTest(const FString& /*Parameters*/)
 		FillFromRun(R, PCG, S, Ctx, AvgBefore, Outcome);
 		TestTrue(TEXT("quiet_fallback is Success"), R.NightLoop.OutcomeResult == TEXT("Success"));
 		TestTrue(TEXT("quiet_fallback objective is None"), R.NightLoop.ObjectiveKind == TEXT("None"));
-		if (GloamsteadForgeEvidence::WriteReport(R, Dir, OutPath)) { ++Emitted; }
+		if (GloamsteadForgeEvidence::WriteReport(R, Dir, OutPath)) { ++Emitted; EmittedIds.Add(R.ScenarioId); }
 	}
 
 	// --- saveload_continuity: night mutation survives save/load ---
@@ -243,11 +244,17 @@ bool FGloamForgeEmitEvidenceTest::RunTest(const FString& /*Parameters*/)
 		FillFromRun(R, PCG, S, Ctx, AvgBefore, Outcome);
 		R.SaveLoad = { true, bRoundtrip };
 		TestTrue(TEXT("continuity roundtrip ok"), bRoundtrip);
-		if (GloamsteadForgeEvidence::WriteReport(R, Dir, OutPath)) { ++Emitted; }
+		if (GloamsteadForgeEvidence::WriteReport(R, Dir, OutPath)) { ++Emitted; EmittedIds.Add(R.ScenarioId); }
 	}
 
 	TestEqual(TEXT("all six scenario reports emitted"), Emitted, 6);
-	UE_LOG(LogTemp, Log, TEXT("GloamsteadForge: emitted %d runtime reports to %s"), Emitted, *Dir);
+
+	// Write the run manifest (nonce + git + scenario set) that the integrity validator binds against.
+	FString ManifestPath;
+	const bool bManifest = GloamsteadForgeEvidence::WriteRunManifest(Dir, EmittedIds, ManifestPath);
+	TestTrue(TEXT("run manifest written"), bManifest);
+
+	UE_LOG(LogTemp, Log, TEXT("GloamsteadForge: emitted %d runtime reports + manifest to %s"), Emitted, *Dir);
 	return true;
 }
 

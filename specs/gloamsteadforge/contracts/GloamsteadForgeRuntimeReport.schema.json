@@ -16,6 +16,7 @@
     "git_commit": { "type": "string", "minLength": 7 },
     "git_branch": { "type": "string", "minLength": 1 },
     "engine": { "type": "string", "minLength": 1 },
+    "run_nonce": { "type": "string", "description": "Per-gate-run nonce (set by gate.ps1, stamped by the emitter). Absent on hand-authored fixtures; required for live reports by the integrity validator." },
     "quiet": { "type": "boolean" },
     "continuity": { "type": "boolean" },
     "human_playtest": { "type": "boolean" },

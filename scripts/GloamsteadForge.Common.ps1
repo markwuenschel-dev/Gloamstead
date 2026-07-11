@@ -98,8 +98,11 @@ function Get-GFCodes {
         if ($nl.outcome_result -eq 'Success' -and -not $res.applied) { $codes.Add('GF023') | Out-Null }
     }
 
-    # --- Corruption result-tag correctness (cleanse, non-quiet) ---
-    if ($nl.night_type -eq 'Corruption' -and $isCleanse -and -not $authQuiet) {
+    # The cleanse objective only exists on Corruption nights (closes the "Omen + cleanse, free-form tag" dodge).
+    if ($isCleanse -and $nl.night_type -ne 'Corruption') { $codes.Add('GF043') | Out-Null }
+
+    # --- Cleanse result-tag correctness (enforced for any cleanse objective, non-quiet) ---
+    if ($isCleanse -and -not $authQuiet) {
         if ($nl.outcome_result -eq 'Success' -and $nl.result_tag -ne 'CorruptionCleansed') { $codes.Add('GF040') | Out-Null }
         if ($nl.outcome_result -eq 'Partial' -and $nl.result_tag -ne 'CorruptionLingers') { $codes.Add('GF041') | Out-Null }
         if ($nl.outcome_result -eq 'Failure' -and $nl.result_tag -ne 'CorruptionScar')  { $codes.Add('GF042') | Out-Null }

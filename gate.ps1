@@ -55,6 +55,13 @@ Write-Host "GATE: proj=$Proj"     -ForegroundColor Cyan
 & "$Engine\Engine\Build\BatchFiles\Build.bat" $Target Win64 Development -Project="$Proj" -WaitMutex -MaxParallelActions=6
 if ($LASTEXITCODE -ne 0) { Fail "build returned $LASTEXITCODE" }
 
+# Per-run provenance nonce: the GloamsteadForge evidence emitter (an automation test) stamps this onto every
+# report + the run manifest, and the integrity validator rejects any report that doesn't carry it. A
+# hand-authored report cannot know this fresh value, so fabricated evidence fails the gate.
+$ForgeNonce = [guid]::NewGuid().ToString()
+$env:GLOAMSTEAD_FORGE_NONCE = $ForgeNonce
+Write-Host "GATE: forge nonce=$ForgeNonce" -ForegroundColor Cyan
+
 # 2. Tests - editor-cmd exit code is unreliable; parse the report, fail closed.
 if (Test-Path $Report) { Remove-Item $Report -Recurse -Force }
 & "$Engine\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" $Proj -ExecCmds="Automation RunTests $Filter; Quit" -unattended -nullrhi -nosplash -nopause -ReportExportPath="$Report" | Out-Null
@@ -72,5 +79,23 @@ if ($bad) {
     Fail "$($bad.Count)/$($tests.Count) test(s) not green"
 }
 
-Write-Host "GATE PASS: build green, $($tests.Count) test(s) green" -ForegroundColor Green
+Write-Host "GATE: build green, $($tests.Count) test(s) green" -ForegroundColor Green
+
+# 3. GloamsteadForge evidence gate - validate the freshly-emitted reports, fail closed. This runs in the
+#    SAME invocation right after emission (nonce-bound), so a report must have been produced by this run.
+$Pwsh    = Join-Path $PSHOME 'pwsh.exe'
+$Scripts = Join-Path $RepoRoot 'scripts'
+$Reports = Join-Path $RepoRoot 'procedural\reports\gloamsteadforge'
+function ForgeStep([string]$Name, [string]$File, [string[]]$FArgs) {
+    & $Pwsh -NoProfile -File (Join-Path $Scripts $File) @FArgs | Out-Null
+    if ($LASTEXITCODE -ne 0) { Fail "GloamsteadForge $Name validator failed ($LASTEXITCODE)" }
+    Write-Host "GATE: forge $Name ok" -ForegroundColor Cyan
+}
+ForgeStep 'contracts' 'Test-GloamsteadForgeContracts.ps1'       @('-Path', $Reports, '-Strict')
+ForgeStep 'runtime'   'Validate-GloamsteadForgeRuntime.ps1'     @('-Path', $Reports, '-Strict')
+ForgeStep 'integrity' 'Test-GloamsteadForgeReportIntegrity.ps1' @('-ExpectedNonce', $ForgeNonce, '-Strict')
+ForgeStep 'negatives' 'Test-GloamsteadForgeNegatives.ps1'       @()
+ForgeStep 'fuzz'      'Test-GloamsteadForgeFuzz.ps1'            @('-Cases', '300', '-Strict')
+
+Write-Host "GATE PASS: build green, $($tests.Count) test(s) green, GloamsteadForge evidence validated" -ForegroundColor Green
 exit 0
