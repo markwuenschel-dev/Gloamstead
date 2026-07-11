@@ -689,3 +689,19 @@ R (real restore) still no-ops from spawn — confirmed by the human ("nothing in
 **KEY LESSON for future editor-driven testing:** to verify press-to-act Enhanced Input verbs, use a REAL hardware key press in a human PIE session — do NOT rely on `playtest_key` (it silently fails to drive edge-triggers / BP input events). Only `IA_Move`-style continuous Triggered bindings drive reliably under simulation.
 
 Recorded by gloam-orchestrator (claude-code).
+
+## 2026-07-11 (cont.) — W1b save/load wiring committed (gate green, 26 tests)
+
+Wired the previously-dead `UGloamsteadPCGSubsystem::SaveToSlot`/`LoadFromSlot` into the game lifecycle (commit a326ad1):
+- Shared `UGloamsteadPCGSubsystem::DefaultSaveSlot = "GloamsteadSanctuary"`.
+- Dawn autosave in `GloamsteadDayNightSubsystem::HandleEnterDawn` (after ProcessDawnReflection).
+- Load-on-start in `GloamsteadSanctuaryBootstrap::TryInitializeSanctuary` (after InitializeFromPCGComponent, once; no-op if no save).
+- New test `Gloamstead.PCG.SaveSlotDiskRoundTrip` (disk SaveToSlot→LoadFromSlot round-trip + missing-slot→false). Suite 25→26, gate GREEN.
+
+Not runtime-verified in PIE yet (unit-verified via the disk round-trip; hooks sit at lifecycle points already proven reached — dawn in the W1a cascade, bootstrap-init log). W1b is pure C++ (no assets/BP/input), so the gate-invisible bug class that bit W1a doesn't apply here.
+
+**Known follow-ups (not W1b scope):** save persists PCG per-point state only — NOT day/night phase or nightCount (so the FirstNightDirector's first-night gate re-arms each session), and restored actors (lanterns) are NOT respawned on load (state restores, visuals don't). Flag for a future persistence slice.
+
+Branch `gloamstead/w1a-fix-bp-ritualplacement` now: 2ed975b (W1a fix) + fca180e (W1a docs) + a326ad1 (W1b) [+ this docs entry]. W1c (DA_Ritual_PathPoint import) still pending.
+
+Recorded by gloam-orchestrator (claude-code).
