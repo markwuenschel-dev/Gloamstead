@@ -133,6 +133,10 @@ public:
 	UFUNCTION()
 	void HandleNightStarted(ENightConsequenceType NightType);
 
+	/** The night objective resolved before the duration elapsed — advance to dawn now. */
+	UFUNCTION()
+	void HandleNightShouldEnd();
+
 	// === Test seams (unconditional inline; unused in shipping → linker drops them) ===
 
 	/** Inject already-constructed subsystems and run the real binding path. */

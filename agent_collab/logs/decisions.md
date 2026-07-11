@@ -715,3 +715,26 @@ Ran `Invoke-GloamsteadDataAssetImport.ps1 -Manifest specs/data/vs-polish-starter
 **Wave 1 status:** all authorable items committed on `gloamstead/w1a-fix-bp-ritualplacement` (off main @ 77f8e86): W1a (2ed975b + fca180e), W1b (a326ad1 + 6c278e7), W1c (d6d8298). Branch is gate-green (build + 26 tests) and ready for review/ship after the optional in-editor verification.
 
 Recorded by gloam-orchestrator (claude-code).
+
+## 2026-07-11 (cont.) — Corrected Wave 2: real Night Consequence Runtime (gate green, 34 tests)
+
+Executed the human-authorized "Corrected Wave 2" on branch `gloamstead/w2-night-runtime` (off main @ ae2c7b3). Baseline recorded first (gate green on main, 26 tests). Design forks confirmed with the human before writing code: **Hybrid pressure** (subsystem-simulated escalation + optional light-reactive actor), **objective = cleanse a corruption bloom before dawn** (Success/Partial/Failure), **UObject Blueprint-extensible strategy spine**.
+
+**What landed (replaces the `ExecuteNightStub` stub with a real consequence runtime):**
+- `Data/NightRuntimeTypes.h/.cpp` (NEW): `FNightRuntimeContext` / `FNightObjective` / `FNightRuntimeOutcome`, `ENightOutcomeResult`, `ENightObjectiveKind`.
+- `Systems/NightStrategy.h/.cpp` (NEW): `UNightStrategy` (Blueprintable base = benign quiet night) + `UNightCorruptionStrategy` + `UNightTutorialStrategy`; BlueprintNativeEvent EnterNight/ApplyPressureStep/NotifyRestoration/ResolveNight.
+- `Systems/NightConsequenceRuntime.h/.cpp` (REWRITE): builds context, instantiates per-type strategy (type→class map in ctor), immediate + repeating pressure timer, observes `OnStructureRestored` → resolves objective → `OnNightShouldEnd` early-dawn signal; `GetLastOutcome()`. Preserves `OnNightStarted/OnNightEnded/OnOmenClueReady` (Omen clue broadcast kept).
+- `Systems/NightPressureActor.h/.cpp` (NEW): optional light-reactive "menace" actor; spawned only in a game world on a Corruption night; never in tests.
+- `PCG/GloamsteadPCGSubsystem`: `AddCorruptionAtIndex` + `FindMostCorruptedPointIndex` (read-only/symmetric; no save-format change).
+- `Systems/VeilHeart`: `ProcessDawnReflectionWithOutcome(...)` distinguishes success/partial/failure, records `LastNightOutcome` (next cycle can read); no-arg `ProcessDawnReflection()` kept for BP compat.
+- `Systems/GloamsteadDayNightSubsystem`: dawn now captures `Runtime->GetLastOutcome()` AFTER `EndNight()` and feeds it to the Heart.
+- `Systems/GloamsteadFirstNightDirector`: `HandleNightShouldEnd` → clears NightDurationTimer + advances to dawn early (intentional end, not a bare timer skip).
+- `Tests/NightRuntimeTests.cpp` (NEW, 8 tests): corruption Success/Partial/Failure/QuietNight, tutorial always-resolves + bounded spread, runtime type→strategy mapping, night mutation survives save/load, pressure-actor menace-vs-light. Suite 26 → **34, gate GREEN (build + tests)**.
+
+**Hostile critic (gloam-critic, read-only) verdict:** passed all 8 falsification checks — genuinely non-stub; Success/Partial/Failure all reachable; dawn consumes the post-EndNight outcome; coherent target selection/escalation/cleanse; real objective-driven early end; no stub-removal regressions; meaningful non-tautological tests; correct guards/epsilons/gating. No `.uasset/.umap`/vendor edits; **no save-format change** (night outcome is session-only; only PCG per-point corruption persists via existing SaveToSlot). Applied one critic-identified hardening: `NotifyRestoration` now resolves the bloom only when the target's corruption actually drops to/below the cleanse threshold (removes a "restored-target-with-zero-cleared = fake cleanse" edge).
+
+**Scope note:** `Gloamstead5_8.uproject` shows the MCP/ModelContextProtocol editor-bridge plugins enabled — this is a PRE-EXISTING dev-environment change (present in the baseline working tree before Wave 2), unrelated to the night runtime. Deliberately EXCLUDED from the Wave 2 commit.
+
+**Not yet done (intentional):** committed to the task branch only — NOT pushed/merged to main (awaiting explicit ship approval). Live PIE feel-check of `ANightPressureActor` + a real-hardware full cascade with an objective resolution remains an optional human follow-up (the runtime logic is proven headlessly). Night runtime currently implements Tutorial + Corruption; other 7 enum types fall back to a benign quiet night.
+
+Recorded by gloam-orchestrator (claude-code).

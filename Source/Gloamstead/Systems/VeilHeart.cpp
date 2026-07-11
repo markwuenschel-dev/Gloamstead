@@ -117,10 +117,38 @@ void AVeilHeart::EmitWarningForNight(ENightConsequenceType NightType)
 
 void AVeilHeart::ProcessDawnReflection()
 {
+	// BP-compat entry point: reflect with no night outcome data.
+	ProcessDawnReflectionWithOutcome(FNightRuntimeOutcome());
+}
+
+void AVeilHeart::ProcessDawnReflectionWithOutcome(const FNightRuntimeOutcome& Outcome)
+{
 	const int32 TagsThisCycle = SatisfiedWarningTags.Num();
-	UE_LOG(LogTemp, Log, TEXT("VeilHeart: Dawn Reflection - %d warning tags satisfied this cycle."), TagsThisCycle);
+	LastNightOutcome = Outcome;
+
+	// Distinguish how the night resolved so payoff (and the next cycle) can react meaningfully.
+	switch (Outcome.Result)
+	{
+	case ENightOutcomeResult::Success:
+		UE_LOG(LogTemp, Log, TEXT("VeilHeart: Dawn Reflection - the sanctuary held (%s). %d warning tag(s) heeded; night '%s' resolved."),
+			*Outcome.ResultTag.ToString(), TagsThisCycle, *GetNightConsequenceTypeDisplayName(Outcome.NightType));
+		break;
+	case ENightOutcomeResult::Partial:
+		UE_LOG(LogTemp, Log, TEXT("VeilHeart: Dawn Reflection - the dark receded but lingers (%s). Bloom reduced by %.2f; %d tag(s) heeded."),
+			*Outcome.ResultTag.ToString(), -Outcome.TargetCorruptionDelta, TagsThisCycle);
+		break;
+	case ENightOutcomeResult::Failure:
+		UE_LOG(LogTemp, Warning, TEXT("VeilHeart: Dawn Reflection - a scar remains (%s). Bloom worsened by %.2f; the sanctuary carries this into the next night."),
+			*Outcome.ResultTag.ToString(), Outcome.TargetCorruptionDelta);
+		break;
+	case ENightOutcomeResult::None:
+	default:
+		UE_LOG(LogTemp, Log, TEXT("VeilHeart: Dawn Reflection - %d warning tag(s) satisfied this cycle (no night outcome)."),
+			TagsThisCycle);
+		break;
+	}
+
+	OnDawnReflection(Outcome);
 
 	SatisfiedWarningTags.Empty();
-
-	// TODO Phase 2: Trigger journal entries, emotional feedback, resource bonuses, etc.
 }

@@ -122,9 +122,12 @@ void UGloamsteadDayNightSubsystem::HandleEnterDawn()
 {
 	if (UWorld* World = GetWorld())
 	{
+		// End the night first, then hand its real outcome to dawn reflection.
+		FNightRuntimeOutcome NightOutcome;
 		if (UNightConsequenceRuntime* Runtime = World->GetSubsystem<UNightConsequenceRuntime>())
 		{
 			Runtime->EndNight();
+			NightOutcome = Runtime->GetLastOutcome();
 		}
 
 		TArray<AActor*> Hearts;
@@ -133,7 +136,7 @@ void UGloamsteadDayNightSubsystem::HandleEnterDawn()
 		{
 			if (AVeilHeart* Heart = Cast<AVeilHeart>(Hearts[0]))
 			{
-				Heart->ProcessDawnReflection();
+				Heart->ProcessDawnReflectionWithOutcome(NightOutcome);
 			}
 		}
 		else

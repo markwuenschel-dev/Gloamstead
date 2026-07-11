@@ -101,6 +101,15 @@ public:
     UFUNCTION(BlueprintCallable, Category="PCG|Night")
     int32 ApplyCorruptionSpread(float Delta, int32 MaxPoints = 8);
 
+    /** Night-only: raise (or, with negative Delta, lower) corruption on a single point (the "bloom"); clamped [0,1].
+     *  Does not alter restoration flags. Returns the new corruption level, or -1 if the index is invalid. */
+    UFUNCTION(BlueprintCallable, Category="PCG|Night")
+    float AddCorruptionAtIndex(int32 PointIndex, float Delta);
+
+    /** Read-only: index of the most-corrupted point (optionally restricted to unrestored points). -1 if none. */
+    UFUNCTION(BlueprintPure, Category="PCG|Night")
+    int32 FindMostCorruptedPointIndex(bool bOnlyUnrestored = false) const;
+
     // === Persistence (Vertical Slice Strategy) ===
     UFUNCTION(BlueprintCallable, Category="PCG|Ritual")
     TSet<int32> GetRestoredPointIndices() const;
