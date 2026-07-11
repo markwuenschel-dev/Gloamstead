@@ -10,6 +10,8 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'GloamsteadForge.Common.ps1')
 $RepoRoot = Split-Path $PSScriptRoot -Parent
 if (-not $Path) { $Path = Join-Path $RepoRoot 'procedural/reports/gloamsteadforge' }
+# Matrix is the authority for quiet / objective-bearing; bind each report to its scenario by id.
+$ScenarioMap = Get-GFScenarioMap -MatrixPath (Join-Path $RepoRoot 'specs/gloamsteadforge/scenario_matrix.json')
 
 $files = @()
 if (Test-Path -PathType Container $Path) { $files = @(Get-ChildItem -LiteralPath $Path -Filter *.json -File) }
@@ -22,8 +24,14 @@ if ($files.Count -eq 0) {
 
 $fail = 0
 foreach ($f in $files) {
-    $r = Get-GFReport -Path $f.FullName
-    $codes = @(Get-GFCodes -R $r)
+    $codes = @()
+    try {
+        $r = Get-GFReport -Path $f.FullName
+        $sc = $ScenarioMap[$r.scenario_id]
+        $codes = @(Get-GFCodes -R $r -Scenario $sc)
+    } catch {
+        $codes = @('GF002')  # malformed / missing required structure -> fail closed, keep scanning the batch
+    }
     if ($codes.Count -eq 0) { Write-Host "  PASS runtime: $($f.Name)" -ForegroundColor Green }
     else {
         $fail++

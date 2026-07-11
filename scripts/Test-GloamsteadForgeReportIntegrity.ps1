@@ -48,7 +48,7 @@ if (Test-Path -PathType Leaf $Matrix) {
             continue
         }
         $rr = Get-GFReport -Path $rp
-        $sem = @(Get-GFCodes -R $rr)
+        $sem = @(Get-GFCodes -R $rr -Scenario $s)
         if ($sem.Count -gt 0) { $fail++; Write-Host "  FAIL matrix: '$($s.scenario_id)' report has failure codes $($sem -join ',') (GF069)" -ForegroundColor Red }
         if ($rr.night_loop.outcome_result -ne $s.expected_outcome) {
             $fail++; Write-Host "  FAIL matrix: '$($s.scenario_id)' outcome $($rr.night_loop.outcome_result) != expected $($s.expected_outcome)" -ForegroundColor Red

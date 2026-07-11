@@ -760,3 +760,32 @@ Wave 2 merged first (PR #18, merge commit fdbf5a5) and main rebaselined, per the
 Committed to the branch only — NOT pushed/merged (awaiting explicit ship approval, as with Wave 2).
 
 Recorded by gloam-orchestrator (claude-code).
+
+## 2026-07-11 (cont.) — Wave 3 hardening: hostile critic broke the validator; fixed
+
+The Wave 3 hostile critic (gloam-critic) FALSIFIED the wave's core thesis: it got a fabricated `Success`
+past `Validate-GloamsteadForgeRuntime.ps1` (TrueSiege, PCG uninitialized, no restoration, corruption
+0.9→0.9, mutated:false, objective_kind:None, quiet:true → exit 0). Root cause: substantiation was gated on
+the report's OWN self-declared `objective_kind`/`quiet`, and `GF043` was documented but unimplemented.
+
+**Fix (commit follows cf60dd5):**
+- Authority for quiet/objective-bearing now comes from `scenario_matrix.json` (bound by `scenario_id`), not
+  the report. Added `Get-GFScenarioMap`; `Get-GFCodes` takes `-Scenario`. Implemented **GF043** (matrix says
+  objective-bearing but report claims None, or vice-versa) and **GF072** (report `quiet` contradicts matrix).
+- Intrinsic anti-fake invariants (no matrix needed): a night with `objective_kind:None` that mutated the
+  sanctuary → GF043 (no objective ⇒ no pressure ⇒ no mutation); a started night with PCG not initialized →
+  GF011; strict default (non-quiet) so a lone report can't self-certify a benign night to skip GF046.
+- Validators (`Validate-GloamsteadForgeRuntime`, `Test-GloamsteadForgeReportIntegrity` matrix loop) bind the
+  scenario; `Validate-...` wraps per-file eval in try/catch so a malformed report yields GF002 instead of
+  aborting the batch (critic point 5).
+- Coverage: +2 matrix-slot fake fixtures (`matrix_objective_none_success`→GF043, `matrix_fake_quiet`→GF072);
+  fuzz gained `objective_kind:None` and `quiet:true` escape mutations.
+- Emitter honesty (critic point 4): `tutorial_success` now reports `restoration:{false,false,-1}` (it performs
+  no restoration); `corruption_partial` now does a real incomplete `ApplyRestoration` instead of a synthetic
+  corruption tweak.
+
+**Re-verified:** all 3 critic fakes now REJECTED (GF043; GF002 no-crash; GF011+GF046). Gate green (35 tests);
+contracts/runtime/integrity all pass on fresh live reports; negatives 16/16; fuzz 300/300. The fabricated-
+success bypass is closed.
+
+Recorded by gloam-orchestrator (claude-code).

@@ -147,7 +147,10 @@ bool FGloamForgeEmitEvidenceTest::RunTest(const FString& /*Parameters*/)
 		UNightCorruptionStrategy* S = NewObject<UNightCorruptionStrategy>();
 		const FNightRuntimeContext Ctx = MakeContext(ENightConsequenceType::Corruption, PCG);
 		S->EnterNight(Ctx, PCG);
-		PCG->AddCorruptionAtIndex(Ctx.TargetPointIndex, -0.25f); // 0.6 -> 0.35 (> 0.2 threshold)
+		// A real but incomplete restoration: reduces the bloom below its start yet above the cleanse threshold.
+		FRestorationEventPayload PartialCleanse; PartialCleanse.PointIndex = Ctx.TargetPointIndex; PartialCleanse.CorruptionCleared = 0.25f;
+		PCG->ApplyRestoration(Ctx.TargetPointIndex, PartialCleanse); // 0.6 -> 0.35 (> 0.2 threshold)
+		S->NotifyRestoration(PartialCleanse, PCG);
 		const FNightRuntimeOutcome Outcome = S->ResolveNight(PCG);
 
 		FGloamsteadForgeReport R; R.ScenarioId = TEXT("corruption_partial");
@@ -188,7 +191,7 @@ bool FGloamForgeEmitEvidenceTest::RunTest(const FString& /*Parameters*/)
 		const FNightRuntimeOutcome Outcome = S->ResolveNight(PCG);
 
 		FGloamsteadForgeReport R; R.ScenarioId = TEXT("tutorial_success");
-		R.Restoration = { true, true, Ctx.TargetPointIndex };
+		R.Restoration = { false, false, -1 }; // the tutorial teaches; it performs no restoration
 		FillFromRun(R, PCG, S, Ctx, AvgBefore, Outcome);
 		TestTrue(TEXT("tutorial_success is Success"), R.NightLoop.OutcomeResult == TEXT("Success"));
 		if (GloamsteadForgeEvidence::WriteReport(R, Dir, OutPath)) { ++Emitted; }

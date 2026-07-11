@@ -12,6 +12,8 @@ $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path $PSScriptRoot -Parent
 if (-not $FixturesDir) { $FixturesDir = Join-Path $RepoRoot 'specs/gloamsteadforge/fixtures/bad' }
 $Head = (git -C $RepoRoot rev-parse HEAD 2>$null); if ($Head) { $Head = $Head.Trim() }
+# Fakes that claim a real matrix slot are bound to that scenario's authority (quiet / objective-bearing).
+$ScenarioMap = Get-GFScenarioMap -MatrixPath (Join-Path $RepoRoot 'specs/gloamsteadforge/scenario_matrix.json')
 
 # fixture basename -> expected rejection { code, kind }
 $expect = @{
@@ -29,6 +31,10 @@ $expect = @{
     'saveload_not_roundtrip'       = @{ code = 'GF061'; kind = 'semantic'  }
     'dawn_outcome_mismatch'        = @{ code = 'GF057'; kind = 'semantic'  }
     'stale_commit'                 = @{ code = 'GF065'; kind = 'integrity' }
+    # Matrix-slot fakes: claim a real scenario_id but violate its declared shape (self-declared quiet /
+    # objective_kind:None to try to skip substantiation). Caught only because authority = the matrix.
+    'matrix_objective_none_success' = @{ code = 'GF043'; kind = 'semantic' }
+    'matrix_fake_quiet'             = @{ code = 'GF072'; kind = 'semantic' }
 }
 
 $files = @(Get-ChildItem -LiteralPath $FixturesDir -Filter *.json -File)
@@ -38,8 +44,9 @@ $fail = 0
 foreach ($f in $files) {
     $name = [System.IO.Path]::GetFileNameWithoutExtension($f.Name)
     $r = Get-GFReport -Path $f.FullName
+    $sc = $ScenarioMap[$r.scenario_id]   # non-null only for fakes that claim a real matrix slot
 
-    $codes = @(Get-GFCodes -R $r)
+    $codes = @(Get-GFCodes -R $r -Scenario $sc)
     $intCodes = @(Get-GFIntegrityCodes -R $r -ExpectedCommit $Head)
 
     $exp = $expect[$name]

@@ -14,9 +14,12 @@ $RepoRoot = Split-Path $PSScriptRoot -Parent
 if (-not $Base) { $Base = Join-Path $RepoRoot 'specs/gloamsteadforge/fixtures/good/corruption_success.json' }
 
 $baseJson = Get-Content -Raw -LiteralPath $Base
-# Sanity: the base must itself be valid, else the fuzz proves nothing.
+# Bind the base to its matrix scenario (authority for quiet / objective-bearing).
+$ScenarioMap = Get-GFScenarioMap -MatrixPath (Join-Path $RepoRoot 'specs/gloamsteadforge/scenario_matrix.json')
 $baseObj = $baseJson | ConvertFrom-Json
-$baseCodes = @(Get-GFCodes -R $baseObj)
+$Scenario = $ScenarioMap[$baseObj.scenario_id]
+# Sanity: the base must itself be valid, else the fuzz proves nothing.
+$baseCodes = @(Get-GFCodes -R $baseObj -Scenario $Scenario)
 if ($baseCodes.Count -ne 0) {
     Write-Host "FUZZ: base fixture is not valid ($($baseCodes -join ',')) — aborting" -ForegroundColor Red
     exit 1
@@ -35,7 +38,9 @@ $mutations = @(
     { param($c) $c.dawn_reflection.consumed_outcome = $false },
     { param($c) $c.dawn_reflection.outcome_result = 'Failure' },
     { param($c) $c.sanctuary_state.mutated = $false },
-    { param($c) $c.sanctuary_state.target_corruption_after = $c.sanctuary_state.target_corruption_before }
+    { param($c) $c.sanctuary_state.target_corruption_after = $c.sanctuary_state.target_corruption_before },
+    { param($c) $c.night_loop.objective_kind = 'None' },   # escape attempt: self-declare no objective
+    { param($c) $c.quiet = $true }                         # escape attempt: self-declare quiet
 )
 
 $leaks = 0
@@ -43,7 +48,7 @@ for ($i = 0; $i -lt $Cases; $i++) {
     $clone = $baseJson | ConvertFrom-Json
     $m = $mutations[(Get-Random -Minimum 0 -Maximum $mutations.Count)]
     & $m $clone
-    $codes = @(Get-GFCodes -R $clone)
+    $codes = @(Get-GFCodes -R $clone -Scenario $Scenario)
     if ($codes.Count -eq 0) { $leaks++; Write-Host "  LEAK: mutation $i accepted a fake report" -ForegroundColor Red }
 }
 

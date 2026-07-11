@@ -31,15 +31,28 @@ so stale evidence is detectable. **Regenerate:** run `gate.ps1` (the emitter is 
 | `Test-GloamsteadForgeContracts.ps1 -Strict` | JSON-Schema structure | 6/6 live + 3/3 good fixtures pass |
 | `Validate-GloamsteadForgeRuntime.ps1 -Strict` | Fail-closed semantics (success substantiated) | 6/6 live pass |
 | `Test-GloamsteadForgeReportIntegrity.ps1 -Strict` | `git_commit`==HEAD, timestamp, matrix consistency | all live pass, matrix consistent |
-| `Test-GloamsteadForgeNegatives.ps1` | Each known-bad fixture rejected by its expected code | 14/14 rejected |
+| `Test-GloamsteadForgeNegatives.ps1` | Each known-bad fixture rejected by its expected code | 16/16 rejected |
 | `Test-GloamsteadForgeFuzz.ps1 -Cases 300 -Strict` | Mutated good report always rejected | 300/300 rejected |
 
-Shared rule engine: `scripts/GloamsteadForge.Common.ps1` (`Get-GFCodes`, `Get-GFIntegrityCodes`).
+Shared rule engine: `scripts/GloamsteadForge.Common.ps1` (`Get-GFCodes`, `Get-GFIntegrityCodes`, `Get-GFScenarioMap`).
+
+### Security model (authority)
+
+A report's own `quiet` and `objective_kind` are attacker-controlled and are **not** trusted as switches
+that disable substantiation. Authority for whether a scenario is quiet / objective-bearing comes from
+`scenario_matrix.json`, bound by `scenario_id`. Absent a matrix binding, validation defaults to **strict**
+(non-quiet), so a lone report cannot self-certify a benign night to skip checks. A matrix-objective-bearing
+scenario whose report self-declares `objective_kind: None` is rejected (**GF043**); a report whose `quiet`
+contradicts the matrix is rejected (**GF072**). Intrinsic invariants also apply: a night with no objective
+applies no pressure and therefore cannot mutate the sanctuary (GF043), and a started night requires PCG
+init (GF011). This model was hardened after a hostile review demonstrated a fabricated `Success` passing an
+earlier report-gated version.
 
 ## Fixtures (`specs/gloamsteadforge/fixtures/`)
 
-`good/` (3) — valid reference reports the validators must ACCEPT. `bad/` (14) — one contract violation each,
-mapped to their expected GF code in the negatives suite; validators must REJECT them.
+`good/` (3) — valid reference reports the validators must ACCEPT. `bad/` (16) — one contract violation each,
+mapped to their expected GF code in the negatives suite; validators must REJECT them. Two of the bad
+fixtures claim a real matrix `scenario_id` to test the matrix-authority binding (GF043 / GF072).
 
 ## How to reproduce (acceptance order)
 
