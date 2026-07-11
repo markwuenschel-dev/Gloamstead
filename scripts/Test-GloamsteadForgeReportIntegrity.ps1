@@ -88,7 +88,9 @@ if (Test-Path -PathType Leaf $Matrix) {
     foreach ($s in $m.scenarios) {
         if ($seen.ContainsKey($s.scenario_id)) { $fail++; Write-Host "  FAIL matrix: duplicate scenario_id '$($s.scenario_id)' (GF071)" -ForegroundColor Red }
         $seen[$s.scenario_id] = $true
-        $rp = Join-Path $RepoRoot $s.report
+        # Resolve the scenario's report under $ReportsDir (by filename) so the matrix-consistency loop and
+        # the provenance loop always read the SAME directory, even when a caller overrides -ReportsDir.
+        $rp = Join-Path $ReportsDir (Split-Path $s.report -Leaf)
         if (-not (Test-Path -PathType Leaf $rp)) {
             $fail++; Write-Host "  FAIL matrix: '$($s.scenario_id)' report missing $($s.report) (GF068)" -ForegroundColor Red
             continue

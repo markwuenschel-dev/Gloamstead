@@ -17,7 +17,7 @@
 
 namespace
 {
-	TArray<FRitualPointState> MakeStates(const TArray<float>& Corruptions, float Light, bool bRestored)
+	TArray<FRitualPointState> GFEmitMakeStates(const TArray<float>& Corruptions, float Light, bool bRestored)
 	{
 		TArray<FRitualPointState> States;
 		for (float C : Corruptions)
@@ -58,7 +58,7 @@ namespace
 		}
 	}
 
-	FNightRuntimeContext MakeContext(ENightConsequenceType Type, UGloamsteadPCGSubsystem* PCG)
+	FNightRuntimeContext GFEmitMakeContext(ENightConsequenceType Type, UGloamsteadPCGSubsystem* PCG)
 	{
 		FNightRuntimeContext Ctx;
 		Ctx.NightType = Type;
@@ -120,10 +120,10 @@ bool FGloamForgeEmitEvidenceTest::RunTest(const FString& /*Parameters*/)
 	// --- corruption_success: cleanse the bloom -> Success ---
 	{
 		UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
-		PCG->Test_SeedPointStates(MakeStates({ 0.8f, 0.1f, 0.1f, 0.1f }, 0.3f, false));
+		PCG->Test_SeedPointStates(GFEmitMakeStates({ 0.8f, 0.1f, 0.1f, 0.1f }, 0.3f, false));
 		const float AvgBefore = PCG->GetSanctuaryAverageCorruptionLevel();
 		UNightCorruptionStrategy* S = NewObject<UNightCorruptionStrategy>();
-		const FNightRuntimeContext Ctx = MakeContext(ENightConsequenceType::Corruption, PCG);
+		const FNightRuntimeContext Ctx = GFEmitMakeContext(ENightConsequenceType::Corruption, PCG);
 		S->EnterNight(Ctx, PCG);
 		S->ApplyPressureStep(PCG);
 		FRestorationEventPayload Cleanse; Cleanse.PointIndex = Ctx.TargetPointIndex; Cleanse.CorruptionCleared = 1.0f;
@@ -143,10 +143,10 @@ bool FGloamForgeEmitEvidenceTest::RunTest(const FString& /*Parameters*/)
 	// --- corruption_partial: reduce but not clear -> Partial ---
 	{
 		UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
-		PCG->Test_SeedPointStates(MakeStates({ 0.6f, 0.1f }, 0.3f, false));
+		PCG->Test_SeedPointStates(GFEmitMakeStates({ 0.6f, 0.1f }, 0.3f, false));
 		const float AvgBefore = PCG->GetSanctuaryAverageCorruptionLevel();
 		UNightCorruptionStrategy* S = NewObject<UNightCorruptionStrategy>();
-		const FNightRuntimeContext Ctx = MakeContext(ENightConsequenceType::Corruption, PCG);
+		const FNightRuntimeContext Ctx = GFEmitMakeContext(ENightConsequenceType::Corruption, PCG);
 		S->EnterNight(Ctx, PCG);
 		// A real but incomplete restoration: reduces the bloom below its start yet above the cleanse threshold.
 		FRestorationEventPayload PartialCleanse; PartialCleanse.PointIndex = Ctx.TargetPointIndex; PartialCleanse.CorruptionCleared = 0.25f;
@@ -164,10 +164,10 @@ bool FGloamForgeEmitEvidenceTest::RunTest(const FString& /*Parameters*/)
 	// --- corruption_failure: untouched -> Failure ---
 	{
 		UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
-		PCG->Test_SeedPointStates(MakeStates({ 0.5f, 0.2f, 0.2f }, 0.2f, false));
+		PCG->Test_SeedPointStates(GFEmitMakeStates({ 0.5f, 0.2f, 0.2f }, 0.2f, false));
 		const float AvgBefore = PCG->GetSanctuaryAverageCorruptionLevel();
 		UNightCorruptionStrategy* S = NewObject<UNightCorruptionStrategy>();
-		const FNightRuntimeContext Ctx = MakeContext(ENightConsequenceType::Corruption, PCG);
+		const FNightRuntimeContext Ctx = GFEmitMakeContext(ENightConsequenceType::Corruption, PCG);
 		S->EnterNight(Ctx, PCG);
 		S->ApplyPressureStep(PCG);
 		S->ApplyPressureStep(PCG);
@@ -183,10 +183,10 @@ bool FGloamForgeEmitEvidenceTest::RunTest(const FString& /*Parameters*/)
 	// --- tutorial_success ---
 	{
 		UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
-		PCG->Test_SeedPointStates(MakeStates({ 0.3f, 0.3f, 0.3f }, 0.4f, false));
+		PCG->Test_SeedPointStates(GFEmitMakeStates({ 0.3f, 0.3f, 0.3f }, 0.4f, false));
 		const float AvgBefore = PCG->GetSanctuaryAverageCorruptionLevel();
 		UNightTutorialStrategy* S = NewObject<UNightTutorialStrategy>();
-		const FNightRuntimeContext Ctx = MakeContext(ENightConsequenceType::Tutorial, PCG);
+		const FNightRuntimeContext Ctx = GFEmitMakeContext(ENightConsequenceType::Tutorial, PCG);
 		S->EnterNight(Ctx, PCG);
 		S->ApplyPressureStep(PCG);
 		const FNightRuntimeOutcome Outcome = S->ResolveNight(PCG);
@@ -201,10 +201,10 @@ bool FGloamForgeEmitEvidenceTest::RunTest(const FString& /*Parameters*/)
 	// --- quiet_fallback: no bloom -> benign quiet night ---
 	{
 		UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
-		PCG->Test_SeedPointStates(MakeStates({ 0.4f, 0.4f }, 0.6f, /*bRestored*/ true)); // all restored -> no unrestored bloom
+		PCG->Test_SeedPointStates(GFEmitMakeStates({ 0.4f, 0.4f }, 0.6f, /*bRestored*/ true)); // all restored -> no unrestored bloom
 		const float AvgBefore = PCG->GetSanctuaryAverageCorruptionLevel();
 		UNightCorruptionStrategy* S = NewObject<UNightCorruptionStrategy>();
-		const FNightRuntimeContext Ctx = MakeContext(ENightConsequenceType::Corruption, PCG);
+		const FNightRuntimeContext Ctx = GFEmitMakeContext(ENightConsequenceType::Corruption, PCG);
 		S->EnterNight(Ctx, PCG);
 		S->ApplyPressureStep(PCG);
 		const FNightRuntimeOutcome Outcome = S->ResolveNight(PCG);
@@ -222,10 +222,10 @@ bool FGloamForgeEmitEvidenceTest::RunTest(const FString& /*Parameters*/)
 	{
 		const FString Slot = TEXT("W3_ForgeContinuity");
 		UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
-		PCG->Test_SeedPointStates(MakeStates({ 0.5f, 0.2f, 0.1f }, 0.2f, false));
+		PCG->Test_SeedPointStates(GFEmitMakeStates({ 0.5f, 0.2f, 0.1f }, 0.2f, false));
 		const float AvgBefore = PCG->GetSanctuaryAverageCorruptionLevel();
 		UNightCorruptionStrategy* S = NewObject<UNightCorruptionStrategy>();
-		const FNightRuntimeContext Ctx = MakeContext(ENightConsequenceType::Corruption, PCG);
+		const FNightRuntimeContext Ctx = GFEmitMakeContext(ENightConsequenceType::Corruption, PCG);
 		S->EnterNight(Ctx, PCG);
 		S->ApplyPressureStep(PCG);
 		S->ApplyPressureStep(PCG);
@@ -233,7 +233,7 @@ bool FGloamForgeEmitEvidenceTest::RunTest(const FString& /*Parameters*/)
 
 		const float PostNight = PCG->GetSanctuaryAverageCorruptionLevel();
 		const bool bSaved = PCG->SaveToSlot(Slot);
-		PCG->Test_SeedPointStates(MakeStates({ 0.f, 0.f, 0.f }, 0.f, false));
+		PCG->Test_SeedPointStates(GFEmitMakeStates({ 0.f, 0.f, 0.f }, 0.f, false));
 		const bool bLoaded = PCG->LoadFromSlot(Slot);
 		const bool bRoundtrip = bSaved && bLoaded &&
 			FMath::IsNearlyEqual(PCG->GetSanctuaryAverageCorruptionLevel(), PostNight, KINDA_SMALL_NUMBER);
