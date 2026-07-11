@@ -40,7 +40,7 @@ The game may have some open exploration, but should not begin as a large open-wo
 
 Any removed system must justify itself by strengthening the core sentence:
 
-> I understood the warning. I restored the right place. I built the right thing. I survived because I learned the world.
+> I understood the warning. I restored the right place. I built or altered the right thing. I survived because I learned the world.
 
 If it does not strengthen that sentence, it probably belongs outside the game.
 

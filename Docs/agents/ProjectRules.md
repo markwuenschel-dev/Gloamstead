@@ -12,7 +12,7 @@ The player protects and interprets the Heart, a mysterious growing source of lig
 
 ## Design North Star
 
-> I understood the warning. I restored the right place. I built the right thing. I survived because I learned the world.
+> I understood the warning. I restored the right place. I built or altered the right thing. I survived because I learned the world.
 
 Agents should preserve this fantasy in every system decision.
 

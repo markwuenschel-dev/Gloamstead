@@ -39,7 +39,7 @@ The player explores a ruined place, receives cryptic warnings from the Heart (pr
 
 The most satisfying outcome is not "I killed everything." It is:
 
-> I understood the warning. I restored the right place. I built the right thing. I survived because I learned the world.
+> I understood the warning. I restored the right place. I built or altered the right thing. I survived because I learned the world.
 
 ## Art Direction Baseline
 

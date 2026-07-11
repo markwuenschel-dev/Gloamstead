@@ -80,7 +80,7 @@ Gloamstead's difference:
 
 A feature belongs if it strengthens this sentence:
 
-> I understood the warning. I restored the right place. I built the right thing. I survived because I learned the world.
+> I understood the warning. I restored the right place. I built or altered the right thing. I survived because I learned the world.
 
 A feature is suspect if it primarily adds:
 
@@ -110,4 +110,4 @@ This differentiates Gloamstead from crowded neighboring aesthetics:
 
 Visual design should strengthen the core sentence:
 
-> I understood the warning. I restored the right place. I built the right thing. I survived because I learned the world.
+> I understood the warning. I restored the right place. I built or altered the right thing. I survived because I learned the world.
