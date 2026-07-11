@@ -31,6 +31,16 @@ namespace
 		return States;
 	}
 
+	// One restored target (index 0) plus unrestored neighbors — the shape a Retrieval night reacts to.
+	TArray<FRitualPointState> GFEmitMakeRetrievalStates(float TargetCorruption, float TargetLight)
+	{
+		TArray<FRitualPointState> States;
+		FRitualPointState T; T.bIsRestored = true;  T.LightLevel = TargetLight; T.CorruptionLevel = TargetCorruption; States.Add(T);
+		FRitualPointState A; A.bIsRestored = false; A.LightLevel = 0.2f;         A.CorruptionLevel = 0.3f;             States.Add(A);
+		FRitualPointState B; B.bIsRestored = false; B.LightLevel = 0.2f;         B.CorruptionLevel = 0.2f;             States.Add(B);
+		return States;
+	}
+
 	FString NightTypeToken(ENightConsequenceType T)
 	{
 		switch (T)
@@ -54,6 +64,8 @@ namespace
 		{
 		case ENightObjectiveKind::CleanseCorruptionBloom: return TEXT("CleanseCorruptionBloom");
 		case ENightObjectiveKind::TutorialTeach:          return TEXT("TutorialTeach");
+		case ENightObjectiveKind::HeedOmen:               return TEXT("HeedOmen");
+		case ENightObjectiveKind::HoldRestored:           return TEXT("HoldRestored");
 		default:                                          return TEXT("None");
 		}
 	}
@@ -247,7 +259,191 @@ bool FGloamForgeEmitEvidenceTest::RunTest(const FString& /*Parameters*/)
 		if (GloamsteadForgeEvidence::WriteReport(R, Dir, OutPath)) { ++Emitted; EmittedIds.Add(R.ScenarioId); }
 	}
 
-	TestEqual(TEXT("all six scenario reports emitted"), Emitted, 6);
+	// ===== Night Types II: Omen =====
+
+	// --- omen_success: player heeds the marked point -> Success ---
+	{
+		UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
+		PCG->Test_SeedPointStates(GFEmitMakeStates({ 0.7f, 0.1f, 0.1f }, 0.3f, false));
+		const float AvgBefore = PCG->GetSanctuaryAverageCorruptionLevel();
+		UNightOmenStrategy* S = NewObject<UNightOmenStrategy>();
+		const FNightRuntimeContext Ctx = GFEmitMakeContext(ENightConsequenceType::Omen, PCG);
+		S->EnterNight(Ctx, PCG);
+		S->ApplyPressureStep(PCG);
+		FRestorationEventPayload Heed; Heed.PointIndex = Ctx.TargetPointIndex; Heed.CorruptionCleared = 1.0f;
+		PCG->ApplyRestoration(Ctx.TargetPointIndex, Heed);
+		S->NotifyRestoration(Heed, PCG);
+		const FNightRuntimeOutcome Outcome = S->ResolveNight(PCG);
+
+		FGloamsteadForgeReport R; R.ScenarioId = TEXT("omen_success");
+		R.Restoration = { true, true, Ctx.TargetPointIndex };
+		FillFromRun(R, PCG, S, Ctx, AvgBefore, Outcome);
+		TestTrue(TEXT("omen_success is Success"), R.NightLoop.OutcomeResult == TEXT("Success"));
+		TestTrue(TEXT("omen_success heeded tag"), R.NightLoop.ResultTag == TEXT("OmenHeeded"));
+		TestTrue(TEXT("omen_success reduced the marked point"), R.Sanctuary.TargetCorruptionAfter < R.Sanctuary.TargetCorruptionBefore);
+		if (GloamsteadForgeEvidence::WriteReport(R, Dir, OutPath)) { ++Emitted; EmittedIds.Add(R.ScenarioId); }
+	}
+
+	// --- omen_partial: player acts off-target -> Partial ---
+	{
+		UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
+		PCG->Test_SeedPointStates(GFEmitMakeStates({ 0.7f, 0.2f }, 0.3f, false));
+		const float AvgBefore = PCG->GetSanctuaryAverageCorruptionLevel();
+		UNightOmenStrategy* S = NewObject<UNightOmenStrategy>();
+		const FNightRuntimeContext Ctx = GFEmitMakeContext(ENightConsequenceType::Omen, PCG);
+		S->EnterNight(Ctx, PCG);
+		S->ApplyPressureStep(PCG);
+		// A real restoration, but on a DIFFERENT point than the omen marked.
+		const int32 OffTarget = (Ctx.TargetPointIndex == 0) ? 1 : 0;
+		FRestorationEventPayload Elsewhere; Elsewhere.PointIndex = OffTarget; Elsewhere.CorruptionCleared = 1.0f;
+		PCG->ApplyRestoration(OffTarget, Elsewhere);
+		S->NotifyRestoration(Elsewhere, PCG);
+		const FNightRuntimeOutcome Outcome = S->ResolveNight(PCG);
+
+		FGloamsteadForgeReport R; R.ScenarioId = TEXT("omen_partial");
+		R.Restoration = { true, true, OffTarget };
+		FillFromRun(R, PCG, S, Ctx, AvgBefore, Outcome);
+		TestTrue(TEXT("omen_partial is Partial"), R.NightLoop.OutcomeResult == TEXT("Partial"));
+		TestTrue(TEXT("omen_partial clouded tag"), R.NightLoop.ResultTag == TEXT("OmenClouded"));
+		if (GloamsteadForgeEvidence::WriteReport(R, Dir, OutPath)) { ++Emitted; EmittedIds.Add(R.ScenarioId); }
+	}
+
+	// --- omen_failure: ignored -> Failure, corruption seed ---
+	{
+		UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
+		PCG->Test_SeedPointStates(GFEmitMakeStates({ 0.5f, 0.2f }, 0.2f, false));
+		const float AvgBefore = PCG->GetSanctuaryAverageCorruptionLevel();
+		UNightOmenStrategy* S = NewObject<UNightOmenStrategy>();
+		const FNightRuntimeContext Ctx = GFEmitMakeContext(ENightConsequenceType::Omen, PCG);
+		S->EnterNight(Ctx, PCG);
+		S->ApplyPressureStep(PCG);
+		S->ApplyPressureStep(PCG);
+		const FNightRuntimeOutcome Outcome = S->ResolveNight(PCG);
+
+		FGloamsteadForgeReport R; R.ScenarioId = TEXT("omen_failure");
+		R.Restoration = { false, false, -1 };
+		FillFromRun(R, PCG, S, Ctx, AvgBefore, Outcome);
+		TestTrue(TEXT("omen_failure is Failure"), R.NightLoop.OutcomeResult == TEXT("Failure"));
+		TestTrue(TEXT("omen_failure ignored tag"), R.NightLoop.ResultTag == TEXT("OmenIgnored"));
+		TestTrue(TEXT("omen_failure left a seed"), R.Sanctuary.TargetCorruptionAfter > R.Sanctuary.TargetCorruptionBefore);
+		if (GloamsteadForgeEvidence::WriteReport(R, Dir, OutPath)) { ++Emitted; EmittedIds.Add(R.ScenarioId); }
+	}
+
+	// ===== Night Types II: Retrieval =====
+	// The night's target is a RESTORED point, not the context's most-corrupted point; re-point the report's
+	// target fields at the retrieval target so before/after describe the same point.
+
+	// --- retrieval_success: player re-stabilizes the reclaimed point -> Success ---
+	{
+		UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
+		PCG->Test_SeedPointStates(GFEmitMakeRetrievalStates(0.1f, 0.6f));
+		const float AvgBefore = PCG->GetSanctuaryAverageCorruptionLevel();
+		UNightRetrievalStrategy* S = NewObject<UNightRetrievalStrategy>();
+		FNightRuntimeContext Ctx = GFEmitMakeContext(ENightConsequenceType::Retrieval, PCG);
+		S->EnterNight(Ctx, PCG);
+		const int32 Target = S->GetObjective().TargetPointIndex;
+		const bool bWasRestored = (Target >= 0) && PCG->IsPointRestored(Target);
+		Ctx.TargetPointIndex = Target;
+		Ctx.TargetStartCorruption = S->GetObjective().StartCorruption;
+		S->ApplyPressureStep(PCG);
+		FRestorationEventPayload Defend; Defend.PointIndex = Target; Defend.CorruptionCleared = 1.0f;
+		PCG->ApplyRestoration(Target, Defend);
+		S->NotifyRestoration(Defend, PCG);
+		const FNightRuntimeOutcome Outcome = S->ResolveNight(PCG);
+
+		FGloamsteadForgeReport R; R.ScenarioId = TEXT("retrieval_success");
+		R.Restoration = { true, true, Target };
+		FillFromRun(R, PCG, S, Ctx, AvgBefore, Outcome);
+		R.NightLoop.bTargetWasRestored = bWasRestored;
+		TestTrue(TEXT("retrieval_success is Success"), R.NightLoop.OutcomeResult == TEXT("Success"));
+		TestTrue(TEXT("retrieval_success repelled tag"), R.NightLoop.ResultTag == TEXT("RetrievalRepelled"));
+		TestTrue(TEXT("retrieval_success target was restored"), R.NightLoop.bTargetWasRestored);
+		TestTrue(TEXT("retrieval_success stabilized the point"), R.Sanctuary.TargetCorruptionAfter < R.Sanctuary.TargetCorruptionBefore);
+		if (GloamsteadForgeEvidence::WriteReport(R, Dir, OutPath)) { ++Emitted; EmittedIds.Add(R.ScenarioId); }
+	}
+
+	// --- retrieval_partial: intervened but scarred -> Partial ---
+	{
+		UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
+		PCG->Test_SeedPointStates(GFEmitMakeRetrievalStates(0.1f, 0.6f));
+		const float AvgBefore = PCG->GetSanctuaryAverageCorruptionLevel();
+		UNightRetrievalStrategy* S = NewObject<UNightRetrievalStrategy>();
+		FNightRuntimeContext Ctx = GFEmitMakeContext(ENightConsequenceType::Retrieval, PCG);
+		S->EnterNight(Ctx, PCG);
+		const int32 Target = S->GetObjective().TargetPointIndex;
+		const bool bWasRestored = (Target >= 0) && PCG->IsPointRestored(Target);
+		Ctx.TargetPointIndex = Target;
+		Ctx.TargetStartCorruption = S->GetObjective().StartCorruption;
+		S->ApplyPressureStep(PCG);
+		S->ApplyPressureStep(PCG);
+		FRestorationEventPayload Partial; Partial.PointIndex = Target; Partial.CorruptionCleared = 0.15f;
+		PCG->ApplyRestoration(Target, Partial);
+		S->NotifyRestoration(Partial, PCG);
+		const FNightRuntimeOutcome Outcome = S->ResolveNight(PCG);
+
+		FGloamsteadForgeReport R; R.ScenarioId = TEXT("retrieval_partial");
+		R.Restoration = { true, true, Target };
+		FillFromRun(R, PCG, S, Ctx, AvgBefore, Outcome);
+		R.NightLoop.bTargetWasRestored = bWasRestored;
+		TestTrue(TEXT("retrieval_partial is Partial"), R.NightLoop.OutcomeResult == TEXT("Partial"));
+		TestTrue(TEXT("retrieval_partial seam tag"), R.NightLoop.ResultTag == TEXT("RetrievalSeam"));
+		TestTrue(TEXT("retrieval_partial still restored"), PCG->IsPointRestored(Target));
+		if (GloamsteadForgeEvidence::WriteReport(R, Dir, OutPath)) { ++Emitted; EmittedIds.Add(R.ScenarioId); }
+	}
+
+	// --- retrieval_failure: no intervention -> Failure, point reclaimed ---
+	{
+		UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
+		PCG->Test_SeedPointStates(GFEmitMakeRetrievalStates(0.1f, 0.6f));
+		const float AvgBefore = PCG->GetSanctuaryAverageCorruptionLevel();
+		UNightRetrievalStrategy* S = NewObject<UNightRetrievalStrategy>();
+		FNightRuntimeContext Ctx = GFEmitMakeContext(ENightConsequenceType::Retrieval, PCG);
+		S->EnterNight(Ctx, PCG);
+		const int32 Target = S->GetObjective().TargetPointIndex;
+		const bool bWasRestored = (Target >= 0) && PCG->IsPointRestored(Target);
+		Ctx.TargetPointIndex = Target;
+		Ctx.TargetStartCorruption = S->GetObjective().StartCorruption;
+		S->ApplyPressureStep(PCG);
+		S->ApplyPressureStep(PCG);
+		S->ApplyPressureStep(PCG);
+		const FNightRuntimeOutcome Outcome = S->ResolveNight(PCG);
+
+		FGloamsteadForgeReport R; R.ScenarioId = TEXT("retrieval_failure");
+		R.Restoration = { false, false, -1 };
+		FillFromRun(R, PCG, S, Ctx, AvgBefore, Outcome);
+		R.NightLoop.bTargetWasRestored = bWasRestored;
+		TestTrue(TEXT("retrieval_failure is Failure"), R.NightLoop.OutcomeResult == TEXT("Failure"));
+		TestTrue(TEXT("retrieval_failure reclaimed tag"), R.NightLoop.ResultTag == TEXT("RetrievalReclaimed"));
+		TestTrue(TEXT("retrieval_failure target was restored at dusk"), R.NightLoop.bTargetWasRestored);
+		TestFalse(TEXT("retrieval_failure point reclaimed"), PCG->IsPointRestored(Target));
+		TestTrue(TEXT("retrieval_failure worsened the point"), R.Sanctuary.TargetCorruptionAfter > R.Sanctuary.TargetCorruptionBefore);
+		if (GloamsteadForgeEvidence::WriteReport(R, Dir, OutPath)) { ++Emitted; EmittedIds.Add(R.ScenarioId); }
+	}
+
+	// --- retrieval_nofallback: nothing restored -> honest quiet no-target fallback ---
+	{
+		UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
+		PCG->Test_SeedPointStates(GFEmitMakeStates({ 0.3f, 0.3f }, 0.2f, /*bRestored*/ false));
+		const float AvgBefore = PCG->GetSanctuaryAverageCorruptionLevel();
+		UNightRetrievalStrategy* S = NewObject<UNightRetrievalStrategy>();
+		FNightRuntimeContext Ctx = GFEmitMakeContext(ENightConsequenceType::Retrieval, PCG);
+		S->EnterNight(Ctx, PCG);
+		Ctx.TargetPointIndex = -1;      // no retrieval target exists
+		Ctx.TargetStartCorruption = 0.f;
+		S->ApplyPressureStep(PCG);      // fallback applies no pressure
+		const FNightRuntimeOutcome Outcome = S->ResolveNight(PCG);
+
+		FGloamsteadForgeReport R; R.ScenarioId = TEXT("retrieval_nofallback");
+		R.bQuiet = true;
+		R.Restoration = { false, false, -1 };
+		FillFromRun(R, PCG, S, Ctx, AvgBefore, Outcome);
+		TestTrue(TEXT("retrieval_nofallback is Success"), R.NightLoop.OutcomeResult == TEXT("Success"));
+		TestTrue(TEXT("retrieval_nofallback objective is None"), R.NightLoop.ObjectiveKind == TEXT("None"));
+		TestTrue(TEXT("retrieval_nofallback fallback tag"), R.NightLoop.ResultTag == TEXT("RetrievalNoTarget"));
+		if (GloamsteadForgeEvidence::WriteReport(R, Dir, OutPath)) { ++Emitted; EmittedIds.Add(R.ScenarioId); }
+	}
+
+	TestEqual(TEXT("all thirteen scenario reports emitted"), Emitted, 13);
 
 	// Write the run manifest (nonce + git + scenario set) that the integrity validator binds against.
 	FString ManifestPath;

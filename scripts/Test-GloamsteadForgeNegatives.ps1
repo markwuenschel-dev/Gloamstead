@@ -36,6 +36,22 @@ $expect = @{
     'matrix_objective_none_success' = @{ code = 'GF043'; kind = 'semantic' }
     'matrix_fake_quiet'             = @{ code = 'GF072'; kind = 'semantic' }
     'cleanse_wrong_night_type'      = @{ code = 'GF043'; kind = 'semantic' }
+    # Night Types II — Omen fakes
+    'omen_success_no_action'        = @{ code = 'GF082'; kind = 'semantic' }
+    'omen_success_no_reduction'     = @{ code = 'GF083'; kind = 'semantic' }
+    'omen_failure_no_seed'          = @{ code = 'GF084'; kind = 'semantic' }
+    'omen_wrong_tag'                = @{ code = 'GF085'; kind = 'semantic' }
+    'omen_wrong_night'              = @{ code = 'GF081'; kind = 'semantic' }
+    # Night Types II — Retrieval fakes
+    'retrieval_fake_success'            = @{ code = 'GF091'; kind = 'semantic' }
+    'retrieval_success_no_intervention' = @{ code = 'GF092'; kind = 'semantic' }
+    'retrieval_success_no_reduction'    = @{ code = 'GF093'; kind = 'semantic' }
+    'retrieval_reclaim_no_worse'        = @{ code = 'GF094'; kind = 'semantic' }
+    'retrieval_wrong_tag'               = @{ code = 'GF095'; kind = 'semantic' }
+    'retrieval_wrong_night'             = @{ code = 'GF090'; kind = 'semantic' }
+    # Hostile-critic hardening: night-type substitution into a slot, and an unearned Partial "seam".
+    'retrieval_slot_night_mismatch'     = @{ code = 'GF043'; kind = 'semantic' }
+    'retrieval_partial_no_intervention' = @{ code = 'GF092'; kind = 'semantic' }
 }
 
 $files = @(Get-ChildItem -LiteralPath $FixturesDir -Filter *.json -File)

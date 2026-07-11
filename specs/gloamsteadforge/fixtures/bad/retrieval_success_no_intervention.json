@@ -1,0 +1,16 @@
+{
+  "schema": "GloamsteadForgeRuntimeReport/v1",
+  "scenario_id": "retrieval_success",
+  "generated_at_utc": "2026-07-11T18:00:00Z",
+  "git_commit": "fixturefixturefixturefixturefixtureb107",
+  "git_branch": "fixtures",
+  "engine": "UE5.8",
+  "quiet": false, "continuity": false, "human_playtest": false,
+  "pcg_init": { "initialized": true, "point_count": 3 },
+  "restoration": { "attempted": false, "applied": false, "point_index": -1 },
+  "night_loop": { "started": true, "night_type": "Retrieval", "objective_kind": "HoldRestored", "target_point_index": 0, "objective_resolved": true, "ended_intentionally": true, "outcome_result": "Success", "result_tag": "RetrievalRepelled", "target_was_restored": true },
+  "sanctuary_state": { "avg_corruption_before": 0.2, "avg_corruption_after": 0.1667, "target_corruption_before": 0.1, "target_corruption_after": 0.0, "mutated": true },
+  "dawn_reflection": { "consumed_outcome": true, "outcome_result": "Success" },
+  "save_load": { "checked": false, "roundtrip_ok": false },
+  "failure_codes": []
+}

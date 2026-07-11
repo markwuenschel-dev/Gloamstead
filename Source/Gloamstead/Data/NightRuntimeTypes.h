@@ -20,6 +20,10 @@ enum class ENightObjectiveKind : uint8
 	CleanseCorruptionBloom  = 1,
 	/** Bounded, always-winnable teaching beat. */
 	TutorialTeach           = 2,
+	/** Heed an omen: interpret the sign and restore the marked vulnerable point before dawn (Night Types II). */
+	HeedOmen                = 3,
+	/** Hold a restored point the night is trying to reclaim; re-stabilize it before dawn (Night Types II). */
+	HoldRestored            = 4,
 };
 
 /** How the night resolved, in ascending severity of failure. */

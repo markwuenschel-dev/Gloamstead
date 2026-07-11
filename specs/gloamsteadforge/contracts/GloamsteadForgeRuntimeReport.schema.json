@@ -46,12 +46,13 @@
       "properties": {
         "started": { "type": "boolean" },
         "night_type": { "type": "string", "enum": ["Invalid", "Tutorial", "Corruption", "Omen", "Retrieval", "SilencePossession", "Mirror", "Bargain", "Fracture", "TrueSiege"] },
-        "objective_kind": { "type": "string", "enum": ["None", "CleanseCorruptionBloom", "TutorialTeach"] },
+        "objective_kind": { "type": "string", "enum": ["None", "CleanseCorruptionBloom", "TutorialTeach", "HeedOmen", "HoldRestored"] },
         "target_point_index": { "type": "integer", "minimum": -1 },
         "objective_resolved": { "type": "boolean" },
         "ended_intentionally": { "type": "boolean" },
         "outcome_result": { "type": "string", "enum": ["None", "Success", "Partial", "Failure"] },
-        "result_tag": { "type": "string" }
+        "result_tag": { "type": "string" },
+        "target_was_restored": { "type": "boolean", "description": "Retrieval substantiation: the night's target was a genuinely restored point at dusk. Optional; absent on hand-authored fixtures for other night types." }
       }
     },
     "sanctuary_state": {
