@@ -354,6 +354,47 @@ int32 UGloamsteadPCGSubsystem::FindMostCorruptedPointIndex(bool bOnlyUnrestored)
     return BestIndex;
 }
 
+int32 UGloamsteadPCGSubsystem::FindRestoredPointIndex(bool bMostLit) const
+{
+    int32 BestIndex = -1;
+    float BestLight = -1.f;
+    for (int32 Index = 0; Index < PointStates.Num(); ++Index)
+    {
+        const FRitualPointState& State = PointStates[Index];
+        if (!State.bIsRestored)
+        {
+            continue;
+        }
+        if (!bMostLit)
+        {
+            return Index; // first restored point is enough when brightness doesn't matter
+        }
+        if (State.LightLevel > BestLight)
+        {
+            BestLight = State.LightLevel;
+            BestIndex = Index;
+        }
+    }
+    return BestIndex;
+}
+
+bool UGloamsteadPCGSubsystem::RevertRestoration(int32 PointIndex)
+{
+    if (!PointStates.IsValidIndex(PointIndex))
+    {
+        return false;
+    }
+    FRitualPointState& State = PointStates[PointIndex];
+    if (!State.bIsRestored)
+    {
+        return false; // nothing to reclaim
+    }
+    State.bIsRestored = false;
+    State.LightLevel = FMath::Max(0.f, State.LightLevel * 0.5f); // the night takes back its light
+    RestoredPointIndices.Remove(PointIndex);
+    return true;
+}
+
 TSet<int32> UGloamsteadPCGSubsystem::GetRestoredPointIndices() const
 {
     return RestoredPointIndices;

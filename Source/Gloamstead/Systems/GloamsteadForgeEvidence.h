@@ -36,6 +36,8 @@ struct FGFNightLoop
 	bool bEndedIntentionally = false;
 	FString OutcomeResult = TEXT("None");
 	FString ResultTag;
+	/** Retrieval substantiation: was the night's target a genuinely restored point at dusk? (default false) */
+	bool bTargetWasRestored = false;
 };
 
 struct FGFSanctuaryState

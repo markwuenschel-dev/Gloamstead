@@ -16,6 +16,8 @@ UNightConsequenceRuntime::UNightConsequenceRuntime()
 	// drive this map without changing the loop.
 	StrategyClasses.Add(ENightConsequenceType::Tutorial, UNightTutorialStrategy::StaticClass());
 	StrategyClasses.Add(ENightConsequenceType::Corruption, UNightCorruptionStrategy::StaticClass());
+	StrategyClasses.Add(ENightConsequenceType::Omen, UNightOmenStrategy::StaticClass());
+	StrategyClasses.Add(ENightConsequenceType::Retrieval, UNightRetrievalStrategy::StaticClass());
 }
 
 void UNightConsequenceRuntime::Initialize(FSubsystemCollectionBase& Collection)
@@ -284,17 +286,29 @@ void UNightConsequenceRuntime::MaybeSpawnPressureActor(UGloamsteadPCGSubsystem* 
 		return;
 	}
 
-	// Only threat nights get a pressure presence.
-	if (ActiveNightType != ENightConsequenceType::Corruption)
+	// Only threat nights get a pressure presence (Corruption bloom, Retrieval reclaim).
+	if (ActiveNightType != ENightConsequenceType::Corruption && ActiveNightType != ENightConsequenceType::Retrieval)
 	{
 		return;
 	}
 
+	// Bind to the active strategy's chosen target when it has one (Retrieval's target is a restored point,
+	// not the context's most-corrupted point); fall back to the context target otherwise.
+	int32 BoundIndex = ActiveContext.TargetPointIndex;
+	if (ActiveStrategy)
+	{
+		const int32 ObjectiveTarget = ActiveStrategy->GetObjective().TargetPointIndex;
+		if (ObjectiveTarget >= 0)
+		{
+			BoundIndex = ObjectiveTarget;
+		}
+	}
+
 	FVector SpawnLocation = FVector::ZeroVector;
-	if (PCG && ActiveContext.TargetPointIndex >= 0)
+	if (PCG && BoundIndex >= 0)
 	{
 		FPCGPoint TargetPoint;
-		if (PCG->GetPointByIndex(ActiveContext.TargetPointIndex, TargetPoint))
+		if (PCG->GetPointByIndex(BoundIndex, TargetPoint))
 		{
 			SpawnLocation = TargetPoint.Transform.GetLocation();
 		}
@@ -311,9 +325,9 @@ void UNightConsequenceRuntime::MaybeSpawnPressureActor(UGloamsteadPCGSubsystem* 
 	ActivePressureActor = World->SpawnActor<ANightPressureActor>(SpawnClass, SpawnLocation, FRotator::ZeroRotator, SpawnParams);
 	if (ActivePressureActor)
 	{
-		ActivePressureActor->BoundPointIndex = ActiveContext.TargetPointIndex;
-		UE_LOG(LogTemp, Log, TEXT("NightRuntime: spawned pressure actor at %s (bloom %d)."),
-			*SpawnLocation.ToString(), ActiveContext.TargetPointIndex);
+		ActivePressureActor->BoundPointIndex = BoundIndex;
+		UE_LOG(LogTemp, Log, TEXT("NightRuntime: spawned pressure actor at %s (target %d)."),
+			*SpawnLocation.ToString(), BoundIndex);
 	}
 }
 

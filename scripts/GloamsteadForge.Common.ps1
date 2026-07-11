@@ -11,7 +11,7 @@
 Set-StrictMode -Version Latest
 
 $script:GFNightTypes    = @('Invalid','Tutorial','Corruption','Omen','Retrieval','SilencePossession','Mirror','Bargain','Fracture','TrueSiege')
-$script:GFObjectiveKinds = @('None','CleanseCorruptionBloom','TutorialTeach')
+$script:GFObjectiveKinds = @('None','CleanseCorruptionBloom','TutorialTeach','HeedOmen','HoldRestored')
 $script:GFOutcomes      = @('None','Success','Partial','Failure')
 
 function Get-GFReport {
@@ -57,6 +57,10 @@ function Get-GFCodes {
         if ($authObjBearing -and $nl.objective_kind -eq 'None') { $codes.Add('GF043') | Out-Null }
         if ((-not $authObjBearing) -and $nl.objective_kind -ne 'None') { $codes.Add('GF043') | Out-Null }
         if ([bool]$R.quiet -ne $authQuiet) { $codes.Add('GF072') | Out-Null }
+        # The report's night_type must match the slot the matrix bound it to. Without this, a Retrieval/Omen
+        # slot can be filled by a Corruption cleanse (a different objective_kind), skipping the whole
+        # type-specific substantiation block below — the reclaimed-point / heeded-sign proof is never run.
+        if (($Scenario.PSObject.Properties.Name -contains 'night_type') -and $Scenario.night_type -and $nl.night_type -ne $Scenario.night_type) { $codes.Add('GF043') | Out-Null }
     }
     else {
         $authQuiet      = $false                              # strict: a lone report cannot self-certify quiet
@@ -113,6 +117,48 @@ function Get-GFCodes {
     if ($isCleanse -and $nl.outcome_result -eq 'Success' -and $ss.target_corruption_after -ge $ss.target_corruption_before) { $codes.Add('GF047') | Out-Null }
     if ($isCleanse -and $nl.outcome_result -eq 'Partial' -and $ss.target_corruption_after -ge $ss.target_corruption_before) { $codes.Add('GF048') | Out-Null }
     if ($isCleanse -and $nl.outcome_result -eq 'Failure' -and $ss.target_corruption_after -lt $ss.target_corruption_before) { $codes.Add('GF049') | Out-Null }
+
+    # --- Omen substantiation (Night Types II): heeding a sign requires acting on the MARKED point ---
+    # The HeedOmen objective only exists on Omen nights; a heeded success must show a real action that drove
+    # the marked point's corruption down; an ignored failure must leave the point worse (the omen's seed).
+    $isOmen = ($nl.objective_kind -eq 'HeedOmen')
+    if ($isOmen) {
+        if ($nl.night_type -ne 'Omen') { $codes.Add('GF081') | Out-Null }
+        if ($nl.target_point_index -lt 0) { $codes.Add('GF037') | Out-Null }
+        if ($nl.outcome_result -in @('Success','Partial') -and (-not $res.applied)) { $codes.Add('GF082') | Out-Null }
+        if ($nl.outcome_result -eq 'Success' -and $ss.target_corruption_after -ge $ss.target_corruption_before) { $codes.Add('GF083') | Out-Null }
+        if ($nl.outcome_result -eq 'Failure' -and $ss.target_corruption_after -le $ss.target_corruption_before) { $codes.Add('GF084') | Out-Null }
+        if (-not $authQuiet) {
+            if ($nl.outcome_result -eq 'Success' -and $nl.result_tag -ne 'OmenHeeded')  { $codes.Add('GF085') | Out-Null }
+            if ($nl.outcome_result -eq 'Partial' -and $nl.result_tag -ne 'OmenClouded') { $codes.Add('GF085') | Out-Null }
+            if ($nl.outcome_result -eq 'Failure' -and $nl.result_tag -ne 'OmenIgnored') { $codes.Add('GF085') | Out-Null }
+        }
+    }
+
+    # --- Retrieval substantiation (Night Types II): the night reclaims a RESTORED point ---
+    # HoldRestored only exists on Retrieval nights; a non-quiet retrieval must genuinely have targeted a point
+    # restored at dusk (target_was_restored); a defended success needs a real intervention that stabilized it;
+    # a reclaim failure must leave the point worse. Result tags are pinned per outcome.
+    $isRetrieval = ($nl.objective_kind -eq 'HoldRestored')
+    if ($isRetrieval) {
+        # StrictMode-safe read of the optional substantiation field.
+        $targetWasRestored = $false
+        if ($nl.PSObject.Properties.Name -contains 'target_was_restored') { $targetWasRestored = [bool]$nl.target_was_restored }
+
+        if ($nl.night_type -ne 'Retrieval') { $codes.Add('GF090') | Out-Null }
+        if ($nl.target_point_index -lt 0) { $codes.Add('GF037') | Out-Null }
+        if ((-not $authQuiet) -and (-not $targetWasRestored)) { $codes.Add('GF091') | Out-Null }
+        # A held/scarred point requires a real intervention: Success AND Partial (a seam) must show applied.
+        if ($nl.outcome_result -in @('Success','Partial') -and (-not $res.applied)) { $codes.Add('GF092') | Out-Null }
+        if ($nl.outcome_result -eq 'Success' -and $ss.target_corruption_after -ge $ss.target_corruption_before) { $codes.Add('GF093') | Out-Null }
+        if ($nl.outcome_result -eq 'Failure' -and $ss.target_corruption_after -le $ss.target_corruption_before) { $codes.Add('GF094') | Out-Null }
+        if (-not $authQuiet) {
+            if ($nl.outcome_result -eq 'Success' -and $nl.result_tag -ne 'RetrievalRepelled')  { $codes.Add('GF095') | Out-Null }
+            if ($nl.outcome_result -eq 'Partial' -and $nl.result_tag -ne 'RetrievalSeam')       { $codes.Add('GF095') | Out-Null }
+            if ($nl.outcome_result -eq 'Failure' -and $nl.result_tag -ne 'RetrievalReclaimed')  { $codes.Add('GF095') | Out-Null }
+        }
+    }
+
     foreach ($v in @($ss.avg_corruption_before,$ss.avg_corruption_after,$ss.target_corruption_before,$ss.target_corruption_after)) {
         if (-not (Test-InRange01 ([double]$v))) { $codes.Add('GF050') | Out-Null }
     }

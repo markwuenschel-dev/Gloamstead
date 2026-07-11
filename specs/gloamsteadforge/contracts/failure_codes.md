@@ -17,6 +17,8 @@ Band allocation:
 | GF060–GF064 | Save/load continuity |
 | GF065–GF072 | Report integrity (stale / partial / matrix) |
 | GF073–GF080 | Scope / enum / cross-cutting |
+| GF081–GF089 | Night Types II — Omen substantiation |
+| GF090–GF099 | Night Types II — Retrieval substantiation |
 
 ## Structure / schema
 
@@ -56,7 +58,7 @@ Band allocation:
 - **GF040** — Corruption `Success` but `result_tag` != `CorruptionCleansed`.
 - **GF041** — Corruption `Partial` but `result_tag` != `CorruptionLingers`.
 - **GF042** — Corruption `Failure` but `result_tag` != `CorruptionScar`.
-- **GF043** — A night type declared "objective-bearing" resolves with `objective_kind` == `None`.
+- **GF043** — The report's declared shape contradicts the matrix slot it is bound to: an "objective-bearing" scenario resolves with `objective_kind` == `None` (or vice-versa), an objective appears on the wrong `night_type`, or `night_loop.night_type` != the scenario's declared `night_type` (night-type/objective substitution — filling a Retrieval/Omen slot with a different objective to skip its substantiation).
 - **GF044** — `Partial`/`Failure` claimed unreachable: the scenario matrix declares a type but never
   produces a non-Success outcome across the matrix (fake "always wins").
 
@@ -103,3 +105,24 @@ Band allocation:
 - **GF078** — Report asserts a human playtest without a corresponding human-gate record.
 - **GF079** — Required field present but null where a value is contractually required.
 - **GF080** — Any other fail-closed rejection (validator default-deny catch-all).
+
+## Night Types II — Omen substantiation
+
+The `HeedOmen` objective marks a vulnerable point; heeding the omen means acting on *that* point.
+
+- **GF081** — `objective_kind` is `HeedOmen` on a night whose `night_type` is not `Omen` (objective/night mismatch).
+- **GF082** — Omen `Success`/`Partial` with `restoration.applied` false (an omen is heeded only by acting).
+- **GF083** — Omen `Success` but `target_corruption_after` >= `target_corruption_before` (the marked point was not driven down — the sign was not truly acted on).
+- **GF084** — Omen `Failure` but `target_corruption_after` <= `target_corruption_before` (an ignored omen must fester into a corruption seed — a "failure" that left no mark is unsubstantiated).
+- **GF085** — Omen `result_tag` mismatch: `Success`→`OmenHeeded`, `Partial`→`OmenClouded`, `Failure`→`OmenIgnored`.
+
+## Night Types II — Retrieval substantiation
+
+The `HoldRestored` objective targets a point the player previously restored; the night tries to reclaim it.
+
+- **GF090** — `objective_kind` is `HoldRestored` on a night whose `night_type` is not `Retrieval` (objective/night mismatch).
+- **GF091** — Non-quiet Retrieval outcome with `night_loop.target_was_restored` false/absent (the night claims to reclaim a point that was never restored — the core Retrieval fake).
+- **GF092** — Retrieval `Success` or `Partial` with `restoration.applied` false (a point is held — or a seam earned — only by a real intervention).
+- **GF093** — Retrieval `Success` but `target_corruption_after` >= `target_corruption_before` (claimed stabilization with no reduction).
+- **GF094** — Retrieval `Failure` but `target_corruption_after` <= `target_corruption_before` (a reclaim must leave the point worse).
+- **GF095** — Retrieval `result_tag` mismatch: `Success`→`RetrievalRepelled`, `Partial`→`RetrievalSeam`, `Failure`→`RetrievalReclaimed`.

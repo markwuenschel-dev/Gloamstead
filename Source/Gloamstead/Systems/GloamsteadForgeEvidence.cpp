@@ -49,6 +49,7 @@ namespace
 		O->SetBoolField(TEXT("ended_intentionally"), In.bEndedIntentionally);
 		O->SetStringField(TEXT("outcome_result"), In.OutcomeResult);
 		O->SetStringField(TEXT("result_tag"), In.ResultTag);
+		O->SetBoolField(TEXT("target_was_restored"), In.bTargetWasRestored);
 		return O;
 	}
 

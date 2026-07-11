@@ -110,6 +110,18 @@ public:
     UFUNCTION(BlueprintPure, Category="PCG|Night")
     int32 FindMostCorruptedPointIndex(bool bOnlyUnrestored = false) const;
 
+    /** Read-only: pick a restored point for a night to target (Retrieval). When bMostLit, returns the
+     *  brightest restored point (the one most worth reclaiming); otherwise the lowest restored index.
+     *  Returns -1 if nothing is restored — the caller's honest no-target fallback. */
+    UFUNCTION(BlueprintPure, Category="PCG|Night")
+    int32 FindRestoredPointIndex(bool bMostLit = true) const;
+
+    /** Night-only: reclaim a restored point (Retrieval failure). Clears the restored flag, drops its light
+     *  (the night takes back what it gave), and removes it from the restored set. Corruption is left to the
+     *  caller (pressure already scarred it). Returns true if a restored point was actually reclaimed. */
+    UFUNCTION(BlueprintCallable, Category="PCG|Night")
+    bool RevertRestoration(int32 PointIndex);
+
     // === Persistence (Vertical Slice Strategy) ===
     UFUNCTION(BlueprintCallable, Category="PCG|Ritual")
     TSet<int32> GetRestoredPointIndices() const;
