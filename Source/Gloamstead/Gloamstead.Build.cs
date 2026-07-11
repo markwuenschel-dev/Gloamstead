@@ -22,7 +22,7 @@ public class Gloamstead : ModuleRules
 			"PCG"
 		});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { });
+		PrivateDependencyModuleNames.AddRange(new string[] { "Json" });
 
 		PublicIncludePaths.AddRange(new string[] {
 			"Gloamstead",

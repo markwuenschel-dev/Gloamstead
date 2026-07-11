@@ -1,0 +1,12 @@
+{
+  "schema": "GloamsteadForgeScenarioMatrix/v1",
+  "description": "Bounded Wave 3 pilot matrix over the proven Wave 2 night runtime. Reports are emitted by the GloamsteadForgeEvidenceTests automation test to procedural/reports/gloamsteadforge/ (git-ignored; regenerate via gate.ps1).",
+  "scenarios": [
+    { "scenario_id": "tutorial_success",    "description": "First-night teaching beat resolves.",              "night_type": "Tutorial",   "expected_outcome": "Success", "objective_bearing": true,  "continuity": false, "quiet": false, "report": "procedural/reports/gloamsteadforge/tutorial_success.json" },
+    { "scenario_id": "corruption_success",  "description": "Player cleanses the bloom before dawn.",           "night_type": "Corruption", "expected_outcome": "Success", "objective_bearing": true,  "continuity": false, "quiet": false, "report": "procedural/reports/gloamsteadforge/corruption_success.json" },
+    { "scenario_id": "corruption_partial",  "description": "Bloom reduced but not cleared.",                   "night_type": "Corruption", "expected_outcome": "Partial", "objective_bearing": true,  "continuity": false, "quiet": false, "report": "procedural/reports/gloamsteadforge/corruption_partial.json" },
+    { "scenario_id": "corruption_failure",  "description": "Bloom untouched; fail-forward scar.",              "night_type": "Corruption", "expected_outcome": "Failure", "objective_bearing": true,  "continuity": false, "quiet": false, "report": "procedural/reports/gloamsteadforge/corruption_failure.json" },
+    { "scenario_id": "quiet_fallback",      "description": "No bloom to threaten the sanctuary.",              "night_type": "Corruption", "expected_outcome": "Success", "objective_bearing": false, "continuity": false, "quiet": true,  "report": "procedural/reports/gloamsteadforge/quiet_fallback.json" },
+    { "scenario_id": "saveload_continuity", "description": "Night corruption mutation survives save/load.",     "night_type": "Corruption", "expected_outcome": "Failure", "objective_bearing": true,  "continuity": true,  "quiet": false, "report": "procedural/reports/gloamsteadforge/saveload_continuity.json" }
+  ]
+}

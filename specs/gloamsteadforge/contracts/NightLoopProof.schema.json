@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "GloamsteadForge/NightLoopProof/v1",
+  "title": "NightLoopProof",
+  "description": "Evidence that the night consequence runtime ran a real objective to an intentional end.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "started", "night_type", "objective_kind", "target_point_index",
+    "objective_resolved", "ended_intentionally", "outcome_result", "result_tag"
+  ],
+  "properties": {
+    "started": { "type": "boolean" },
+    "night_type": {
+      "type": "string",
+      "enum": ["Invalid", "Tutorial", "Corruption", "Omen", "Retrieval", "SilencePossession", "Mirror", "Bargain", "Fracture", "TrueSiege"]
+    },
+    "objective_kind": {
+      "type": "string",
+      "enum": ["None", "CleanseCorruptionBloom", "TutorialTeach"]
+    },
+    "target_point_index": { "type": "integer", "minimum": -1 },
+    "objective_resolved": { "type": "boolean" },
+    "ended_intentionally": { "type": "boolean" },
+    "outcome_result": {
+      "type": "string",
+      "enum": ["None", "Success", "Partial", "Failure"]
+    },
+    "result_tag": { "type": "string" }
+  }
+}

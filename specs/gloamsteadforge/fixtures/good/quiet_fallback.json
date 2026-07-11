@@ -1,0 +1,18 @@
+{
+  "schema": "GloamsteadForgeRuntimeReport/v1",
+  "scenario_id": "quiet_fallback",
+  "generated_at_utc": "2026-07-11T18:00:00Z",
+  "git_commit": "fixturefixturefixturefixturefixture0002",
+  "git_branch": "fixtures",
+  "engine": "UE5.8",
+  "quiet": true,
+  "continuity": false,
+  "human_playtest": false,
+  "pcg_init": { "initialized": true, "point_count": 2 },
+  "restoration": { "attempted": false, "applied": false, "point_index": -1 },
+  "night_loop": { "started": true, "night_type": "Corruption", "objective_kind": "None", "target_point_index": -1, "objective_resolved": true, "ended_intentionally": true, "outcome_result": "Success", "result_tag": "QuietNight" },
+  "sanctuary_state": { "avg_corruption_before": 0.40, "avg_corruption_after": 0.40, "target_corruption_before": 0.40, "target_corruption_after": 0.40, "mutated": false },
+  "dawn_reflection": { "consumed_outcome": true, "outcome_result": "Success" },
+  "save_load": { "checked": false, "roundtrip_ok": false },
+  "failure_codes": []
+}

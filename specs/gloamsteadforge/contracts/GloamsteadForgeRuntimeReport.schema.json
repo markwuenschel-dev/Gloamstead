@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "GloamsteadForge/RuntimeReport/v1",
+  "title": "GloamsteadForgeRuntimeReport",
+  "description": "One scenario's runtime evidence, emitted only from a real Gloamstead loop run. Self-contained (sub-proof objects inlined) so validators need no external $ref resolution.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "scenario_id", "generated_at_utc", "git_commit", "git_branch", "engine",
+    "pcg_init", "restoration", "night_loop", "sanctuary_state", "dawn_reflection", "save_load", "failure_codes"
+  ],
+  "properties": {
+    "schema": { "type": "string", "enum": ["GloamsteadForgeRuntimeReport/v1"] },
+    "scenario_id": { "type": "string", "minLength": 1 },
+    "generated_at_utc": { "type": "string", "minLength": 1 },
+    "git_commit": { "type": "string", "minLength": 7 },
+    "git_branch": { "type": "string", "minLength": 1 },
+    "engine": { "type": "string", "minLength": 1 },
+    "run_nonce": { "type": "string", "description": "Per-gate-run nonce (set by gate.ps1, stamped by the emitter). Absent on hand-authored fixtures; required for live reports by the integrity validator." },
+    "quiet": { "type": "boolean" },
+    "continuity": { "type": "boolean" },
+    "human_playtest": { "type": "boolean" },
+    "pcg_init": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["initialized", "point_count"],
+      "properties": {
+        "initialized": { "type": "boolean" },
+        "point_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "restoration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attempted", "applied", "point_index"],
+      "properties": {
+        "attempted": { "type": "boolean" },
+        "applied": { "type": "boolean" },
+        "point_index": { "type": "integer", "minimum": -1 }
+      }
+    },
+    "night_loop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["started", "night_type", "objective_kind", "target_point_index", "objective_resolved", "ended_intentionally", "outcome_result", "result_tag"],
+      "properties": {
+        "started": { "type": "boolean" },
+        "night_type": { "type": "string", "enum": ["Invalid", "Tutorial", "Corruption", "Omen", "Retrieval", "SilencePossession", "Mirror", "Bargain", "Fracture", "TrueSiege"] },
+        "objective_kind": { "type": "string", "enum": ["None", "CleanseCorruptionBloom", "TutorialTeach"] },
+        "target_point_index": { "type": "integer", "minimum": -1 },
+        "objective_resolved": { "type": "boolean" },
+        "ended_intentionally": { "type": "boolean" },
+        "outcome_result": { "type": "string", "enum": ["None", "Success", "Partial", "Failure"] },
+        "result_tag": { "type": "string" }
+      }
+    },
+    "sanctuary_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["avg_corruption_before", "avg_corruption_after", "target_corruption_before", "target_corruption_after", "mutated"],
+      "properties": {
+        "avg_corruption_before": { "type": "number", "minimum": 0, "maximum": 1 },
+        "avg_corruption_after": { "type": "number", "minimum": 0, "maximum": 1 },
+        "target_corruption_before": { "type": "number", "minimum": 0, "maximum": 1 },
+        "target_corruption_after": { "type": "number", "minimum": 0, "maximum": 1 },
+        "mutated": { "type": "boolean" }
+      }
+    },
+    "dawn_reflection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["consumed_outcome", "outcome_result"],
+      "properties": {
+        "consumed_outcome": { "type": "boolean" },
+        "outcome_result": { "type": "string", "enum": ["None", "Success", "Partial", "Failure"] }
+      }
+    },
+    "save_load": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["checked", "roundtrip_ok"],
+      "properties": {
+        "checked": { "type": "boolean" },
+        "roundtrip_ok": { "type": "boolean" }
+      }
+    },
+    "failure_codes": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^GF[0-9]{3}$" }
+    }
+  }
+}

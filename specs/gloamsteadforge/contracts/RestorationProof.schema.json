@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "GloamsteadForge/RestorationProof/v1",
+  "title": "RestorationProof",
+  "description": "Evidence that a ritual restoration was attempted and applied to a valid PCG point.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["attempted", "applied", "point_index"],
+  "properties": {
+    "attempted": { "type": "boolean" },
+    "applied": { "type": "boolean" },
+    "point_index": { "type": "integer", "minimum": -1 }
+  }
+}
