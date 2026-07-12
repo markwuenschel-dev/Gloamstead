@@ -9,6 +9,8 @@
 #include "Interfaces/GloamInteractable.h"
 #include "VeilHeart.generated.h"
 
+class USphereComponent;
+
 /**
  * The Veil Heart - Central protected object and emotional core of Gloamstead.
  * Listens to restoration events to evaluate "I understood the warning".
@@ -64,6 +66,14 @@ public:
     /** Assign Content/Data/DA_VeilHeartWarningCatalog (auto-loaded at BeginPlay if left empty). */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil Heart")
     TObjectPtr<UVeilHeartWarningCatalog> WarningCatalog;
+
+    /**
+     * Query-only volume so the player's interaction focus trace (an object-type overlap) can find the Heart.
+     * Without it the Heart has no collision at all and rest/greet-dawn can never fire for a real player.
+     * Non-blocking (overlap responses) so it never impedes movement.
+     */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Veil Heart")
+    TObjectPtr<USphereComponent> InteractionVolume;
 
 protected:
     UFUNCTION()

@@ -354,6 +354,17 @@ int32 UGloamsteadPCGSubsystem::FindMostCorruptedPointIndex(bool bOnlyUnrestored)
     return BestIndex;
 }
 
+void UGloamsteadPCGSubsystem::Test_SeedPoints(const TArray<FVector>& Locations)
+{
+    CachedPoints.Reset(Locations.Num());
+    for (const FVector& Loc : Locations)
+    {
+        FPCGPoint P;
+        P.Transform = FTransform(Loc);
+        CachedPoints.Add(P);
+    }
+}
+
 int32 UGloamsteadPCGSubsystem::FindRestoredPointIndex(bool bMostLit) const
 {
     int32 BestIndex = -1;
