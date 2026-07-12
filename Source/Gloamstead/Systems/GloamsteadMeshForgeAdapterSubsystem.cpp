@@ -6,6 +6,7 @@
 #include "Engine/World.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "HAL/IConsoleManager.h"
 
 namespace
 {
@@ -28,12 +29,30 @@ namespace
 	}
 }
 
+// Development gate for the runtime debug proxies. The MeshForge visibility adapter is a DIAGNOSTIC overlay
+// (Heart pillar, ritual markers, lantern beacons, interaction disc) — not the game's shipping visuals — so it
+// is OFF by default. Toggle live with `gloam.MeshForge.SpawnDebugProxies 1`. Automation builds proxies via
+// Test_BuildFor(), which bypasses this gate, so tests and the GloamsteadForge evidence are unaffected.
+static TAutoConsoleVariable<bool> CVarSpawnDebugRitualProxies(
+	TEXT("gloam.MeshForge.SpawnDebugProxies"),
+	false,
+	TEXT("Spawn the MeshForge visibility adapter's runtime debug proxies in a live game world (default off)."),
+	ECVF_Default);
+
 void UGloamsteadMeshForgeAdapterSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 {
 	Super::OnWorldBeginPlay(InWorld);
 
 	// The visibility layer only renders in a live game world; automation/editor-preview stay clean.
 	if (!InWorld.IsGameWorld())
+	{
+		return;
+	}
+
+	// Runtime debug proxies are gated OFF by default (see CVarSpawnDebugRitualProxies) — they are a
+	// diagnostic overlay of abstract primitives, not shipping visuals. Automation bypasses this gate via
+	// Test_BuildFor(), so tests/evidence still exercise the full build.
+	if (!CVarSpawnDebugRitualProxies.GetValueOnGameThread())
 	{
 		return;
 	}
