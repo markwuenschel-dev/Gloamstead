@@ -87,6 +87,10 @@ public:
     UFUNCTION(BlueprintPure, Category="PCG|Sanctuary")
     int32 GetRestoredPointCount() const;
 
+    /** Read-only: total number of initialized ritual points (for consumers that render/iterate points). */
+    UFUNCTION(BlueprintPure, Category="PCG|Ritual")
+    int32 GetRitualPointCount() const { return CachedPoints.Num(); }
+
     UFUNCTION(BlueprintPure, Category="PCG|Sanctuary")
     int32 GetRestoredCountByRitualType(ERitualType Type) const;
 
@@ -166,6 +170,8 @@ public:
     // === Test seam (unconditional inline; unused in shipping → linker emits nothing) ===
     /** Test-only seam: install a known synthetic point-state set, bypassing PCG init. */
     void Test_SeedPointStates(const TArray<FRitualPointState>& InStates) { PointStates = InStates; }
+    /** Test-only seam: install synthetic point world locations (CachedPoints transforms) so index->location resolves. */
+    void Test_SeedPoints(const TArray<FVector>& Locations);
     /** Test-only seam: read current point state for assertions. */
     const TArray<FRitualPointState>& Test_PeekPointStates() const { return PointStates; }
 
