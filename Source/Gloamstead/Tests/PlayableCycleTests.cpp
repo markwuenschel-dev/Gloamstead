@@ -20,6 +20,7 @@
 #include "Data/NightRuntimeTypes.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Engine/OverlapResult.h"
 #include "GameFramework/SaveGame.h"
 #include "Kismet/GameplayStatics.h"
 #include "UObject/StrongObjectPtr.h"
@@ -156,6 +157,25 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 
 		if (Heart)
 		{
+			// Regression guard: the interaction system focuses its target via an object-type overlap
+			// (UGloamInteractionComponent::UpdateFocus), so the Heart MUST carry query collision to be
+			// reachable. The interface assertions below call Execute_CanInteract/Interact directly, which
+			// bypasses that overlap — and once hid a Heart with zero collision, leaving rest/greet-dawn
+			// unreachable for a real player (Dawn->Day soft-lock). Prove the Heart is overlap-discoverable.
+			{
+				TArray<FOverlapResult> Overlaps;
+				World->OverlapMultiByObjectType(
+					Overlaps, Heart->GetActorLocation(), FQuat::Identity,
+					FCollisionObjectQueryParams(FCollisionObjectQueryParams::AllObjects),
+					FCollisionShape::MakeSphere(50.0f));
+				bool bHeartDiscoverable = false;
+				for (const FOverlapResult& Result : Overlaps)
+				{
+					if (Result.GetActor() == Heart) { bHeartDiscoverable = true; break; }
+				}
+				TestTrue(TEXT("the Heart is discoverable by the interaction overlap (has query collision)"), bHeartDiscoverable);
+			}
+
 			TestTrue(TEXT("cycle starts in Day"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
 			// The first day belongs to the scripted director; the Heart does not offer rest yet (tutorial gate).
 			TestFalse(TEXT("no rest on the first day (tutorial gate)"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));

@@ -1,6 +1,6 @@
 # Corrected Wave 6A — Gloamstead MeshForge Adapter
 
-**Status:** source adapter implemented; `gate.ps1` green (build + 49 automation tests + GloamsteadForge evidence). **PIE readability: PENDING — editor not open** (the editor crashed mid-session; the automated live-world test is the current proof of visibility).
+**Status:** source adapter implemented; `gate.ps1` green (build + 49 automation tests + GloamsteadForge evidence). **PIE readability: RUN 2026-07-12 — colour language now renders and the first-night loop was driven live on real hardware.** The check surfaced two gate-invisible gaps, both fixed this session (see §9): (1) proxies rendered flat grey because the tint targeted a param-less engine material; (2) the Veil Heart had no collision, so `E`-rest / greet-dawn could never be focused by a real player (Dawn→Day soft-lock). Remaining: a Heart-pillar scale/emissive readability polish (not blocking; tracked in §7).
 
 **Branch:** `gloamstead/wave-6a-meshforge-adapter`
 
@@ -102,16 +102,18 @@ Validator rules already enforced for that path: a `generated_owned` instance wit
 
 ---
 
-## 7. PIE readability checklist — **PENDING (editor closed)**
+## 7. PIE readability checklist — **RUN 2026-07-12**
 
-The automated live-world test proves proxies spawn visibly and bind to real sources without mutating state. Human PIE readability is **not yet performed** because the editor is closed. When the editor is open, verify:
+The automated live-world test proves proxies spawn and bind without mutating state. Human PIE readability was performed on `Lvl_ThirdPerson` (after the two §9 fixes):
 
-- [ ] Heart is visible (gold pillar) and you can walk to it
-- [ ] At least one restoration target is visible (amber beacon) and you can walk to it
-- [ ] Restore by hand (Restore input → placement → confirm); the point turns green
-- [ ] Rest by hand at the Heart (Interact) advances the resting phases
-- [ ] Complete Day → Dusk → Night → Dawn **without the T debug key**
-- [ ] Night/phase feedback changes visibly (the night-feedback sphere re-tints)
+- [x] Heart is visible (gold pillar) and you can walk to it — **visible; caveat: oversized and the player spawns inside it (scale/placement polish, below).**
+- [x] At least one restoration target is visible and you can walk to it — **found and reached (closes the old "lantern invisible / out of range" gap).** Note: lantern posts render as `RitualPoint` cubes, not the `LanternRestore` cone/beacon (`lantern_proxy_count: 0`).
+- [x] Restore by hand (Restore input → placement → confirm); the point turns green — **confirmed live: `VeilHeart: Restoration received`; the restored point re-tints green.**
+- [x] Rest by hand at the Heart (Interact) advances the resting phases — **was unreachable (Heart had no collision, §9.2); fixed + regression-tested. Code path green in `Gloamstead.PlayableCycle.RestToDawnInLiveWorld` (now asserts the Heart is overlap-discoverable). Optional: re-confirm the live `E` press at Dawn in a future session.**
+- [x] Complete Day → Dusk → Night → Dawn **without the T debug key** — **driven live on real hardware to `FirstNightDirector: first-night loop complete`.**
+- [x] Night/phase feedback changes visibly (the night-feedback sphere re-tints) — **phases advanced 0→1→2→3; night sphere glows atop the Heart.**
+
+**Remaining readability polish (non-blocking):** the Heart pillar is large and the player spawns inside it, so the near-view is dominated by its glow; the engine-primitive emissive also reads slightly bright/pale up close. A scale/placement + emissive-tuning pass is tracked for a follow-up (not part of the adapter's honesty contract).
 
 ---
 
@@ -124,3 +126,19 @@ The automated live-world test proves proxies spawn visibly and bind to real sour
 - **The "T" key is a debug shortcut** (`IA_DebugAdvance` → `AdvanceGloamsteadDayPhase` → `AdvanceToNextPhase`) that jumps the whole Day→Dusk→Night→Dawn cycle in one press. Wave 6A makes the *intended* loop visible so T is unnecessary; it does not remove the debug key.
 - **The day/night cycle has no self-advancing clock.** During the scripted first night the `AGloamsteadFirstNightDirector` auto-advances on lantern restoration + timers (≈4s dusk→night, ≈8s night→dawn); the recurring loop advances via a Heart "rest" interaction. Making the loop *auto-run* is gameplay authority and is deliberately **outside** the adapter's scope (would trip `GMF017`).
 - `ritual_type` provenance is read from PCG point metadata; it reads `Invalid` for synthetic test points that carry no `RitualType` attribute (honest), and resolves to the real type in a PCG-initialised world.
+
+---
+
+## 9. Fixes from the 2026-07-12 PIE readability run
+
+The human PIE check surfaced two player-facing defects that the green gate could not see (both are the "the test exercises the API directly, not the player path" class of gap). Both fixed this session; `gate.ps1` re-verified green (build + 49 tests + evidence) after each.
+
+### 9.1 Proxies rendered flat grey (colour language did not render)
+`AGloamsteadMeshForgeProxyActor::SetVisualColor` tinted a dynamic instance of the static mesh's default material — for `/Engine/BasicShapes/*` that is `BasicShapeMaterial`, a constant material with **no parameters**, so every `SetVectorParameterValue` silently no-opped and all proxies drew identical grey. The automation test only validates spawn + report structure, never rendered colour.
+
+**Fix:** base the tint DMI on `/Engine/EngineMaterials/EmissiveMeshMaterial` (a parameter-driven emissive engine material — still code-only, no authored/binary content), set the colour under several alias param names for version-robustness, and use a modest emissive multiplier (`Color * 1.25`) so hues read without blooming to white. Verified live in PIE: gold Heart, cyan interaction disc, purple unrestored ritual points, **green** restored point.
+
+### 9.2 The Veil Heart had no collision (rest / greet-dawn unreachable)
+`UGloamInteractionComponent::UpdateFocus` finds interactables via an object-type **overlap**, but the C++ `AVeilHeart` created **no collision component at all**, so the Heart could never be focused. Since Dawn→Day only advances by resting at the Heart (`CanRestNow()`), a real player would **soft-lock at the first Dawn**; the recurring rest-driven loop was unreachable. Hidden because `PlayableCycleTests` calls `Execute_CanInteract`/`Execute_Interact` directly, bypassing the overlap.
+
+**Fix:** `AVeilHeart` now roots a query-only, non-blocking `USphereComponent` (radius 150, overlap responses) so the interaction focus overlap can find it without impeding movement. `Gloamstead.PlayableCycle.RestToDawnInLiveWorld` gained a regression assertion that mirrors the real focus overlap and requires the Heart to be discoverable — closing the gate blind spot.

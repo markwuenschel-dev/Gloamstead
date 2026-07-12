@@ -1,11 +1,25 @@
 #include "Systems/VeilHeart.h"
 #include "Systems/GloamsteadDayNightSubsystem.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
+#include "Components/SphereComponent.h"
 #include "Engine/World.h"
 
 AVeilHeart::AVeilHeart()
 {
 	PrimaryActorTick.bCanEverTick = false;
+
+	// The Heart is the player's rest point (IGloamInteractable). The interaction system focuses its target via
+	// an object-type overlap (UGloamInteractionComponent::UpdateFocus), so the Heart must carry a collision
+	// volume to be findable at all — without one, rest / "greet the dawn" can never fire for a real player and
+	// the Dawn->Day advance soft-locks. Query-only + overlap responses keep it detectable yet non-blocking,
+	// exactly like the readability proxies.
+	InteractionVolume = CreateDefaultSubobject<USphereComponent>(TEXT("InteractionVolume"));
+	SetRootComponent(InteractionVolume);
+	InteractionVolume->InitSphereRadius(150.0f);
+	InteractionVolume->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	InteractionVolume->SetCollisionObjectType(ECC_WorldStatic);
+	InteractionVolume->SetCollisionResponseToAllChannels(ECR_Overlap);
+	InteractionVolume->SetGenerateOverlapEvents(false); // focus uses a world overlap query, not overlap events
 }
 
 namespace

@@ -41,7 +41,18 @@ void AGloamsteadMeshForgeProxyActor::SetVisualColor(const FLinearColor& Color, b
 	}
 	if (!DynMaterial)
 	{
-		UMaterialInterface* Base = MeshComponent->GetMaterial(0);
+		// The /Engine/BasicShapes meshes ship with BasicShapeMaterial — a constant grey material that
+		// exposes NO parameters. Tinting a dynamic instance of it silently no-ops, so every proxy renders
+		// identical grey and the readability colour language is invisible (confirmed in PIE, W6a). Base the
+		// tint on an engine material that is genuinely parameter-driven and emissive so the colours render.
+		// Still code-only: an engine material, no authored/binary content.
+		UMaterialInterface* Base = LoadObject<UMaterialInterface>(
+			nullptr, TEXT("/Engine/EngineMaterials/EmissiveMeshMaterial.EmissiveMeshMaterial"));
+		if (!Base)
+		{
+			// Fallback: keep the mesh visible even if the engine material is unavailable.
+			Base = MeshComponent->GetMaterial(0);
+		}
 		if (Base)
 		{
 			DynMaterial = UMaterialInstanceDynamic::Create(Base, this);
@@ -53,11 +64,17 @@ void AGloamsteadMeshForgeProxyActor::SetVisualColor(const FLinearColor& Color, b
 	}
 	if (DynMaterial)
 	{
-		// Best-effort across engine basic-shape materials — unknown params are ignored, the mesh stays visible.
-		DynMaterial->SetVectorParameterValue(TEXT("Color"), Color);
+		// Emissive proxies read as gently glowing beacons in daylight without blooming to white — a
+		// modest boost keeps the hue readable (Color*4 blew out to near-white in PIE, W6a).
+		const FLinearColor Emissive = bEmissive ? (Color * 1.25f) : Color;
+		// Engine emissive/tint materials name their colour param differently across versions; set several
+		// harmless aliases so whichever one exists takes effect (unknown params are ignored by the DMI).
+		DynMaterial->SetVectorParameterValue(TEXT("Color"), Emissive);
+		DynMaterial->SetVectorParameterValue(TEXT("EmissiveColor"), Emissive);
+		DynMaterial->SetVectorParameterValue(TEXT("Emissive"), Emissive);
 		DynMaterial->SetVectorParameterValue(TEXT("BaseColor"), Color);
-		DynMaterial->SetVectorParameterValue(TEXT("Emissive"), bEmissive ? (Color * 3.0f) : FLinearColor::Black);
-		DynMaterial->SetScalarParameterValue(TEXT("EmissiveStrength"), bEmissive ? 3.0f : 0.0f);
+		DynMaterial->SetVectorParameterValue(TEXT("Tint"), Color);
+		DynMaterial->SetScalarParameterValue(TEXT("EmissiveStrength"), bEmissive ? 1.25f : 1.0f);
 	}
 }
 

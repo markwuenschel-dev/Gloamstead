@@ -817,3 +817,38 @@ reproduced: a nonce-less hand-authored report dropped into the reports dir -> RE
 pass, exit 1. negatives now 17/17; fuzz 300/300. The fabricated-success class is closed and the layer gates.
 
 Recorded by gloam-orchestrator (claude-code).
+
+## 2026-07-12 — W6a PIE readability run: two gate-invisible gaps found + fixed
+
+Ran the pending W6a §7 human PIE readability check (editor + NeoStack MCP bridge on `Lvl_ThirdPerson`). The
+adapter itself worked as designed (12 proxies spawned live, `visibility_proxy_report.json` clean, no gameplay
+mutation), but the check caught **two player-facing defects the green gate could not see** — both the "tests
+call the API directly, not the player path" class of bug (same family as the W1a input gap):
+
+1. **Proxies rendered flat grey — the colour language never rendered.** `SetVisualColor` tinted a dynamic
+   instance of `/Engine/BasicShapes/BasicShapeMaterial`, which has **no parameters**, so every
+   `SetVectorParameterValue` no-opped. Fix: base the DMI on `/Engine/EngineMaterials/EmissiveMeshMaterial`
+   (parameter-driven emissive; still code-only, no authored content), alias param names for robustness,
+   emissive `Color*1.25` to avoid blow-out. Verified live: gold Heart, cyan disc, purple unrestored, green
+   restored.
+
+2. **The Veil Heart had no collision — `E`-rest / greet-dawn unreachable → Dawn→Day soft-lock.** The
+   interaction focus (`UGloamInteractionComponent::UpdateFocus`) finds targets via an object-type overlap, but
+   `AVeilHeart` created no collision component, so a real player could never focus the Heart (the only
+   `IGloamInteractable`). Hidden because `PlayableCycleTests` calls `Execute_CanInteract/Interact` directly.
+   Fix: `AVeilHeart` roots a query-only, non-blocking `USphereComponent` (r=150); `RestToDawnInLiveWorld`
+   gained a regression assertion mirroring the real overlap (Heart must be discoverable).
+
+**Live proof on real hardware:** the human drove the full first night by pressing **R** (no T debug key) —
+`VeilHeart: Restoration received` → Day→Dusk→Night→Dawn → `FirstNightDirector: first-night loop complete`;
+the restored point re-tinted green from the dawn autosave on PIE restart.
+
+**Re-verified:** `gate.ps1` GREEN after each fix (build + 49 tests + GloamsteadForge evidence). Note the
+simulated-input caveat held again — `playtest_key` did not drive movement or the edge-triggered R/E verbs;
+all mechanical beats were confirmed via real human key presses + log reads.
+
+**Deferred (non-blocking):** Heart-pillar scale + spawn-inside + slight emissive brightness — a readability
+polish pass for a follow-up. Also: lantern posts render as `RitualPoint` cubes, not the `LanternRestore`
+cone/beacon (`lantern_proxy_count: 0`).
+
+Recorded by gloam-orchestrator (claude-code).
