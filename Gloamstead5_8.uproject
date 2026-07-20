@@ -93,6 +93,10 @@
 				"Mac",
 				"Linux"
 			]
+		},
+		{
+			"Name": "WorldForge",
+			"Enabled": true
 		}
 	]
 }
