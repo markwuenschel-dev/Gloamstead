@@ -888,3 +888,15 @@ hide the void). Then hand back for systematic work: interaction ranges, placemen
 values, tests, repeatable PIE verification.
 
 Recorded by gloam-orchestrator (claude-code).
+
+## 2026-07-19 — Ratified: WorldForge ⇄ Gloamstead semantic-authority boundary (v2.6 acceptance)
+
+Human-directed architectural ratification. Full record: `docs/gloamstead/decisions/2026-07-19-worldforge-semantic-authority-boundary.md`.
+
+- **Contract (non-overlapping ownership):** Gloamstead owns *semantic intent* (real project context, map, named area, anchor, subject, objective, requested evidence). WorldForge owns *generic execution capability* (validate the explicit request, boot/automate Unreal, survey/sample/capture, verify, return evidence + provenance + failure codes).
+- **Violation named:** *semantic authority inversion* — WorldForge deciding the *what* (selecting `Lvl_ThirdPerson`, choosing `PlayerStart`, fabricating camera offsets), not merely misconfiguring the *how*.
+- **Evidence classification (locked):** headless RHI capture = ✅ capability proof; SceneCapture2D→PNG (UE 5.8 path) = ✅ capability proof; ThirdPerson screenshots = ❌ not survey evidence; exposure = ❌ not a current blocker; fallback map names / inferred anchors / invented camera coords inside WorldForge = ⛔ invalid production behavior; a Gloamstead-originated invocation whose request and returned evidence name the same subject = 🎯 required.
+- **v2.6 acceptance gate:** does NOT pass on "WorldForge can produce a visible PNG." Passes only when the Gloamstead agent resolves a real subject, invokes the generic WorldForge capability, and receives valid evidence proving that exact subject was surveyed. The CLI shape survives as a low-level test harness, not the production control plane.
+- **Verified this session:** `SceneSurvey.h:1-18` shows the C++ survey half is already correctly scoped (read-only, game-agnostic, `WorldForgeCore`, camera capture deliberately far-side). No `.py` committed in-repo → the map/anchor/camera-selection logic lives in external far-side tooling; exact location pending read-only recon (report `file:line` before editing).
+
+Recorded under direct human direction (not a lease-holding orchestrator session).
