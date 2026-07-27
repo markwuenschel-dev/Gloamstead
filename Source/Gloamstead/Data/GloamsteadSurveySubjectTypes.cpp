@@ -106,7 +106,12 @@ TArray<FString> GSSValidateReport(const FGloamsteadSurveySubjectReport& R)
 
 // ===== JSON report =====
 
-namespace
+// Named, not anonymous: these helper names (R4/VectorJson/WriteJson) are also used by
+// GloamsteadMeshForgeTypes.cpp, and an anonymous namespace does NOT keep them apart once both files
+// land in the same unity translation unit -- it collides with C2264. Local builds can hide this,
+// because UBT's adaptive non-unity build excludes files that `git status` reports as in the working
+// set, so uncommitted files compile standalone and only collide after they are committed.
+namespace GloamsteadSurveySubjectJson
 {
 	double R4(double V) { return FMath::RoundToDouble(V * 10000.0) / 10000.0; }
 
@@ -192,10 +197,10 @@ bool GloamsteadSurveySubjectReport::WriteReport(const FGloamsteadSurveySubjectRe
 	}
 	{
 		TArray<TSharedPtr<FJsonValue>> Arr;
-		for (const FGloamsteadSurveySubject& S : Report.Subjects) { Arr.Add(MakeShared<FJsonValueObject>(SubjectJson(S))); }
+		for (const FGloamsteadSurveySubject& S : Report.Subjects) { Arr.Add(MakeShared<FJsonValueObject>(GloamsteadSurveySubjectJson::SubjectJson(S))); }
 		Root->SetArrayField(TEXT("subjects"), Arr);
 	}
 
 	OutPrimaryPath = FPaths::Combine(OutDir, TEXT("survey_subject_report.json"));
-	return WriteJson(Root, OutPrimaryPath);
+	return GloamsteadSurveySubjectJson::WriteJson(Root, OutPrimaryPath);
 }
