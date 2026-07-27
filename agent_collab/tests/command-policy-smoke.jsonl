@@ -1,0 +1,99 @@
+{"id":"deny-001","cmd":"UnrealEditor-Cmd.exe -run=Foo","expect":"deny","category":"direct-invocation","why":"bare protected basename at start of input"}
+{"id":"deny-002","cmd":"UnrealEditor","expect":"deny","category":"direct-invocation","why":"protected basename, no extension"}
+{"id":"deny-003","cmd":"RunUAT.bat BuildCookRun -project=Gloamstead5_8.uproject","expect":"deny","category":"direct-invocation","why":"RunUAT at command position"}
+{"id":"deny-004","cmd":"./GenerateProjectFiles.bat","expect":"deny","category":"direct-invocation","why":"relative path prefix must be stripped before comparison"}
+{"id":"deny-005","cmd":"D:\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealEditor-Cmd.exe Gloamstead5_8.uproject","expect":"deny","category":"direct-invocation","why":"absolute windows path prefix"}
+{"id":"deny-006","cmd":"\"D:\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealEditor.exe\" -nosplash","expect":"deny","category":"direct-invocation","why":"double-quoted executable token is still a command position"}
+{"id":"deny-007","cmd":"'D:/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe' -unattended","expect":"deny","category":"direct-invocation","why":"single-quoted executable token, forward slashes"}
+{"id":"deny-008","cmd":"& \"D:\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealEditor-Cmd.exe\" -run","expect":"deny","category":"direct-invocation","why":"PowerShell call operator then quoted path"}
+{"id":"deny-009","cmd":"ls -la; UnrealEditor-Cmd.exe","expect":"deny","category":"separator-command-position","why":"semicolon opens a new command position"}
+{"id":"deny-010","cmd":"make all && RunUAT.sh","expect":"deny","category":"separator-command-position","why":"&& opens a new command position"}
+{"id":"deny-011","cmd":"false || BuildCookRun","expect":"deny","category":"separator-command-position","why":"|| opens a new command position"}
+{"id":"deny-012","cmd":"echo hi | UnrealEditor","expect":"deny","category":"separator-command-position","why":"pipe opens a new command position"}
+{"id":"deny-013","cmd":"$(UnrealEditor -x)","expect":"deny","category":"substitution-command-position","why":"$( ) body is a command context"}
+{"id":"deny-014","cmd":"`UnrealEditor-Cmd.exe`","expect":"deny","category":"substitution-command-position","why":"backtick substitution body is a command context"}
+{"id":"deny-015","cmd":"( cd Gloamstead5_8 && UnrealEditor )","expect":"deny","category":"separator-command-position","why":"subshell paren opens a command position"}
+{"id":"deny-016","cmd":"UE_LOG=1 UnrealEditor -run","expect":"deny","category":"direct-invocation","why":"bash env-assignment prefix does not end the command position"}
+{"id":"deny-017","cmd":"sudo RunUAT.bat","expect":"deny","category":"direct-invocation","why":"launcher prefix passes the command position through"}
+{"id":"deny-018","cmd":"cd Gloamstead5_8\nUnrealEditor-Cmd.exe Gloamstead5_8.uproject","expect":"deny","category":"separator-command-position","why":"newline opens a new command position"}
+{"id":"deny-019","cmd":"$env:UE_ROOT\\Engine\\Binaries\\Win64\\UnrealEditor-Cmd.exe -run","expect":"deny","category":"direct-invocation","why":"expanded directory prefix but a proven literal basename"}
+{"id":"deny-020","cmd":"unrealeditor-cmd.EXE -nullrhi","expect":"deny","category":"direct-invocation","why":"comparison is case-insensitive"}
+{"id":"deny-021","cmd":"for f in *.uproject; do UnrealEditor $f; done","expect":"deny","category":"separator-command-position","why":"the 'do' keyword passes the command position through"}
+{"id":"deny-022","cmd":"GenerateProjectFiles.sh","expect":"deny","category":"direct-invocation","why":".sh extension is in the protected extension set"}
+{"id":"deny-023","cmd":"{ UnrealEditor-Cmd.exe -run; }","expect":"deny","category":"separator-command-position","why":"brace group opens a command position"}
+{"id":"deny-024","cmd":"nohup UnrealEditor-Cmd.exe &","expect":"deny","category":"direct-invocation","why":"nohup prefix passes the command position through"}
+{"id":"nest-deny-001","cmd":"pwsh -Command \"& 'D:\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealEditor-Cmd.exe'\"","expect":"deny","category":"nested-interpreter-literal","why":"literal payload, no expansion, target is proven"}
+{"id":"nest-deny-002","cmd":"bash -c 'UnrealEditor -run'","expect":"deny","category":"nested-interpreter-literal","why":"bash -c payload is a command, not data"}
+{"id":"nest-deny-003","cmd":"cmd /c \"RunUAT.bat BuildCookRun\"","expect":"deny","category":"nested-interpreter-literal","why":"cmd /c payload is a command"}
+{"id":"nest-deny-004","cmd":"sh -c \"cd /tmp && UnrealEditor\"","expect":"deny","category":"nested-interpreter-literal","why":"separator inside the nested payload still opens a command position"}
+{"id":"nest-deny-005","cmd":"Start-Process -FilePath \"D:\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealEditor.exe\"","expect":"deny","category":"process-launch-literal","why":"-FilePath names a proven literal executable"}
+{"id":"nest-deny-006","cmd":"Start-Process \"D:\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealEditor-Cmd.exe\" -ArgumentList \"-run\"","expect":"deny","category":"process-launch-literal","why":"positional target is a proven literal executable"}
+{"id":"nest-deny-007","cmd":"Invoke-Expression \"UnrealEditor-Cmd.exe -nullrhi\"","expect":"deny","category":"nested-interpreter-literal","why":"Invoke-Expression of a literal string is a proven invocation"}
+{"id":"nest-deny-008","cmd":"powershell.exe -c \"RunUAT.bat\"","expect":"deny","category":"nested-interpreter-literal","why":"interpreter basename keeps its .exe stripped"}
+{"id":"nest-deny-009","cmd":"bash -lc \"UnrealEditor\"","expect":"deny","category":"nested-interpreter-literal","why":"combined short flags ending in c still take a command payload"}
+{"id":"nest-deny-010","cmd":"pwsh -NoProfile -Command \"UnrealEditor-Cmd.exe -run\"","expect":"deny","category":"nested-interpreter-literal","why":"switches before -Command must not hide the payload"}
+{"id":"ask-001","cmd":"$editor -run","expect":"ask","category":"expansion-at-command-position","why":"bare shell variable at a command position"}
+{"id":"ask-002","cmd":"${EDITOR} -run","expect":"ask","category":"expansion-at-command-position","why":"braced expansion at a command position"}
+{"id":"ask-003","cmd":"%UE_EDITOR% -run","expect":"ask","category":"expansion-at-command-position","why":"cmd.exe environment expansion at a command position"}
+{"id":"ask-004","cmd":"$env:UE_EDITOR -nosplash","expect":"ask","category":"expansion-at-command-position","why":"PowerShell env drive expansion at a command position"}
+{"id":"ask-005","cmd":"pwsh -Command \"& $var\"","expect":"ask","category":"nested-interpreter-expansion","why":"nested payload resolves through a variable"}
+{"id":"ask-006","cmd":"cmd /c \"%VAR%\"","expect":"ask","category":"nested-interpreter-expansion","why":"nested payload resolves through an environment variable"}
+{"id":"ask-007","cmd":"bash -c \"$SCRIPT\"","expect":"ask","category":"nested-interpreter-expansion","why":"nested payload resolves through a shell variable"}
+{"id":"ask-008","cmd":"Start-Process $exe","expect":"ask","category":"process-launch-unprovable","why":"launch target is a variable"}
+{"id":"ask-009","cmd":"Start-Process -FilePath $env:EDITOR","expect":"ask","category":"process-launch-unprovable","why":"launch target is an env expansion"}
+{"id":"ask-010","cmd":"iex $cmd","expect":"ask","category":"nested-interpreter-expansion","why":"iex of a variable cannot be resolved"}
+{"id":"ask-011","cmd":"Invoke-Expression $script","expect":"ask","category":"nested-interpreter-expansion","why":"Invoke-Expression of a variable cannot be resolved"}
+{"id":"ask-012","cmd":"pwsh -EncodedCommand not-valid-base64!!","expect":"ask","category":"nested-interpreter-expansion","why":"encoded payload will not decode, so the target cannot be proven"}
+{"id":"ask-013","cmd":"& $tool -run","expect":"ask","category":"expansion-at-command-position","why":"call operator applied to a variable"}
+{"id":"ask-014","cmd":"Start-Process -NoNewWindow -Wait","expect":"ask","category":"process-launch-unprovable","why":"process launch with no identifiable target"}
+{"id":"ask-015","cmd":"sh -c \"$(cat run.sh)\"","expect":"ask","category":"nested-interpreter-expansion","why":"payload is produced by a command substitution at runtime"}
+{"id":"ask-016","cmd":"eval $cmd","expect":"ask","category":"nested-interpreter-expansion","why":"eval of a variable cannot be resolved"}
+{"id":"ask-017","cmd":"ls -la && $BUILDER","expect":"ask","category":"expansion-at-command-position","why":"expansion at a command position after a separator"}
+{"id":"allow-001","cmd":"grep -n UnrealEditor gate.ps1","expect":"allow","category":"data-mention-search","why":"the protected name is a search pattern, not a command"}
+{"id":"allow-002","cmd":"rg \"UnrealEditor-Cmd\" --stats agent_collab","expect":"allow","category":"data-mention-search","why":"quoted search argument"}
+{"id":"allow-003","cmd":"git commit -m \"wire the gate to UnrealEditor-Cmd\"","expect":"allow","category":"data-mention-commit","why":"commit message body is data"}
+{"id":"allow-004","cmd":"echo \"run UnrealEditor-Cmd.exe later\"","expect":"allow","category":"data-mention-string","why":"double-quoted string body is data"}
+{"id":"allow-005","cmd":"echo 'RunUAT.bat BuildCookRun'","expect":"allow","category":"data-mention-string","why":"single-quoted string body is data"}
+{"id":"allow-006","cmd":"cat <<EOF\nWe never call \"D:\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealEditor-Cmd.exe\" from a worker.\nEOF","expect":"allow","category":"heredoc-body","why":"the proven defect: prose heredoc body quoting an engine path was denied"}
+{"id":"allow-007","cmd":"cat <<'EOF'\n'D:/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe' -run\nEOF","expect":"allow","category":"heredoc-body","why":"quoted heredoc delimiter, body still data"}
+{"id":"allow-008","cmd":"cat <<-EOT\n\tUnrealEditor\n\tEOT","expect":"allow","category":"heredoc-body","why":"<<- strips leading tabs from the terminator line"}
+{"id":"allow-009","cmd":"cat <<\"EOF\"\nRunUAT.bat BuildCookRun\nEOF","expect":"allow","category":"heredoc-body","why":"double-quoted heredoc delimiter"}
+{"id":"allow-010","cmd":"$doc = @'\nUnrealEditor-Cmd.exe -run\n'@","expect":"allow","category":"here-string-body","why":"PowerShell literal here-string body is data"}
+{"id":"allow-011","cmd":"$doc = @\"\nUnrealEditor-Cmd.exe -run\n\"@","expect":"allow","category":"here-string-body","why":"PowerShell expandable here-string body is data"}
+{"id":"allow-012","cmd":"# UnrealEditor-Cmd.exe -run is what gate.ps1 does internally","expect":"allow","category":"comment","why":"whole line is a comment"}
+{"id":"allow-013","cmd":"ls -la # then someone runs RunUAT.bat by hand","expect":"allow","category":"comment","why":"trailing comment after a real command"}
+{"id":"allow-014","cmd":"echo '# not a comment: UnrealEditor' | wc -l","expect":"allow","category":"comment","why":"a # inside quotes is not a comment and the name is still data"}
+{"id":"allow-015","cmd":"pwsh -File gate.ps1","expect":"allow","category":"build-oracle","why":"gate.ps1 must never be blocked; script bodies are out of scope by design"}
+{"id":"allow-016","cmd":"./gate.ps1","expect":"allow","category":"build-oracle","why":"direct script execution of the build oracle"}
+{"id":"allow-017","cmd":"pwsh -NoProfile -File \"D:\\Unreal Projects\\Gloamstead5_8\\gate.ps1\"","expect":"allow","category":"build-oracle","why":"quoted path with spaces to the build oracle"}
+{"id":"allow-018","cmd":"pwsh -File build.ps1 -Name UnrealEditor","expect":"allow","category":"non-payload-argument","why":"a -File script's own arguments are data, not a nested command"}
+{"id":"allow-019","cmd":"bash -c \"grep UnrealEditor gate.ps1\"","expect":"allow","category":"nested-interpreter-data","why":"nested payload only mentions the name as a search argument"}
+{"id":"allow-020","cmd":"cmd /c \"echo UnrealEditor\"","expect":"allow","category":"nested-interpreter-data","why":"nested payload echoes the name"}
+{"id":"allow-021","cmd":"pwsh -Command \"Write-Host 'UnrealEditor'\"","expect":"allow","category":"nested-interpreter-data","why":"nested payload prints the name"}
+{"id":"allow-022","cmd":"git log --grep=\"RunUAT\" --oneline","expect":"allow","category":"data-mention-search","why":"git log search expression"}
+{"id":"allow-023","cmd":"Select-String -Pattern 'GenerateProjectFiles' -Path *.ps1","expect":"allow","category":"data-mention-search","why":"PowerShell search cmdlet argument"}
+{"id":"allow-024","cmd":"echo UnrealEditor","expect":"allow","category":"data-mention-argument","why":"unquoted argument position is still not a command position"}
+{"id":"allow-025","cmd":"cp UnrealEditor.exe.bak /tmp/","expect":"allow","category":"data-mention-argument","why":"basename does not match after extension handling, and it is an argument anyway"}
+{"id":"allow-026","cmd":"git status --porcelain","expect":"allow","category":"ordinary-command","why":"nothing protected present"}
+{"id":"allow-027","cmd":"Start-Process notepad.exe","expect":"allow","category":"process-launch-literal","why":"proven literal target that is not protected"}
+{"id":"allow-028","cmd":"Write-Host \"UnrealEditor\"","expect":"allow","category":"data-mention-string","why":"cmdlet argument"}
+{"id":"allow-029","cmd":"cat notes.md | grep BuildCookRun","expect":"allow","category":"data-mention-search","why":"protected name is a grep pattern after a pipe, not the command"}
+{"id":"allow-030","cmd":"cat <<EOF\nUnrealEditor\nEOF\nls -la","expect":"allow","category":"heredoc-body","why":"scanning resumes correctly after a terminated heredoc"}
+{"id":"allow-031","cmd":"make 2>&1 | tee build.log","expect":"allow","category":"ordinary-command","why":"2>&1 must not be mistaken for a command separator plus command"}
+{"id":"allow-032","cmd":"$msg = \"run UnrealEditor-Cmd.exe\"","expect":"allow","category":"assignment","why":"PowerShell assignment is not an invocation"}
+{"id":"allow-033","cmd":"export UE_EDITOR=/opt/UnrealEditor","expect":"allow","category":"assignment","why":"the protected name appears in an assignment value"}
+{"id":"allow-034","cmd":"awk '{print $1}' build.log","expect":"allow","category":"ordinary-command","why":"braces inside single quotes must not open a command position"}
+{"id":"allow-035","cmd":"git commit -m \"$(cat msg.txt)\"","expect":"allow","category":"substitution-command-position","why":"substitution runs cat, which is not protected"}
+{"id":"allow-036","cmd":"echo \"UnrealEditor-Cmd.exe\" > notes.txt","expect":"allow","category":"data-mention-string","why":"redirection target is not a command position"}
+{"id":"allow-037","cmd":"","expect":"allow","category":"degenerate","why":"empty command"}
+{"id":"allow-038","cmd":"   ","expect":"allow","category":"degenerate","why":"whitespace-only command"}
+{"id":"allow-039","cmd":"pwsh","expect":"allow","category":"nested-interpreter-data","why":"interpreter with no payload launches nothing protected"}
+{"id":"allow-040","cmd":"Get-ChildItem -Recurse -Filter UnrealEditor-Cmd.exe","expect":"allow","category":"data-mention-argument","why":"file search filter, not an invocation"}
+{"id":"allow-041","cmd":"printf '%s\\n' 'BuildCookRun'","expect":"allow","category":"data-mention-string","why":"printf format and literal argument"}
+{"id":"malformed-001","cmd":"echo \"unterminated UnrealEditor","expect":"allow","category":"malformed-fail-open","why":"unterminated double quote must fail open, not deny"}
+{"id":"malformed-002","cmd":"echo 'unterminated RunUAT","expect":"allow","category":"malformed-fail-open","why":"unterminated single quote must fail open"}
+{"id":"malformed-003","cmd":"cat <<EOF\nUnrealEditor-Cmd.exe -run","expect":"allow","category":"malformed-fail-open","why":"heredoc with no terminator must fail open"}
+{"id":"malformed-004","cmd":"$x = @'\nUnrealEditor-Cmd.exe","expect":"allow","category":"malformed-fail-open","why":"unterminated here-string must fail open"}
+{"id":"malformed-005","cmd":"echo $(UnrealEditor","expect":"allow","category":"malformed-fail-open","why":"unbalanced command substitution must fail open"}
+{"id":"malformed-006","cmd":"cat <<\nUnrealEditor","expect":"allow","category":"malformed-fail-open","why":"heredoc operator with no delimiter word must fail open"}
+{"id":"mixed-001","cmd":"UnrealEditor-Cmd.exe -run; echo \"unterminated","expect":"deny","category":"proven-deny-before-malformed","why":"a deny proven in the parsed prefix survives a later parse failure by documented design"}
