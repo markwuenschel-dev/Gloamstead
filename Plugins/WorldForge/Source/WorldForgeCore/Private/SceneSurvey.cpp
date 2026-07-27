@@ -198,9 +198,11 @@ bool USceneSurveyStatics::ProbeTempMarker(const UObject* WorldContextObject, FVe
 	FCollisionQueryParams Q;
 	Q.bTraceComplex = true;
 
-	// Ground contact directly below the candidate.
+	// Ground contact directly below the candidate. The reach matches the support
+	// sampler (Z-3000) so an elevated anchor (e.g. a PlayerStart floating above the
+	// courtyard floor) still finds real ground rather than falsely reading ungrounded.
 	const FVector S(Location.X, Location.Y, Location.Z + 100.f);
-	const FVector E(Location.X, Location.Y, Location.Z - 500.f);
+	const FVector E(Location.X, Location.Y, Location.Z - 3000.f);
 	FHitResult G;
 	const bool bGrounded = W->LineTraceSingleByChannel(G, S, E, ECC_Visibility, Q);
 	const float GroundZ = bGrounded ? (float)G.ImpactPoint.Z : (float)Location.Z;
