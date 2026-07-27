@@ -24,7 +24,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = (git rev-parse --show-toplevel).Trim()
-$leasesFile = Join-Path $repoRoot "agent_collab/state/leases.json"
+# GLOAM_LEASES_FILE lets a test point the lease store at a temporary copy so self-tests never write
+# durable repository state. Unset in all normal operation, where the tracked file is authoritative.
+$leasesFile = if ($env:GLOAM_LEASES_FILE) { $env:GLOAM_LEASES_FILE } else { Join-Path $repoRoot "agent_collab/state/leases.json" }
 $runtimesFile = Join-Path $repoRoot "agent_collab/registry/runtimes.json"
 $rolesFile = Join-Path $repoRoot "agent_collab/registry/roles.json"
 

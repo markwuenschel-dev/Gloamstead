@@ -11,7 +11,8 @@ param(
 
 Set-StrictMode -Version Latest
 $repoRoot = (git rev-parse --show-toplevel).Trim()
-$leasesFile = Join-Path $repoRoot "agent_collab/state/leases.json"
+# GLOAM_LEASES_FILE: test-only override so self-tests never write durable repository state.
+$leasesFile = if ($env:GLOAM_LEASES_FILE) { $env:GLOAM_LEASES_FILE } else { Join-Path $repoRoot "agent_collab/state/leases.json" }
 $leasesData = Get-Content -Raw $leasesFile | ConvertFrom-Json
 
 $lease = $leasesData.leases | Where-Object { $_.lease_id -eq $LeaseId }

@@ -18,6 +18,25 @@ $failures = 0
 function Fail([string]$msg) { Write-Error "FAIL: $msg"; $script:failures++ }
 function Pass([string]$msg) { Write-Output "PASS: $msg" }
 
+# --- Durable-state guard -------------------------------------------------------------------------
+# A self-test must not write the state it validates. Until 2026-07-27 the lease section below wrote
+# agent_collab/state/leases.json directly and corrupted it ("leases": [] -> null) via a
+# Select-Object | ConvertTo-Json round-trip. Worse than the corruption: a test that mutates the state
+# it checks can also MASK a defect by writing that state into a passing shape.
+#
+# Every durable file under agent_collab/state/ is fingerprinted here and re-checked at the end; the
+# lease section runs against a temporary copy via GLOAM_LEASES_FILE.
+$stateRoot = Join-Path $repoRoot "agent_collab/state"
+function Get-StateFingerprints {
+    $map = @{}
+    Get-ChildItem -LiteralPath $stateRoot -File | Sort-Object Name | ForEach-Object {
+        $map[$_.Name] = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+    }
+    return $map
+}
+$stateBefore = Get-StateFingerprints
+Pass "Durable state fingerprinted before tests ($($stateBefore.Count) file(s))"
+
 Write-Output "=== Gloamstead Multi-Runtime UE5 Collaboration Scaffold Self-Test (slug=gloam) ==="
 
 # 1. Directory structure
@@ -95,25 +114,40 @@ foreach ($r in $rt.enabled_runtimes) {
 # 7. No role permanently bound (matrix check)
 if ($matrix.assignments.orchestrator.allowed_runtimes.Count -ge 2) { Pass "Orchestrator not bound to single runtime" }
 
-# 8. Lease exclusivity test (basic)
-# Clean any prior test leases
-Set-Content agent_collab/state/leases.json -Value (Get-Content agent_collab/state/leases.json | ConvertFrom-Json | Select-Object -Property leases | ConvertTo-Json) -ErrorAction SilentlyContinue
-# Ensure clean
-'{"leases": []}' | Set-Content agent_collab/state/leases.json
+# 8. Lease exclusivity test — against a TEMPORARY lease store, never the tracked one.
+$leaseSandbox = Join-Path ([System.IO.Path]::GetTempPath()) ("gloam-scaffold-" + [guid]::NewGuid().ToString('N'))
+$null = New-Item -ItemType Directory -Path $leaseSandbox -Force
+$sandboxLeases = Join-Path $leaseSandbox "leases.json"
+try {
+    # Start from a clean, well-formed store. Note the shape is {"leases": []} -- an empty ARRAY. The
+    # old in-place round-trip produced null here, which is why this is written literally.
+    [System.IO.File]::WriteAllText($sandboxLeases, '{"leases": []}')
+    $env:GLOAM_LEASES_FILE = $sandboxLeases
 
-& pwsh -NoProfile -File "agent_collab/scripts/Acquire-OrchestratorLease.ps1" -Slug "gloam-test-lease" -Runtime "claude-code" | Out-Null
-if ($LASTEXITCODE -eq 0) { Pass "Lease acquire succeeded for first runtime" } else { Fail "Lease acquire failed" }
+    & pwsh -NoProfile -File "agent_collab/scripts/Acquire-OrchestratorLease.ps1" -Slug "gloam-test-lease" -Runtime "claude-code" | Out-Null
+    if ($LASTEXITCODE -eq 0) { Pass "Lease acquire succeeded for first runtime" } else { Fail "Lease acquire failed" }
 
-# Try second while active - should block
-$secondRes = & pwsh -NoProfile -File "agent_collab/scripts/Acquire-OrchestratorLease.ps1" -Slug "gloam-test-lease" -Runtime "grok" 2>&1
-if ($secondRes -match "BLOCKED|Active Orchestrator lease exists") { Pass "Second lease acquire correctly blocked while active" } else { Fail "Lease exclusivity not enforced: $secondRes" }
+    # Prove the sandbox override actually took effect, rather than the test passing while the real
+    # file was written behind our back.
+    $sandboxData = Get-Content -Raw $sandboxLeases | ConvertFrom-Json
+    if (@($sandboxData.leases).Count -ge 1) { Pass "Lease was written to the sandbox, not the tracked store" }
+    else { Fail "Lease sandbox override did not take effect (sandbox store still empty)" }
 
-# Release (best effort)
-$leaseData = Get-Content agent_collab/state/leases.json | ConvertFrom-Json
-if ($leaseData.leases.Count -gt 0) {
-  & pwsh -NoProfile -File "agent_collab/scripts/Release-OrchestratorLease.ps1" -LeaseId $leaseData.leases[0].lease_id | Out-Null
+    # Try second while active - should block
+    $secondRes = & pwsh -NoProfile -File "agent_collab/scripts/Acquire-OrchestratorLease.ps1" -Slug "gloam-test-lease" -Runtime "grok" 2>&1
+    if ($secondRes -match "BLOCKED|Active Orchestrator lease exists") { Pass "Second lease acquire correctly blocked while active" } else { Fail "Lease exclusivity not enforced: $secondRes" }
+
+    # Release (best effort)
+    $leaseData = Get-Content -Raw $sandboxLeases | ConvertFrom-Json
+    if (@($leaseData.leases).Count -gt 0) {
+        & pwsh -NoProfile -File "agent_collab/scripts/Release-OrchestratorLease.ps1" -LeaseId $leaseData.leases[0].lease_id | Out-Null
+    }
+    Pass "Lease released for test"
 }
-Pass "Lease released for test"
+finally {
+    Remove-Item Env:\GLOAM_LEASES_FILE -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $leaseSandbox -Recurse -Force -ErrorAction SilentlyContinue
+}
 
 # 9. Edit scope blocks vendor and forbidden (re-use previous logic, assume it works from prior)
 Pass "EditScope vendor/forbidden blocking (verified in prior runs; extend test if needed)"
@@ -141,6 +175,22 @@ Pass "Worker vs Orchestrator separation enforced via lease and capability checks
 # 15. .claude/worktrees/ and .grok/worktrees/ ignored
 $gi = Get-Content ".gitignore" -Raw
 if ($gi -match '\.claude/worktrees/' -and $gi -match '\.grok/worktrees/') { Pass "Multi-runtime worktrees ignored in .gitignore" } else { Fail "Missing worktree ignores" }
+
+# 16. Durable state must be byte-identical to how the run found it.
+$stateAfter = Get-StateFingerprints
+$driftedFiles = @()
+foreach ($name in ($stateBefore.Keys + $stateAfter.Keys | Sort-Object -Unique)) {
+    $before = $stateBefore[$name]
+    $after  = $stateAfter[$name]
+    if ($before -ne $after) {
+        $driftedFiles += if (-not $before) { "$name (created)" } elseif (-not $after) { "$name (deleted)" } else { "$name (modified)" }
+    }
+}
+if ($driftedFiles.Count -eq 0) {
+    Pass "Durable state byte-identical after tests ($($stateAfter.Count) file(s) hashed)"
+} else {
+    Fail "Self-test mutated durable state: $($driftedFiles -join ', ')"
+}
 
 Write-Output ""
 if ($failures -eq 0) {
