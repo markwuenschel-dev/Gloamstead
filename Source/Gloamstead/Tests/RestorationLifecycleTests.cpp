@@ -12,9 +12,14 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+// Helper names here must be distinctive across the whole module, not merely file-local. UBT builds this
+// module with adaptive non-unity: which files share a unity blob depends on the current git working set,
+// so an anonymous-namespace helper and a `static` helper of the same signature in another test file only
+// collide once the grouping happens to place them together (C2668). PCGSubsystemTests.cpp:7 already owns
+// the name MakeSeededSubsystem; see commit bd6232e for the same hazard in the survey-subject JSON helpers.
 namespace
 {
-    UGloamsteadPCGSubsystem* MakeSeededSubsystem(const TArray<FRitualPointState>& States)
+    UGloamsteadPCGSubsystem* MakeLifecycleSubsystem(const TArray<FRitualPointState>& States)
     {
         UGloamsteadPCGSubsystem* Sub = NewObject<UGloamsteadPCGSubsystem>();
         Sub->Test_SeedPointStates(States);
@@ -56,7 +61,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FGloamRestoreUnassignedPayloadIndexTest::RunTest(const FString& /*Parameters*/)
 {
-    UGloamsteadPCGSubsystem* Sub = MakeSeededSubsystem(MakeCleanStates());
+    UGloamsteadPCGSubsystem* Sub = MakeLifecycleSubsystem(MakeCleanStates());
     AddExpectedErrorPlain(IndexMismatchLog, EAutomationExpectedErrorFlags::Contains, 1);
 
     FRestorationEventPayload Unassigned; // PointIndex left at its -1 default
@@ -83,7 +88,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FGloamRestoreCrossIndexPayloadTest::RunTest(const FString& /*Parameters*/)
 {
-    UGloamsteadPCGSubsystem* Sub = MakeSeededSubsystem(MakeCleanStates());
+    UGloamsteadPCGSubsystem* Sub = MakeLifecycleSubsystem(MakeCleanStates());
     AddExpectedErrorPlain(IndexMismatchLog, EAutomationExpectedErrorFlags::Contains, 1);
 
     // Payload describes point 1; the call targets point 0.
@@ -110,7 +115,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FGloamRestoreDoubleRestorationTest::RunTest(const FString& /*Parameters*/)
 {
-    UGloamsteadPCGSubsystem* Sub = MakeSeededSubsystem(MakeCleanStates());
+    UGloamsteadPCGSubsystem* Sub = MakeLifecycleSubsystem(MakeCleanStates());
 
     const FRestorationEventPayload First = MakePayload(0, /*LightDelta*/ 0.20f, /*CorruptionCleared*/ 0.10f);
     TestTrue(TEXT("the first restoration is accepted"), Sub->ApplyRestoration(0, First));
@@ -143,7 +148,7 @@ bool FGloamRestoreBlueprintBypassTest::RunTest(const FString& /*Parameters*/)
 {
     TArray<FRitualPointState> States = MakeCleanStates();
     States[0].bIsRestored = true; // flag installed directly; the restored-index set stays empty
-    UGloamsteadPCGSubsystem* Sub = MakeSeededSubsystem(States);
+    UGloamsteadPCGSubsystem* Sub = MakeLifecycleSubsystem(States);
 
     TestTrue(TEXT("the point reads as restored before the bypass"), Sub->IsPointRestored(0));
     TestFalse(TEXT("the restored-index set does not know about it yet"), Sub->GetRestoredPointIndices().Contains(0));
@@ -199,7 +204,7 @@ bool FGloamRestoreViewsAgreeLiveTest::RunTest(const FString& /*Parameters*/)
 {
     TArray<FRitualPointState> States;
     States.SetNum(5);
-    UGloamsteadPCGSubsystem* Sub = MakeSeededSubsystem(States);
+    UGloamsteadPCGSubsystem* Sub = MakeLifecycleSubsystem(States);
 
     TestTrue(TEXT("restore point 0"), Sub->ApplyRestoration(0, MakePayload(0, 0.2f, 0.1f)));
     TestTrue(TEXT("restore point 3"), Sub->ApplyRestoration(3, MakePayload(3, 0.2f, 0.1f)));
@@ -240,7 +245,7 @@ bool FGloamRestoreViewsAgreeAfterLoadTest::RunTest(const FString& /*Parameters*/
 
     TArray<FRitualPointState> States;
     States.SetNum(4);
-    UGloamsteadPCGSubsystem* Sub = MakeSeededSubsystem(States);
+    UGloamsteadPCGSubsystem* Sub = MakeLifecycleSubsystem(States);
     TestTrue(TEXT("restore point 1"), Sub->ApplyRestoration(1, MakePayload(1, 0.3f, 0.2f)));
     TestTrue(TEXT("restore point 2"), Sub->ApplyRestoration(2, MakePayload(2, 0.3f, 0.2f)));
     TestTrue(TEXT("the night reclaims point 2"), Sub->RevertRestoration(2));
@@ -282,7 +287,7 @@ bool FGloamRestoreFailedReinitPreservesStateTest::RunTest(const FString& /*Param
 {
     TArray<FRitualPointState> States;
     States.SetNum(3);
-    UGloamsteadPCGSubsystem* Sub = MakeSeededSubsystem(States);
+    UGloamsteadPCGSubsystem* Sub = MakeLifecycleSubsystem(States);
     TestTrue(TEXT("restore point 2"), Sub->ApplyRestoration(2, MakePayload(2, 0.4f, 0.1f)));
 
     const int32 PointsBefore = Sub->Test_PeekPointStates().Num();
@@ -312,7 +317,7 @@ bool FGloamRestoreReapplyIsIdempotentTest::RunTest(const FString& /*Parameters*/
 {
     TArray<FRitualPointState> States;
     States.SetNum(4);
-    UGloamsteadPCGSubsystem* Sub = MakeSeededSubsystem(States);
+    UGloamsteadPCGSubsystem* Sub = MakeLifecycleSubsystem(States);
 
     TSet<int32> Snapshot;
     Snapshot.Add(1);

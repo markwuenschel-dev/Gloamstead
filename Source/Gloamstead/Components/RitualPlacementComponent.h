@@ -49,6 +49,84 @@ public:
     UFUNCTION(BlueprintPure, Category="Ritual|Placement")
     bool GetCurrentTargetTransform(FVector& OutLocation, FRotator& OutRotation) const;
 
+    // === Confirmation evidence: read-only diagnostics for a HUD ===
+    //
+    // These five describe ONE event: the most recent confirmation that actually restored a point. A
+    // confirmation that was refused before restoring never touches them, so the five always agree with
+    // each other and a HUD can render them as a single snapshot instead of a mix of two attempts.
+    //
+    // They live here, on the component, precisely so a HUD never has to reach into
+    // UGloamsteadSurveySubjectRegistry. The registry deliberately exposes no UFUNCTIONs (it is plain
+    // C++ by design), and adding some to make a HUD convenient would put a reporting concern inside a
+    // system whose whole contract is that it takes no authority and answers only what it is asked.
+
+    /** Request id the last restored confirmation was filed under. Empty until one has happened. */
+    UFUNCTION(BlueprintPure, Category="Ritual|Evidence")
+    FString GetLastEvidenceRequestId() const { return LastEvidenceRequestId; }
+
+    /**
+     * Path the artifact was filed under. On a refused publish this is still the path the request id maps
+     * to (the publisher resolves it before it decides), so pair it with WasLastEvidencePublished() before
+     * telling anyone a file is there. Empty only when publication never got as far as choosing a path.
+     */
+    UFUNCTION(BlueprintPure, Category="Ritual|Evidence")
+    FString GetLastEvidenceReportPath() const { return LastEvidenceReportPath; }
+
+    /** GSS codes from that emission. Empty on a clean publish. */
+    UFUNCTION(BlueprintPure, Category="Ritual|Evidence")
+    TArray<FString> GetLastEvidenceFailureCodes() const { return LastEvidenceFailureCodes; }
+
+    /** True only when the artifact is on disk and validated. Distinguishes "published" from "never ran". */
+    UFUNCTION(BlueprintPure, Category="Ritual|Evidence")
+    bool WasLastEvidencePublished() const { return bLastEvidencePublished; }
+
+    /** The ritual point that confirmation restored — the correlation key between gameplay and evidence. */
+    UFUNCTION(BlueprintPure, Category="Ritual|Evidence")
+    int32 GetLastEvidencePointIndex() const { return LastEvidencePointIndex; }
+
+    /**
+     * True when the last confirmation restored a point but no restored actor materialised — a DEGRADED
+     * success. The point is spent and can never be retried, yet the player can see nothing there. A HUD
+     * must not render this the same as a clean restoration; string-matching GSS016 out of
+     * GetLastEvidenceFailureCodes() is not a HUD's job, so it is surfaced as its own answer.
+     */
+    UFUNCTION(BlueprintPure, Category="Ritual|Evidence")
+    bool WasLastRestoredActorMissing() const { return bLastRestoredActorMissing; }
+
+    /**
+     * GSS016 — RESTORATION COMPLETED WITH NO RESTORED ACTOR.
+     *
+     * Stamped into the emitted request artifact's failure_codes whenever a restoration succeeded while
+     * FRestorationEventPayload::RestoredActor was null or already dead. It says: the gameplay state
+     * changed (the point is spent, light and corruption moved, and ApplyRestoration will refuse it
+     * forever after) but nothing was placed in the world for the player to see.
+     *
+     * NOTE — this code is declared HERE, not in the canonical GSS list at
+     * GloamsteadSurveySubjectTypes.h:195-211, because that file is outside this change's envelope. It
+     * needs promoting into that list before anything else claims GSS016. Nothing in the survey system
+     * validates against the list, so an unregistered code is emitted and read correctly today; the risk
+     * is a future collision, not a malformed artifact.
+     *
+     * It is deliberately NOT expressed by forcing the request's Status to Unresolved. The survey subject
+     * and the spawned actor are different things: the place-name may have resolved perfectly. Lying about
+     * the resolution to signal a spawn failure would corrupt the one field the whole registry exists to
+     * answer.
+     */
+    static const FString GSSRestoredActorMissing;
+
+    // === Test seam (unconditional inline; unused in shipping → the linker emits nothing) ===
+    /**
+     * Test seam: run the confirm path's restore-then-publish tail against explicit collaborators.
+     * This is the SAME function ConfirmPlacement calls, not a parallel copy. Reaching it through
+     * ConfirmPlacement needs a preview target, and that needs UGloamsteadPCGSubsystem's spatial grid,
+     * which no public test seam can populate — that, and only that, is why this exists.
+     */
+    bool Test_CommitRestorationWithEvidence(class UGloamsteadPCGSubsystem* Subsystem, int32 PointIndex,
+        const FRestorationEventPayload& Payload, const FString& RequestId)
+    {
+        return CommitRestorationWithEvidence(Subsystem, PointIndex, Payload, RequestId);
+    }
+
     // === Events for Blueprint Child ===
     UFUNCTION(BlueprintImplementableEvent, Category="Ritual|Placement")
     void OnPreviewTargetChanged(int32 PointIndex, ERitualType Type, bool bIsValid);
@@ -78,6 +156,24 @@ protected:
     bool BuildRestorationPayload(int32 PointIndex, AActor* SpawnedRestoredActor, FRestorationEventPayload& OutPayload) const;
     FRotator CalculateAlignedRotation(const FVector& Location, const FVector& TerrainNormal) const;
 
+    /**
+     * The confirm path's tail: apply the restoration and, ONLY if it succeeded, publish request-bound
+     * survey evidence describing it.
+     *
+     * @return whether the RESTORATION succeeded — never whether the evidence was published. Restoration
+     *         is authoritative: a report that could not be written is loud (Error log + the
+     *         GetLastEvidence* getters) but must never roll back gameplay that already happened.
+     */
+    bool CommitRestorationWithEvidence(class UGloamsteadPCGSubsystem* Subsystem, int32 PointIndex,
+        const FRestorationEventPayload& Payload, const FString& RequestId);
+
+    /**
+     * Publish one request-bound survey artifact for a restoration that has ALREADY been applied.
+     * Reads world state only; it never touches UGloamsteadPCGSubsystem, so it cannot start a second
+     * restoration. Records the outcome in the LastEvidence* fields either way.
+     */
+    void PublishRestorationEvidence(const FRestorationEventPayload& AppliedPayload, const FString& RequestId);
+
     const class URitualDefinition* GetRitualDefinitionForType(ERitualType Type) const;
 
     /** Fill any unassigned RitualDefinitions slot from the DA_Ritual_* assets in /Game/Data.
@@ -105,6 +201,14 @@ private:
     // PathPoint first-time messaging
     bool bHasShownPathPointMessageThisSession = false;
 
+    // Confirmation evidence — see the getters above for what these describe.
+    FString LastEvidenceRequestId;
+    FString LastEvidenceReportPath;
+    TArray<FString> LastEvidenceFailureCodes;
+    bool bLastEvidencePublished = false;
+    bool bLastRestoredActorMissing = false;
+    int32 LastEvidencePointIndex = -1;
+
     // Config
     UPROPERTY(EditDefaultsOnly, Category="Placement Settings")
     float QueryUpdateInterval = 0.15f;
@@ -117,4 +221,14 @@ private:
 
     UPROPERTY(EditDefaultsOnly, Category="Placement Settings")
     float SteepSlopeCameraBias = 28.0f;
+
+    /**
+     * The survey place-name a confirmation from this component is evidence about. Assigned in the
+     * constructor to "courtyard.lantern.first"; it is a declared subject
+     * (GloamsteadSurveySubjectRegistry.cpp:52-61) whose only resolver is a map actor carrying a
+     * UGloamsteadSurveySubjectComponent. Until that actor exists the request is published honestly
+     * unresolved — which is the point: the artifact records what the world actually said.
+     */
+    UPROPERTY(EditDefaultsOnly, Category="Ritual|Evidence")
+    FName EvidenceSubjectId;
 };
