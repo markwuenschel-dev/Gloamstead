@@ -387,8 +387,12 @@ bool FGloamNightRetrievalRepelledTest::RunTest(const FString& /*Parameters*/)
 	Strategy->ApplyPressureStep(PCG); // the night gnaws at the mended point
 
 	// Player defends: re-stabilizes the target, clearing the reclaim corruption.
+	// The night's grip takes the flag first (RevertRestoration), then the defender re-lights the point.
+	// ApplyRestoration refuses a point that is still flagged restored (GloamsteadPCGSubsystem.cpp:303-307)
+	// and explicitly allows reclaimed points to be mended again, so this is the shape the guard permits.
+	TestTrue(TEXT("the night's grip clears the restored flag"), PCG->RevertRestoration(0));
 	FRestorationEventPayload Defend = MakeRestore(0, 1.0f);
-	PCG->ApplyRestoration(0, Defend);
+	TestTrue(TEXT("re-lighting the reclaimed point is accepted"), PCG->ApplyRestoration(0, Defend));
 	Strategy->NotifyRestoration(Defend, PCG);
 	TestTrue(TEXT("re-stabilizing resolves the retrieval"), Strategy->IsObjectiveResolved());
 
@@ -416,9 +420,11 @@ bool FGloamNightRetrievalSeamTest::RunTest(const FString& /*Parameters*/)
 	Strategy->ApplyPressureStep(PCG);
 	Strategy->ApplyPressureStep(PCG); // corruption climbs to ~0.3
 
-	// Partial defense: reduces the reclaim but not below the hold threshold.
+	// Partial defense: reduces the reclaim but not below the hold threshold. Same reclaim-then-re-light
+	// shape as the repelled test — ApplyRestoration will not touch a point that is still flagged restored.
+	TestTrue(TEXT("the night's grip clears the restored flag"), PCG->RevertRestoration(0));
 	FRestorationEventPayload Partial = MakeRestore(0, 0.15f);
-	PCG->ApplyRestoration(0, Partial);
+	TestTrue(TEXT("re-lighting the reclaimed point is accepted"), PCG->ApplyRestoration(0, Partial));
 	Strategy->NotifyRestoration(Partial, PCG);
 
 	const FNightRuntimeOutcome Outcome = Strategy->ResolveNight(PCG);

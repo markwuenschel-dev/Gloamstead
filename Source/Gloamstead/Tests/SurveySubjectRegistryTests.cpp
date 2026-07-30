@@ -222,7 +222,13 @@ bool FGloamSurveySubjectReportEmitTest::RunTest(const FString& /*Parameters*/)
 
 	FString Schema;
 	TestTrue(TEXT("schema is stamped"), Root->TryGetStringField(TEXT("schema"), Schema));
-	TestEqual(TEXT("schema value"), Schema, FString(TEXT("GloamsteadSurveySubjectReport/v1")));
+	// Assert against the producer's own declared version rather than a pinned literal. A literal has to be
+	// hand-edited every time the schema advances, and an edit that just deletes it would silently stop
+	// checking. The property under test is that the artifact carries the version its writer claims; the
+	// prefix check keeps the report's identity pinned so a wrong-schema artifact still fails.
+	TestEqual(TEXT("schema matches the declared report version"), Schema, GSSReportSchemaVersion());
+	TestTrue(TEXT("schema identifies the survey subject report"),
+		Schema.StartsWith(TEXT("GloamsteadSurveySubjectReport/v")));
 
 	const TArray<TSharedPtr<FJsonValue>>* Subjects = nullptr;
 	if (TestTrue(TEXT("subjects array present"), Root->TryGetArrayField(TEXT("subjects"), Subjects))

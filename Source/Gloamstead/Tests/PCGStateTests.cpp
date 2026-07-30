@@ -32,9 +32,13 @@ bool FGloamPCGRestoredSetRoundTripTest::RunTest(const FString& /*Parameters*/)
     States.SetNum(6);
 
     UGloamsteadPCGSubsystem* Sub = MakeSeeded(States);
-    const FRestorationEventPayload Payload;
-    Sub->ApplyRestoration(1, Payload);
-    Sub->ApplyRestoration(4, Payload);
+    // ApplyRestoration rejects a payload whose PointIndex disagrees with the target index, so each
+    // restoration carries its own payload naming the point it mends (a shared default-constructed
+    // payload still holds PointIndex == -1 and would be refused).
+    FRestorationEventPayload RestoreOne;  RestoreOne.PointIndex = 1;
+    FRestorationEventPayload RestoreFour; RestoreFour.PointIndex = 4;
+    TestTrue(TEXT("restore index 1 succeeds"), Sub->ApplyRestoration(1, RestoreOne));
+    TestTrue(TEXT("restore index 4 succeeds"), Sub->ApplyRestoration(4, RestoreFour));
 
     const TSet<int32> Snapshot = Sub->GetRestoredPointIndices();
     TestEqual(TEXT("two indices captured"), Snapshot.Num(), 2);
@@ -89,11 +93,13 @@ bool FGloamPCGApplyRestorationMutatesTest::RunTest(const FString& /*Parameters*/
     UGloamsteadPCGSubsystem* Sub = MakeSeeded(States);
 
     FRestorationEventPayload AddLight;
+    AddLight.PointIndex = 0; // must name its target: ApplyRestoration refuses a payload for another point
     AddLight.LightDelta = 0.2f;
     AddLight.CorruptionCleared = 0.3f;
     TestTrue(TEXT("restore index 0 succeeds"), Sub->ApplyRestoration(0, AddLight));
 
     FRestorationEventPayload OverClear;
+    OverClear.PointIndex = 1;
     OverClear.CorruptionCleared = 0.9f; // exceeds current 0.5 -> must clamp at 0, not go negative
     TestTrue(TEXT("restore index 1 succeeds"), Sub->ApplyRestoration(1, OverClear));
 
@@ -121,13 +127,16 @@ bool FGloamPCGSaveGameRoundTripTest::RunTest(const FString& /*Parameters*/)
     {
         States[i].LightLevel = 0.1f * static_cast<float>(i);
         States[i].CorruptionLevel = 0.05f * static_cast<float>(i);
-        States[i].bIsRestored = (i % 2 == 0);
+        // Odd indices start restored, so index 2 (the one this test restores through the real path)
+        // is still mendable — ApplyRestoration refuses a point that is already restored.
+        States[i].bIsRestored = (i % 2 == 1);
     }
 
     UGloamsteadPCGSubsystem* Sub = MakeSeeded(States);
     FRestorationEventPayload Payload;
+    Payload.PointIndex = 2; // the payload must name the point it restores
     Payload.LightDelta = 0.15f;
-    Sub->ApplyRestoration(2, Payload); // mutate one point and register it as restored
+    TestTrue(TEXT("restore index 2 succeeds"), Sub->ApplyRestoration(2, Payload)); // mutate one point and register it as restored
 
     UGloamsteadSaveGame* SaveGame = NewObject<UGloamsteadSaveGame>();
     Sub->CaptureToSaveGame(SaveGame);
@@ -147,8 +156,24 @@ bool FGloamPCGSaveGameRoundTripTest::RunTest(const FString& /*Parameters*/)
         TestEqual(FString::Printf(TEXT("corruption[%d] round-trips"), i), B[i].CorruptionLevel, A[i].CorruptionLevel, KINDA_SMALL_NUMBER);
         TestEqual(FString::Printf(TEXT("restored[%d] round-trips"), i), B[i].bIsRestored, A[i].bIsRestored);
     }
-    TestEqual(TEXT("restored set size round-trips"), Reloaded->GetRestoredPointIndices().Num(), Sub->GetRestoredPointIndices().Num());
-    TestTrue(TEXT("restored index 2 present after load"), Reloaded->GetRestoredPointIndices().Contains(2));
+    // RestoreFromSaveGame now derives the restored-index set from the loaded flags, so what round-trips
+    // is the FLAGS and the set is a view over them. Comparing the loaded set against the source set would
+    // assert that a seeded divergence survives the trip — and the source here IS diverged, because
+    // Test_SeedPointStates installs flags without populating the set. Pin set == flags instead: that is
+    // the invariant the reconciliation exists to hold, and it is strictly stronger than a size match.
+    const TSet<int32> LoadedSet = Reloaded->GetRestoredPointIndices();
+    int32 FlaggedCount = 0;
+    for (int32 i = 0; i < B.Num(); ++i)
+    {
+        if (B[i].bIsRestored)
+        {
+            ++FlaggedCount;
+        }
+        TestEqual(FString::Printf(TEXT("index %d agrees between flags and restored set"), i),
+                  LoadedSet.Contains(i), B[i].bIsRestored);
+    }
+    TestEqual(TEXT("loaded restored set matches the loaded flags"), LoadedSet.Num(), FlaggedCount);
+    TestTrue(TEXT("restored index 2 present after load"), LoadedSet.Contains(2));
     return true;
 }
 
@@ -179,8 +204,9 @@ bool FGloamPCGSaveSlotDiskRoundTripTest::RunTest(const FString& /*Parameters*/)
 
     UGloamsteadPCGSubsystem* Sub = MakeSeeded(States);
     FRestorationEventPayload Payload;
+    Payload.PointIndex = 2; // the payload must name the point it restores
     Payload.LightDelta = 0.2f;
-    Sub->ApplyRestoration(2, Payload); // mutate + register one point
+    TestTrue(TEXT("restore index 2 succeeds"), Sub->ApplyRestoration(2, Payload)); // mutate + register one point
 
     TestTrue(TEXT("SaveToSlot succeeds"), Sub->SaveToSlot(Slot, 0));
 

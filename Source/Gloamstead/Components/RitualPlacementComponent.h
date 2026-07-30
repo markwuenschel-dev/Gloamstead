@@ -72,10 +72,18 @@ protected:
     void UpdateTargetPoint();
     bool IsPointValidForPlacement(int32 PointIndex) const;
     int32 ResolveTargetForPlacement(int32 RawPointIndex);
-    void BuildRestorationPayload(int32 PointIndex, AActor* SpawnedRestoredActor, FRestorationEventPayload& OutPayload) const;
+    /** Fill OutPayload for PointIndex. Returns false (leaving OutPayload at defaults) when the point
+     *  cannot be resolved; a true return guarantees OutPayload.PointIndex == PointIndex, which is what
+     *  ApplyRestoration checks. Callers must not proceed on a false return. */
+    bool BuildRestorationPayload(int32 PointIndex, AActor* SpawnedRestoredActor, FRestorationEventPayload& OutPayload) const;
     FRotator CalculateAlignedRotation(const FVector& Location, const FVector& TerrainNormal) const;
 
     const class URitualDefinition* GetRitualDefinitionForType(ERitualType Type) const;
+
+    /** Fill any unassigned RitualDefinitions slot from the DA_Ritual_* assets in /Game/Data.
+     *  Editor-assigned entries win; types whose asset fails to load fall back to the RitualTypes.cpp
+     *  defaults at payload-build time. */
+    void EnsureRitualDefinitionsLoaded();
 
     class UGloamsteadPCGSubsystem* GetSubsystem() const;
 

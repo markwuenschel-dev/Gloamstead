@@ -2,6 +2,7 @@
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Systems/GloamsteadDayNightSubsystem.h"
 #include "Engine/World.h"
+#include "GameFramework/Actor.h"
 #include "Kismet/GameplayStatics.h"
 
 URitualPlacementComponent::URitualPlacementComponent()
@@ -24,6 +25,8 @@ void URitualPlacementComponent::BeginPlay()
     {
         UE_LOG(LogTemp, Warning, TEXT("RitualPlacementComponent: Could not get UGloamsteadPCGSubsystem. Placement will be disabled."));
     }
+
+    EnsureRitualDefinitionsLoaded();
 }
 
 void URitualPlacementComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -81,23 +84,34 @@ bool URitualPlacementComponent::ConfirmPlacement()
     const int32 FinalPointIndex = ResolveTargetForPlacement(CurrentTargetPointIndex);
     if (FinalPointIndex == -1 || CachedSubsystem->IsPointRestored(FinalPointIndex)) return false;
 
+    // We keep spawning the actor before restoring, and undo it on failure, rather than spawning after.
+    // The payload carries RestoredActor and ApplyRestoration broadcasts that payload from inside itself,
+    // so restoring first would hand every OnStructureRestored listener a null actor. The price of
+    // keeping that contract is an orphan on failure, so every failure path below destroys the actor.
     AActor* SpawnedActor = nullptr;
     SpawnRestoredActor(FinalPointIndex, SpawnedActor);
 
     FRestorationEventPayload Payload;
-    BuildRestorationPayload(FinalPointIndex, SpawnedActor, Payload);
-
-    const bool bSuccess = CachedSubsystem->ApplyRestoration(FinalPointIndex, Payload);
-
-    if (bSuccess)
+    if (!BuildRestorationPayload(FinalPointIndex, SpawnedActor, Payload))
     {
-        OnPlacementConfirmed(FinalPointIndex);
-        OnRestoredActorSpawned(SpawnedActor, FinalPointIndex, Payload.RitualType);
-        UE_LOG(LogTemp, Log, TEXT("RitualPlacement: Restored point %d type %d"), FinalPointIndex, static_cast<int32>(Payload.RitualType));
-        ExitPlacementMode();
+        if (SpawnedActor) SpawnedActor->Destroy();
+        UE_LOG(LogTemp, Warning, TEXT("RitualPlacement: Could not build a payload for point %d; placement aborted."), FinalPointIndex);
+        return false;
     }
 
-    return bSuccess;
+    if (!CachedSubsystem->ApplyRestoration(FinalPointIndex, Payload))
+    {
+        if (SpawnedActor) SpawnedActor->Destroy();
+        UE_LOG(LogTemp, Warning, TEXT("RitualPlacement: Restoration of point %d was rejected; placement aborted."), FinalPointIndex);
+        return false;
+    }
+
+    OnPlacementConfirmed(FinalPointIndex);
+    OnRestoredActorSpawned(SpawnedActor, FinalPointIndex, Payload.RitualType);
+    UE_LOG(LogTemp, Log, TEXT("RitualPlacement: Restored point %d type %d"), FinalPointIndex, static_cast<int32>(Payload.RitualType));
+    ExitPlacementMode();
+
+    return true;
 }
 
 void URitualPlacementComponent::ForceUpdatePreview()
@@ -174,15 +188,17 @@ bool URitualPlacementComponent::IsCurrentPlacementValid() const
     return IsPointValidForPlacement(CurrentTargetPointIndex);
 }
 
-void URitualPlacementComponent::BuildRestorationPayload(int32 PointIndex, AActor* SpawnedRestoredActor, FRestorationEventPayload& OutPayload) const
+bool URitualPlacementComponent::BuildRestorationPayload(int32 PointIndex, AActor* SpawnedRestoredActor, FRestorationEventPayload& OutPayload) const
 {
     OutPayload = FRestorationEventPayload();
 
-    if (!CachedSubsystem) return;
+    if (!CachedSubsystem) return false;
 
     FPCGPoint Point;
-    if (!CachedSubsystem->GetPointByIndex(PointIndex, Point)) return;
+    if (!CachedSubsystem->GetPointByIndex(PointIndex, Point)) return false;
 
+    // Assigned first, so no path can reach the return-true below still carrying the -1 default:
+    // ApplyRestoration rejects a payload whose index disagrees with its target.
     OutPayload.PointIndex = PointIndex;
     OutPayload.RitualType = static_cast<ERitualType>(CachedSubsystem->GetIntAttribute(Point, "RitualType", 0));
     OutPayload.WorldLocation = Point.Transform.GetLocation();
@@ -215,6 +231,8 @@ void URitualPlacementComponent::BuildRestorationPayload(int32 PointIndex, AActor
             OutPayload.NightCountAtRestoration = DayNight->GetNightCount();
         }
     }
+
+    return true;
 }
 
 FRotator URitualPlacementComponent::CalculateAlignedRotation(const FVector& Location, const FVector& TerrainNormal) const
@@ -271,6 +289,59 @@ bool URitualPlacementComponent::GetCurrentTargetTransform(FVector& OutLocation, 
 ERitualType URitualPlacementComponent::GetCurrentTargetRitualType() const
 {
     return GetCurrentTargetPointInfo().RitualType;
+}
+
+void URitualPlacementComponent::EnsureRitualDefinitionsLoaded()
+{
+    // The DA_Ritual_* assets are the designer tuning surface for light/corruption per ritual type.
+    // Nothing populated this map, so GetRitualDefinitionForType() always missed and every payload
+    // silently used the RitualTypes.cpp switch defaults. Load them here, following the same
+    // StaticLoadObject-by-path pattern as NightConsequenceManager's catalog and the Veil Heart's.
+    struct FRitualDefinitionAsset
+    {
+        ERitualType Type;
+        const TCHAR* ObjectPath;
+    };
+
+    static const FRitualDefinitionAsset DefinitionAssets[] =
+    {
+        { ERitualType::LanternPost,  TEXT("/Game/Data/DA_Ritual_LanternPost.DA_Ritual_LanternPost")   },
+        { ERitualType::GardenBed,    TEXT("/Game/Data/DA_Ritual_GardenBed.DA_Ritual_GardenBed")       },
+        { ERitualType::PathPoint,    TEXT("/Game/Data/DA_Ritual_PathPoint.DA_Ritual_PathPoint")       },
+        { ERitualType::MirrorPillar, TEXT("/Game/Data/DA_Ritual_MirrorPillar.DA_Ritual_MirrorPillar") },
+        { ERitualType::BellShrine,   TEXT("/Game/Data/DA_Ritual_BellShrine.DA_Ritual_BellShrine")     },
+    };
+
+    int32 LoadedCount = 0;
+    for (const FRitualDefinitionAsset& Entry : DefinitionAssets)
+    {
+        // An entry assigned on the component in the editor is a deliberate override; leave it alone.
+        if (const TObjectPtr<URitualDefinition>* Existing = RitualDefinitions.Find(Entry.Type))
+        {
+            if (*Existing) continue;
+        }
+
+        URitualDefinition* Loaded = Cast<URitualDefinition>(
+            StaticLoadObject(URitualDefinition::StaticClass(), nullptr, Entry.ObjectPath));
+        if (!Loaded)
+        {
+            // Not fatal: BuildRestorationPayload falls back to GetDefaultLightContribution /
+            // GetDefaultCorruptionClearance for any type with no definition.
+            continue;
+        }
+
+        if (Loaded->RitualType != Entry.Type)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("RitualPlacementComponent: %s declares RitualType %d but is keyed as %d; keying by path."),
+                Entry.ObjectPath, static_cast<int32>(Loaded->RitualType), static_cast<int32>(Entry.Type));
+        }
+
+        RitualDefinitions.Add(Entry.Type, Loaded);
+        ++LoadedCount;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("RitualPlacementComponent: Loaded %d ritual definition asset(s); %d type(s) now mapped."),
+        LoadedCount, RitualDefinitions.Num());
 }
 
 const URitualDefinition* URitualPlacementComponent::GetRitualDefinitionForType(ERitualType Type) const
