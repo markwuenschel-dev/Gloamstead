@@ -6,7 +6,19 @@ Follow `docs/agents/ProjectRules.md` for game architecture and UE5 conventions.
 
 Minimal active roles: orchestrator, planner, coder, critic. Architect / researcher / documentor have been converted to playbooks (agent_collab/playbooks/) + checklists per the review. Use `workflow_activation.json` to decide when the full set is justified. Small tasks must not pull unnecessary roles.
 
-After clone or adapter changes: `pwsh -NoProfile -File agent_collab/scripts/Project-GrokAdapter.ps1`
+**After clone or adapter changes, run BOTH projections.** The adapter directories (`.claude/`,
+`.grok/`) are generated and gitignored, so a fresh clone has neither until you project them. For
+Claude Code this is not cosmetic: `.claude/settings.json` is the only file that registers the
+`PreToolUse` Bash hook, so until it exists **every Bash command runs unguarded**.
+
+```
+pwsh -NoProfile -File agent_collab/scripts/Project-ClaudeAdapter.ps1
+pwsh -NoProfile -File agent_collab/scripts/Project-GrokAdapter.ps1
+```
+
+Restart the Claude Code session afterwards so settings are re-read. `Test-AgentCollabScaffold.ps1`
+verifies the tracked source carries the registration and that no projected copy has drifted.
+
 Start orchestrator: **`/gloam-resume`**
 Status only: **`/gloam-status`**
 
@@ -38,6 +50,16 @@ policy (step 6). The only hard stops are: (a) `./gate.ps1` is red, (b) a branch-
 gate would need `--admin` (step 7), or (c) a conflict you cannot cleanly resolve — in those cases **stop and
 report**. Doc/config-only changes with no build impact (e.g. Markdown, `.gitignore`) do not require a UE5
 build; say so in the PR body instead of skipping silently.
+
+**The doc/config exemption does NOT cover the collaboration substrate's own guards.** Changes
+touching any of these always require a gate run, regardless of file extension, because `gate.ps1` is
+what verifies them and they are exactly the changes that look like "just config":
+`agent_collab/scripts/**`, `agent_collab/tests/**`, `agent_collab/context/command_policy.json`,
+`agent_collab/context/command-policy-spec.md`, and `agent_collab/adapters/*/hooks/**`. A `.psm1`
+lexer, a `.jsonl` corpus and a `.json` policy declaration are code with a test suite attached —
+`gate.ps1` runs that suite first and it takes seconds. If a full UE build is genuinely impossible,
+run `pwsh -NoProfile -File agent_collab/scripts/Test-ShellGuard.ps1` and state in the PR body that
+only the shell-guard segment was verified, naming what was not.
 
 1. **Branch first — never commit directly to `main`.** One branch per logical change
    (`feat/…`, `test/…`, `chore/…`, `docs/…`).
@@ -126,7 +148,13 @@ You may act as Orchestrator on runtime **grok-cursor**. Acquire the lock before 
 
 ### Claude Code
 
-`claude --agent gloam-orchestrator` or `/gloam-resume` with `.claude/` projection (`Project-ClaudeAdapter.ps1`).
+`claude --agent gloam-orchestrator` or `/gloam-resume`.
+
+**Required first step after any clone:** `pwsh -NoProfile -File agent_collab/scripts/Project-ClaudeAdapter.ps1`,
+then restart the session. This writes `.claude/settings.json`, the only place the `PreToolUse` Bash
+hook is registered — without it `agent_collab/adapters/claude-code/hooks/pre-bash-policy.ps1` is
+never invoked and the shell-policy guard is silently inactive. Source of truth is
+`agent_collab/adapters/claude-code/`; never edit `.claude/` directly, it is overwritten.
 
 ### Shared rules
 

@@ -46,7 +46,7 @@ In sync mode you may stay in conversation for several autonomous steps. In futur
 - Work branch always green after promotion.
 - Mandatory integration Critic (on can_run_tests runtime) before any promote to agent-collab/gloam/work.
 - No git push/rebase/reset/amend/filter/clean outside explicit worktree control.
-- Use Assert-BashPolicy.ps1 before any bash/pwsh command from workers.
+- Use Assert-BashPolicy.ps1 before any bash/pwsh command from workers. It is a direct-invocation guard, not worker containment: it inspects the command string only, so a script that wraps a blocked call passes. Containment is ownership + worktrees + Critic + candidate verification.
 - Log every routing, reconciliation, policy decision, lock action to decisions.md + orchestrator.log.
 - On stale lock: warn, ask human explicitly before takeover.
 - Always read the current `agent_collab/context/workflow_activation.json`, `human_approval_gates.md`, and `docs/agents/UE5-Agent-Substrate-Review.md` (or the key sections) on resume before deciding which roles to involve.

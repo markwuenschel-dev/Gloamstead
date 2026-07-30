@@ -900,3 +900,86 @@ Human-directed architectural ratification. Full record: `docs/gloamstead/decisio
 - **Verified this session:** `SceneSurvey.h:1-18` shows the C++ survey half is already correctly scoped (read-only, game-agnostic, `WorldForgeCore`, camera capture deliberately far-side). No `.py` committed in-repo → the map/anchor/camera-selection logic lives in external far-side tooling; exact location pending read-only recon (report `file:line` before editing).
 
 Recorded under direct human direction (not a lease-holding orchestrator session).
+
+## 2026-07-29 — Commit-message correction for `6f5f363` (history NOT rewritten)
+
+**Correction of record.** Commit `6f5f363` carries the subject line *"use MARKER-RAN only in docs"*.
+That subject describes a documentation marker tweak. The commit's actual contents are 1,197 added
+lines across three new files:
+
+| File | Lines | What it is |
+|---|---|---|
+| `agent_collab/scripts/CommandPolicy.psm1` | 865 | the entire lexical command classifier |
+| `agent_collab/scripts/Test-CommandPolicy.ps1` | 233 | its JSONL corpus runner |
+| `agent_collab/tests/command-policy-smoke.jsonl` | 99 | the initial 99-row verification corpus |
+
+A reader scanning `git log --oneline` would not learn that the shell-policy classifier entered the
+repository in that commit. **The subject line is wrong about its own contents, and this entry is the
+correction of record.** Verified with `git show 6f5f363 --stat` and
+`git log --oneline --diff-filter=A -- agent_collab/scripts/CommandPolicy.psm1`.
+
+**Why the commit was NOT amended.** Amending was considered and rejected on repo policy, not
+preference:
+
+- `agent_collab/context/agent_rules.md:81`, under **"Hard Rules (non-negotiable)"** — `No
+  push/PR/rebase/amend/hard-reset/rewrite.` Restated at `agent_rules.md:47`. Unqualified, and it
+  draws no shared/unshared distinction.
+- `agent_collab/adapters/grok-cursor/rules/gloam-collab.md:18` — `No git push, rebase, amend, or
+  hard reset.`
+- The only control that correctly *recognises* the real command is
+  `agent_collab/scripts/Assert-ActionPolicy.ps1:102` (`git\s+commit\s+--amend`), and via `:124-126`
+  it resolves to `Decide 'ask'` / `requires_human = $true` / exit 5 — human approval, not
+  autonomous action.
+
+Mitigating facts were noted and did **not** change the outcome: the branch
+`gloamstead/courtyard-spawn-first-lantern` has no upstream and
+`refs/remotes/origin/gloamstead/courtyard-spawn-first-lantern` does not exist, so an amend would have
+rewritten unpushed, unshared history and destroyed nothing. The rules as written contain no
+exception for that case, and inventing one unilaterally is precisely the kind of self-granted
+latitude the hard-rules list exists to prevent. A written correction costs one log entry; a
+self-authorised history rewrite costs the credibility of the rule.
+
+**Related defect found and fixed while establishing the above.** Both "forbidden" guards used the
+pattern `git\s+amend`, which matches the non-existent command `git amend` and does **not** match the
+real `git commit --amend` — `agent_collab/context/command_policy.json:9-12` and
+`agent_collab/scripts/Assert-BashPolicy.ps1:65`. The declared intent was a history-rewrite block;
+the implementation blocked a typo. Corrected to match `Assert-ActionPolicy.ps1:102`.
+
+> **Correction to the paragraph above, 2026-07-30.** As written it claimed both sites were
+> corrected. Only `command_policy.json` was. `Assert-BashPolicy.ps1:65` still carried `git\s+amend`,
+> and — this is the part that matters — **nothing read the corrected pattern**, because that script
+> held its own hardcoded `$blockedPatterns` array rather than reading the declaration. So the fix
+> lived in a file no code consulted while the live path stayed broken: `git commit --amend` was
+> **unguarded**, verified by running the script and observing exit 0. The entry above is therefore
+> the same failure it was written to correct — a claim recorded as done that the enforcing path did
+> not carry.
+>
+> Root cause, not just the symptom: `command_policy.json`'s own description asserted (as R-PROT-1)
+> that `Assert-BashPolicy.ps1` reads `blocked_patterns` and `vendor_content_patterns` from it. That
+> assertion was false. And `rule-coverage-map.json` delegated R-PROT-1 to the bare string `"critic"`,
+> which `Test-CommandPolicy.ps1` counted as covered *unconditionally* — it only existence-tested an
+> artefact whose string contained a path separator. The rule whose audit would have caught the false
+> declaration was itself reported green by a no-op.
+>
+> **Fixed by making the declaration true rather than by re-patching the copy.**
+> `Assert-BashPolicy.ps1` now loads both pattern groups from `command_policy.json` and fails open,
+> loudly, if it cannot — with deliberately no fallback list, since a fallback is a second
+> declaration. Verified: `git commit --amend` and `git commit --am` now exit 2.
+>
+> A second, independent defect surfaced in the same inline list and is fixed by the same change: the
+> hardcoded `git\s+lfs\s+(pull|checkout|smudge)` pattern **denied**
+> `git commit -m "ran git lfs pull"`, which `command-policy-spec.md:251` states must be allowed. It
+> was the surviving twin of the appearance-based Unreal regex removed on 2026-07-27 — it classified
+> by how a command *looked*. R-PROT-3 is owned by the classifier, which matches only at a proven
+> command position, so the pattern was deleted rather than ported. Verified: that command now exits 0
+> while `git lfs pull` and `git -C submodule lfs pull` still exit 2.
+>
+> To stop this class recurring, R-PROT-1/R-PROT-4/R-VER-5 now have a real owner —
+> `agent_collab/scripts/Test-PolicyStructure.ps1`, the structural test
+> `command-policy-spec.md:333` always required — and `rule-coverage-map.json` was restructured so
+> every rule names a suite id that must resolve to a file that must exist. There is no longer a
+> spelling that silences the coverage checker without an artefact behind it. The three static
+> R-PROT-1 checks were confirmed falsifiable by running them against `HEAD`'s pre-fix
+> `Assert-BashPolicy.ps1`, where all three fail.
+
+Recorded during shell-guard productionisation, under direct human direction.

@@ -109,7 +109,15 @@ Start here: **[docs/README.md](docs/README.md)**
 Development uses the **agent_collab** substrate (v8.1, UE5-tuned). See the full review in `docs/agents/UE5-Agent-Substrate-Review.md` (minimal roster: orchestrator, planner, coder, critic + playbooks for former architect/researcher/documentor roles).
 
 ### For humans (or starting as Orchestrator)
-- After clone/adapter changes: `pwsh -NoProfile -File agent_collab/scripts/Project-GrokAdapter.ps1`
+- After clone/adapter changes, run **both** projections — `.claude/` and `.grok/` are generated and
+  gitignored, so a fresh clone has neither:
+  ```
+  pwsh -NoProfile -File agent_collab/scripts/Project-ClaudeAdapter.ps1
+  pwsh -NoProfile -File agent_collab/scripts/Project-GrokAdapter.ps1
+  ```
+  The Claude one is load-bearing for safety, not convenience: `.claude/settings.json` is the only
+  file that registers the `PreToolUse` Bash hook, so until it is projected every Bash command runs
+  without the shell-policy guard. Restart the session afterwards.
 - Start orchestrator (this Grok session): **`/gloam-resume`**
 - Status only: **`/gloam-status`**
 - Full rules: `agent_collab/context/agent_rules.md`, `workflow_activation.json`, `human_approval_gates.md`, and the playbooks under `agent_collab/playbooks/`.

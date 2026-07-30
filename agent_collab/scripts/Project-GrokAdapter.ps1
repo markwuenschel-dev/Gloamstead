@@ -35,9 +35,25 @@ function Copy-Tree {
     }
 }
 
+function Copy-File {
+    param([string]$From, [string]$To)
+    if (-not (Test-Path $From)) { throw "Missing: $From" }
+    if ($WhatIf) { Write-Output "WOULD COPY $From -> $To"; return }
+    $destDir = Split-Path $To -Parent
+    if ($destDir) { New-Item -ItemType Directory -Path $destDir -Force | Out-Null }
+    Copy-Item $From $To -Force
+    Write-Output "COPIED $From -> $To"
+}
+
 Copy-Tree -From "$src/skills" -To '.grok/skills'
 Copy-Tree -From "$src/rules" -To '.grok/rules'
 Copy-Tree -From "$src/agents" -To '.grok/agents'
+
+# runner_config.json is a single tracked file, not a tree. It was present in .grok/ but no
+# projection step produced it, so a clean clone could not reproduce the directory it lives in
+# (added 2026-07-29). Every file under .grok/ must be regenerable from tracked sources or the
+# ignore rules in .gitignore would make it unrecoverable.
+Copy-File -From "$src/runner_config.json" -To '.grok/runner_config.json'
 
 Write-Output 'GROK_PROJECTION_COMPLETE'
 exit 0

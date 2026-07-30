@@ -10,7 +10,9 @@ This review follows the exact structure and distinctions required. It is deliber
 
 ## 1. Executive diagnosis
 
-The current `agent_collab` substrate is one of the more disciplined agentic systems observed for game development. It correctly separates logical roles from runtimes, enforces a single-writer Orchestrator via exclusive lease, uses isolated worktrees for mutation, and bakes in a hard "no direct Unreal binary editing" rule with vendor immutability and explicit generated_output_ownership. The protocol (schemas, handoffs, outbox, reconciliation from ground truth) and defense-in-depth guards (Assert-EditScope.ps1, Assert-BashPolicy.ps1, scope_roots.json, command_policy.json, content_policy.json) are substantive, not theater.
+The current `agent_collab` substrate is one of the more disciplined agentic systems observed for game development. It correctly separates logical roles from runtimes, enforces a single-writer Orchestrator via exclusive lease, uses isolated worktrees for mutation, and states a hard "no direct Unreal binary editing" rule with vendor immutability and explicit generated_output_ownership. The protocol (schemas, handoffs, outbox, reconciliation from ground truth) and defense-in-depth guards (Assert-EditScope.ps1, Assert-BashPolicy.ps1, scope_roots.json, command_policy.json, content_policy.json) are substantive, not theater.
+
+> **Scope correction, 2026-07-27.** An earlier revision of this paragraph said the substrate *enforces* the no-direct-Unreal rule. It does not, and did not: `Assert-BashPolicy.ps1` was wired to nothing until 2026-07-27, and even now it is a **direct-invocation guard** that inspects the submitted command string only — script bodies and spawned child processes are invisible to it. Read every "guard" in this document as *catches a careless direct call*, never as *contains a worker*. The controls that actually contain are ownership, worktrees, Critic review, and candidate verification.
 
 However, the system still carries draft-era role sprawl. Seven logical roles exist when four deliver the necessary authority boundaries for UE5 work. Architect, Researcher, and Documentor are narrow read-only or post-facto activities whose value does not justify the handoff, lease, routing, and invocation overhead of first-class roles. They are better expressed as skills, rubrics, checklists, or steps inside Planner/Orchestrator.
 
@@ -93,7 +95,7 @@ Columns = roles (minimal roster + the three being converted for completeness dur
 | read files (repo, .uproject, Config, Source text, Content text inspection) | yes | yes | yes | yes | yes | yes | yes | All read-only roles need this. |
 | edit text files | only agent_collab/ (via scripts) | no | only inside assigned file_ownership under coder_edit_roots (Source/, Config/) | no | no | no | only inside documentor_edit_roots (docs/) | Assert-EditScope.ps1 + scope_roots.json enforce. |
 | produce generated binary outputs (.uasset, maps, PCG derived, Data/ catalogs) | no (delegates) | no | only inside assigned generated_output_ownership via approved UE automation on worktree | no | no | no | no | content_policy + handoff + Critic audit. Never direct. |
-| run shell / pwsh commands | limited (orchestrator scripts + Assert-ActionPolicy) | no | limited (inside worktree; Assert-BashPolicy before every) | no | no | no | no | Blocked patterns include git push/rebase/reset, rm -rf, pipe-to-shell, UnrealEditor*/RunUAT/BuildCookRun unless explicitly permitted per handoff. |
+| run shell / pwsh commands | limited (orchestrator scripts + Assert-ActionPolicy) | no | limited (inside worktree; Assert-BashPolicy as a direct-invocation guard) | no | no | no | no | Blocked patterns include git push/rebase/reset, rm -rf, pipe-to-shell, and UnrealEditor*/RunUAT/BuildCookRun **at invocation position** unless explicitly permitted per handoff. The guard sees the submitted command string only — not script bodies or spawned processes. |
 | install dependencies / plugins / engine upgrades / asset acquisition / license acceptance | "ask" (autonomy_policy) + human gate | no | no | no | no | no | no | Always human. |
 | create branches / worktrees | yes (via New-TaskWorktree.ps1 for coders; candidate branches) | no | no (uses pre-created worktree) | no | no | no | no | Orchestrator only. |
 | commit changes | limited (local on task branches inside worktrees; candidate merges) | no | yes (on assigned task branch inside worktree only) | no | no | no | no | No direct main; always via candidate + Critic + promote. |
@@ -167,7 +169,7 @@ This model already prevents most "workers approving themselves" and "dashboard d
 
 Current controls:
 - Assert-EditScope.ps1 (UE5-aware: coder_edit_roots, documentor_edit_roots, always blocks vendor + forbidden + readonly + traversal).
-- Assert-BashPolicy.ps1 (blocks git push/rebase/reset, rm -rf, pipe-to-shell, sudo, UnrealEditor*/RunUAT/BuildCookRun, obvious vendor paths).
+- Assert-BashPolicy.ps1 — a **direct-invocation guard**, not worker containment (scope corrected 2026-07-27). Blocks git push/rebase/reset, rm -rf, pipe-to-shell, sudo, obvious vendor paths, and Unreal binaries (UnrealEditor*/RunUAT/BuildCookRun/GenerateProjectFiles) **when they appear at a shell-command invocation position**. It inspects the submitted command string only: it does not read the body of a script that command runs, nor see processes that script spawns, so one level of script indirection passes it by construction. `pwsh -File gate.ps1` is allowed even though gate.ps1 itself launches UnrealEditor-Cmd.exe.
 - Assert-ActionPolicy.ps1 (autonomy_policy "allow/ask/deny" per risk).
 - content_policy.json + scope_roots.json (no direct binary, generated only via automation + explicit handoff ownership).
 - command_policy.json classification (most UE generation/packaging is "requires human approval" until whitelisted).
@@ -177,11 +179,53 @@ Current controls:
 
 **UE5-specific risks and mitigations**:
 - Risk: A runtime hallucinates a "safe" editor commandlet or Python script path that mutates Content/ outside ownership. Mitigation: Assert-EditScope (for text) + handoff generated_output_ownership + Critic binary audit + map-load verification on candidate. No command is "safe" without explicit per-handoff permission.
-- Risk: LFS smudge/checkout or large binary churn from mistaken asset work. Mitigation: blocked in Assert-BashPolicy for workers; Orchestrator controls LFS ops.
+- Risk: LFS smudge/checkout or large binary churn from mistaken asset work. Mitigation: caught by Assert-BashPolicy when invoked directly (a guard, not containment — a script wrapping the call passes); Orchestrator controls LFS ops.
 - Risk: Future discovered automation (e.g. a project-owned commandlet under Source/ or a Blutility) gets over-permissioned. Mitigation: must be added to verification_profiles.json with explicit "available" + per-handoff whitelisting; Critic must see the profile result.
 - Risk: Network exfil or secret access via MCP/tools from a coder session. Mitigation: capability matrix + researcher-style tools should be routed only to read-only roles/playbooks; coders inside worktrees should have network blocked at policy level where possible.
 
 No runtime should ever be given raw shell or direct file write outside the gated adapters.
+
+### Shell-guard limitations — read before relying on it
+
+These are structural properties of the interface, not defects awaiting repair. Normative detail:
+`agent_collab/context/command-policy-spec.md`.
+
+**L1 — The guard's field of view is one string wide.** The `PreToolUse` hook receives
+`tool_input.command` and nothing else. It therefore cannot read the body of a script that command
+runs, cannot see child processes that script spawns, cannot see grandchildren, and cannot observe
+file writes, network access, or environment mutation.
+
+**L2 — Wrappers pass by construction.** `pwsh -File gate.ps1` is **allowed** even though `gate.ps1`
+itself launches `UnrealEditor-Cmd.exe`. One level of script indirection defeats the guard. Anything
+a worker can express as a script invocation is unguarded by this control. The same applies to the
+LFS rule: caught when invoked directly, passed when wrapped.
+
+**L3 — The guard is inactive until the adapter is projected.** The registration Claude Code loads
+lives in `.claude/settings.json`, which is generated and gitignored. On a fresh clone it does not
+exist, so **no hook runs and every Bash command passes unchecked — silently, with no error.**
+`pwsh -NoProfile -File agent_collab/scripts/Project-ClaudeAdapter.ps1` is a required post-clone step
+(`AGENTS.md`), and `Test-AgentCollabScaffold.ps1` verifies the tracked source carries the
+registration and that no projected copy has drifted. Historically this failed harder still: until
+2026-07-27 the hook discarded its input and returned an unconditional allow, so the guard was
+documented as enforced while consulting nothing.
+
+**L4 — Fail-open is deliberate.** Malformed command syntax, an unreadable policy file, or an
+unloadable classifier all resolve to *allow* with a diagnostic. A guard that bricks every shell
+command when its parser breaks is worse than the exposure it removes. Consequence: absence of a
+denial is never proof that a command was understood. Analysis must not *truncate* on fail-open,
+however — see `R-OPEN-5`; a malformation that silently stopped the scan would make every
+malformation a universal off switch.
+
+**L5 — `ask` depends on a human reading it.** Escalation is only as good as the operator's
+attention. A flood of low-value asks trains rubber-stamping, which is why unprovable-but-suspicious
+is deliberately narrow and why false positives on payload data are treated as severe.
+
+**What actually contains a worker** — and what must be cited instead of the guard whenever
+containment is claimed: explicit handoff `file_ownership` and `generated_output_ownership`,
+`Assert-EditScope.ps1` + `scope_roots.json`, worktree isolation, vendor immutability, Critic audit
+of diffs and binary file lists, candidate integration verification, and the human approval gates in
+`human_approval_gates.md`. The shell guard's contribution is catching a careless direct call. That
+is real, and it is bounded.
 
 ---
 

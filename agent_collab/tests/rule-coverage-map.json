@@ -1,0 +1,79 @@
+{
+  "schema": "gloamstead.command-policy.rule-coverage-map/2",
+  "purpose": "Some rules in agent_collab/context/command-policy-spec.md cannot be exercised by a corpus row, because they govern the hook process boundary, the shape of the implementation, or the verification process itself. Each such rule is declared here with the SUITE that owns it, keyed into the 'suites' table below. Test-CommandPolicy.ps1 treats a rule as covered only if it has corpus rows OR appears here naming a known suite whose file exists on disk.",
+  "authored_by": "corpus author (independent lane); no implementation source was read while authoring. The v2 restructure and the structural-suite attributions were added by the implementer lane on 2026-07-30 and are NOT covered by that independence claim.",
+  "schema_notes": {
+    "v1_to_v2": "v1 gave each rule a free-text 'artefact' string. Four rules named the bare word 'critic', and the checker only existence-tested an artefact when its string contained a path separator — so 'critic' counted as covered unconditionally, with nothing behind it. R-PROT-1 was one of those four, and it was FALSE while being reported green: command_policy.json claimed Assert-BashPolicy.ps1 read blocked_patterns from it while that script held a hardcoded copy. v2 replaces free text with a 'suite' key that MUST resolve in the 'suites' table to a file that MUST exist. There is no longer any spelling of this file that silences the checker without a real artefact.",
+    "delegation_is_not_coverage": "If a rule genuinely cannot be automated, the honest encoding is to leave it out of this file and let the checker report it uncovered. Do NOT invent a suite name to quiet it."
+  },
+  "suites": {
+    "corpus": "agent_collab/scripts/Test-CommandPolicy.ps1",
+    "live-hook": "agent_collab/scripts/Test-BashPolicyHook.ps1",
+    "fuzz": "agent_collab/scripts/Test-CommandPolicyFuzz.ps1",
+    "structural": "agent_collab/scripts/Test-PolicyStructure.ps1",
+    "clean-clone": "agent_collab/scripts/Test-CleanCloneReproducibility.ps1",
+    "spec": "agent_collab/context/command-policy-spec.md"
+  },
+  "external": {
+    "R-EXIT-1": {
+      "suite": "live-hook",
+      "case": "hook-allow-silent",
+      "why": "allow must emit NO permission decision. Observable only at the hook's stdout, not in the classifier's return value."
+    },
+    "R-EXIT-3": {
+      "suite": "live-hook",
+      "case": "hook-ask-reaches-human",
+      "why": "ask must reach a human. The 2026-07-27 defect was a hook that branched only on exit 2; the module was correct. Only an end-to-end hook test can see it."
+    },
+    "R-PROT-1": {
+      "suite": "structural",
+      "case": "no-second-copy-in-module, assert-script-holds-no-pattern-copy, assert-script-reads-declaration, no-stale-amend-pattern",
+      "why": "'the list lives in exactly one place' is a fact about the code's shape. Proven behaviourally: with the declaration removed the classifier must STOP denying, which a module holding a second copy could not do. Plus a code-lines-only check that no declared pattern is duplicated as a literal in Assert-BashPolicy.ps1 — the exact regression that shipped."
+    },
+    "R-PROT-4": {
+      "suite": "structural",
+      "case": "added-target-now-denies, added-target-source-is-mutated, lexer-untouched",
+      "why": "Adding a target must need no lexer edit. Proven by appending a novel stem to protected_basenames in a temp copy, asserting the same command flips allow -> deny through -PolicyPath, and asserting CommandPolicy.psm1 stayed byte-identical."
+    },
+    "R-VER-1": {
+      "suite": "corpus",
+      "case": "RULE COVERAGE section",
+      "why": "This runner is the mechanism that reports per-rule coverage and fails on an uncovered rule."
+    },
+    "R-VER-1a": {
+      "suite": "corpus",
+      "case": "RULE COVERAGE BY OWNING SUITE section",
+      "why": "R-VER-1a is a requirement ON the coverage checker: report uncovered rules per owning suite, fail only on rules the corpus itself owns, and never drop an unattributed rule from the denominator. Satisfied by this runner grouping every spec rule under its owning suite and failing separately on corpus-owned gaps versus unattributed rules."
+    },
+    "R-VER-2": {
+      "suite": "spec",
+      "case": "AUTHORITY section",
+      "why": "A process guarantee: corpus authored in a lane that never read CommandPolicy.psm1. Not expressible as an input string."
+    },
+    "R-VER-3": {
+      "suite": "fuzz",
+      "case": "seeded property pass",
+      "why": "Deterministic fuzz/property pass over hundreds of generated inputs."
+    },
+    "R-VER-4": {
+      "suite": "live-hook",
+      "case": "all cases",
+      "why": "Real PreToolUse JSON on stdin against the real hook."
+    },
+    "R-VER-5": {
+      "suite": "structural",
+      "case": "gate-invokes-shell-guard, scaffold-invokes-shell-guard",
+      "why": "Whether these suites run automatically on a mandatory path is a repository wiring question. Checked as code (comment lines stripped) in gate.ps1 and Test-AgentCollabScaffold.ps1, so deleting the call fails the suite."
+    },
+    "R-VER-6": {
+      "suite": "live-hook",
+      "case": "durable-state-untouched",
+      "why": "Hashes agent_collab durable state before and after driving the hook and reports any change. NOTE: subtracts an ambient idle-window control, so the assertion is best-effort against concurrent agent writes; both raw and filtered change sets are printed."
+    },
+    "R-VER-7": {
+      "suite": "clean-clone",
+      "case": "clean-clone reproducibility",
+      "why": "Requires a fresh checkout; cannot be observed from inside the working tree. Owned by Test-CleanCloneReproducibility.ps1, which creates a detached worktree at a commit and proves the tracked sources plus the projection step reproduce the hook registration. Deliberately NOT run from gate.ps1 (it needs a commit, not a working tree)."
+    }
+  }
+}

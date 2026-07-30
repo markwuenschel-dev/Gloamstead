@@ -27,6 +27,37 @@ Build/
 .grok/worktrees/
 .cursor/worktrees/
 
+# --- Adapter projections: generated, never source (VCS policy decided 2026-07-29) ---
+# Every path below is reproduced byte-for-byte from tracked sources under agent_collab/adapters/
+# by Project-ClaudeAdapter.ps1 / Project-GrokAdapter.ps1. Same rule as procedural/reports/ (:54):
+# deterministic regenerable output is not committed. The source of truth is agent_collab/adapters/.
+#
+# Post-clone, run BOTH projections or the runtime has no hook registration and every Bash call
+# runs unguarded:
+#   pwsh -NoProfile -File agent_collab/scripts/Project-ClaudeAdapter.ps1
+#   pwsh -NoProfile -File agent_collab/scripts/Project-GrokAdapter.ps1
+# Test-AgentCollabScaffold.ps1 verifies the tracked source carries the PreToolUse Bash
+# registration and that any existing projection has not drifted from it.
+.claude/agents/
+.claude/commands/
+.claude/hooks/
+.claude/settings.json
+.grok/agents/
+.grok/rules/
+.grok/skills/
+.grok/runner_config.json
+
+# Session scratch written by agents at runtime, not source.
+.claude/handoffs/
+
+# Vendored third-party skill content. Provenance + digests live in the tracked skills-lock.json,
+# which is the record that makes these reacquirable; the payloads themselves are not committed.
+.claude/skills/
+.agents/
+
+# Written by the NeoStackAI plugin, which is itself local-only (see Plugins/NeoStackAI/ below).
+.neostack/
+
 # Environment secrets — API keys, DB URL, GH_TOKEN/GITHUB_TOKEN. NEVER commit.
 .env
 .env.*
