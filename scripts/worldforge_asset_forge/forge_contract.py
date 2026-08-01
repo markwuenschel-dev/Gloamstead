@@ -719,7 +719,7 @@ def validate_result_bindings(result, request):
     return result
 
 
-def observe_target_snapshot(root: Path, request, result):
+def observe_target_snapshot(root: Path, request, result, active_pointer_value: str):
     head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True,
                           capture_output=True, text=True).stdout.strip()
     artifact_hashes = {}
@@ -729,10 +729,9 @@ def observe_target_snapshot(root: Path, request, result):
         if not physical.is_file() or sha256_file(physical) != expected["sha256"]:
             raise ForgeError("FAIL-EVIDENCE-INTEGRITY", f"Fresh target artifact mismatch: {artifact_path}", "verify")
         artifact_hashes[artifact_path] = {"sha256": expected["sha256"]}
-    pointer = load_json(root / VERSION_ROOT / "active-kit-pointer.json")
     snapshot = {**request["target"], "commit": head,
                 "active_pointer": {"path": request["desired_active_pointer"]["path"],
-                                   "value": pointer["active_bundle_id"]},
+                                   "value": active_pointer_value},
                 "artifact_hashes": artifact_hashes,
                 "schema_version": "wf.asset_forge.target_snapshot.v1"}
     if snapshot != result["verified_target"]:
@@ -777,7 +776,8 @@ def validate_catalog_inspection_report(report, request, result):
     if (set(report) != {"class_name", "bundle_id", "receipt_sha256", "version_root", "entry_count", "soft_object_paths"} or
             report["class_name"] != "GloamsteadGeneratedAssetCatalog" or
             report["bundle_id"] != request["desired_active_pointer"]["value"] or
-            report["receipt_sha256"] != result["promotion_receipt_sha256"] or
+            (result["state"] == "Promoted" and report["receipt_sha256"] != result["promotion_receipt_sha256"]) or
+            (result["state"] == "NoChange" and not SHA_RE.fullmatch(str(report["receipt_sha256"]))) or
             report["version_root"] != request["version_roots"]["unreal_root"] or
             observed_refs != expected_refs):
         raise ForgeError("FAIL-POINTER-CLOSURE", "Reloaded catalog class/bundle/receipt/version/soft-reference closure differs", "catalog_reload")
@@ -827,10 +827,10 @@ def verify_generated_commit_lfs_closure(root: Path, request, result):
 def independently_verify_result(root: Path, checkout: Path, worldforge_python: Path, request, result):
     _strict_worldforge_contract(worldforge_python, checkout, "BiomeKitResult", result)
     validate_result_bindings(result, request)
-    snapshot = observe_target_snapshot(root, request, result)
+    catalog_report = inspect_active_catalog_with_unreal(root, request, result)
+    snapshot = observe_target_snapshot(root, request, result, catalog_report["bundle_id"])
     _strict_worldforge_contract(worldforge_python, checkout, "TargetSnapshot", snapshot)
     verify_generated_commit_lfs_closure(root, request, result)
-    if result["state"] == "Promoted": inspect_active_catalog_with_unreal(root, request, result)
     ref = {"result_id": result["result_id"], "result_sha256": result["result_sha256"],
            "request_id": result["request_id"], "request_sha256": result["request_sha256"],
            "kit": result["kit"], "plan_sha256": result["plan_sha256"], "bundle_sha256": result["bundle_sha256"],

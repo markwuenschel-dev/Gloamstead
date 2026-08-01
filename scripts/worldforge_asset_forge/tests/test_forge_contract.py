@@ -64,7 +64,7 @@ class ContractTests(unittest.TestCase):
         request = {"desired_active_pointer": {"path": "/Game/Gloamstead/Generated/DA_GeneratedAssetCatalog.DA_GeneratedAssetCatalog", "value": "sanctuary-biome-kit-1.0.0"},
                    "version_roots": {"unreal_root": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0"},
                    "output_allowlist": {"unreal_paths": ["/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/mesh.mesh"]}}
-        result = {"promotion_receipt_sha256": "a" * 64}
+        result = {"state": "Promoted", "promotion_receipt_sha256": "a" * 64}
         report = {"class_name": "GloamsteadGeneratedAssetCatalog", "bundle_id": "sanctuary-biome-kit-1.0.0",
                   "receipt_sha256": "a" * 64, "version_root": request["version_roots"]["unreal_root"],
                   "entry_count": 1, "soft_object_paths": [request["output_allowlist"]["unreal_paths"][0]]}
