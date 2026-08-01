@@ -101,7 +101,12 @@ void UGloamsteadPCGSubsystem::InitializeFromPCGComponent(UPCGComponent* PCGCompo
     }
 
     CurrentWorldSeed = WorldSeed;
-    RestoredPointIndices.Empty();
+
+    // Derive the restored set from the flags we just read, rather than merely clearing it.
+    // IsPointRestored() answers from PointStates while GetRestoredPointCount() /
+    // GetRestoredCountByRitualType() / CaptureToSaveGame() answer from this set; a bare Empty()
+    // leaves a graph that ships pre-restored points reporting a restored count of zero.
+    RebuildRestoredIndicesFromPointStates();
 
     BuildSpatialGrid();
 
@@ -270,8 +275,30 @@ bool UGloamsteadPCGSubsystem::ApplyRestoration(int32 PointIndex, const FRestorat
 {
     if (!PointStates.IsValidIndex(PointIndex)) return false;
 
+    // The payload — not the argument — is what travels to every listener below, and they index off
+    // Payload.PointIndex (Veil Heart / night strategies / mesh forge adapter). A payload built for a
+    // different point, or never assigned one at all (the -1 default), would mutate here and report
+    // somewhere else. Reject rather than reconcile: a mismatch means the caller is confused.
+    if (Payload.PointIndex != PointIndex)
+    {
+        UE_LOG(LogTemp, Error, TEXT("PCG: ApplyRestoration rejected - payload index %d does not match target index %d."),
+            Payload.PointIndex, PointIndex);
+        return false;
+    }
+
     // Fast path using parallel state
     FRitualPointState& State = PointStates[PointIndex];
+
+    // Restoration is once per point. This guard lives here and not only in ConfirmPlacement because
+    // ApplyRestoration is BlueprintCallable: a Blueprint calling it directly would otherwise stack
+    // LightDelta and clear corruption again on a point that is already mended. Reclaimed points
+    // (see RevertRestoration) clear the flag and are restorable again, as intended.
+    if (State.bIsRestored)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("PCG: ApplyRestoration rejected - point %d is already restored."), PointIndex);
+        return false;
+    }
+
     State.bIsRestored = true;
     State.LightLevel += Payload.LightDelta;
     State.CorruptionLevel = FMath::Max(0.0f, State.CorruptionLevel - Payload.CorruptionCleared);
@@ -411,16 +438,44 @@ TSet<int32> UGloamsteadPCGSubsystem::GetRestoredPointIndices() const
     return RestoredPointIndices;
 }
 
+void UGloamsteadPCGSubsystem::RebuildRestoredIndicesFromPointStates()
+{
+    RestoredPointIndices.Empty();
+    for (int32 Index = 0; Index < PointStates.Num(); ++Index)
+    {
+        if (PointStates[Index].bIsRestored)
+        {
+            RestoredPointIndices.Add(Index);
+        }
+    }
+}
+
 void UGloamsteadPCGSubsystem::ReapplyRestoredState(const TSet<int32>& RestoredIndices)
 {
+    int32 RejectedCount = 0;
     for (int32 Index : RestoredIndices)
     {
         if (PointStates.IsValidIndex(Index))
         {
             PointStates[Index].bIsRestored = true;
         }
+        else
+        {
+            ++RejectedCount;
+        }
     }
-    RestoredPointIndices = RestoredIndices;
+
+    if (RejectedCount > 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("PCG: ReapplyRestoredState dropped %d of %d incoming index/indices outside the current %d-point set."),
+            RejectedCount, RestoredIndices.Num(), PointStates.Num());
+    }
+
+    // Derive the set from the flags we just wrote instead of assigning the caller's set wholesale.
+    // A wholesale assign lets an out-of-range index sit in RestoredPointIndices with no PointStates
+    // entry behind it: GetRestoredPointCount() then over-reports against IsPointRestored(), and
+    // CaptureToSaveGame() persists the phantom so it survives the save/load round trip.
+    RebuildRestoredIndicesFromPointStates();
 }
 
 void UGloamsteadPCGSubsystem::CaptureToSaveGame(UGloamsteadSaveGame* SaveGame) const
@@ -442,9 +497,28 @@ void UGloamsteadPCGSubsystem::RestoreFromSaveGame(const UGloamsteadSaveGame* Sav
         return;
     }
     // Full per-point restore (light + corruption + flags), unlike ReapplyRestoredState which only flips flags.
-    PointStates          = SaveGame->PointStates;
-    RestoredPointIndices = TSet<int32>(SaveGame->RestoredPointIndices);
-    CurrentWorldSeed     = SaveGame->WorldSeed;
+    PointStates      = SaveGame->PointStates;
+    CurrentWorldSeed = SaveGame->WorldSeed;
+
+    // Same wholesale-assign hazard as ReapplyRestoredState: the persisted index list is a second copy
+    // of the restored view, and a save taken against a larger point set carries indices this
+    // PointStates has no entry for. Derive the set from the flags we just loaded — the same record
+    // that carries light and corruption — and report any disagreement instead of trusting the copy.
+    RebuildRestoredIndicesFromPointStates();
+
+    int32 UnbackedCount = 0;
+    for (int32 Index : SaveGame->RestoredPointIndices)
+    {
+        if (!RestoredPointIndices.Contains(Index))
+        {
+            ++UnbackedCount;
+        }
+    }
+    if (UnbackedCount > 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("PCG: RestoreFromSaveGame ignored %d of %d persisted restored index/indices with no restored point behind them (save holds %d points)."),
+            UnbackedCount, SaveGame->RestoredPointIndices.Num(), SaveGame->PointStates.Num());
+    }
 }
 
 bool UGloamsteadPCGSubsystem::SaveToSlot(const FString& SlotName, int32 UserIndex) const

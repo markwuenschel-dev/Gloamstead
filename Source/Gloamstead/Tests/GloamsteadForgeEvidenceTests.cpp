@@ -346,8 +346,12 @@ bool FGloamForgeEmitEvidenceTest::RunTest(const FString& /*Parameters*/)
 		Ctx.TargetPointIndex = Target;
 		Ctx.TargetStartCorruption = S->GetObjective().StartCorruption;
 		S->ApplyPressureStep(PCG);
+		// The night's grip takes the flag, then the defender re-lights the point. ApplyRestoration refuses a
+		// point that is still flagged restored (GloamsteadPCGSubsystem.cpp:303-307); without the reclaim the
+		// restoration below would be rejected and this report would claim a restoration that never landed.
+		TestTrue(TEXT("retrieval_success reclaim clears the restored flag"), PCG->RevertRestoration(Target));
 		FRestorationEventPayload Defend; Defend.PointIndex = Target; Defend.CorruptionCleared = 1.0f;
-		PCG->ApplyRestoration(Target, Defend);
+		TestTrue(TEXT("retrieval_success restoration is accepted"), PCG->ApplyRestoration(Target, Defend));
 		S->NotifyRestoration(Defend, PCG);
 		const FNightRuntimeOutcome Outcome = S->ResolveNight(PCG);
 
@@ -376,8 +380,11 @@ bool FGloamForgeEmitEvidenceTest::RunTest(const FString& /*Parameters*/)
 		Ctx.TargetStartCorruption = S->GetObjective().StartCorruption;
 		S->ApplyPressureStep(PCG);
 		S->ApplyPressureStep(PCG);
+		// Same reclaim-then-re-light shape as retrieval_success: the report's Restoration block below claims
+		// a restoration was applied, so the call must actually be accepted, not silently rejected.
+		TestTrue(TEXT("retrieval_partial reclaim clears the restored flag"), PCG->RevertRestoration(Target));
 		FRestorationEventPayload Partial; Partial.PointIndex = Target; Partial.CorruptionCleared = 0.15f;
-		PCG->ApplyRestoration(Target, Partial);
+		TestTrue(TEXT("retrieval_partial restoration is accepted"), PCG->ApplyRestoration(Target, Partial));
 		S->NotifyRestoration(Partial, PCG);
 		const FNightRuntimeOutcome Outcome = S->ResolveNight(PCG);
 

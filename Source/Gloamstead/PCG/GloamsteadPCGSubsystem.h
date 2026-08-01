@@ -98,6 +98,11 @@ public:
     FNightSanctuarySnapshot BuildSanctuarySnapshot() const;
 
     // === State Mutation (optimized hot path) ===
+    /** Mend a ritual point and broadcast OnStructureRestored. Returns false — mutating and broadcasting
+     *  nothing — when PointIndex is out of range, when Payload.PointIndex disagrees with PointIndex
+     *  (listeners index off the payload, so the two must be the same point), or when the point is
+     *  already restored. The last two checks are enforced here rather than by the caller because this
+     *  is BlueprintCallable and Blueprint can reach it without passing through placement. */
     UFUNCTION(BlueprintCallable, Category="PCG|Ritual")
     bool ApplyRestoration(int32 PointIndex, const FRestorationEventPayload& Payload);
 
@@ -184,6 +189,14 @@ private:
 
     // Explicit expensive sync to PCG metadata (use sparingly)
     void SyncPointToMetadata(int32 PointIndex);
+
+    /** Rebuild RestoredPointIndices so it agrees exactly with the bIsRestored flags in PointStates.
+     *  Sole owner of that invariant: PointStates is the source of truth and the index set is derived
+     *  from it. Any path that replaces PointStates wholesale, or that is handed a restored set from
+     *  outside, must end here rather than assigning RestoredPointIndices directly — a direct assign
+     *  is how an index with no point behind it gets into the set, and a second copy of this loop is
+     *  how the two views drift apart again. */
+    void RebuildRestoredIndicesFromPointStates();
 
     UPROPERTY()
     UPCGPointData* MutablePointData = nullptr;
