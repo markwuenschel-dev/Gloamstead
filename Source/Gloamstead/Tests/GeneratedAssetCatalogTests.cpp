@@ -584,6 +584,208 @@ bool FGloamGeneratedAssetProviderProvenanceTest::RunTest(const FString& /*Parame
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamGeneratedAssetProviderImmutableCatalogTest,
+	"Gloamstead.GeneratedAssets.ProviderRejectsPostAcceptanceCatalogMutation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamGeneratedAssetProviderImmutableCatalogTest::RunTest(const FString& /*Parameters*/)
+{
+	auto MakeContractCatalog = []()
+	{
+		UGloamsteadGeneratedAssetCatalog* Catalog = MakeValidCatalog();
+		Catalog->TerminalPlatformPackages = {
+			TEXT("/Engine/EngineMaterials/DefaultMaterial") };
+		FGloamsteadGeneratedExternalPackageRecord External;
+		External.PackageName = TEXT("/Game/Shared/M_Master");
+		External.ProvenanceObject = TSoftObjectPtr<UObject>(FSoftObjectPath(
+			TEXT("/Game/Shared/M_Master.M_Master")));
+		External.PackageSha256 =
+			TEXT("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc");
+		External.ReceiptSha256 = Catalog->ReceiptSha256;
+		External.BundleId = Catalog->BundleId;
+		Catalog->ExternalPackageRecords.Add(External);
+		return Catalog;
+	};
+
+	UGloamsteadGeneratedAssetCatalog* OrderedCatalog = MakeContractCatalog();
+	OrderedCatalog->TerminalPlatformPackages.Add(
+		TEXT("/Engine/EngineMaterials/WorldGridMaterial"));
+	OrderedCatalog->Entries[0].DirectPackageDependencies = {
+		TEXT("/Script/Engine"), TEXT("/Script/Gloamstead") };
+	OrderedCatalog->ExternalPackageRecords[0].DirectPackageDependencies = {
+		TEXT("/Script/Engine"), TEXT("/Script/Gloamstead") };
+	UGloamsteadGeneratedAssetCatalog* ReorderedCatalog =
+		DuplicateObject<UGloamsteadGeneratedAssetCatalog>(OrderedCatalog, GetTransientPackage());
+	Algo::Reverse(ReorderedCatalog->TerminalPlatformPackages);
+	Algo::Reverse(ReorderedCatalog->TerminalScriptPackageAuthorities);
+	Algo::Reverse(ReorderedCatalog->Entries[0].DirectPackageDependencies);
+	Algo::Reverse(ReorderedCatalog->ExternalPackageRecords[0].DirectPackageDependencies);
+	TestEqual(TEXT("canonical catalog digest is independent of set-like array order and UObject address"),
+		GACCatalogContractSha256(*ReorderedCatalog), GACCatalogContractSha256(*OrderedCatalog));
+
+	enum class EMutationTrigger : uint8
+	{
+		Revalidate,
+		CanSpawn,
+		Closure,
+		CreateProxy,
+	};
+
+	auto ExpectRejected = [this, &MakeContractCatalog](
+		const TCHAR* Label,
+		TFunction<void(UGloamsteadGeneratedAssetCatalog&)> Mutate,
+		EMutationTrigger Trigger,
+		const TCHAR* StructuralCode = nullptr)
+	{
+		UGloamsteadGeneratedAssetCatalog* Catalog = MakeContractCatalog();
+		UGloamsteadGeneratedAssetMeshForgeProvider* Provider =
+			NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+		Provider->Test_SetLoadedCatalog(Catalog, Catalog->BundleId, Catalog->ReceiptSha256,
+			MakeObservedRuntimeIdentity());
+		TestTrue(FString::Printf(TEXT("%s: baseline ready"), Label), Provider->IsReadyForBuild());
+		const FString AcceptedFingerprint = GACCatalogContractSha256(*Catalog);
+		Mutate(*Catalog);
+		TestNotEqual(FString::Printf(TEXT("%s: contract fingerprint changes"), Label),
+			GACCatalogContractSha256(*Catalog), AcceptedFingerprint);
+
+		switch (Trigger)
+		{
+		case EMutationTrigger::Revalidate:
+			Provider->RevalidateRuntimeIdentity();
+			break;
+		case EMutationTrigger::CanSpawn:
+			Provider->CanSpawn(EGMFProxyType::Heart);
+			break;
+		case EMutationTrigger::Closure:
+			Provider->Test_ValidateDependencyClosure();
+			break;
+		case EMutationTrigger::CreateProxy:
+		{
+			FGloamsteadMeshForgeProxySpec Spec;
+			Spec.GeneratedAssetRole = TEXT("sanctuary.heart");
+			Spec.GeneratedAssetState = EGloamsteadGeneratedAssetState::Restored;
+			FGloamsteadMeshForgeSourceBinding Binding;
+			Binding.bLocationResolved = true;
+			Provider->CreateProxy(Spec, Binding, nullptr);
+			break;
+		}
+		}
+
+		TestTrue(FString::Printf(TEXT("%s: mutation fails provider"), Label), Provider->HasFailed());
+		TestTrue(FString::Printf(TEXT("%s: mutation reports GAC039"), Label),
+			Provider->GetFailureCodes().Contains(TEXT("GAC039")));
+		if (StructuralCode)
+		{
+			TestTrue(FString::Printf(TEXT("%s: structural failure retained"), Label),
+				Provider->GetFailureCodes().Contains(StructuralCode));
+		}
+		TestNull(FString::Printf(TEXT("%s: rejected catalog is released"), Label),
+			Provider->GetCatalog());
+		TestFalse(FString::Printf(TEXT("%s: revalidation cannot recover without Configure"), Label),
+			Provider->RevalidateRuntimeIdentity());
+		TestTrue(FString::Printf(TEXT("%s: revalidation remains latched at GAC039"), Label),
+			Provider->GetFailureCodes().Contains(TEXT("GAC039")));
+		UGloamsteadGeneratedAssetCatalog* Replacement = MakeContractCatalog();
+		Provider->Test_SetLoadedCatalog(Replacement, Replacement->BundleId,
+			Replacement->ReceiptSha256, MakeObservedRuntimeIdentity());
+		TestTrue(FString::Printf(TEXT("%s: direct reload cannot bypass Configure latch"), Label),
+			Provider->HasFailed() && Provider->GetFailureCodes().Contains(TEXT("GAC039")));
+	};
+
+	ExpectRejected(TEXT("terminal root"),
+		[](UGloamsteadGeneratedAssetCatalog& Catalog)
+		{
+			Catalog.TerminalPlatformPackageRoots = { TEXT("/Game") };
+		}, EMutationTrigger::Revalidate, TEXT("GAC034"));
+	ExpectRejected(TEXT("exact engine terminal"),
+		[](UGloamsteadGeneratedAssetCatalog& Catalog)
+		{
+			Catalog.TerminalPlatformPackages.Add(TEXT("/Engine/EngineMaterials/WorldGridMaterial"));
+		}, EMutationTrigger::CanSpawn);
+	ExpectRejected(TEXT("script authority"),
+		[](UGloamsteadGeneratedAssetCatalog& Catalog)
+		{
+			Catalog.TerminalScriptPackageAuthorities[0].OwnerIdentitySha256 =
+				TEXT("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd");
+		}, EMutationTrigger::Closure);
+	ExpectRejected(TEXT("entry object path"),
+		[](UGloamsteadGeneratedAssetCatalog& Catalog)
+		{
+			Catalog.Entries[0].Asset = TSoftObjectPtr<UObject>(FSoftObjectPath(
+				TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/SM_Other.SM_Other")));
+		}, EMutationTrigger::CreateProxy);
+	ExpectRejected(TEXT("entry object hash"),
+		[](UGloamsteadGeneratedAssetCatalog& Catalog)
+		{
+			Catalog.Entries[0].ObjectSha256 =
+				TEXT("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+		}, EMutationTrigger::Revalidate);
+	ExpectRejected(TEXT("entry dependency"),
+		[](UGloamsteadGeneratedAssetCatalog& Catalog)
+		{
+			Catalog.Entries[0].DirectPackageDependencies.Add(TEXT("/Script/Engine"));
+		}, EMutationTrigger::Closure);
+	ExpectRejected(TEXT("external record"),
+		[](UGloamsteadGeneratedAssetCatalog& Catalog)
+		{
+			Catalog.ExternalPackageRecords[0].PackageSha256 =
+				TEXT("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+		}, EMutationTrigger::CreateProxy);
+	ExpectRejected(TEXT("bundle identity"),
+		[](UGloamsteadGeneratedAssetCatalog& Catalog) { Catalog.BundleId = TEXT("sanctuary-v2"); },
+		EMutationTrigger::Revalidate);
+	ExpectRejected(TEXT("receipt identity"),
+		[](UGloamsteadGeneratedAssetCatalog& Catalog)
+		{
+			Catalog.ReceiptSha256 =
+				TEXT("1111111111111111111111111111111111111111111111111111111111111111");
+		}, EMutationTrigger::CanSpawn, TEXT("GAC015"));
+	ExpectRejected(TEXT("build identity"),
+		[](UGloamsteadGeneratedAssetCatalog& Catalog)
+		{
+			Catalog.TargetBuildIdentitySha256 =
+				TEXT("2222222222222222222222222222222222222222222222222222222222222222");
+		}, EMutationTrigger::Closure);
+
+	UGloamsteadGeneratedAssetCatalog* StaleCatalog = MakeContractCatalog();
+	UGloamsteadGeneratedAssetMeshForgeProvider* StaleProvider =
+		NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+	StaleProvider->Test_SetLoadedCatalog(StaleCatalog, StaleCatalog->BundleId,
+		StaleCatalog->ReceiptSha256, MakeObservedRuntimeIdentity());
+	const uint64 StaleGeneration = StaleProvider->Test_BeginPendingCatalogLoad();
+	StaleCatalog->Entries[0].LicenseId = TEXT("LicenseRef-002");
+	TestFalse(TEXT("mutation while reload is pending is detected before build"),
+		StaleProvider->CanSpawn(EGMFProxyType::Heart));
+	bool bStaleCompletionRan = false;
+	StaleProvider->Test_CompleteCatalogLoad(StaleGeneration, FSoftObjectPath(), StaleCatalog,
+		FSimpleDelegate::CreateLambda([&bStaleCompletionRan]() { bStaleCompletionRan = true; }));
+	TestFalse(TEXT("callback invalidated by catalog mutation is ignored"), bStaleCompletionRan);
+	TestTrue(TEXT("stale callback cannot recover failed provider"), StaleProvider->HasFailed());
+	TestNull(TEXT("stale callback cannot reinstall catalog"), StaleProvider->GetCatalog());
+
+	UGloamsteadGeneratedAssetCatalog* FreshCatalog = MakeContractCatalog();
+	StaleProvider->Deactivate();
+	StaleProvider->Test_SetLoadedCatalog(FreshCatalog, FreshCatalog->BundleId,
+		FreshCatalog->ReceiptSha256, MakeObservedRuntimeIdentity());
+	TestTrue(TEXT("Deactivate cannot clear a mutation latch without Configure"),
+		StaleProvider->HasFailed() && StaleProvider->GetFailureCodes().Contains(TEXT("GAC039")));
+	UGloamsteadGeneratedAssetSettings* FreshSettings = NewObject<UGloamsteadGeneratedAssetSettings>();
+	FreshSettings->Catalog = TSoftObjectPtr<UGloamsteadGeneratedAssetCatalog>(FSoftObjectPath(
+		TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/DA_Catalog.DA_Catalog")));
+	FreshSettings->ExpectedActiveBundleId = FreshCatalog->BundleId;
+	FreshSettings->ExpectedReceiptSha256 = FreshCatalog->ReceiptSha256;
+	FreshSettings->ExpectedTargetBuildIdentitySha256 = FreshCatalog->TargetBuildIdentitySha256;
+	StaleProvider->Configure(*FreshSettings);
+	StaleProvider->Test_SetObservedRuntimeIdentity(MakeObservedRuntimeIdentity());
+	const uint64 FreshGeneration = StaleProvider->Test_BeginPendingCatalogLoad();
+	StaleProvider->Test_CompleteCatalogLoad(FreshGeneration, FreshSettings->Catalog.ToSoftObjectPath(),
+		FreshCatalog);
+	TestTrue(TEXT("explicit Configure plus fresh async load can accept a fresh immutable catalog"),
+		StaleProvider->IsReadyForBuild());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FGloamGeneratedAssetDependencyClosureTest,
 	"Gloamstead.GeneratedAssets.AssetRegistryDependencyClosureIsExact",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -723,8 +925,8 @@ bool FGloamGeneratedAssetDependencyClosureTest::RunTest(const FString& /*Paramet
 		Catalog->ExternalPackageRecords[0].ProvenanceObject.ToSoftObjectPath(), {
 			FName(TEXT("/Game/Shared/T_Shared")), FName(TEXT("/Script/Engine")),
 			FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/SM_Undeclared")) });
-	TestTrue(TEXT("declared shared package cannot reenter an unmapped current-version package -> GAC029"),
-		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC029")));
+	TestTrue(TEXT("post-acceptance current-version edge mutation invalidates the contract -> GAC039"),
+		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC039")));
 	Catalog->ExternalPackageRecords[0].DirectPackageDependencies.Pop();
 
 	Provider = NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
@@ -770,8 +972,8 @@ bool FGloamGeneratedAssetDependencyClosureTest::RunTest(const FString& /*Paramet
 		FName(TEXT("/Game/Shared/M_Master")),
 		FName(TEXT("/Engine/EngineMaterials/DefaultMaterial")),
 		FName(TEXT("/Script/NeoStackAI")) });
-	TestTrue(TEXT("a post-validation free NeoStackAI allowlist cannot enter the trusted terminal set -> GAC033"),
-		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC033")));
+	TestTrue(TEXT("a post-validation free NeoStackAI authority mutates the accepted contract -> GAC039"),
+		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC039")));
 	return true;
 }
 

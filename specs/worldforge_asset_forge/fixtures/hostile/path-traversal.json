@@ -1,0 +1,1 @@
+{"target":"inventory.deliverables[0].source_path","value":"../escape.fbx","expected_failure":"FAIL-CONTRACT-DRIFT"}

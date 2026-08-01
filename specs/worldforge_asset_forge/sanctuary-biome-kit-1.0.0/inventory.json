@@ -1,0 +1,1617 @@
+{
+  "schema_version": "gloamstead.sanctuary.inventory.v1",
+  "document_sha256": "ebd02aed2d50bde4b29fbbc9d46d04257bb92f1e95b8ba303576ac74469ef88f",
+  "kit_id": "sanctuary-biome-kit",
+  "version": "1.0.0",
+  "pointer_value": "sanctuary-biome-kit-1.0.0",
+  "source_root": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0",
+  "unreal_root": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0",
+  "promotion_policy": "automatic_on_all_green",
+  "deliverables": [
+    {
+      "id": "surface-ashen-soil",
+      "family": "surfaces",
+      "semantic_role": "Ashen soil",
+      "art_purpose": "Grounds the sanctuary in ashen soil with authored PBR response",
+      "asset_class": "Material",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/surface_ashen_soil.sbs",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/surface_ashen_soil.surface_ashen_soil",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "pbr",
+        "surface",
+        "tileable"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "surfaces"
+    },
+    {
+      "id": "surface-cracked-stone",
+      "family": "surfaces",
+      "semantic_role": "Cracked sanctuary stone",
+      "art_purpose": "Grounds the sanctuary in cracked sanctuary stone with authored PBR response",
+      "asset_class": "Material",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/surface_cracked_stone.sbs",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/surface_cracked_stone.surface_cracked_stone",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "pbr",
+        "surface",
+        "tileable"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "surfaces"
+    },
+    {
+      "id": "surface-withered-loam-moss",
+      "family": "surfaces",
+      "semantic_role": "Withered loam and moss",
+      "art_purpose": "Grounds the sanctuary in withered loam and moss with authored PBR response",
+      "asset_class": "Material",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/surface_withered_loam_moss.sbs",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/surface_withered_loam_moss.surface_withered_loam_moss",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "pbr",
+        "surface",
+        "tileable"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "surfaces"
+    },
+    {
+      "id": "mi-sanctuary-before",
+      "family": "materials",
+      "semantic_role": "before state material",
+      "art_purpose": "Carries the caller-authored before restoration language",
+      "asset_class": "MaterialInstance",
+      "restoration_state": "before",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/materials/mi_sanctuary_before.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/materials/mi_sanctuary_before.mi_sanctuary_before",
+      "dependency_ids": [
+        "surface-ashen-soil",
+        "surface-cracked-stone",
+        "surface-withered-loam-moss"
+      ],
+      "acceptance_tags": [
+        "state-readability",
+        "material-instance"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "hero-ritual"
+    },
+    {
+      "id": "mi-sanctuary-restoration_in_progress",
+      "family": "materials",
+      "semantic_role": "restoration_in_progress state material",
+      "art_purpose": "Carries the caller-authored restoration_in_progress restoration language",
+      "asset_class": "MaterialInstance",
+      "restoration_state": "restoration_in_progress",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/materials/mi_sanctuary_restoration_in_progress.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/materials/mi_sanctuary_restoration_in_progress.mi_sanctuary_restoration_in_progress",
+      "dependency_ids": [
+        "surface-ashen-soil",
+        "surface-cracked-stone",
+        "surface-withered-loam-moss"
+      ],
+      "acceptance_tags": [
+        "state-readability",
+        "material-instance"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "hero-ritual"
+    },
+    {
+      "id": "mi-sanctuary-restored",
+      "family": "materials",
+      "semantic_role": "restored state material",
+      "art_purpose": "Carries the caller-authored restored restoration language",
+      "asset_class": "MaterialInstance",
+      "restoration_state": "restored",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/materials/mi_sanctuary_restored.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/materials/mi_sanctuary_restored.mi_sanctuary_restored",
+      "dependency_ids": [
+        "surface-ashen-soil",
+        "surface-cracked-stone",
+        "surface-withered-loam-moss"
+      ],
+      "acceptance_tags": [
+        "state-readability",
+        "material-instance"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "hero-ritual"
+    },
+    {
+      "id": "mi-sanctuary-corrupted",
+      "family": "materials",
+      "semantic_role": "corrupted state material",
+      "art_purpose": "Carries the caller-authored corrupted restoration language",
+      "asset_class": "MaterialInstance",
+      "restoration_state": "corrupted",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/materials/mi_sanctuary_corrupted.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/materials/mi_sanctuary_corrupted.mi_sanctuary_corrupted",
+      "dependency_ids": [
+        "surface-ashen-soil",
+        "surface-cracked-stone",
+        "surface-withered-loam-moss"
+      ],
+      "acceptance_tags": [
+        "state-readability",
+        "material-instance"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "hero-ritual"
+    },
+    {
+      "id": "veil-heart-before",
+      "family": "hero-ritual",
+      "semantic_role": "Veil Heart before",
+      "art_purpose": "Makes Veil Heart communicate the before sanctuary state",
+      "asset_class": "StaticMesh",
+      "restoration_state": "before",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/veil_heart_before.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/veil_heart_before.veil_heart_before",
+      "dependency_ids": [
+        "mi-sanctuary-before"
+      ],
+      "acceptance_tags": [
+        "hero-silhouette",
+        "state-readability",
+        "collision",
+        "lod"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "hero-ritual"
+    },
+    {
+      "id": "veil-heart-restoration_in_progress",
+      "family": "hero-ritual",
+      "semantic_role": "Veil Heart restoration_in_progress",
+      "art_purpose": "Makes Veil Heart communicate the restoration_in_progress sanctuary state",
+      "asset_class": "StaticMesh",
+      "restoration_state": "restoration_in_progress",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/veil_heart_restoration_in_progress.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/veil_heart_restoration_in_progress.veil_heart_restoration_in_progress",
+      "dependency_ids": [
+        "mi-sanctuary-restoration_in_progress"
+      ],
+      "acceptance_tags": [
+        "hero-silhouette",
+        "state-readability",
+        "collision",
+        "lod"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "hero-ritual"
+    },
+    {
+      "id": "veil-heart-restored",
+      "family": "hero-ritual",
+      "semantic_role": "Veil Heart restored",
+      "art_purpose": "Makes Veil Heart communicate the restored sanctuary state",
+      "asset_class": "StaticMesh",
+      "restoration_state": "restored",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/veil_heart_restored.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/veil_heart_restored.veil_heart_restored",
+      "dependency_ids": [
+        "mi-sanctuary-restored"
+      ],
+      "acceptance_tags": [
+        "hero-silhouette",
+        "state-readability",
+        "collision",
+        "lod"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "hero-ritual"
+    },
+    {
+      "id": "veil-heart-corrupted",
+      "family": "hero-ritual",
+      "semantic_role": "Veil Heart corrupted",
+      "art_purpose": "Makes Veil Heart communicate the corrupted sanctuary state",
+      "asset_class": "StaticMesh",
+      "restoration_state": "corrupted",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/veil_heart_corrupted.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/veil_heart_corrupted.veil_heart_corrupted",
+      "dependency_ids": [
+        "mi-sanctuary-corrupted"
+      ],
+      "acceptance_tags": [
+        "hero-silhouette",
+        "state-readability",
+        "collision",
+        "lod"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "hero-ritual"
+    },
+    {
+      "id": "lantern-before",
+      "family": "hero-ritual",
+      "semantic_role": "Ritual lantern before",
+      "art_purpose": "Makes Ritual lantern communicate the before sanctuary state",
+      "asset_class": "StaticMesh",
+      "restoration_state": "before",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/lantern_before.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/lantern_before.lantern_before",
+      "dependency_ids": [
+        "mi-sanctuary-before"
+      ],
+      "acceptance_tags": [
+        "hero-silhouette",
+        "state-readability",
+        "collision",
+        "lod"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "hero-ritual"
+    },
+    {
+      "id": "lantern-restoration_in_progress",
+      "family": "hero-ritual",
+      "semantic_role": "Ritual lantern restoration_in_progress",
+      "art_purpose": "Makes Ritual lantern communicate the restoration_in_progress sanctuary state",
+      "asset_class": "StaticMesh",
+      "restoration_state": "restoration_in_progress",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/lantern_restoration_in_progress.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/lantern_restoration_in_progress.lantern_restoration_in_progress",
+      "dependency_ids": [
+        "mi-sanctuary-restoration_in_progress"
+      ],
+      "acceptance_tags": [
+        "hero-silhouette",
+        "state-readability",
+        "collision",
+        "lod"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "hero-ritual"
+    },
+    {
+      "id": "lantern-restored",
+      "family": "hero-ritual",
+      "semantic_role": "Ritual lantern restored",
+      "art_purpose": "Makes Ritual lantern communicate the restored sanctuary state",
+      "asset_class": "StaticMesh",
+      "restoration_state": "restored",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/lantern_restored.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/lantern_restored.lantern_restored",
+      "dependency_ids": [
+        "mi-sanctuary-restored"
+      ],
+      "acceptance_tags": [
+        "hero-silhouette",
+        "state-readability",
+        "collision",
+        "lod"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "hero-ritual"
+    },
+    {
+      "id": "lantern-corrupted",
+      "family": "hero-ritual",
+      "semantic_role": "Ritual lantern corrupted",
+      "art_purpose": "Makes Ritual lantern communicate the corrupted sanctuary state",
+      "asset_class": "StaticMesh",
+      "restoration_state": "corrupted",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/lantern_corrupted.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/lantern_corrupted.lantern_corrupted",
+      "dependency_ids": [
+        "mi-sanctuary-corrupted"
+      ],
+      "acceptance_tags": [
+        "hero-silhouette",
+        "state-readability",
+        "collision",
+        "lod"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "hero-ritual"
+    },
+    {
+      "id": "mirror-pillar-before",
+      "family": "hero-ritual",
+      "semantic_role": "Mirror pillar before",
+      "art_purpose": "Makes Mirror pillar communicate the before sanctuary state",
+      "asset_class": "StaticMesh",
+      "restoration_state": "before",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/mirror_pillar_before.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/mirror_pillar_before.mirror_pillar_before",
+      "dependency_ids": [
+        "mi-sanctuary-before"
+      ],
+      "acceptance_tags": [
+        "hero-silhouette",
+        "state-readability",
+        "collision",
+        "lod"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "hero-ritual"
+    },
+    {
+      "id": "mirror-pillar-restoration_in_progress",
+      "family": "hero-ritual",
+      "semantic_role": "Mirror pillar restoration_in_progress",
+      "art_purpose": "Makes Mirror pillar communicate the restoration_in_progress sanctuary state",
+      "asset_class": "StaticMesh",
+      "restoration_state": "restoration_in_progress",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/mirror_pillar_restoration_in_progress.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/mirror_pillar_restoration_in_progress.mirror_pillar_restoration_in_progress",
+      "dependency_ids": [
+        "mi-sanctuary-restoration_in_progress"
+      ],
+      "acceptance_tags": [
+        "hero-silhouette",
+        "state-readability",
+        "collision",
+        "lod"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "hero-ritual"
+    },
+    {
+      "id": "mirror-pillar-restored",
+      "family": "hero-ritual",
+      "semantic_role": "Mirror pillar restored",
+      "art_purpose": "Makes Mirror pillar communicate the restored sanctuary state",
+      "asset_class": "StaticMesh",
+      "restoration_state": "restored",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/mirror_pillar_restored.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/mirror_pillar_restored.mirror_pillar_restored",
+      "dependency_ids": [
+        "mi-sanctuary-restored"
+      ],
+      "acceptance_tags": [
+        "hero-silhouette",
+        "state-readability",
+        "collision",
+        "lod"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "hero-ritual"
+    },
+    {
+      "id": "mirror-pillar-corrupted",
+      "family": "hero-ritual",
+      "semantic_role": "Mirror pillar corrupted",
+      "art_purpose": "Makes Mirror pillar communicate the corrupted sanctuary state",
+      "asset_class": "StaticMesh",
+      "restoration_state": "corrupted",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/mirror_pillar_corrupted.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/mirror_pillar_corrupted.mirror_pillar_corrupted",
+      "dependency_ids": [
+        "mi-sanctuary-corrupted"
+      ],
+      "acceptance_tags": [
+        "hero-silhouette",
+        "state-readability",
+        "collision",
+        "lod"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "hero-ritual"
+    },
+    {
+      "id": "bell-shrine-before",
+      "family": "hero-ritual",
+      "semantic_role": "Bell shrine before",
+      "art_purpose": "Makes Bell shrine communicate the before sanctuary state",
+      "asset_class": "StaticMesh",
+      "restoration_state": "before",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/bell_shrine_before.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/bell_shrine_before.bell_shrine_before",
+      "dependency_ids": [
+        "mi-sanctuary-before"
+      ],
+      "acceptance_tags": [
+        "hero-silhouette",
+        "state-readability",
+        "collision",
+        "lod"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "hero-ritual"
+    },
+    {
+      "id": "bell-shrine-restoration_in_progress",
+      "family": "hero-ritual",
+      "semantic_role": "Bell shrine restoration_in_progress",
+      "art_purpose": "Makes Bell shrine communicate the restoration_in_progress sanctuary state",
+      "asset_class": "StaticMesh",
+      "restoration_state": "restoration_in_progress",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/bell_shrine_restoration_in_progress.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/bell_shrine_restoration_in_progress.bell_shrine_restoration_in_progress",
+      "dependency_ids": [
+        "mi-sanctuary-restoration_in_progress"
+      ],
+      "acceptance_tags": [
+        "hero-silhouette",
+        "state-readability",
+        "collision",
+        "lod"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "hero-ritual"
+    },
+    {
+      "id": "bell-shrine-restored",
+      "family": "hero-ritual",
+      "semantic_role": "Bell shrine restored",
+      "art_purpose": "Makes Bell shrine communicate the restored sanctuary state",
+      "asset_class": "StaticMesh",
+      "restoration_state": "restored",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/bell_shrine_restored.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/bell_shrine_restored.bell_shrine_restored",
+      "dependency_ids": [
+        "mi-sanctuary-restored"
+      ],
+      "acceptance_tags": [
+        "hero-silhouette",
+        "state-readability",
+        "collision",
+        "lod"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "hero-ritual"
+    },
+    {
+      "id": "bell-shrine-corrupted",
+      "family": "hero-ritual",
+      "semantic_role": "Bell shrine corrupted",
+      "art_purpose": "Makes Bell shrine communicate the corrupted sanctuary state",
+      "asset_class": "StaticMesh",
+      "restoration_state": "corrupted",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/bell_shrine_corrupted.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/bell_shrine_corrupted.bell_shrine_corrupted",
+      "dependency_ids": [
+        "mi-sanctuary-corrupted"
+      ],
+      "acceptance_tags": [
+        "hero-silhouette",
+        "state-readability",
+        "collision",
+        "lod"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "hero-ritual"
+    },
+    {
+      "id": "ruin-piece-01",
+      "family": "architecture",
+      "semantic_role": "Modular ruin piece 1",
+      "art_purpose": "Distinct snap-compatible sanctuary ruin module 1",
+      "asset_class": "StaticMesh",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_01.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_01.ruin_piece_01",
+      "dependency_ids": [
+        "surface-cracked-stone"
+      ],
+      "acceptance_tags": [
+        "modular",
+        "collision",
+        "lod",
+        "nanite-policy"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "architecture"
+    },
+    {
+      "id": "ruin-piece-02",
+      "family": "architecture",
+      "semantic_role": "Modular ruin piece 2",
+      "art_purpose": "Distinct snap-compatible sanctuary ruin module 2",
+      "asset_class": "StaticMesh",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_02.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_02.ruin_piece_02",
+      "dependency_ids": [
+        "surface-cracked-stone"
+      ],
+      "acceptance_tags": [
+        "modular",
+        "collision",
+        "lod",
+        "nanite-policy"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "architecture"
+    },
+    {
+      "id": "ruin-piece-03",
+      "family": "architecture",
+      "semantic_role": "Modular ruin piece 3",
+      "art_purpose": "Distinct snap-compatible sanctuary ruin module 3",
+      "asset_class": "StaticMesh",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_03.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_03.ruin_piece_03",
+      "dependency_ids": [
+        "surface-cracked-stone"
+      ],
+      "acceptance_tags": [
+        "modular",
+        "collision",
+        "lod",
+        "nanite-policy"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "architecture"
+    },
+    {
+      "id": "ruin-piece-04",
+      "family": "architecture",
+      "semantic_role": "Modular ruin piece 4",
+      "art_purpose": "Distinct snap-compatible sanctuary ruin module 4",
+      "asset_class": "StaticMesh",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_04.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_04.ruin_piece_04",
+      "dependency_ids": [
+        "surface-cracked-stone"
+      ],
+      "acceptance_tags": [
+        "modular",
+        "collision",
+        "lod",
+        "nanite-policy"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "architecture"
+    },
+    {
+      "id": "ruin-piece-05",
+      "family": "architecture",
+      "semantic_role": "Modular ruin piece 5",
+      "art_purpose": "Distinct snap-compatible sanctuary ruin module 5",
+      "asset_class": "StaticMesh",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_05.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_05.ruin_piece_05",
+      "dependency_ids": [
+        "surface-cracked-stone"
+      ],
+      "acceptance_tags": [
+        "modular",
+        "collision",
+        "lod",
+        "nanite-policy"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "architecture"
+    },
+    {
+      "id": "ruin-piece-06",
+      "family": "architecture",
+      "semantic_role": "Modular ruin piece 6",
+      "art_purpose": "Distinct snap-compatible sanctuary ruin module 6",
+      "asset_class": "StaticMesh",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_06.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_06.ruin_piece_06",
+      "dependency_ids": [
+        "surface-cracked-stone"
+      ],
+      "acceptance_tags": [
+        "modular",
+        "collision",
+        "lod",
+        "nanite-policy"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "architecture"
+    },
+    {
+      "id": "ruin-piece-07",
+      "family": "architecture",
+      "semantic_role": "Modular ruin piece 7",
+      "art_purpose": "Distinct snap-compatible sanctuary ruin module 7",
+      "asset_class": "StaticMesh",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_07.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_07.ruin_piece_07",
+      "dependency_ids": [
+        "surface-cracked-stone"
+      ],
+      "acceptance_tags": [
+        "modular",
+        "collision",
+        "lod",
+        "nanite-policy"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "architecture"
+    },
+    {
+      "id": "ruin-piece-08",
+      "family": "architecture",
+      "semantic_role": "Modular ruin piece 8",
+      "art_purpose": "Distinct snap-compatible sanctuary ruin module 8",
+      "asset_class": "StaticMesh",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_08.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_08.ruin_piece_08",
+      "dependency_ids": [
+        "surface-cracked-stone"
+      ],
+      "acceptance_tags": [
+        "modular",
+        "collision",
+        "lod",
+        "nanite-policy"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "architecture"
+    },
+    {
+      "id": "ruin-piece-09",
+      "family": "architecture",
+      "semantic_role": "Modular ruin piece 9",
+      "art_purpose": "Distinct snap-compatible sanctuary ruin module 9",
+      "asset_class": "StaticMesh",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_09.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_09.ruin_piece_09",
+      "dependency_ids": [
+        "surface-cracked-stone"
+      ],
+      "acceptance_tags": [
+        "modular",
+        "collision",
+        "lod",
+        "nanite-policy"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "architecture"
+    },
+    {
+      "id": "ruin-piece-10",
+      "family": "architecture",
+      "semantic_role": "Modular ruin piece 10",
+      "art_purpose": "Distinct snap-compatible sanctuary ruin module 10",
+      "asset_class": "StaticMesh",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_10.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_10.ruin_piece_10",
+      "dependency_ids": [
+        "surface-cracked-stone"
+      ],
+      "acceptance_tags": [
+        "modular",
+        "collision",
+        "lod",
+        "nanite-policy"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "architecture"
+    },
+    {
+      "id": "ruin-piece-11",
+      "family": "architecture",
+      "semantic_role": "Modular ruin piece 11",
+      "art_purpose": "Distinct snap-compatible sanctuary ruin module 11",
+      "asset_class": "StaticMesh",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_11.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_11.ruin_piece_11",
+      "dependency_ids": [
+        "surface-cracked-stone"
+      ],
+      "acceptance_tags": [
+        "modular",
+        "collision",
+        "lod",
+        "nanite-policy"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "architecture"
+    },
+    {
+      "id": "ruin-piece-12",
+      "family": "architecture",
+      "semantic_role": "Modular ruin piece 12",
+      "art_purpose": "Distinct snap-compatible sanctuary ruin module 12",
+      "asset_class": "StaticMesh",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_12.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_12.ruin_piece_12",
+      "dependency_ids": [
+        "surface-cracked-stone"
+      ],
+      "acceptance_tags": [
+        "modular",
+        "collision",
+        "lod",
+        "nanite-policy"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "architecture"
+    },
+    {
+      "id": "foliage-withered-ivy",
+      "family": "foliage",
+      "semantic_role": "Withered ivy",
+      "art_purpose": "Natural-form silhouette and ecological breakup for Withered ivy",
+      "asset_class": "StaticMesh",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/foliage_withered_ivy.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/foliage_withered_ivy.foliage_withered_ivy",
+      "dependency_ids": [
+        "surface-withered-loam-moss"
+      ],
+      "acceptance_tags": [
+        "foliage",
+        "wind",
+        "lod",
+        "collision"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage"
+    },
+    {
+      "id": "foliage-blackthorn-root",
+      "family": "foliage",
+      "semantic_role": "Blackthorn root",
+      "art_purpose": "Natural-form silhouette and ecological breakup for Blackthorn root",
+      "asset_class": "StaticMesh",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/foliage_blackthorn_root.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/foliage_blackthorn_root.foliage_blackthorn_root",
+      "dependency_ids": [
+        "surface-withered-loam-moss"
+      ],
+      "acceptance_tags": [
+        "foliage",
+        "wind",
+        "lod",
+        "collision"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage"
+    },
+    {
+      "id": "foliage-grave-fern",
+      "family": "foliage",
+      "semantic_role": "Grave fern",
+      "art_purpose": "Natural-form silhouette and ecological breakup for Grave fern",
+      "asset_class": "StaticMesh",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/foliage_grave_fern.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/foliage_grave_fern.foliage_grave_fern",
+      "dependency_ids": [
+        "surface-withered-loam-moss"
+      ],
+      "acceptance_tags": [
+        "foliage",
+        "wind",
+        "lod",
+        "collision"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage"
+    },
+    {
+      "id": "foliage-ash-reed",
+      "family": "foliage",
+      "semantic_role": "Ash reed",
+      "art_purpose": "Natural-form silhouette and ecological breakup for Ash reed",
+      "asset_class": "StaticMesh",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/foliage_ash_reed.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/foliage_ash_reed.foliage_ash_reed",
+      "dependency_ids": [
+        "surface-withered-loam-moss"
+      ],
+      "acceptance_tags": [
+        "foliage",
+        "wind",
+        "lod",
+        "collision"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage"
+    },
+    {
+      "id": "foliage-veil-bramble",
+      "family": "foliage",
+      "semantic_role": "Veil bramble",
+      "art_purpose": "Natural-form silhouette and ecological breakup for Veil bramble",
+      "asset_class": "StaticMesh",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/foliage_veil_bramble.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/foliage_veil_bramble.foliage_veil_bramble",
+      "dependency_ids": [
+        "surface-withered-loam-moss"
+      ],
+      "acceptance_tags": [
+        "foliage",
+        "wind",
+        "lod",
+        "collision"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage"
+    },
+    {
+      "id": "foliage-hollow-stump",
+      "family": "foliage",
+      "semantic_role": "Hollow stump",
+      "art_purpose": "Natural-form silhouette and ecological breakup for Hollow stump",
+      "asset_class": "StaticMesh",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/foliage_hollow_stump.fbx",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/foliage_hollow_stump.foliage_hollow_stump",
+      "dependency_ids": [
+        "surface-withered-loam-moss"
+      ],
+      "acceptance_tags": [
+        "foliage",
+        "wind",
+        "lod",
+        "collision"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage"
+    },
+    {
+      "id": "decal-hairline-cracks",
+      "family": "decals",
+      "semantic_role": "Hairline cracks",
+      "art_purpose": "Surface storytelling motif for Hairline cracks",
+      "asset_class": "MaterialInstance",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_hairline_cracks.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_hairline_cracks.decal_hairline_cracks",
+      "dependency_ids": [
+        "surface-cracked-stone"
+      ],
+      "acceptance_tags": [
+        "decal",
+        "opacity",
+        "channel-pack"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "decals"
+    },
+    {
+      "id": "decal-ritual-fissures",
+      "family": "decals",
+      "semantic_role": "Ritual fissures",
+      "art_purpose": "Surface storytelling motif for Ritual fissures",
+      "asset_class": "MaterialInstance",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_ritual_fissures.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_ritual_fissures.decal_ritual_fissures",
+      "dependency_ids": [
+        "surface-cracked-stone"
+      ],
+      "acceptance_tags": [
+        "decal",
+        "opacity",
+        "channel-pack"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "decals"
+    },
+    {
+      "id": "decal-soot-smear",
+      "family": "decals",
+      "semantic_role": "Soot smear",
+      "art_purpose": "Surface storytelling motif for Soot smear",
+      "asset_class": "MaterialInstance",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_soot_smear.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_soot_smear.decal_soot_smear",
+      "dependency_ids": [
+        "surface-cracked-stone"
+      ],
+      "acceptance_tags": [
+        "decal",
+        "opacity",
+        "channel-pack"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "decals"
+    },
+    {
+      "id": "decal-soot-bloom",
+      "family": "decals",
+      "semantic_role": "Soot bloom",
+      "art_purpose": "Surface storytelling motif for Soot bloom",
+      "asset_class": "MaterialInstance",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_soot_bloom.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_soot_bloom.decal_soot_bloom",
+      "dependency_ids": [
+        "surface-cracked-stone"
+      ],
+      "acceptance_tags": [
+        "decal",
+        "opacity",
+        "channel-pack"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "decals"
+    },
+    {
+      "id": "decal-ritual-circle",
+      "family": "decals",
+      "semantic_role": "Ritual circle",
+      "art_purpose": "Surface storytelling motif for Ritual circle",
+      "asset_class": "MaterialInstance",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_ritual_circle.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_ritual_circle.decal_ritual_circle",
+      "dependency_ids": [
+        "surface-cracked-stone"
+      ],
+      "acceptance_tags": [
+        "decal",
+        "opacity",
+        "channel-pack"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "decals"
+    },
+    {
+      "id": "decal-ritual-runes",
+      "family": "decals",
+      "semantic_role": "Ritual runes",
+      "art_purpose": "Surface storytelling motif for Ritual runes",
+      "asset_class": "MaterialInstance",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_ritual_runes.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_ritual_runes.decal_ritual_runes",
+      "dependency_ids": [
+        "surface-cracked-stone"
+      ],
+      "acceptance_tags": [
+        "decal",
+        "opacity",
+        "channel-pack"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "decals"
+    },
+    {
+      "id": "decal-moss-creep",
+      "family": "decals",
+      "semantic_role": "Moss creep",
+      "art_purpose": "Surface storytelling motif for Moss creep",
+      "asset_class": "MaterialInstance",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_moss_creep.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_moss_creep.decal_moss_creep",
+      "dependency_ids": [
+        "surface-cracked-stone"
+      ],
+      "acceptance_tags": [
+        "decal",
+        "opacity",
+        "channel-pack"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "decals"
+    },
+    {
+      "id": "decal-corruption-veins",
+      "family": "decals",
+      "semantic_role": "Corruption veins",
+      "art_purpose": "Surface storytelling motif for Corruption veins",
+      "asset_class": "MaterialInstance",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_corruption_veins.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_corruption_veins.decal_corruption_veins",
+      "dependency_ids": [
+        "surface-cracked-stone"
+      ],
+      "acceptance_tags": [
+        "decal",
+        "opacity",
+        "channel-pack"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "decals"
+    },
+    {
+      "id": "vfx-heart-ambience",
+      "family": "vfx",
+      "semantic_role": "Heart ambience",
+      "art_purpose": "Readable atmospheric source family for Heart ambience",
+      "asset_class": "NiagaraSystem",
+      "restoration_state": "before",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/vfx_heart_ambience.exr",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/vfx_heart_ambience.vfx_heart_ambience",
+      "dependency_ids": [
+        "mi-sanctuary-before"
+      ],
+      "acceptance_tags": [
+        "vfx",
+        "overdraw",
+        "state-readability"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "vfx"
+    },
+    {
+      "id": "vfx-restoration-motes",
+      "family": "vfx",
+      "semantic_role": "Restoration motes",
+      "art_purpose": "Readable atmospheric source family for Restoration motes",
+      "asset_class": "NiagaraSystem",
+      "restoration_state": "restoration_in_progress",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/vfx_restoration_motes.exr",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/vfx_restoration_motes.vfx_restoration_motes",
+      "dependency_ids": [
+        "mi-sanctuary-restoration_in_progress"
+      ],
+      "acceptance_tags": [
+        "vfx",
+        "overdraw",
+        "state-readability"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "vfx"
+    },
+    {
+      "id": "vfx-corruption-wisps",
+      "family": "vfx",
+      "semantic_role": "Corruption wisps",
+      "art_purpose": "Readable atmospheric source family for Corruption wisps",
+      "asset_class": "NiagaraSystem",
+      "restoration_state": "corrupted",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/vfx_corruption_wisps.exr",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/vfx_corruption_wisps.vfx_corruption_wisps",
+      "dependency_ids": [
+        "mi-sanctuary-corrupted"
+      ],
+      "acceptance_tags": [
+        "vfx",
+        "overdraw",
+        "state-readability"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "vfx"
+    },
+    {
+      "id": "vfx-ground-fog",
+      "family": "vfx",
+      "semantic_role": "Ground fog",
+      "art_purpose": "Readable atmospheric source family for Ground fog",
+      "asset_class": "NiagaraSystem",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/vfx_ground_fog.exr",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/vfx_ground_fog.vfx_ground_fog",
+      "dependency_ids": [
+        "surface-ashen-soil"
+      ],
+      "acceptance_tags": [
+        "vfx",
+        "overdraw",
+        "state-readability"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "vfx"
+    },
+    {
+      "id": "placement-courtyard",
+      "family": "placement",
+      "semantic_role": "Courtyard placement rules",
+      "art_purpose": "Deterministic density and exclusions for courtyard",
+      "asset_class": "PlacementRulesDataAsset",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/placement/placement_courtyard.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/placement/placement_courtyard.placement_courtyard",
+      "dependency_ids": [
+        "veil-heart-before",
+        "lantern-before",
+        "foliage-grave-fern"
+      ],
+      "acceptance_tags": [
+        "pcg",
+        "density",
+        "deterministic"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "placement-pcg"
+    },
+    {
+      "id": "placement-perimeter-ruins",
+      "family": "placement",
+      "semantic_role": "Perimeter ruins placement rules",
+      "art_purpose": "Deterministic density and exclusions for perimeter ruins",
+      "asset_class": "PlacementRulesDataAsset",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/placement/placement_perimeter_ruins.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/placement/placement_perimeter_ruins.placement_perimeter_ruins",
+      "dependency_ids": [
+        "ruin-piece-01",
+        "ruin-piece-02",
+        "foliage-blackthorn-root"
+      ],
+      "acceptance_tags": [
+        "pcg",
+        "density",
+        "deterministic"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "placement-pcg"
+    },
+    {
+      "id": "placement-ritual-approaches",
+      "family": "placement",
+      "semantic_role": "Ritual approaches placement rules",
+      "art_purpose": "Deterministic density and exclusions for ritual approaches",
+      "asset_class": "PlacementRulesDataAsset",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/placement/placement_ritual_approaches.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/placement/placement_ritual_approaches.placement_ritual_approaches",
+      "dependency_ids": [
+        "mirror-pillar-before",
+        "bell-shrine-before",
+        "decal-ritual-circle"
+      ],
+      "acceptance_tags": [
+        "pcg",
+        "density",
+        "deterministic"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "placement-pcg"
+    },
+    {
+      "id": "placement-corruption-pockets",
+      "family": "placement",
+      "semantic_role": "Corruption pockets placement rules",
+      "art_purpose": "Deterministic density and exclusions for corruption pockets",
+      "asset_class": "PlacementRulesDataAsset",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/placement/placement_corruption_pockets.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/placement/placement_corruption_pockets.placement_corruption_pockets",
+      "dependency_ids": [
+        "veil-heart-corrupted",
+        "foliage-veil-bramble",
+        "decal-corruption-veins",
+        "vfx-corruption-wisps"
+      ],
+      "acceptance_tags": [
+        "pcg",
+        "density",
+        "deterministic"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "placement-pcg"
+    },
+    {
+      "id": "biome-manifest",
+      "family": "integration",
+      "semantic_role": "Sanctuary biome manifest",
+      "art_purpose": "Binds the complete immutable kit and receipts",
+      "asset_class": "PrimaryDataAsset",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/integration/biome_manifest.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/integration/biome_manifest.biome_manifest",
+      "dependency_ids": [
+        "surface-ashen-soil",
+        "surface-cracked-stone",
+        "surface-withered-loam-moss",
+        "mi-sanctuary-before",
+        "mi-sanctuary-restoration_in_progress",
+        "mi-sanctuary-restored",
+        "mi-sanctuary-corrupted",
+        "veil-heart-before",
+        "veil-heart-restoration_in_progress",
+        "veil-heart-restored",
+        "veil-heart-corrupted",
+        "lantern-before",
+        "lantern-restoration_in_progress",
+        "lantern-restored",
+        "lantern-corrupted",
+        "mirror-pillar-before",
+        "mirror-pillar-restoration_in_progress",
+        "mirror-pillar-restored",
+        "mirror-pillar-corrupted",
+        "bell-shrine-before",
+        "bell-shrine-restoration_in_progress",
+        "bell-shrine-restored",
+        "bell-shrine-corrupted",
+        "ruin-piece-01",
+        "ruin-piece-02",
+        "ruin-piece-03",
+        "ruin-piece-04",
+        "ruin-piece-05",
+        "ruin-piece-06",
+        "ruin-piece-07",
+        "ruin-piece-08",
+        "ruin-piece-09",
+        "ruin-piece-10",
+        "ruin-piece-11",
+        "ruin-piece-12",
+        "foliage-withered-ivy",
+        "foliage-blackthorn-root",
+        "foliage-grave-fern",
+        "foliage-ash-reed",
+        "foliage-veil-bramble",
+        "foliage-hollow-stump",
+        "decal-hairline-cracks",
+        "decal-ritual-fissures",
+        "decal-soot-smear",
+        "decal-soot-bloom",
+        "decal-ritual-circle",
+        "decal-ritual-runes",
+        "decal-moss-creep",
+        "decal-corruption-veins",
+        "vfx-heart-ambience",
+        "vfx-restoration-motes",
+        "vfx-corruption-wisps",
+        "vfx-ground-fog",
+        "placement-courtyard",
+        "placement-perimeter-ruins",
+        "placement-ritual-approaches",
+        "placement-corruption-pockets"
+      ],
+      "acceptance_tags": [
+        "manifest",
+        "dependency-closure"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "integration"
+    },
+    {
+      "id": "generated-catalog",
+      "family": "integration",
+      "semantic_role": "Generated asset catalog",
+      "art_purpose": "Maps Gloamstead semantic roles and states to soft object references",
+      "asset_class": "PrimaryDataAsset",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/integration/generated_catalog.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/integration/generated_catalog.generated_catalog",
+      "dependency_ids": [
+        "biome-manifest"
+      ],
+      "acceptance_tags": [
+        "catalog",
+        "pointer-closure"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "integration"
+    },
+    {
+      "id": "runtime-bindings",
+      "family": "integration",
+      "semantic_role": "Runtime integration bindings",
+      "art_purpose": "Connects catalog roles to explicit subject registry and one-way state projection",
+      "asset_class": "DataAsset",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/integration/runtime_bindings.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/integration/runtime_bindings.runtime_bindings",
+      "dependency_ids": [
+        "generated-catalog",
+        "placement-courtyard",
+        "placement-perimeter-ruins",
+        "placement-ritual-approaches",
+        "placement-corruption-pockets"
+      ],
+      "acceptance_tags": [
+        "runtime",
+        "subject-registry",
+        "one-way-projection"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "integration"
+    }
+  ],
+  "output_allowlist": {
+    "source_paths": [
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/surface_ashen_soil.sbs",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/surface_cracked_stone.sbs",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/surface_withered_loam_moss.sbs",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/materials/mi_sanctuary_before.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/materials/mi_sanctuary_restoration_in_progress.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/materials/mi_sanctuary_restored.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/materials/mi_sanctuary_corrupted.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/veil_heart_before.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/veil_heart_restoration_in_progress.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/veil_heart_restored.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/veil_heart_corrupted.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/lantern_before.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/lantern_restoration_in_progress.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/lantern_restored.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/lantern_corrupted.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/mirror_pillar_before.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/mirror_pillar_restoration_in_progress.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/mirror_pillar_restored.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/mirror_pillar_corrupted.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/bell_shrine_before.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/bell_shrine_restoration_in_progress.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/bell_shrine_restored.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/hero-ritual/bell_shrine_corrupted.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_01.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_02.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_03.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_04.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_05.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_06.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_07.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_08.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_09.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_10.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_11.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_12.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/foliage_withered_ivy.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/foliage_blackthorn_root.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/foliage_grave_fern.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/foliage_ash_reed.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/foliage_veil_bramble.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/foliage_hollow_stump.fbx",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_hairline_cracks.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_ritual_fissures.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_soot_smear.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_soot_bloom.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_ritual_circle.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_ritual_runes.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_moss_creep.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_corruption_veins.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/vfx_heart_ambience.exr",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/vfx_restoration_motes.exr",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/vfx_corruption_wisps.exr",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/vfx_ground_fog.exr",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/placement/placement_courtyard.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/placement/placement_perimeter_ruins.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/placement/placement_ritual_approaches.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/placement/placement_corruption_pockets.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/integration/biome_manifest.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/integration/generated_catalog.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/integration/runtime_bindings.json"
+    ],
+    "unreal_paths": [
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/surface_ashen_soil.surface_ashen_soil",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/surface_cracked_stone.surface_cracked_stone",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/surface_withered_loam_moss.surface_withered_loam_moss",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/materials/mi_sanctuary_before.mi_sanctuary_before",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/materials/mi_sanctuary_restoration_in_progress.mi_sanctuary_restoration_in_progress",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/materials/mi_sanctuary_restored.mi_sanctuary_restored",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/materials/mi_sanctuary_corrupted.mi_sanctuary_corrupted",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/veil_heart_before.veil_heart_before",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/veil_heart_restoration_in_progress.veil_heart_restoration_in_progress",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/veil_heart_restored.veil_heart_restored",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/veil_heart_corrupted.veil_heart_corrupted",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/lantern_before.lantern_before",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/lantern_restoration_in_progress.lantern_restoration_in_progress",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/lantern_restored.lantern_restored",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/lantern_corrupted.lantern_corrupted",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/mirror_pillar_before.mirror_pillar_before",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/mirror_pillar_restoration_in_progress.mirror_pillar_restoration_in_progress",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/mirror_pillar_restored.mirror_pillar_restored",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/mirror_pillar_corrupted.mirror_pillar_corrupted",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/bell_shrine_before.bell_shrine_before",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/bell_shrine_restoration_in_progress.bell_shrine_restoration_in_progress",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/bell_shrine_restored.bell_shrine_restored",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/hero-ritual/bell_shrine_corrupted.bell_shrine_corrupted",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_01.ruin_piece_01",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_02.ruin_piece_02",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_03.ruin_piece_03",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_04.ruin_piece_04",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_05.ruin_piece_05",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_06.ruin_piece_06",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_07.ruin_piece_07",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_08.ruin_piece_08",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_09.ruin_piece_09",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_10.ruin_piece_10",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_11.ruin_piece_11",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/architecture/ruin_piece_12.ruin_piece_12",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/foliage_withered_ivy.foliage_withered_ivy",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/foliage_blackthorn_root.foliage_blackthorn_root",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/foliage_grave_fern.foliage_grave_fern",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/foliage_ash_reed.foliage_ash_reed",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/foliage_veil_bramble.foliage_veil_bramble",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/foliage_hollow_stump.foliage_hollow_stump",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_hairline_cracks.decal_hairline_cracks",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_ritual_fissures.decal_ritual_fissures",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_soot_smear.decal_soot_smear",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_soot_bloom.decal_soot_bloom",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_ritual_circle.decal_ritual_circle",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_ritual_runes.decal_ritual_runes",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_moss_creep.decal_moss_creep",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_corruption_veins.decal_corruption_veins",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/vfx_heart_ambience.vfx_heart_ambience",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/vfx_restoration_motes.vfx_restoration_motes",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/vfx_corruption_wisps.vfx_corruption_wisps",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/vfx_ground_fog.vfx_ground_fog",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/placement/placement_courtyard.placement_courtyard",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/placement/placement_perimeter_ruins.placement_perimeter_ruins",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/placement/placement_ritual_approaches.placement_ritual_approaches",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/placement/placement_corruption_pockets.placement_corruption_pockets",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/integration/biome_manifest.biome_manifest",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/integration/generated_catalog.generated_catalog",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/integration/runtime_bindings.runtime_bindings"
+    ]
+  }
+}

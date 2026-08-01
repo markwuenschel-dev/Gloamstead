@@ -634,6 +634,121 @@ FString GACStateToken(EGloamsteadGeneratedAssetState State)
 	}
 }
 
+FString GACCanonicalCatalogContract(const UGloamsteadGeneratedAssetCatalog& Catalog)
+{
+	auto AppendField = [](FString& Out, const TCHAR* Name, const FString& Value)
+	{
+		const FTCHARToUTF8 Utf8(*Value);
+		Out += FString::Printf(TEXT("%s=%d:"), Name, Utf8.Length());
+		Out += Value;
+		Out += TEXT("\n");
+	};
+	auto AppendSortedValues = [&AppendField](
+		FString& Out, const TCHAR* CountName, const TCHAR* ItemName, TArray<FString> Values)
+	{
+		Values.Sort([](const FString& A, const FString& B) { return A < B; });
+		AppendField(Out, CountName, FString::FromInt(Values.Num()));
+		for (const FString& Value : Values)
+		{
+			AppendField(Out, ItemName, Value);
+		}
+	};
+	auto CanonicalAuthority = [&AppendField](
+		const FGloamsteadGeneratedScriptPackageAuthority& Authority)
+	{
+		FString Out;
+		AppendField(Out, TEXT("package"), Authority.PackageName);
+		AppendField(Out, TEXT("owner_class"),
+			FString::FromInt(static_cast<int32>(Authority.OwnerClass)));
+		AppendField(Out, TEXT("owner_id"), Authority.OwnerId);
+		AppendField(Out, TEXT("owner_identity_sha256"), Authority.OwnerIdentitySha256);
+		return Out;
+	};
+	auto CanonicalExternal = [&AppendField, &AppendSortedValues](
+		const FGloamsteadGeneratedExternalPackageRecord& Record)
+	{
+		FString Out;
+		AppendField(Out, TEXT("package"), Record.PackageName);
+		AppendField(Out, TEXT("provenance_object"),
+			Record.ProvenanceObject.ToSoftObjectPath().ToString());
+		AppendField(Out, TEXT("package_sha256"), Record.PackageSha256);
+		AppendField(Out, TEXT("receipt_sha256"), Record.ReceiptSha256);
+		AppendField(Out, TEXT("bundle_id"), Record.BundleId);
+		AppendSortedValues(Out, TEXT("direct_dependency_count"), TEXT("direct_dependency"),
+			Record.DirectPackageDependencies);
+		return Out;
+	};
+	auto CanonicalEntry = [&AppendField, &AppendSortedValues](
+		const FGloamsteadGeneratedAssetEntry& Entry)
+	{
+		FString Out;
+		AppendField(Out, TEXT("semantic_role"), Entry.SemanticRole.ToString());
+		AppendField(Out, TEXT("restoration_state"),
+			FString::FromInt(static_cast<int32>(Entry.RestorationState)));
+		AppendField(Out, TEXT("asset"), Entry.Asset.ToSoftObjectPath().ToString());
+		AppendField(Out, TEXT("expected_class"), Entry.ExpectedClass.ToSoftObjectPath().ToString());
+		AppendField(Out, TEXT("object_sha256"), Entry.ObjectSha256);
+		AppendField(Out, TEXT("receipt_sha256"), Entry.ReceiptSha256);
+		AppendSortedValues(Out, TEXT("direct_dependency_count"), TEXT("direct_dependency"),
+			Entry.DirectPackageDependencies);
+		TArray<FString> DependencyPaths;
+		DependencyPaths.Reserve(Entry.Dependencies.Num());
+		for (const TSoftObjectPtr<UObject>& Dependency : Entry.Dependencies)
+		{
+			DependencyPaths.Add(Dependency.ToSoftObjectPath().ToString());
+		}
+		AppendSortedValues(Out, TEXT("object_dependency_count"), TEXT("object_dependency"),
+			MoveTemp(DependencyPaths));
+		AppendField(Out, TEXT("ownership_id"), Entry.OwnershipId);
+		AppendField(Out, TEXT("license_id"), Entry.LicenseId);
+		return Out;
+	};
+
+	FString Canonical = TEXT("gloamstead.generated-asset-catalog-contract@1\n");
+	AppendField(Canonical, TEXT("bundle_id"), Catalog.BundleId);
+	AppendField(Canonical, TEXT("receipt_sha256"), Catalog.ReceiptSha256);
+	AppendField(Canonical, TEXT("version_root"), Catalog.VersionRoot);
+	AppendField(Canonical, TEXT("target_build_identity_sha256"),
+		Catalog.TargetBuildIdentitySha256);
+	AppendSortedValues(Canonical, TEXT("terminal_root_count"), TEXT("terminal_root"),
+		Catalog.TerminalPlatformPackageRoots);
+	AppendSortedValues(Canonical, TEXT("terminal_package_count"), TEXT("terminal_package"),
+		Catalog.TerminalPlatformPackages);
+
+	TArray<FString> Authorities;
+	Authorities.Reserve(Catalog.TerminalScriptPackageAuthorities.Num());
+	for (const FGloamsteadGeneratedScriptPackageAuthority& Authority
+		: Catalog.TerminalScriptPackageAuthorities)
+	{
+		Authorities.Add(CanonicalAuthority(Authority));
+	}
+	AppendSortedValues(Canonical, TEXT("script_authority_count"), TEXT("script_authority"),
+		MoveTemp(Authorities));
+
+	TArray<FString> ExternalRecords;
+	ExternalRecords.Reserve(Catalog.ExternalPackageRecords.Num());
+	for (const FGloamsteadGeneratedExternalPackageRecord& Record : Catalog.ExternalPackageRecords)
+	{
+		ExternalRecords.Add(CanonicalExternal(Record));
+	}
+	AppendSortedValues(Canonical, TEXT("external_record_count"), TEXT("external_record"),
+		MoveTemp(ExternalRecords));
+
+	TArray<FString> Entries;
+	Entries.Reserve(Catalog.Entries.Num());
+	for (const FGloamsteadGeneratedAssetEntry& Entry : Catalog.Entries)
+	{
+		Entries.Add(CanonicalEntry(Entry));
+	}
+	AppendSortedValues(Canonical, TEXT("entry_count"), TEXT("entry"), MoveTemp(Entries));
+	return Canonical;
+}
+
+FString GACCatalogContractSha256(const UGloamsteadGeneratedAssetCatalog& Catalog)
+{
+	return Sha256Utf8(GACCanonicalCatalogContract(Catalog));
+}
+
 const FGloamsteadGeneratedAssetEntry* UGloamsteadGeneratedAssetCatalog::FindExact(
 	FName SemanticRole, EGloamsteadGeneratedAssetState State) const
 {

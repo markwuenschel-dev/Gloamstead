@@ -1,0 +1,24 @@
+{
+  "schema_version": "gloamstead.sanctuary.toolchain-requirements.v1",
+  "status": "unqualified",
+  "ue": {
+    "root": "D:/UE_5.8",
+    "version": "5.8.0",
+    "build_version": "++UE5+Release-5.8-CL-55116800",
+    "changelist": 55116800
+  },
+  "comfyui": {
+    "required": true,
+    "reason": "No qualified local installation or licensed model/workflow lock is committed"
+  },
+  "substance": {
+    "required": true,
+    "reason": "No legitimate licensed Substance Automation Toolkit is installed"
+  },
+  "houdini": {
+    "required": true,
+    "workstation_version": "21.0.729",
+    "required_engine_version": "21.0.753",
+    "reason": "Workstation and Houdini Engine target versions differ"
+  }
+}

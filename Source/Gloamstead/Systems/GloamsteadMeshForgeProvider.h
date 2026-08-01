@@ -142,7 +142,7 @@ public:
 	void Test_SetPackageDependencies(const FSoftObjectPath& ObjectPath,
 		const TArray<FName>& DependencyPackages);
 	void Test_MarkPackageDependencyQueryUnavailable(const FString& PackageName);
-	TArray<FString> Test_ValidateDependencyClosure() const;
+	TArray<FString> Test_ValidateDependencyClosure();
 	void Test_ForceSpawnFailure(bool bForce) { bTestForceSpawnFailure = bForce; }
 	uint64 Test_BeginPendingCatalogLoad();
 	void Test_CompleteCatalogLoad(uint64 LoadGeneration, const FSoftObjectPath& RequestedPath,
@@ -155,12 +155,16 @@ private:
 	void AcceptCatalogLoad(uint64 LoadGeneration, const FSoftObjectPath& RequestedPath,
 		UGloamsteadGeneratedAssetCatalog* Catalog, FSimpleDelegate Completion);
 	void ValidateLoadedCatalog();
+	/** Re-run structural validation and compare every canonical contract byte to the accepted digest. */
+	bool EnsureAcceptedCatalogContractCurrent();
+	/** Irreversibly reject this configuration; only Configure followed by a fresh load clears the latch. */
+	void InvalidateAcceptedCatalog(const TArray<FString>& Codes);
 	void Fail(const TArray<FString>& Codes);
 	UObject* ResolveEntryObject(const FSoftObjectPath& ObjectPath) const;
 	FGloamsteadGeneratedAssetObservedProvenance ReadObservedProvenance(
 		const FSoftObjectPath& ObjectPath) const;
 	bool ReadPackageDependencies(FName PackageName, TArray<FName>& OutDependencies) const;
-	TArray<FString> ValidateCatalogDependencyClosure() const;
+	TArray<FString> ValidateCatalogDependencyClosure();
 
 	UPROPERTY() TSoftObjectPtr<UGloamsteadGeneratedAssetCatalog> CatalogPath;
 	UPROPERTY() TObjectPtr<UGloamsteadGeneratedAssetCatalog> LoadedCatalog;
@@ -173,6 +177,10 @@ private:
 	TSharedPtr<const IGloamsteadGeneratedAssetRuntimeIdentitySource> RuntimeIdentitySource;
 	/** Exact authority set retained only after trusted runtime observation and catalog equality succeed. */
 	TSet<FName> VerifiedTerminalScriptPackages;
+	/** Canonical digest of every catalog contract field at the moment the provider entered Ready. */
+	FString AcceptedCatalogContractSha256;
+	/** Set only by post-acceptance mutation. Preload/revalidation cannot clear it; Configure must. */
+	bool bRequiresFreshConfiguration = false;
 	uint64 LoadGeneration = 0;
 #if WITH_DEV_AUTOMATION_TESTS
 	TMap<FSoftObjectPath, TWeakObjectPtr<UObject>> TestResolvedObjects;

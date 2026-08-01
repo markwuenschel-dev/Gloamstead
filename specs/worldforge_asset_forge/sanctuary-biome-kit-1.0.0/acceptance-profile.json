@@ -1,0 +1,124 @@
+{
+  "schema_version": "gloamstead.sanctuary.acceptance-profile.v1",
+  "document_sha256": "218f7d733cad0b6b2f60b5de1af7763198245252d63d51e6efc76c4cdadb7096",
+  "profile_id": "sanctuary-withered-gothic-production-v1",
+  "immutable": true,
+  "automatic_mutation_allowed": false,
+  "style": "Withered Gothic Stylization",
+  "visual": {
+    "palette_lab_ranges": {
+      "charcoal_L": [
+        8,
+        28
+      ],
+      "bone_L": [
+        58,
+        82
+      ],
+      "moss_a": [
+        -18,
+        -4
+      ],
+      "veil_cyan_b": [
+        -32,
+        -8
+      ],
+      "corruption_magenta_a": [
+        25,
+        58
+      ]
+    },
+    "minimum_state_delta_e": 12,
+    "minimum_silhouette_iou_delta": 0.08,
+    "night_readability_min_contrast_ratio": 3,
+    "golden_scenes": [
+      "/Game/Gloamstead/Qualification/Sanctuary_Day",
+      "/Game/Gloamstead/Qualification/Sanctuary_Night",
+      "/Game/Gloamstead/Qualification/Sanctuary_StateGrid"
+    ]
+  },
+  "textures": {
+    "allowed_resolutions": [
+      512,
+      1024,
+      2048,
+      4096
+    ],
+    "surface_resolution": 4096,
+    "hero_resolution": 4096,
+    "channel_rules": {
+      "base_color": "sRGB opaque",
+      "normal": "linear BC5 OpenGL-to-DirectX qualified",
+      "orm": "linear R=AO G=roughness B=metallic",
+      "opacity": "linear only for masked/decal/VFX"
+    }
+  },
+  "meshes": {
+    "hero_triangles_max": 180000,
+    "ritual_triangles_max": 90000,
+    "ruin_piece_triangles_max": 65000,
+    "foliage_triangles_max": 18000,
+    "lod_count_min": 3,
+    "collision_required": true,
+    "nanite": {
+      "hero": true,
+      "ritual": true,
+      "ruins": true,
+      "foliage": false
+    },
+    "uv_overlap_max_percent": 0.5
+  },
+  "pcg": {
+    "instances_per_1000m2": {
+      "courtyard": [
+        18,
+        70
+      ],
+      "perimeter_ruins": [
+        10,
+        42
+      ],
+      "ritual_approaches": [
+        8,
+        34
+      ],
+      "corruption_pockets": [
+        5,
+        26
+      ]
+    },
+    "deterministic_seed_required": true,
+    "no_nav_blocking_overlaps": true
+  },
+  "performance": {
+    "sanctuary_gpu_ms_max_1440p": 5.5,
+    "draw_calls_max": 950,
+    "streaming_memory_mib_max": 1536,
+    "vfx_overdraw_percent_max": 18
+  },
+  "runtime": {
+    "cook_required": true,
+    "package_required": true,
+    "pie_state_matrix_required": true,
+    "packaged_first_night_path_required": true,
+    "gameplay_state_mutation_forbidden": true
+  },
+  "required_gates": [
+    "schema",
+    "provenance",
+    "license",
+    "texture",
+    "mesh",
+    "dependency",
+    "collision",
+    "lod",
+    "pcg",
+    "visual-day",
+    "visual-night",
+    "performance",
+    "cook",
+    "package",
+    "pie-state-matrix",
+    "packaged-first-night"
+  ]
+}

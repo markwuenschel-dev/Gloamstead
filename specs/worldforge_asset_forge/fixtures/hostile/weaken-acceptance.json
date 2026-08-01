@@ -1,0 +1,1 @@
+{"target":"acceptance.automatic_mutation_allowed","value":true,"expected_failure":"FAIL-CONTRACT-DRIFT"}

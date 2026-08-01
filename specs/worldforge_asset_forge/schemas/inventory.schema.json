@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gloamstead.local/specs/worldforge_asset_forge/inventory.schema.json",
+  "title": "inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "document_sha256",
+    "kit_id",
+    "version",
+    "pointer_value",
+    "source_root",
+    "unreal_root",
+    "promotion_policy",
+    "deliverables",
+    "output_allowlist"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "gloamstead.sanctuary.inventory.v1"
+    },
+    "document_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "kit_id": {
+      "const": "sanctuary-biome-kit"
+    },
+    "version": {
+      "const": "1.0.0"
+    },
+    "pointer_value": {
+      "const": "sanctuary-biome-kit-1.0.0"
+    },
+    "source_root": {
+      "const": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0"
+    },
+    "unreal_root": {
+      "const": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0"
+    },
+    "promotion_policy": {
+      "const": "automatic_on_all_green"
+    },
+    "deliverables": {
+      "type": "array",
+      "minItems": 60,
+      "maxItems": 60,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "family",
+          "semantic_role",
+          "art_purpose",
+          "asset_class",
+          "restoration_state",
+          "source_path",
+          "unreal_object_path",
+          "dependency_ids",
+          "acceptance_tags",
+          "ownership",
+          "asset_family_lane"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+          },
+          "family": {
+            "enum": [
+              "hero-ritual",
+              "architecture",
+              "surfaces",
+              "foliage",
+              "decals",
+              "vfx",
+              "placement",
+              "materials",
+              "integration"
+            ]
+          },
+          "semantic_role": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "art_purpose": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "asset_class": {
+            "enum": [
+              "StaticMesh",
+              "Material",
+              "MaterialInstance",
+              "NiagaraSystem",
+              "PlacementRulesDataAsset",
+              "PrimaryDataAsset",
+              "DataAsset"
+            ]
+          },
+          "restoration_state": {
+            "enum": [
+              null,
+              "before",
+              "restoration_in_progress",
+              "restored",
+              "corrupted"
+            ]
+          },
+          "source_path": {
+            "type": "string",
+            "pattern": "^SourceArt/WorldForge/Accepted/Sanctuary/1\\.0\\.0/"
+          },
+          "unreal_object_path": {
+            "type": "string",
+            "pattern": "^/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/"
+          },
+          "dependency_ids": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+            }
+          },
+          "acceptance_tags": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+            }
+          },
+          "ownership": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "owner",
+              "license"
+            ],
+            "properties": {
+              "owner": {
+                "const": "Gloamstead"
+              },
+              "license": {
+                "const": "Proprietary-Gloamstead"
+              }
+            }
+          },
+          "asset_family_lane": {
+            "enum": [
+              "hero-ritual",
+              "architecture",
+              "surfaces",
+              "foliage",
+              "decals",
+              "vfx",
+              "placement-pcg",
+              "integration"
+            ]
+          }
+        }
+      }
+    },
+    "output_allowlist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_paths",
+        "unreal_paths"
+      ],
+      "properties": {
+        "source_paths": {
+          "type": "array",
+          "minItems": 60,
+          "maxItems": 60,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^SourceArt/WorldForge/Accepted/Sanctuary/1\\.0\\.0/"
+          }
+        },
+        "unreal_paths": {
+          "type": "array",
+          "minItems": 60,
+          "maxItems": 60,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/"
+          }
+        }
+      }
+    }
+  }
+}

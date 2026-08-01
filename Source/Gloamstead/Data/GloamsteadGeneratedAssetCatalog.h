@@ -198,6 +198,19 @@ public:
 };
 
 /**
+ * Canonical, order-independent bytes for the complete mutable catalog contract.
+ *
+ * Every scalar and nested record is length-prefixed; set-like arrays and records are sorted by their
+ * canonical bytes. UObject addresses and load state are deliberately excluded: soft object/class paths
+ * are the contract. This fingerprint is a runtime immutability guard, not a replacement for validation.
+ */
+GLOAMSTEAD_API FString GACCanonicalCatalogContract(
+	const UGloamsteadGeneratedAssetCatalog& Catalog);
+/** SHA-256 of GACCanonicalCatalogContract's UTF-8 bytes. */
+GLOAMSTEAD_API FString GACCatalogContractSha256(
+	const UGloamsteadGeneratedAssetCatalog& Catalog);
+
+/**
  * Pure fail-closed catalog validation. Empty means valid.
  * GAC001 invalid bundle id; 002 invalid version root; 003 receipt hash; 004 role id; 005 duplicate key;
  * 006 unknown state; 007 outside generated root; 008 wrong version; 009 ownership; 010 license;
@@ -210,7 +223,7 @@ public:
  * 033 undeclared non-terminal dependency; 034 invalid external package/terminal policy declaration;
  * 035 external package provenance binding; 036 target UE/plugin build identity mismatch;
  * 037 independently observed runtime identity unavailable/incomplete;
- * 038 terminal script authority/inventory mismatch.
+ * 038 terminal script authority/inventory mismatch; 039 catalog contract changed after acceptance.
  */
 GLOAMSTEAD_API TArray<FString> GACValidateCatalog(
 	const UGloamsteadGeneratedAssetCatalog& Catalog,

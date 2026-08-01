@@ -1,0 +1,48 @@
+{
+  "schema_version": "gloamstead.sanctuary.art-intent.v1",
+  "document_sha256": "eda8daa675fbc0409646e804763e2cb5eee947d250a12ad9767f5d6f5af48992",
+  "kit_id": "sanctuary-biome-kit",
+  "version": "1.0.0",
+  "style": "Withered Gothic Stylization",
+  "authority": {
+    "owner": "Gloamstead",
+    "worldforge_may_invent_semantics": false,
+    "worldforge_may_reject": true
+  },
+  "subjects": [
+    "sanctuary",
+    "veil-heart",
+    "ritual-lantern",
+    "mirror-pillar",
+    "bell-shrine",
+    "courtyard",
+    "perimeter-ruins",
+    "ritual-approaches",
+    "corruption-pockets"
+  ],
+  "states": [
+    "before",
+    "restoration_in_progress",
+    "restored",
+    "corrupted"
+  ],
+  "art_direction": {
+    "palette": [
+      "charcoal",
+      "bone",
+      "oxidized-brass",
+      "withered-moss",
+      "veil-cyan",
+      "corruption-magenta"
+    ],
+    "value_structure": "Readable silhouettes at night with restrained emissive accents and broad midtone separation",
+    "shape_language": "Weathered lancets, broken circles, root-bound masonry, ritual geometry, asymmetrical decay",
+    "surface_language": "Dry ash, cracked stone, fibrous dead growth, damp moss, controlled supernatural bloom"
+  },
+  "intent_rules": [
+    "Every destination is caller-authored and immutable",
+    "Restoration and corruption are visually distinct at gameplay distance",
+    "WorldForge must reject ambiguous semantics instead of inferring them"
+  ],
+  "inventory_ref": "specs/worldforge_asset_forge/sanctuary-biome-kit-1.0.0/inventory.json"
+}

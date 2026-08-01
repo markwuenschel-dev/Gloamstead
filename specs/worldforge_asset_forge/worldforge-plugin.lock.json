@@ -1,0 +1,68 @@
+{
+  "schema_version": "gloamstead.worldforge.plugin-lock.v1",
+  "plugin_id": "WorldForge",
+  "plugin_version": "0.2.0",
+  "source_repository": "https://github.com/markwuenschel-dev/WorldForge.git",
+  "source_commit": "61009579821f280ad3a000da9262c9f6ff5d5398",
+  "release_manifest_commit": "00d6c7ea",
+  "source_tree_sha256": "ffa32df6ccae6ad6ddc750bc9e4abb8243a2d35edbbb9267d63dbb17ad5f4cef",
+  "descriptor_sha256": "0c9ae0453c01d7bdb9815cf79b46b2dd9ba78f7f3a733c0a466521f4e638c30b",
+  "package_sha256": "da19fbd18a59ab2d9d6eef256e8bcc5bec2e29fc6100ccc68d35e1dcc130b4c1",
+  "release_manifest_sha256": "2daf2ad088ae86c564ee9a711dedeacc76cad5eb83a8e015de876b8e7f0750af",
+  "packaged_tree_sha256": "41a9b696ca912ddf49a9b301216aff6945dc5dda0c4f63c82cf0112b666494a9",
+  "supported_engine": "5.8",
+  "build_identity": "wfplugin-4e4710cc3087306a4566a0986148d759970a6d1e9131b182f742479ec8bdb45b",
+  "capabilities": [
+    "asset_set.reconcile@1",
+    "scene_survey"
+  ],
+  "schemas": [
+    {
+      "path": "specs/asset_forge/biome_kit_request.schema.json",
+      "sha256": "3e5f4ccdb034d5fea4d1dfe08e6d49e9685ca3d932e744384e11ba3e4ea363af"
+    },
+    {
+      "path": "specs/asset_forge/biome_kit_result.schema.json",
+      "sha256": "ad051ba817fcf7e97e56af130fc246f83f339a130257c05b623543a683ff34bf"
+    },
+    {
+      "path": "specs/asset_forge/failure.schema.json",
+      "sha256": "7867184d62508e1670d7af5e87689f43065b53826784518ce3abc87713ff1566"
+    },
+    {
+      "path": "specs/asset_forge/promotion_receipt.schema.json",
+      "sha256": "e8689f11e1ed8827efe60cb86beaa1896cf9723dc9e78dd244ccfcdbbb194c71"
+    },
+    {
+      "path": "specs/asset_forge/qualification.schema.json",
+      "sha256": "3daad8b86f113019a27fdf56797b887f9d12e54fcf43549e88203de31b7c11a7"
+    },
+    {
+      "path": "specs/asset_forge/rollback_receipt.schema.json",
+      "sha256": "17d68f070e21b0606591a3e83c4e4c2c346b5a408c221170105cc6505e55f9a5"
+    }
+  ],
+  "runtime_identity_contract": {
+    "contract_id": "gloamstead.worldforge.runtime-identity@1",
+    "serialization": "canonical UTF-8 LF",
+    "observed_fields": [
+      "engine_version",
+      "compatible_engine_version",
+      "engine_build_version",
+      "engine_changelist",
+      "compatible_engine_changelist",
+      "gloamstead_commit",
+      "plugin_version",
+      "plugin_engine_version",
+      "plugin_descriptor_sha256",
+      "installed_plugin_tree_sha256",
+      "vendor_lock_sha256",
+      "declared_plugin_package_sha256",
+      "declared_plugin_build_identity",
+      "enabled_plugin_inventory_sha256",
+      "terminal_script_authority"
+    ],
+    "requires_complete_enabled_plugin_inventory": true,
+    "requires_derived_terminal_authorities": true
+  }
+}
