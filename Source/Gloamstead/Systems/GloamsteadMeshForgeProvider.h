@@ -152,9 +152,23 @@ public:
 	uint64 Test_BeginPendingCatalogLoad();
 	void Test_CompleteCatalogLoad(uint64 LoadGeneration, const FSoftObjectPath& RequestedPath,
 		UGloamsteadGeneratedAssetCatalog* Catalog, FSimpleDelegate Completion = FSimpleDelegate());
+	uint64 Test_GetProviderEpoch() const { return ProviderEpoch; }
 #endif
 
 private:
+	struct FProviderOperationSnapshot
+	{
+		uint64 ProviderEpoch = 0;
+		uint64 LoadGeneration = 0;
+		EGMFGeneratedProviderState State = EGMFGeneratedProviderState::Uninitialized;
+		TWeakObjectPtr<UGloamsteadGeneratedAssetCatalog> CatalogObjectGeneration;
+		FString AcceptedCatalogContractSha256;
+	};
+
+	void AdvanceProviderEpoch();
+	FProviderOperationSnapshot CaptureOperationSnapshot() const;
+	bool IsOperationSnapshotCurrent(const FProviderOperationSnapshot& Snapshot) const;
+	bool ValidateCurrentOperationAfterBoundary(const FProviderOperationSnapshot& Snapshot);
 	void CancelOutstandingPreload();
 	void FinishCatalogLoad(uint64 LoadGeneration, FSoftObjectPath RequestedPath, FSimpleDelegate Completion);
 	void AcceptCatalogLoad(uint64 LoadGeneration, const FSoftObjectPath& RequestedPath,
@@ -191,6 +205,8 @@ private:
 	bool bRequiresFreshConfiguration = false;
 	/** Mutated UObject generations remain quarantined across Configure; only a new serialized load may replace one. */
 	TArray<TWeakObjectPtr<UGloamsteadGeneratedAssetCatalog>> RejectedCatalogObjectGenerations;
+	/** Monotonic token invalidating every outer frame when configuration or an operation is replaced. */
+	uint64 ProviderEpoch = 0;
 	uint64 LoadGeneration = 0;
 #if WITH_DEV_AUTOMATION_TESTS
 	TMap<FSoftObjectPath, TWeakObjectPtr<UObject>> TestResolvedObjects;

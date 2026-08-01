@@ -1158,4 +1158,225 @@ bool FGloamGeneratedAssetDependencyClosureTest::RunTest(const FString& /*Paramet
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamGeneratedAssetProviderReentrantGenerationTest,
+	"Gloamstead.GeneratedAssets.ReentrantLifecycleCannotCorruptNewGeneration",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamGeneratedAssetProviderReentrantGenerationTest::RunTest(const FString& /*Parameters*/)
+{
+	enum class EReentrantAction : uint8
+	{
+		Configure,
+		Deactivate,
+		AcceptCatalogB,
+	};
+	const TArray<EReentrantAction> Actions = {
+		EReentrantAction::Configure,
+		EReentrantAction::Deactivate,
+		EReentrantAction::AcceptCatalogB,
+	};
+	auto ActionName = [](EReentrantAction Action)
+	{
+		switch (Action)
+		{
+		case EReentrantAction::Configure: return FString(TEXT("Configure"));
+		case EReentrantAction::Deactivate: return FString(TEXT("Deactivate"));
+		case EReentrantAction::AcceptCatalogB: return FString(TEXT("AcceptCatalogB"));
+		}
+		return FString(TEXT("Unknown"));
+	};
+	auto MakeCatalogB = []()
+	{
+		UGloamsteadGeneratedAssetCatalog* Catalog = MakeValidCatalog();
+		Catalog->BundleId = TEXT("sanctuary-v2");
+		Catalog->ReceiptSha256 =
+			TEXT("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc");
+		Catalog->VersionRoot = TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v2");
+		Catalog->Entries[0].Asset = TSoftObjectPtr<UObject>(FSoftObjectPath(
+			TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v2/SM_Heart.SM_Heart")));
+		Catalog->Entries[0].ReceiptSha256 = Catalog->ReceiptSha256;
+		return Catalog;
+	};
+	auto MakeSettingsB = [](UGloamsteadGeneratedAssetCatalog* Catalog)
+	{
+		UGloamsteadGeneratedAssetSettings* Settings =
+			NewObject<UGloamsteadGeneratedAssetSettings>();
+		Settings->Catalog = TSoftObjectPtr<UGloamsteadGeneratedAssetCatalog>(FSoftObjectPath(
+			TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v2/DA_Catalog.DA_Catalog")));
+		Settings->ExpectedActiveBundleId = Catalog->BundleId;
+		Settings->ExpectedReceiptSha256 = Catalog->ReceiptSha256;
+		Settings->ExpectedTargetBuildIdentitySha256 = Catalog->TargetBuildIdentitySha256;
+		return Settings;
+	};
+	auto PerformAction = [](UGloamsteadGeneratedAssetMeshForgeProvider* Provider,
+		UGloamsteadGeneratedAssetCatalog* CatalogB,
+		UGloamsteadGeneratedAssetSettings* SettingsB,
+		EReentrantAction Action)
+	{
+		switch (Action)
+		{
+		case EReentrantAction::Configure:
+			Provider->Configure(*SettingsB);
+			break;
+		case EReentrantAction::Deactivate:
+			Provider->Deactivate();
+			break;
+		case EReentrantAction::AcceptCatalogB:
+			Provider->Test_SetLoadedCatalog(CatalogB, CatalogB->BundleId,
+				CatalogB->ReceiptSha256, MakeObservedRuntimeIdentity());
+			break;
+		}
+	};
+	auto AssertAndRecoverNewGeneration = [this](const FString& Label,
+		UGloamsteadGeneratedAssetMeshForgeProvider* Provider,
+		UGloamsteadGeneratedAssetCatalog* CatalogB,
+		UGloamsteadGeneratedAssetSettings* SettingsB,
+		EReentrantAction Action)
+	{
+		if (Action == EReentrantAction::AcceptCatalogB)
+		{
+			TestTrue(Label + TEXT(": nested catalog B remains Ready"), Provider->IsReadyForBuild());
+			TestTrue(Label + TEXT(": nested catalog B remains installed"),
+				Provider->GetCatalog() == CatalogB);
+			return;
+		}
+		TestTrue(Label + TEXT(": lifecycle generation remains Uninitialized"),
+			Provider->GetState() == EGMFGeneratedProviderState::Uninitialized);
+		TestNull(Label + TEXT(": old catalog A is not restored"), Provider->GetCatalog());
+		Provider->Configure(*SettingsB);
+		Provider->Test_SetObservedRuntimeIdentity(MakeObservedRuntimeIdentity());
+		const uint64 LoadGeneration = Provider->Test_BeginPendingCatalogLoad();
+		Provider->Test_CompleteCatalogLoad(LoadGeneration, SettingsB->Catalog.ToSoftObjectPath(), CatalogB);
+		TestTrue(Label + TEXT(": catalog B can be accepted after the stale frame returns"),
+			Provider->IsReadyForBuild() && Provider->GetCatalog() == CatalogB);
+	};
+
+	for (const EReentrantAction Action : Actions)
+	{
+		const FString Label = TEXT("initial-observe/") + ActionName(Action);
+		UGloamsteadGeneratedAssetMeshForgeProvider* Provider =
+			NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+		UGloamsteadGeneratedAssetCatalog* CatalogA = MakeValidCatalog();
+		UGloamsteadGeneratedAssetCatalog* CatalogB = MakeCatalogB();
+		UGloamsteadGeneratedAssetSettings* SettingsB = MakeSettingsB(CatalogB);
+		const uint64 EpochBefore = Provider->Test_GetProviderEpoch();
+		Provider->Test_SetLoadedCatalog(CatalogA, CatalogA->BundleId, CatalogA->ReceiptSha256,
+			MakeObservedRuntimeIdentity(), FSimpleDelegate::CreateLambda(
+				[Provider, CatalogB, SettingsB, Action, &PerformAction]()
+				{
+					PerformAction(Provider, CatalogB, SettingsB, Action);
+				}));
+		TestTrue(Label + TEXT(": provider epoch advances monotonically"),
+			Provider->Test_GetProviderEpoch() > EpochBefore);
+		AssertAndRecoverNewGeneration(Label, Provider, CatalogB, SettingsB, Action);
+	}
+
+	for (const EReentrantAction Action : Actions)
+	{
+		const FString Label = TEXT("revalidation-observe/") + ActionName(Action);
+		UGloamsteadGeneratedAssetMeshForgeProvider* Provider =
+			NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+		UGloamsteadGeneratedAssetCatalog* CatalogA = MakeValidCatalog();
+		UGloamsteadGeneratedAssetCatalog* CatalogB = MakeCatalogB();
+		UGloamsteadGeneratedAssetSettings* SettingsB = MakeSettingsB(CatalogB);
+		Provider->Test_SetLoadedCatalog(CatalogA, CatalogA->BundleId, CatalogA->ReceiptSha256,
+			MakeObservedRuntimeIdentity());
+		const uint64 EpochBefore = Provider->Test_GetProviderEpoch();
+		Provider->Test_SetObservedRuntimeIdentity(MakeObservedRuntimeIdentity(),
+			FSimpleDelegate::CreateLambda([Provider, CatalogB, SettingsB, Action, &PerformAction]()
+			{
+				PerformAction(Provider, CatalogB, SettingsB, Action);
+			}));
+		TestFalse(Label + TEXT(": stale outer revalidation cannot report success"),
+			Provider->RevalidateRuntimeIdentity());
+		TestTrue(Label + TEXT(": provider epoch advances monotonically"),
+			Provider->Test_GetProviderEpoch() > EpochBefore);
+		AssertAndRecoverNewGeneration(Label, Provider, CatalogB, SettingsB, Action);
+	}
+
+	UStaticMesh* TestMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+	if (!TestNotNull(TEXT("reentrant test mesh loaded"), TestMesh)
+		|| !TestNotNull(TEXT("reentrant test world created"), World))
+	{
+		if (World) { World->DestroyWorld(false); }
+		return false;
+	}
+	FGloamsteadMeshForgeProxySpec Spec;
+	Spec.ProxyId = TEXT("heart");
+	Spec.GeneratedAssetRole = TEXT("sanctuary.heart");
+	Spec.GeneratedAssetState = EGloamsteadGeneratedAssetState::Restored;
+	FGloamsteadMeshForgeSourceBinding Binding;
+	Binding.SourceSystem = EGMFSourceSystem::VeilHeart;
+	Binding.bLocationResolved = true;
+	auto ConfigureSpawnableA = [TestMesh](UGloamsteadGeneratedAssetMeshForgeProvider* Provider,
+		UGloamsteadGeneratedAssetCatalog* CatalogA)
+	{
+		Provider->Test_SetLoadedCatalog(CatalogA, CatalogA->BundleId, CatalogA->ReceiptSha256,
+			MakeObservedRuntimeIdentity());
+		const FSoftObjectPath ObjectPath = CatalogA->Entries[0].Asset.ToSoftObjectPath();
+		Provider->Test_SetPackageDependencies(ObjectPath, {});
+		Provider->Test_SetResolvedObject(ObjectPath, TestMesh);
+		Provider->Test_SetObservedProvenance(ObjectPath, {
+			CatalogA->Entries[0].ObjectSha256, CatalogA->ReceiptSha256, CatalogA->BundleId });
+	};
+
+	for (const EReentrantAction Action : Actions)
+	{
+		const FString Label = TEXT("object-resolution/") + ActionName(Action);
+		UGloamsteadGeneratedAssetMeshForgeProvider* Provider =
+			NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+		UGloamsteadGeneratedAssetCatalog* CatalogA = MakeValidCatalog();
+		UGloamsteadGeneratedAssetCatalog* CatalogB = MakeCatalogB();
+		UGloamsteadGeneratedAssetSettings* SettingsB = MakeSettingsB(CatalogB);
+		ConfigureSpawnableA(Provider, CatalogA);
+		const uint64 EpochBefore = Provider->Test_GetProviderEpoch();
+		Provider->Test_SetObjectResolutionCallback(FSimpleDelegate::CreateLambda(
+			[Provider, CatalogB, SettingsB, Action, &PerformAction]()
+			{
+				PerformAction(Provider, CatalogB, SettingsB, Action);
+			}));
+		const FGloamsteadMeshForgeProxyInstance Outer = Provider->CreateProxy(Spec, Binding, World);
+		TestFalse(Label + TEXT(": stale outer object load never spawns"), Outer.bSpawned);
+		TestTrue(Label + TEXT(": stale outer object load is explicit"),
+			Outer.FailureCodes.Contains(TEXT("GAC039")));
+		TestTrue(Label + TEXT(": provider epoch advances monotonically"),
+			Provider->Test_GetProviderEpoch() > EpochBefore);
+		AssertAndRecoverNewGeneration(Label, Provider, CatalogB, SettingsB, Action);
+	}
+
+	for (const EReentrantAction Action : Actions)
+	{
+		const FString Label = TEXT("actor-spawn/") + ActionName(Action);
+		UGloamsteadGeneratedAssetMeshForgeProvider* Provider =
+			NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+		UGloamsteadGeneratedAssetCatalog* CatalogA = MakeValidCatalog();
+		UGloamsteadGeneratedAssetCatalog* CatalogB = MakeCatalogB();
+		UGloamsteadGeneratedAssetSettings* SettingsB = MakeSettingsB(CatalogB);
+		ConfigureSpawnableA(Provider, CatalogA);
+		const uint64 EpochBefore = Provider->Test_GetProviderEpoch();
+		AGloamsteadMeshForgeProxyActor* OuterActor = nullptr;
+		Provider->Test_SetActorSpawnCallback(
+			[Provider, CatalogB, SettingsB, Action, &PerformAction, &OuterActor](
+				AGloamsteadMeshForgeProxyActor* SpawnedActor)
+			{
+				OuterActor = SpawnedActor;
+				PerformAction(Provider, CatalogB, SettingsB, Action);
+			});
+		const FGloamsteadMeshForgeProxyInstance Outer = Provider->CreateProxy(Spec, Binding, World);
+		TestFalse(Label + TEXT(": stale outer actor never returns as spawned"), Outer.bSpawned);
+		TestTrue(Label + TEXT(": stale outer actor operation is explicit"),
+			Outer.FailureCodes.Contains(TEXT("GAC039")));
+		TestNotNull(Label + TEXT(": hostile callback received the actor"), OuterActor);
+		TestTrue(Label + TEXT(": stale outer actor is destroyed"), OuterActor
+			&& (!IsValid(OuterActor) || OuterActor->IsActorBeingDestroyed()));
+		TestTrue(Label + TEXT(": provider epoch advances monotonically"),
+			Provider->Test_GetProviderEpoch() > EpochBefore);
+		AssertAndRecoverNewGeneration(Label, Provider, CatalogB, SettingsB, Action);
+	}
+	World->DestroyWorld(false);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

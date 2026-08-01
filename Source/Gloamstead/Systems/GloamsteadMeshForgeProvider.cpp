@@ -13,6 +13,7 @@
 #include "Data/GloamsteadGeneratedAssetCatalog.h"
 #include "Settings/GloamsteadGeneratedAssetSettings.h"
 #include "Misc/ScopeExit.h"
+#include "UObject/StrongObjectPtr.h"
 
 namespace
 {
@@ -286,8 +287,46 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadEnginePrimitiveMeshForgeProvider::C
 
 // ===== UGloamsteadGeneratedAssetMeshForgeProvider =====
 
+void UGloamsteadGeneratedAssetMeshForgeProvider::AdvanceProviderEpoch()
+{
+	checkf(ProviderEpoch != MAX_uint64, TEXT("Generated asset provider epoch exhausted"));
+	++ProviderEpoch;
+}
+
+UGloamsteadGeneratedAssetMeshForgeProvider::FProviderOperationSnapshot
+UGloamsteadGeneratedAssetMeshForgeProvider::CaptureOperationSnapshot() const
+{
+	FProviderOperationSnapshot Snapshot;
+	Snapshot.ProviderEpoch = ProviderEpoch;
+	Snapshot.LoadGeneration = LoadGeneration;
+	Snapshot.State = State;
+	Snapshot.CatalogObjectGeneration = LoadedCatalog.Get();
+	Snapshot.AcceptedCatalogContractSha256 = AcceptedCatalogContractSha256;
+	return Snapshot;
+}
+
+bool UGloamsteadGeneratedAssetMeshForgeProvider::IsOperationSnapshotCurrent(
+	const FProviderOperationSnapshot& Snapshot) const
+{
+	return Snapshot.ProviderEpoch == ProviderEpoch
+		&& Snapshot.LoadGeneration == LoadGeneration
+		&& Snapshot.State == State
+		&& Snapshot.CatalogObjectGeneration
+			== TWeakObjectPtr<UGloamsteadGeneratedAssetCatalog>(LoadedCatalog.Get())
+		&& Snapshot.AcceptedCatalogContractSha256.Equals(
+			AcceptedCatalogContractSha256, ESearchCase::CaseSensitive);
+}
+
+bool UGloamsteadGeneratedAssetMeshForgeProvider::ValidateCurrentOperationAfterBoundary(
+	const FProviderOperationSnapshot& Snapshot)
+{
+	// Snapshot identity is checked first: validating a stale outer catalog would mutate the new generation.
+	return IsOperationSnapshotCurrent(Snapshot) && EnsureAcceptedCatalogContractCurrent();
+}
+
 void UGloamsteadGeneratedAssetMeshForgeProvider::Configure(const UGloamsteadGeneratedAssetSettings& Settings)
 {
+	AdvanceProviderEpoch();
 	CancelOutstandingPreload();
 	// Configuration is a production lifecycle boundary. A development automation observer is valid
 	// only for the explicit test operation that installed it and must never survive reuse of this UObject.
@@ -306,6 +345,7 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::Configure(const UGloamsteadGene
 
 void UGloamsteadGeneratedAssetMeshForgeProvider::Deactivate()
 {
+	AdvanceProviderEpoch();
 	const bool bPreserveMutationLatch = bRequiresFreshConfiguration;
 	CancelOutstandingPreload();
 	RuntimeIdentitySource = MakeShared<FUnavailableRuntimeIdentitySource>();
@@ -319,6 +359,7 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::Deactivate()
 
 void UGloamsteadGeneratedAssetMeshForgeProvider::PreloadCatalogAsync(FSimpleDelegate Completion)
 {
+	AdvanceProviderEpoch();
 	if (bRequiresFreshConfiguration)
 	{
 		TArray<FString> Codes = FailureCodes;
@@ -387,6 +428,7 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::AcceptCatalogLoad(
 		// Superseded operations are deliberately silent: their completion belongs to the newer generation.
 		return;
 	}
+	AdvanceProviderEpoch();
 	ON_SCOPE_EXIT
 	{
 		Completion.ExecuteIfBound();
@@ -441,12 +483,14 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::ValidateLoadedCatalog()
 		Fail({ TEXT("GAC017") });
 		return;
 	}
-	if (IsCatalogObjectGenerationQuarantined(LoadedCatalog))
+	TStrongObjectPtr<UGloamsteadGeneratedAssetCatalog> CatalogGuard(LoadedCatalog.Get());
+	UGloamsteadGeneratedAssetCatalog* const Catalog = CatalogGuard.Get();
+	if (IsCatalogObjectGenerationQuarantined(Catalog))
 	{
 		InvalidateAcceptedCatalog({ TEXT("GAC039") });
 		return;
 	}
-	const FString ValidationStartSha256 = GACCatalogContractSha256(*LoadedCatalog);
+	const FString ValidationStartSha256 = GACCatalogContractSha256(*Catalog);
 	if (ValidationStartSha256.IsEmpty())
 	{
 		InvalidateAcceptedCatalog({ TEXT("GAC039") });
@@ -455,14 +499,23 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::ValidateLoadedCatalog()
 
 	// The catalog is intentionally generic and may also carry placement/material/VFX entries. Selection
 	// enforces the provider's narrower static-mesh support on the exact chosen entry before spawning.
-	TArray<FString> Codes = GACValidateCatalog(*LoadedCatalog, /*bRequireMeshForgeCompatibleClasses*/ false);
+	TArray<FString> Codes = GACValidateCatalog(*Catalog, /*bRequireMeshForgeCompatibleClasses*/ false);
 	FGloamsteadGeneratedAssetRuntimeIdentity ObservedRuntimeIdentity;
 	TArray<FString> ObservationFailures;
 	if (!RuntimeIdentitySource.IsValid())
 	{
 		RuntimeIdentitySource = MakeShared<FUnavailableRuntimeIdentitySource>();
 	}
-	if (!RuntimeIdentitySource->Observe(ObservedRuntimeIdentity, ObservationFailures))
+	const TSharedPtr<const IGloamsteadGeneratedAssetRuntimeIdentitySource> IdentitySource =
+		RuntimeIdentitySource;
+	const FProviderOperationSnapshot ObservationSnapshot = CaptureOperationSnapshot();
+	const bool bObserved = IdentitySource->Observe(ObservedRuntimeIdentity, ObservationFailures);
+	if (!IsOperationSnapshotCurrent(ObservationSnapshot))
+	{
+		// A nested Configure/Deactivate/accept owns the provider now. The stale frame must be inert.
+		return;
+	}
+	if (!bObserved)
 	{
 		ObservationFailures.AddUnique(TEXT("GAC037"));
 	}
@@ -470,14 +523,12 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::ValidateLoadedCatalog()
 	{
 		Codes.AddUnique(Code);
 	}
-	for (const FString& Code : GACValidateActiveBinding(*LoadedCatalog, ExpectedBundleId,
+	for (const FString& Code : GACValidateActiveBinding(*Catalog, ExpectedBundleId,
 		ExpectedReceiptSha256, ExpectedTargetBuildIdentitySha256, ObservedRuntimeIdentity))
 	{
 		Codes.AddUnique(Code);
 	}
-	const FString PostObservationSha256 = LoadedCatalog
-		? GACCatalogContractSha256(*LoadedCatalog)
-		: FString();
+	const FString PostObservationSha256 = GACCatalogContractSha256(*Catalog);
 	if (PostObservationSha256.IsEmpty()
 		|| !PostObservationSha256.Equals(ValidationStartSha256, ESearchCase::CaseSensitive))
 	{
@@ -500,13 +551,15 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::ValidateLoadedCatalog()
 		Fail({ TEXT("GAC037") });
 		return;
 	}
-	const FString ValidationEndSha256 = LoadedCatalog
-		? GACCatalogContractSha256(*LoadedCatalog)
-		: FString();
+	const FString ValidationEndSha256 = GACCatalogContractSha256(*Catalog);
 	if (ValidationEndSha256.IsEmpty()
 		|| !ValidationEndSha256.Equals(ValidationStartSha256, ESearchCase::CaseSensitive))
 	{
 		InvalidateAcceptedCatalog({ TEXT("GAC039") });
+		return;
+	}
+	if (!IsOperationSnapshotCurrent(ObservationSnapshot))
+	{
 		return;
 	}
 	for (const FGloamsteadGeneratedScriptPackageAuthority& Authority : ObservedAuthorities)
@@ -524,31 +577,38 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::ValidateLoadedCatalog()
 
 bool UGloamsteadGeneratedAssetMeshForgeProvider::RevalidateRuntimeIdentity()
 {
-	if (!EnsureAcceptedCatalogContractCurrent())
+	if (State != EGMFGeneratedProviderState::Ready
+		|| AcceptedCatalogContractSha256.IsEmpty()
+		|| !LoadedCatalog
+		|| !EnsureAcceptedCatalogContractCurrent())
 	{
 		return false;
 	}
-	VerifiedTerminalScriptPackages.Reset();
-	if (!LoadedCatalog)
-	{
-		Fail({ TEXT("GAC017") });
-		return false;
-	}
+	TStrongObjectPtr<UGloamsteadGeneratedAssetCatalog> CatalogGuard(LoadedCatalog.Get());
+	UGloamsteadGeneratedAssetCatalog* const Catalog = CatalogGuard.Get();
 	FGloamsteadGeneratedAssetRuntimeIdentity ObservedRuntimeIdentity;
 	TArray<FString> Codes;
 	if (!RuntimeIdentitySource.IsValid())
 	{
 		RuntimeIdentitySource = MakeShared<FUnavailableRuntimeIdentitySource>();
 	}
-	if (!RuntimeIdentitySource->Observe(ObservedRuntimeIdentity, Codes))
-	{
-		Codes.AddUnique(TEXT("GAC037"));
-	}
-	if (!EnsureAcceptedCatalogContractCurrent())
+	const TSharedPtr<const IGloamsteadGeneratedAssetRuntimeIdentitySource> IdentitySource =
+		RuntimeIdentitySource;
+	const FProviderOperationSnapshot ObservationSnapshot = CaptureOperationSnapshot();
+	const bool bObserved = IdentitySource->Observe(ObservedRuntimeIdentity, Codes);
+	if (!IsOperationSnapshotCurrent(ObservationSnapshot))
 	{
 		return false;
 	}
-	for (const FString& Code : GACValidateActiveBinding(*LoadedCatalog, ExpectedBundleId,
+	if (!bObserved)
+	{
+		Codes.AddUnique(TEXT("GAC037"));
+	}
+	if (!ValidateCurrentOperationAfterBoundary(ObservationSnapshot))
+	{
+		return false;
+	}
+	for (const FString& Code : GACValidateActiveBinding(*Catalog, ExpectedBundleId,
 		ExpectedReceiptSha256, ExpectedTargetBuildIdentitySha256, ObservedRuntimeIdentity))
 	{
 		Codes.AddUnique(Code);
@@ -566,11 +626,16 @@ bool UGloamsteadGeneratedAssetMeshForgeProvider::RevalidateRuntimeIdentity()
 		Fail({ TEXT("GAC037") });
 		return false;
 	}
+	if (!ValidateCurrentOperationAfterBoundary(ObservationSnapshot))
+	{
+		return false;
+	}
+	VerifiedTerminalScriptPackages.Reset();
 	for (const FGloamsteadGeneratedScriptPackageAuthority& Authority : ObservedAuthorities)
 	{
 		VerifiedTerminalScriptPackages.Add(FName(*Authority.PackageName));
 	}
-	return EnsureAcceptedCatalogContractCurrent();
+	return true;
 }
 
 bool UGloamsteadGeneratedAssetMeshForgeProvider::EnsureAcceptedCatalogContractCurrent()
@@ -694,19 +759,21 @@ UObject* UGloamsteadGeneratedAssetMeshForgeProvider::ResolveEntryObject(const FS
 	if (const TWeakObjectPtr<UObject>* Override = TestResolvedObjects.Find(ObjectPath))
 	{
 		UObject* Resolved = Override->Get();
+		TStrongObjectPtr<UObject> ResolvedGuard(Resolved);
 		FSimpleDelegate Callback = MoveTemp(TestObjectResolutionCallback);
 		TestObjectResolutionCallback.Unbind();
 		Callback.ExecuteIfBound();
-		return Resolved;
+		return ResolvedGuard.Get();
 	}
 #endif
 	UObject* Resolved = ObjectPath.TryLoad();
+	TStrongObjectPtr<UObject> ResolvedGuard(Resolved);
 #if WITH_DEV_AUTOMATION_TESTS
 	FSimpleDelegate Callback = MoveTemp(TestObjectResolutionCallback);
 	TestObjectResolutionCallback.Unbind();
 	Callback.ExecuteIfBound();
 #endif
-	return Resolved;
+	return ResolvedGuard.Get();
 }
 
 FGloamsteadGeneratedAssetObservedProvenance
@@ -971,8 +1038,20 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadGeneratedAssetMeshForgeProvider::Cr
 		if (Instance.FailureCodes.Num() == 0) { Instance.FailureCodes.Add(TEXT("GAC017")); }
 		return Instance;
 	}
+	TStrongObjectPtr<UGloamsteadGeneratedAssetCatalog> CatalogGuard(LoadedCatalog.Get());
+	UGloamsteadGeneratedAssetCatalog* const Catalog = CatalogGuard.Get();
+	const FProviderOperationSnapshot OperationSnapshot = CaptureOperationSnapshot();
+	auto RejectStaleOperation = [&]()
+	{
+		if (ValidateCurrentOperationAfterBoundary(OperationSnapshot))
+		{
+			return false;
+		}
+		Instance.FailureCodes.AddUnique(TEXT("GAC039"));
+		return true;
+	};
 
-	const FGloamsteadGeneratedAssetEntry* Entry = LoadedCatalog->FindExact(
+	const FGloamsteadGeneratedAssetEntry* Entry = Catalog->FindExact(
 		Spec.GeneratedAssetRole, Spec.GeneratedAssetState);
 	if (!Entry)
 	{
@@ -983,9 +1062,9 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadGeneratedAssetMeshForgeProvider::Cr
 	const FGloamsteadGeneratedAssetEntry SelectedEntry = *Entry;
 
 	Instance.GeneratedAssetPath = SelectedEntry.Asset.ToSoftObjectPath().ToString();
-	Instance.GeneratedVersionRoot = LoadedCatalog->VersionRoot;
-	Instance.GeneratedBundleId = LoadedCatalog->BundleId;
-	Instance.GeneratedReceiptSha256 = LoadedCatalog->ReceiptSha256;
+	Instance.GeneratedVersionRoot = Catalog->VersionRoot;
+	Instance.GeneratedBundleId = Catalog->BundleId;
+	Instance.GeneratedReceiptSha256 = Catalog->ReceiptSha256;
 	Instance.GeneratedObjectSha256 = SelectedEntry.ObjectSha256;
 	Instance.GeneratedOwnershipId = SelectedEntry.OwnershipId;
 	Instance.GeneratedLicenseId = SelectedEntry.LicenseId;
@@ -994,21 +1073,20 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadGeneratedAssetMeshForgeProvider::Cr
 		Instance.FailureCodes.Add(TEXT("GAC025"));
 		return Instance;
 	}
+	TStrongObjectPtr<UWorld> WorldGuard(World);
 	Instance.FailureCodes = ValidateCatalogDependencyClosure();
+	if (RejectStaleOperation())
+	{
+		return Instance;
+	}
 	if (Instance.FailureCodes.Num() > 0)
 	{
 		return Instance;
 	}
-	if (!EnsureAcceptedCatalogContractCurrent())
-	{
-		Instance.FailureCodes = FailureCodes;
-		return Instance;
-	}
 
 	UObject* LoadedObject = ResolveEntryObject(SelectedEntry.Asset.ToSoftObjectPath());
-	if (!EnsureAcceptedCatalogContractCurrent())
+	if (RejectStaleOperation())
 	{
-		Instance.FailureCodes = FailureCodes;
 		return Instance;
 	}
 	if (!LoadedObject)
@@ -1016,10 +1094,11 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadGeneratedAssetMeshForgeProvider::Cr
 		Instance.FailureCodes.Add(TEXT("GAC017"));
 		return Instance;
 	}
+	TStrongObjectPtr<UObject> LoadedObjectGuard(LoadedObject);
 	for (const TSoftObjectPtr<UObject>& Dependency : SelectedEntry.Dependencies)
 	{
 		TOptional<FGloamsteadGeneratedAssetEntry> DependencyEntry;
-		for (const FGloamsteadGeneratedAssetEntry& Candidate : LoadedCatalog->Entries)
+		for (const FGloamsteadGeneratedAssetEntry& Candidate : Catalog->Entries)
 		{
 			if (Candidate.Asset.ToSoftObjectPath() == Dependency.ToSoftObjectPath())
 			{
@@ -1028,9 +1107,8 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadGeneratedAssetMeshForgeProvider::Cr
 			}
 		}
 		UObject* DependencyObject = ResolveEntryObject(Dependency.ToSoftObjectPath());
-		if (!EnsureAcceptedCatalogContractCurrent())
+		if (RejectStaleOperation())
 		{
-			Instance.FailureCodes = FailureCodes;
 			return Instance;
 		}
 		if (!DependencyEntry.IsSet() || !DependencyObject)
@@ -1043,21 +1121,19 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadGeneratedAssetMeshForgeProvider::Cr
 			Instance.FailureCodes.AddUnique(Code);
 		}
 		for (const FString& Code : GACValidateObservedProvenance(
-			DependencyEntry.GetValue(), *LoadedCatalog, ReadObservedProvenance(Dependency.ToSoftObjectPath())))
+			DependencyEntry.GetValue(), *Catalog, ReadObservedProvenance(Dependency.ToSoftObjectPath())))
 		{
 			Instance.FailureCodes.AddUnique(Code);
 		}
-		if (Instance.FailureCodes.Num() > 0) { return Instance; }
-		if (!EnsureAcceptedCatalogContractCurrent())
+		if (RejectStaleOperation())
 		{
-			Instance.FailureCodes = FailureCodes;
 			return Instance;
 		}
+		if (Instance.FailureCodes.Num() > 0) { return Instance; }
 	}
 	UClass* ExpectedClass = SelectedEntry.ExpectedClass.LoadSynchronous();
-	if (!EnsureAcceptedCatalogContractCurrent())
+	if (RejectStaleOperation())
 	{
-		Instance.FailureCodes = FailureCodes;
 		return Instance;
 	}
 	if (!ExpectedClass)
@@ -1065,6 +1141,7 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadGeneratedAssetMeshForgeProvider::Cr
 		Instance.FailureCodes.Add(TEXT("GAC017"));
 		return Instance;
 	}
+	TStrongObjectPtr<UClass> ExpectedClassGuard(ExpectedClass);
 	Instance.FailureCodes = GACValidateLoadedObject(SelectedEntry, LoadedObject,
 		/*bRequireStaticMeshForProvider*/ true);
 	if (Instance.FailureCodes.Num() > 0)
@@ -1072,14 +1149,13 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadGeneratedAssetMeshForgeProvider::Cr
 		return Instance;
 	}
 	Instance.FailureCodes = GACValidateObservedProvenance(
-		SelectedEntry, *LoadedCatalog, ReadObservedProvenance(SelectedEntry.Asset.ToSoftObjectPath()));
-	if (Instance.FailureCodes.Num() > 0)
+		SelectedEntry, *Catalog, ReadObservedProvenance(SelectedEntry.Asset.ToSoftObjectPath()));
+	if (RejectStaleOperation())
 	{
 		return Instance;
 	}
-	if (!EnsureAcceptedCatalogContractCurrent())
+	if (Instance.FailureCodes.Num() > 0)
 	{
-		Instance.FailureCodes = FailureCodes;
 		return Instance;
 	}
 	UStaticMesh* Mesh = CastChecked<UStaticMesh>(LoadedObject);
@@ -1091,7 +1167,7 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadGeneratedAssetMeshForgeProvider::Cr
 	if (!bTestForceSpawnFailure)
 #endif
 	{
-		Actor = World->SpawnActor<AGloamsteadMeshForgeProxyActor>(
+		Actor = WorldGuard->SpawnActor<AGloamsteadMeshForgeProxyActor>(
 			AGloamsteadMeshForgeProxyActor::StaticClass(), Binding.WorldLocation, FRotator::ZeroRotator, Params);
 	}
 #if WITH_DEV_AUTOMATION_TESTS
@@ -1104,16 +1180,15 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadGeneratedAssetMeshForgeProvider::Cr
 		}
 	}
 #endif
-	if (!EnsureAcceptedCatalogContractCurrent())
+	if (RejectStaleOperation())
 	{
-		if (Actor)
+		if (IsValid(Actor))
 		{
 			Actor->Destroy();
 		}
 		Instance.SpawnedActor = nullptr;
 		Instance.bSpawned = false;
 		Instance.bVisibleProxyCreated = false;
-		Instance.FailureCodes = FailureCodes;
 		return Instance;
 	}
 	if (Actor)
@@ -1140,6 +1215,7 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::Test_SetLoadedCatalog(
 	const FGloamsteadGeneratedAssetRuntimeIdentity& ObservedRuntimeIdentity,
 	FSimpleDelegate ObservationCallback)
 {
+	AdvanceProviderEpoch();
 	if (bRequiresFreshConfiguration)
 	{
 		TArray<FString> Codes = FailureCodes;
@@ -1161,6 +1237,7 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::Test_SetObservedRuntimeIdentity
 	const FGloamsteadGeneratedAssetRuntimeIdentity& ObservedRuntimeIdentity,
 	FSimpleDelegate ObservationCallback)
 {
+	AdvanceProviderEpoch();
 	RuntimeIdentitySource = MakeShared<FFixedRuntimeIdentitySource>(
 		ObservedRuntimeIdentity, MoveTemp(ObservationCallback));
 }
@@ -1210,6 +1287,7 @@ TArray<FString> UGloamsteadGeneratedAssetMeshForgeProvider::Test_ValidateDepende
 
 uint64 UGloamsteadGeneratedAssetMeshForgeProvider::Test_BeginPendingCatalogLoad()
 {
+	AdvanceProviderEpoch();
 	CancelOutstandingPreload();
 	State = EGMFGeneratedProviderState::Loading;
 	return LoadGeneration;
