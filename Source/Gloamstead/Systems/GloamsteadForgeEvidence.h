@@ -93,9 +93,20 @@ namespace GloamsteadForgeEvidence
 	 *  (which cannot know the fresh nonce) is rejected by the integrity validator. */
 	GLOAMSTEAD_API bool WriteRunManifest(const FString& OutDir, const TArray<FString>& ScenarioIds, FString& OutPath);
 
-	/** Best-effort short git commit SHA read from <ProjectDir>/.git (loose or packed ref). Empty if unavailable. */
+	/** Verified full git commit SHA read from ordinary or linked-worktree metadata. Empty if unavailable. */
 	GLOAMSTEAD_API FString ReadGitCommit();
 
-	/** Best-effort current git branch from <ProjectDir>/.git/HEAD. Empty if detached/unavailable. */
+	/** Verified current heads branch from ordinary or linked-worktree metadata. Empty if detached/unavailable. */
 	GLOAMSTEAD_API FString ReadGitBranch();
+
+	/**
+	 * Resolve repository identity without invoking git. ProjectRoot is explicit so hostile filesystem
+	 * fixtures can exercise ordinary repositories and linked worktrees. Returns false, with both
+	 * outputs empty, whenever the metadata chain or commit cannot be authenticated. A detached HEAD
+	 * is successful with an empty branch.
+	 */
+	GLOAMSTEAD_API bool ReadGitIdentityForProjectRoot(
+		const FString& ProjectRoot,
+		FString& OutCommit,
+		FString& OutBranch);
 }
