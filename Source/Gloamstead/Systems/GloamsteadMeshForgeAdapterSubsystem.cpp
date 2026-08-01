@@ -1,4 +1,5 @@
 #include "Systems/GloamsteadMeshForgeAdapterSubsystem.h"
+#include "Gloamstead.h"
 #include "Systems/GloamsteadMeshForgeProvider.h"
 #include "Systems/VeilHeart.h"
 #include "Systems/GloamsteadSurveySubjectRegistry.h"
@@ -67,14 +68,37 @@ void UGloamsteadMeshForgeAdapterSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	// diagnostic overlay of abstract primitives, not shipping visuals. Automation bypasses this gate via
 	// Test_BuildFor(), so tests/evidence still exercise the full build.
 	const UGloamsteadGeneratedAssetSettings* Settings = GetDefault<UGloamsteadGeneratedAssetSettings>();
-	const bool bGeneratedMode = Settings
-		&& Settings->ProviderMode == EGloamsteadMeshForgeProviderMode::GeneratedCatalog;
-	if (!bGeneratedMode && !CVarSpawnDebugRitualProxies.GetValueOnGameThread())
+	if (!Settings)
 	{
+		RejectProviderSelection(TEXT("GMF025"), TEXT("generated-asset settings are unavailable"));
 		return;
 	}
 
-	BuildFor(&InWorld);
+	bool bPrimitiveFallbackGateOpen = false;
+	switch (Settings->ProviderMode)
+	{
+	case EGloamsteadMeshForgeProviderMode::GeneratedCatalog:
+		break;
+	case EGloamsteadMeshForgeProviderMode::EnginePrimitiveDevelopmentFallback:
+		bPrimitiveFallbackGateOpen = CVarSpawnDebugRitualProxies.GetValueOnGameThread();
+		if (!bPrimitiveFallbackGateOpen)
+		{
+			// A valid development fallback that is deliberately disabled is not a runtime fault.
+			// It must nevertheless remain completely inert: no provider and no proxy construction.
+			Provider = nullptr;
+			return;
+		}
+		break;
+	default:
+		RejectProviderSelection(TEXT("GMF026"), TEXT("provider mode is outside the declared enum"));
+		return;
+	}
+
+	BuildFor(&InWorld, Settings, bPrimitiveFallbackGateOpen);
+	if (!Provider)
+	{
+		return;
+	}
 	BindSourceEvents(&InWorld);
 
 	// Only emit the shared, source-controlled report when this world actually produced a sanctuary.
@@ -129,12 +153,28 @@ void UGloamsteadMeshForgeAdapterSubsystem::BuildProxies()
 	BuildFor(GetWorld());
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
 void UGloamsteadMeshForgeAdapterSubsystem::Test_BuildFor(UWorld* World)
 {
-	BuildFor(World);
+	// Automation explicitly exercises the checked development fallback even though the live CVar defaults off.
+	BuildFor(World, GetDefault<UGloamsteadGeneratedAssetSettings>(),
+		/*bPrimitiveFallbackGateOpen*/ true);
 }
+#endif
 
 void UGloamsteadMeshForgeAdapterSubsystem::BuildFor(UWorld* World)
+{
+	const UGloamsteadGeneratedAssetSettings* Settings = GetDefault<UGloamsteadGeneratedAssetSettings>();
+	const bool bPrimitiveFallbackGateOpen = Settings
+		&& Settings->ProviderMode == EGloamsteadMeshForgeProviderMode::EnginePrimitiveDevelopmentFallback
+		&& CVarSpawnDebugRitualProxies.GetValueOnGameThread();
+	BuildFor(World, Settings, bPrimitiveFallbackGateOpen);
+}
+
+void UGloamsteadMeshForgeAdapterSubsystem::BuildFor(
+	UWorld* World,
+	const UGloamsteadGeneratedAssetSettings* Settings,
+	bool bPrimitiveFallbackGateOpen)
 {
 	if (!World)
 	{
@@ -142,7 +182,10 @@ void UGloamsteadMeshForgeAdapterSubsystem::BuildFor(UWorld* World)
 	}
 	ClearProxies();
 	AdapterFailureCodes.Reset();
-	EnsureProvider();
+	if (!EnsureProvider(Settings, bPrimitiveFallbackGateOpen))
+	{
+		return;
+	}
 	if (UGloamsteadGeneratedAssetMeshForgeProvider* Generated =
 		Cast<UGloamsteadGeneratedAssetMeshForgeProvider>(Provider))
 	{
@@ -175,24 +218,105 @@ void UGloamsteadMeshForgeAdapterSubsystem::BuildFor(UWorld* World)
 	}
 }
 
-void UGloamsteadMeshForgeAdapterSubsystem::EnsureProvider()
+bool UGloamsteadMeshForgeAdapterSubsystem::EnsureProvider(
+	const UGloamsteadGeneratedAssetSettings* Settings,
+	bool bPrimitiveFallbackGateOpen)
 {
-	if (!Provider)
+	if (!Settings)
 	{
-		const UGloamsteadGeneratedAssetSettings* Settings = GetDefault<UGloamsteadGeneratedAssetSettings>();
-		if (Settings && Settings->ProviderMode == EGloamsteadMeshForgeProviderMode::GeneratedCatalog)
+		Provider = nullptr;
+		RejectProviderSelection(TEXT("GMF025"), TEXT("generated-asset settings are unavailable"));
+		return false;
+	}
+
+	switch (Settings->ProviderMode)
+	{
+	case EGloamsteadMeshForgeProviderMode::GeneratedCatalog:
+		if (Cast<UGloamsteadGeneratedAssetMeshForgeProvider>(Provider))
+		{
+			return true;
+		}
+		break;
+	case EGloamsteadMeshForgeProviderMode::EnginePrimitiveDevelopmentFallback:
+		if (!bPrimitiveFallbackGateOpen)
+		{
+			Provider = nullptr;
+			RejectProviderSelection(TEXT("GMF027"),
+				TEXT("engine-primitive development fallback is not enabled by its runtime gate"));
+			return false;
+		}
+		if (Cast<UGloamsteadEnginePrimitiveMeshForgeProvider>(Provider))
+		{
+			return true;
+		}
+		break;
+	default:
+		Provider = nullptr;
+		RejectProviderSelection(TEXT("GMF026"), TEXT("provider mode is outside the declared enum"));
+		return false;
+	}
+
+	Provider = CreateProviderForMode(Settings, bPrimitiveFallbackGateOpen);
+	return Provider != nullptr;
+}
+
+UGloamsteadMeshForgeProvider* UGloamsteadMeshForgeAdapterSubsystem::CreateProviderForMode(
+	const UGloamsteadGeneratedAssetSettings* Settings,
+	bool bPrimitiveFallbackGateOpen)
+{
+	if (!Settings)
+	{
+		RejectProviderSelection(TEXT("GMF025"), TEXT("generated-asset settings are unavailable"));
+		return nullptr;
+	}
+
+	switch (Settings->ProviderMode)
+	{
+	case EGloamsteadMeshForgeProviderMode::GeneratedCatalog:
 		{
 			UGloamsteadGeneratedAssetMeshForgeProvider* Generated =
 				NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>(this);
 			Generated->Configure(*Settings);
-			Provider = Generated;
+			return Generated;
 		}
-		else
+	case EGloamsteadMeshForgeProviderMode::EnginePrimitiveDevelopmentFallback:
+		if (bPrimitiveFallbackGateOpen)
 		{
-			Provider = NewObject<UGloamsteadEnginePrimitiveMeshForgeProvider>(this);
+			return NewObject<UGloamsteadEnginePrimitiveMeshForgeProvider>(this);
 		}
+		RejectProviderSelection(TEXT("GMF027"),
+			TEXT("engine-primitive development fallback is not enabled by its runtime gate"));
+		return nullptr;
+	default:
+		RejectProviderSelection(TEXT("GMF026"), TEXT("provider mode is outside the declared enum"));
+		return nullptr;
 	}
 }
+
+void UGloamsteadMeshForgeAdapterSubsystem::RejectProviderSelection(
+	const TCHAR* FailureCode,
+	const TCHAR* Detail)
+{
+	// Invalidate any provider selected before a settings/configuration change. A stale generated or
+	// development provider must never survive a newly invalid selection decision.
+	Provider = nullptr;
+	PendingBuildWorld.Reset();
+	AdapterFailureCodes.AddUnique(FailureCode);
+	UE_LOG(LogGloamstead, Error, TEXT("MeshForge provider selection failed closed [%s]: %s"),
+		FailureCode, Detail);
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+UGloamsteadMeshForgeProvider* UGloamsteadMeshForgeAdapterSubsystem::Test_CreateProviderForSettings(
+	const UGloamsteadGeneratedAssetSettings* Settings,
+	bool bPrimitiveFallbackGateOpen)
+{
+	Provider = nullptr;
+	AdapterFailureCodes.Reset();
+	EnsureProvider(Settings, bPrimitiveFallbackGateOpen);
+	return Provider;
+}
+#endif
 
 void UGloamsteadMeshForgeAdapterSubsystem::ClearProxies()
 {

@@ -12,6 +12,7 @@
 #include "Systems/GloamsteadMeshForgeAdapterSubsystem.h"
 #include "Systems/GloamsteadDayNightSubsystem.h"
 #include "Systems/VeilHeart.h"
+#include "Settings/GloamsteadGeneratedAssetSettings.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Data/RitualTypes.h"
 #include "Engine/Engine.h"
@@ -342,6 +343,64 @@ bool FGloamMeshForgeAmbiguousHeartTest::RunTest(const FString& /*Parameters*/)
 
 	GEngine->DestroyWorldContext(World);
 	World->DestroyWorld(false);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamMeshForgeProviderSelectionTest,
+	"Gloamstead.MeshForge.ProviderSelectionFailsClosed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamMeshForgeProviderSelectionTest::RunTest(const FString& /*Parameters*/)
+{
+	UGloamsteadMeshForgeAdapterSubsystem* Adapter =
+		NewObject<UGloamsteadMeshForgeAdapterSubsystem>();
+	TestNotNull(TEXT("adapter created"), Adapter);
+	if (!Adapter)
+	{
+		return false;
+	}
+
+	AddExpectedError(TEXT("GMF025"), EAutomationExpectedErrorFlags::Contains, 1);
+	TestNull(TEXT("missing settings cannot select any provider"),
+		Adapter->Test_CreateProviderForSettings(nullptr, /*bPrimitiveFallbackGateOpen*/ true));
+	TestTrue(TEXT("missing settings records a typed failure"),
+		Adapter->GetAdapterFailureCodes().Contains(TEXT("GMF025")));
+
+	UGloamsteadGeneratedAssetSettings* Invalid =
+		NewObject<UGloamsteadGeneratedAssetSettings>();
+	Invalid->ProviderMode = static_cast<EGloamsteadMeshForgeProviderMode>(255);
+	AddExpectedError(TEXT("GMF026"), EAutomationExpectedErrorFlags::Contains, 1);
+	TestNull(TEXT("corrupted enum cannot select the primitive fallback"),
+		Adapter->Test_CreateProviderForSettings(Invalid, /*bPrimitiveFallbackGateOpen*/ true));
+	TestTrue(TEXT("invalid provider mode records a typed failure"),
+		Adapter->GetAdapterFailureCodes().Contains(TEXT("GMF026")));
+
+	UGloamsteadGeneratedAssetSettings* Fallback =
+		NewObject<UGloamsteadGeneratedAssetSettings>();
+	Fallback->ProviderMode = EGloamsteadMeshForgeProviderMode::EnginePrimitiveDevelopmentFallback;
+	AddExpectedError(TEXT("GMF027"), EAutomationExpectedErrorFlags::Contains, 1);
+	TestNull(TEXT("primitive fallback remains disabled while its runtime gate is closed"),
+		Adapter->Test_CreateProviderForSettings(Fallback, /*bPrimitiveFallbackGateOpen*/ false));
+	TestTrue(TEXT("closed primitive gate records a typed failure"),
+		Adapter->GetAdapterFailureCodes().Contains(TEXT("GMF027")));
+
+	UGloamsteadMeshForgeProvider* ExplicitFallback =
+		Adapter->Test_CreateProviderForSettings(Fallback, /*bPrimitiveFallbackGateOpen*/ true);
+	TestNotNull(TEXT("explicit checked fallback selects a provider"), ExplicitFallback);
+	TestTrue(TEXT("explicit checked fallback is the engine-primitive provider"),
+		ExplicitFallback
+		&& ExplicitFallback->GetDescriptor().ProviderType == EGMFProviderType::EnginePrimitiveRuntimeProxy);
+
+	UGloamsteadGeneratedAssetSettings* Generated =
+		NewObject<UGloamsteadGeneratedAssetSettings>();
+	Generated->ProviderMode = EGloamsteadMeshForgeProviderMode::GeneratedCatalog;
+	UGloamsteadMeshForgeProvider* GeneratedProvider =
+		Adapter->Test_CreateProviderForSettings(Generated, /*bPrimitiveFallbackGateOpen*/ false);
+	TestNotNull(TEXT("generated catalog selects a provider without the primitive gate"), GeneratedProvider);
+	TestTrue(TEXT("generated mode selects only the generated provider"),
+		GeneratedProvider
+		&& GeneratedProvider->GetDescriptor().ProviderType == EGMFProviderType::GeneratedOwnedMeshForgeAsset);
 	return true;
 }
 

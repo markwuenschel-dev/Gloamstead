@@ -9,6 +9,7 @@
 #include "GloamsteadMeshForgeAdapterSubsystem.generated.h"
 
 class UGloamsteadMeshForgeProvider;
+class UGloamsteadGeneratedAssetSettings;
 class UGloamsteadPCGSubsystem;
 class AVeilHeart;
 
@@ -40,17 +41,29 @@ public:
 	bool EmitReport(FString& OutPrimaryPath) const;
 
 	const TArray<FGloamsteadMeshForgeProxyInstance>& GetProxies() const { return Proxies; }
+	const TArray<FString>& GetAdapterFailureCodes() const { return AdapterFailureCodes; }
 	int32 CountProxiesOfType(EGMFProxyType Type) const;
 	UGloamsteadMeshForgeProvider* GetProvider() const { return Provider; }
 
+#if WITH_DEV_AUTOMATION_TESTS
 	/** Test seam: run the full build against an explicit world without OnWorldBeginPlay. */
 	void Test_BuildFor(UWorld* World);
 	/** Test seam: explicit provider injection, preserving settings-only production selection. */
 	void Test_UseProvider(UGloamsteadMeshForgeProvider* InProvider) { Provider = InProvider; }
+	/** Test seam: exercise the production provider-selection policy with explicit settings and gate state. */
+	UGloamsteadMeshForgeProvider* Test_CreateProviderForSettings(
+		const UGloamsteadGeneratedAssetSettings* Settings, bool bPrimitiveFallbackGateOpen);
+#endif
 
 private:
 	void BuildFor(UWorld* World);
-	void EnsureProvider();
+	void BuildFor(UWorld* World, const UGloamsteadGeneratedAssetSettings* Settings,
+		bool bPrimitiveFallbackGateOpen);
+	bool EnsureProvider(const UGloamsteadGeneratedAssetSettings* Settings,
+		bool bPrimitiveFallbackGateOpen);
+	UGloamsteadMeshForgeProvider* CreateProviderForMode(
+		const UGloamsteadGeneratedAssetSettings* Settings, bool bPrimitiveFallbackGateOpen);
+	void RejectProviderSelection(const TCHAR* FailureCode, const TCHAR* Detail);
 	void ClearProxies();
 	void BindSourceEvents(UWorld* World);
 	void UnbindSourceEvents();
