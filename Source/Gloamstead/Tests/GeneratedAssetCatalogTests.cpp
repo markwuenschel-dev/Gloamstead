@@ -27,6 +27,25 @@ namespace
 		Identity.VendorLockSha256 = TEXT("3333333333333333333333333333333333333333333333333333333333333333");
 		Identity.DeclaredPluginPackageSha256 = TEXT("4444444444444444444444444444444444444444444444444444444444444444");
 		Identity.DeclaredPluginBuildIdentity = TEXT("wfplugin-5555555555555555555555555555555555555555555555555555555555555555");
+		Identity.EngineScriptPackages = { TEXT("/Script/Engine") };
+		Identity.GloamsteadScriptPackages = { TEXT("/Script/Gloamstead") };
+		FGloamsteadGeneratedEnabledPluginIdentity WorldForge;
+		WorldForge.PluginName = TEXT("WorldForge");
+		WorldForge.PluginVersion = Identity.PluginVersion;
+		WorldForge.DescriptorSha256 = Identity.PluginDescriptorSha256;
+		WorldForge.InstalledPluginTreeSha256 = Identity.InstalledPluginTreeSha256;
+		WorldForge.BuildIdentity = Identity.DeclaredPluginBuildIdentity;
+		WorldForge.ScriptPackages = { TEXT("/Script/WorldForgeCore") };
+		FGloamsteadGeneratedEnabledPluginIdentity ContentOnly;
+		ContentOnly.PluginName = TEXT("ContentOnlyFX");
+		ContentOnly.PluginVersion = TEXT("1.4.2");
+		ContentOnly.DescriptorSha256 =
+			TEXT("6666666666666666666666666666666666666666666666666666666666666666");
+		ContentOnly.InstalledPluginTreeSha256 =
+			TEXT("7777777777777777777777777777777777777777777777777777777777777777");
+		ContentOnly.BuildIdentity = TEXT("content-only-1.4.2");
+		Identity.EnabledPlugins = { WorldForge, ContentOnly };
+		Identity.EnabledPluginInventorySha256 = GACEnabledPluginInventorySha256(Identity.EnabledPlugins);
 		return Identity;
 	}
 
@@ -54,6 +73,9 @@ namespace
 		Catalog->ReceiptSha256 = TEXT("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
 		Catalog->VersionRoot = TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1");
 		Catalog->TargetBuildIdentitySha256 = GACRuntimeIdentitySha256(MakeObservedRuntimeIdentity());
+		TArray<FString> AuthorityFailures;
+		GACDeriveTerminalScriptPackageAuthorities(
+			MakeObservedRuntimeIdentity(), Catalog->TerminalScriptPackageAuthorities, AuthorityFailures);
 		Catalog->Entries.Add(MakeValidMeshEntry());
 		return Catalog;
 	}
@@ -173,10 +195,34 @@ bool FGloamGeneratedAssetCatalogFailClosedTest::RunTest(const FString& /*Paramet
 	TestTrue(TEXT("terminal policy is limited to safe platform roots -> GAC034"),
 		GACValidateCatalog(*Catalog).Contains(TEXT("GAC034")));
 	Catalog->TerminalPlatformPackageRoots.Reset();
+	Catalog->TerminalPlatformPackageRoots = { TEXT("/Script") };
+	TestTrue(TEXT("broad script terminal root is always rejected -> GAC034"),
+		GACValidateCatalog(*Catalog).Contains(TEXT("GAC034")));
+	Catalog->TerminalPlatformPackageRoots.Reset();
 	Catalog->TerminalPlatformPackages = { TEXT("/Game/Shared/Opaque") };
 	TestTrue(TEXT("arbitrary game package cannot be terminal -> GAC034"),
 		GACValidateCatalog(*Catalog).Contains(TEXT("GAC034")));
 	Catalog->TerminalPlatformPackages.Reset();
+	Catalog->TerminalPlatformPackages = { TEXT("/Script/NeoStackAI") };
+	TestTrue(TEXT("legacy exact script allowlists are rejected -> GAC034"),
+		GACValidateCatalog(*Catalog).Contains(TEXT("GAC034")));
+	Catalog->TerminalPlatformPackages.Reset();
+	FGloamsteadGeneratedScriptPackageAuthority ForgedNeoStack;
+	ForgedNeoStack.PackageName = TEXT("/Script/NeoStackAI");
+	ForgedNeoStack.OwnerClass = EGloamsteadGeneratedScriptPackageOwner::ExternalPlugin;
+	ForgedNeoStack.OwnerId = TEXT("NeoStackAI");
+	ForgedNeoStack.OwnerIdentitySha256 =
+		TEXT("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+	Catalog->TerminalScriptPackageAuthorities.Add(ForgedNeoStack);
+	TestTrue(TEXT("a catalog-authored NeoStackAI authority absent from trusted inventory -> GAC038"),
+		GACValidateActiveBinding(*Catalog, Catalog->BundleId, Catalog->ReceiptSha256,
+			Catalog->TargetBuildIdentitySha256, MakeObservedRuntimeIdentity()).Contains(TEXT("GAC038")));
+	Catalog->TerminalScriptPackageAuthorities.Pop();
+	Catalog->TerminalScriptPackageAuthorities[0].OwnerId = TEXT("ForgedEngineOwner");
+	TestTrue(TEXT("owner drift for an exact script package -> GAC038"),
+		GACValidateActiveBinding(*Catalog, Catalog->BundleId, Catalog->ReceiptSha256,
+			Catalog->TargetBuildIdentitySha256, MakeObservedRuntimeIdentity()).Contains(TEXT("GAC038")));
+	Catalog->TerminalScriptPackageAuthorities[0].OwnerId = TEXT("UnrealEngine");
 	Catalog->TargetBuildIdentitySha256.Reset();
 	TestTrue(TEXT("catalog target build identity is mandatory -> GAC036"),
 		GACValidateCatalog(*Catalog).Contains(TEXT("GAC036")));
@@ -255,11 +301,19 @@ bool FGloamGeneratedAssetRuntimeIdentityContractTest::RunTest(const FString& /*P
 		TEXT("installed_plugin_tree_sha256=2222222222222222222222222222222222222222222222222222222222222222\n")
 		TEXT("vendor_lock_sha256=3333333333333333333333333333333333333333333333333333333333333333\n")
 		TEXT("declared_plugin_package_sha256=4444444444444444444444444444444444444444444444444444444444444444\n")
-		TEXT("declared_plugin_build_identity=wfplugin-5555555555555555555555555555555555555555555555555555555555555555\n");
+		TEXT("declared_plugin_build_identity=wfplugin-5555555555555555555555555555555555555555555555555555555555555555\n")
+		TEXT("enabled_plugin_inventory_sha256=cede1b002e019541ca5e9ae8eccb2e7f371826d7a33035146c3a624a1302c473\n")
+		TEXT("terminal_script_authority=/Script/Engine|engine|UnrealEngine|9de66287bce661dabaaf4151c4986917a1afd5fb6b1af9a6c52d36e228e80660\n")
+		TEXT("terminal_script_authority=/Script/Gloamstead|gloamstead_project|Gloamstead|0c437fb5f99bce6945dbc04fa1a0b0efa3905594dd792169653f1d0256a61bc7\n")
+		TEXT("terminal_script_authority=/Script/WorldForgeCore|worldforge_plugin|WorldForge|6c89b010091aedeabe3647190d30bbd12c9d080fc3c2283653afe41390c31871\n");
 	TestEqual(TEXT("canonical bytes contract is exact and ordered"), Canonical, ExpectedCanonical);
 	TestEqual(TEXT("canonical identity matches independent Python SHA-256 vector"),
 		GACRuntimeIdentitySha256(Observed),
-		FString(TEXT("354fd50d48b60f0af25644a5acc016cb81aa933be8a6245f1404c72d1105a355")));
+		FString(TEXT("39cb37afe614bba860bc464318f9458a953c09a5412daf4ae61838e338122d87")));
+	FGloamsteadGeneratedAssetRuntimeIdentity Reordered = Observed;
+	Swap(Reordered.EnabledPlugins[0], Reordered.EnabledPlugins[1]);
+	TestEqual(TEXT("enabled-plugin record order does not alter canonical identity"),
+		GACRuntimeIdentitySha256(Reordered), GACRuntimeIdentitySha256(Observed));
 
 	FGloamsteadGeneratedAssetRuntimeIdentity NoCommit = Observed;
 	NoCommit.GloamsteadCommit = TEXT("unavailable");
@@ -271,6 +325,40 @@ bool FGloamGeneratedAssetRuntimeIdentityContractTest::RunTest(const FString& /*P
 		TEXT("5555555555555555555555555555555555555555555555555555555555555555");
 	TestFalse(TEXT("raw hash cannot masquerade as WorldForge release build identity"),
 		GACCanonicalRuntimeIdentity(RawBuildHash, Canonical, Failures));
+
+	FGloamsteadGeneratedAssetRuntimeIdentity ForgedInventory = Observed;
+	ForgedInventory.EnabledPlugins[0].ScriptPackages.Add(TEXT("/Script/NeoStackAI"));
+	TestFalse(TEXT("plugin/module edits without an independently matching inventory digest fail closed"),
+		GACCanonicalRuntimeIdentity(ForgedInventory, Canonical, Failures));
+	TestTrue(TEXT("forged inventory -> GAC037"), Failures.Contains(TEXT("GAC037")));
+	FGloamsteadGeneratedAssetRuntimeIdentity ContentOnlyDrift = Observed;
+	ContentOnlyDrift.EnabledPlugins[1].InstalledPluginTreeSha256 =
+		TEXT("8888888888888888888888888888888888888888888888888888888888888888");
+	TestFalse(TEXT("content-only plugin tree drift is bound even without script packages"),
+		GACCanonicalRuntimeIdentity(ContentOnlyDrift, Canonical, Failures));
+	TestTrue(TEXT("content-only plugin drift -> GAC037"), Failures.Contains(TEXT("GAC037")));
+
+	FGloamsteadGeneratedAssetRuntimeIdentity ExternalPluginIdentity = Observed;
+	FGloamsteadGeneratedEnabledPluginIdentity NeoStack;
+	NeoStack.PluginName = TEXT("NeoStackAI");
+	NeoStack.PluginVersion = TEXT("3.0.0");
+	NeoStack.DescriptorSha256 =
+		TEXT("9999999999999999999999999999999999999999999999999999999999999999");
+	NeoStack.InstalledPluginTreeSha256 =
+		TEXT("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+	NeoStack.BuildIdentity = TEXT("neostack-ue5.8-3.0.0");
+	NeoStack.ScriptPackages = { TEXT("/Script/NeoStackAI") };
+	ExternalPluginIdentity.EnabledPlugins.Add(NeoStack);
+	ExternalPluginIdentity.EnabledPluginInventorySha256 =
+		GACEnabledPluginInventorySha256(ExternalPluginIdentity.EnabledPlugins);
+	UGloamsteadGeneratedAssetCatalog* ExternalCatalog = MakeValidCatalog();
+	ExternalCatalog->TargetBuildIdentitySha256 = GACRuntimeIdentitySha256(ExternalPluginIdentity);
+	GACDeriveTerminalScriptPackageAuthorities(ExternalPluginIdentity,
+		ExternalCatalog->TerminalScriptPackageAuthorities, Failures);
+	TestEqual(TEXT("an external plugin module succeeds only as part of the complete exact plugin inventory"),
+		GACValidateActiveBinding(*ExternalCatalog, ExternalCatalog->BundleId,
+			ExternalCatalog->ReceiptSha256, ExternalCatalog->TargetBuildIdentitySha256,
+			ExternalPluginIdentity).Num(), 0);
 	return true;
 }
 
@@ -528,7 +616,6 @@ bool FGloamGeneratedAssetDependencyClosureTest::RunTest(const FString& /*Paramet
 			TEXT("/Script/Engine") };
 		Catalog->Entries.Add(Material);
 		Catalog->Entries.Add(Texture);
-		Catalog->TerminalPlatformPackageRoots = { TEXT("/Script") };
 		Catalog->TerminalPlatformPackages = { TEXT("/Engine/EngineMaterials/DefaultMaterial") };
 
 		FGloamsteadGeneratedExternalPackageRecord SharedMaterial;
@@ -592,8 +679,14 @@ bool FGloamGeneratedAssetDependencyClosureTest::RunTest(const FString& /*Paramet
 	UGloamsteadGeneratedAssetMeshForgeProvider* Provider =
 		NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
 	ConfigureGraph(Provider, Catalog);
+	const TArray<FString> BaselineClosureCodes = Provider->Test_ValidateDependencyClosure();
+	if (BaselineClosureCodes.Num() > 0)
+	{
+		AddInfo(FString::Printf(TEXT("baseline closure codes: %s"),
+			*FString::Join(BaselineClosureCodes, TEXT(","))));
+	}
 	TestEqual(TEXT("full generated, shared external, and platform-terminal closure passes"),
-		Provider->Test_ValidateDependencyClosure().Num(), 0);
+		BaselineClosureCodes.Num(), 0);
 	Provider->Test_SetObservedProvenance(
 		Catalog->ExternalPackageRecords[1].ProvenanceObject.ToSoftObjectPath(), {
 			FString(), Catalog->ReceiptSha256, Catalog->BundleId,
@@ -661,6 +754,24 @@ bool FGloamGeneratedAssetDependencyClosureTest::RunTest(const FString& /*Paramet
 			FName(TEXT("/Game/Shared/M_Master")) });
 	TestTrue(TEXT("external package cycle -> GAC032"),
 		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC032")));
+
+	Provider = NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+	ConfigureGraph(Provider, Catalog);
+	FGloamsteadGeneratedScriptPackageAuthority ForgedNeoStack;
+	ForgedNeoStack.PackageName = TEXT("/Script/NeoStackAI");
+	ForgedNeoStack.OwnerClass = EGloamsteadGeneratedScriptPackageOwner::ExternalPlugin;
+	ForgedNeoStack.OwnerId = TEXT("NeoStackAI");
+	ForgedNeoStack.OwnerIdentitySha256 =
+		TEXT("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+	Catalog->TerminalScriptPackageAuthorities.Add(ForgedNeoStack);
+	Catalog->Entries[0].DirectPackageDependencies.Add(TEXT("/Script/NeoStackAI"));
+	Provider->Test_SetPackageDependencies(Catalog->Entries[0].Asset.ToSoftObjectPath(), {
+		FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/M_Heart")),
+		FName(TEXT("/Game/Shared/M_Master")),
+		FName(TEXT("/Engine/EngineMaterials/DefaultMaterial")),
+		FName(TEXT("/Script/NeoStackAI")) });
+	TestTrue(TEXT("a post-validation free NeoStackAI allowlist cannot enter the trusted terminal set -> GAC033"),
+		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC033")));
 	return true;
 }
 

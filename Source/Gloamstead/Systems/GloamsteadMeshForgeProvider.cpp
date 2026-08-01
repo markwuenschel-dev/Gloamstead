@@ -290,6 +290,7 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::Configure(const UGloamsteadGene
 	ExpectedBundleId = Settings.ExpectedActiveBundleId;
 	ExpectedReceiptSha256 = Settings.ExpectedReceiptSha256;
 	ExpectedTargetBuildIdentitySha256 = Settings.ExpectedTargetBuildIdentitySha256;
+	VerifiedTerminalScriptPackages.Reset();
 	LoadedCatalog = nullptr;
 	FailureCodes.Reset();
 	State = EGMFGeneratedProviderState::Uninitialized;
@@ -299,6 +300,7 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::Deactivate()
 {
 	CancelOutstandingPreload();
 	RuntimeIdentitySource = MakeShared<FUnavailableRuntimeIdentitySource>();
+	VerifiedTerminalScriptPackages.Reset();
 	LoadedCatalog = nullptr;
 	FailureCodes.Reset();
 	State = EGMFGeneratedProviderState::Uninitialized;
@@ -374,6 +376,7 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::AcceptCatalogLoad(
 
 void UGloamsteadGeneratedAssetMeshForgeProvider::ValidateLoadedCatalog()
 {
+	VerifiedTerminalScriptPackages.Reset();
 	if (!LoadedCatalog)
 	{
 		Fail({ TEXT("GAC017") });
@@ -409,11 +412,24 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::ValidateLoadedCatalog()
 	}
 
 	FailureCodes.Reset();
+	TArray<FGloamsteadGeneratedScriptPackageAuthority> ObservedAuthorities;
+	TArray<FString> AuthorityFailures;
+	if (!GACDeriveTerminalScriptPackageAuthorities(
+		ObservedRuntimeIdentity, ObservedAuthorities, AuthorityFailures))
+	{
+		Fail({ TEXT("GAC037") });
+		return;
+	}
+	for (const FGloamsteadGeneratedScriptPackageAuthority& Authority : ObservedAuthorities)
+	{
+		VerifiedTerminalScriptPackages.Add(FName(*Authority.PackageName));
+	}
 	State = EGMFGeneratedProviderState::Ready;
 }
 
 bool UGloamsteadGeneratedAssetMeshForgeProvider::RevalidateRuntimeIdentity()
 {
+	VerifiedTerminalScriptPackages.Reset();
 	if (!LoadedCatalog)
 	{
 		Fail({ TEXT("GAC017") });
@@ -439,11 +455,24 @@ bool UGloamsteadGeneratedAssetMeshForgeProvider::RevalidateRuntimeIdentity()
 		Fail(Codes);
 		return false;
 	}
+	TArray<FGloamsteadGeneratedScriptPackageAuthority> ObservedAuthorities;
+	TArray<FString> AuthorityFailures;
+	if (!GACDeriveTerminalScriptPackageAuthorities(
+		ObservedRuntimeIdentity, ObservedAuthorities, AuthorityFailures))
+	{
+		Fail({ TEXT("GAC037") });
+		return false;
+	}
+	for (const FGloamsteadGeneratedScriptPackageAuthority& Authority : ObservedAuthorities)
+	{
+		VerifiedTerminalScriptPackages.Add(FName(*Authority.PackageName));
+	}
 	return true;
 }
 
 void UGloamsteadGeneratedAssetMeshForgeProvider::Fail(const TArray<FString>& Codes)
 {
+	VerifiedTerminalScriptPackages.Reset();
 	FailureCodes.Reset();
 	for (const FString& Code : Codes)
 	{
@@ -539,6 +568,18 @@ TArray<FString> UGloamsteadGeneratedAssetMeshForgeProvider::ValidateCatalogDepen
 	if (!LoadedCatalog)
 	{
 		Codes.Add(TEXT("GAC017"));
+		return Codes;
+	}
+	if (!IsReadyForBuild())
+	{
+		for (const FString& FailureCode : FailureCodes)
+		{
+			Codes.AddUnique(FailureCode);
+		}
+		if (Codes.Num() == 0)
+		{
+			Codes.Add(TEXT("GAC037"));
+		}
 		return Codes;
 	}
 
@@ -655,6 +696,15 @@ TArray<FString> UGloamsteadGeneratedAssetMeshForgeProvider::ValidateCatalogDepen
 		for (const FName DependencyPackage : ObservedDirect)
 		{
 			const FString DependencyName = DependencyPackage.ToString();
+			if (DependencyName.StartsWith(TEXT("/Script/"), ESearchCase::CaseSensitive))
+			{
+				if (VerifiedTerminalScriptPackages.Contains(DependencyPackage))
+				{
+					continue;
+				}
+				Codes.AddUnique(TEXT("GAC033"));
+				continue;
+			}
 			if (IsTerminalPlatformPackage(DependencyName,
 				LoadedCatalog->TerminalPlatformPackages,
 				LoadedCatalog->TerminalPlatformPackageRoots))

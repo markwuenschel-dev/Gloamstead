@@ -155,6 +155,253 @@ namespace
 		return true;
 	}
 
+	bool IsCanonicalScriptPackage(const FString& PackageName)
+	{
+		static const FString Prefix = TEXT("/Script/");
+		if (!PackageName.StartsWith(Prefix, ESearchCase::CaseSensitive))
+		{
+			return false;
+		}
+		const FString ModuleName = PackageName.Mid(Prefix.Len());
+		if (ModuleName.IsEmpty()
+			|| !(FChar::IsAlpha(ModuleName[0]) || ModuleName[0] == TEXT('_')))
+		{
+			return false;
+		}
+		for (const TCHAR Ch : ModuleName)
+		{
+			if (!(FChar::IsAlnum(Ch) || Ch == TEXT('_')))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	const TCHAR* ScriptOwnerToken(EGloamsteadGeneratedScriptPackageOwner OwnerClass)
+	{
+		switch (OwnerClass)
+		{
+		case EGloamsteadGeneratedScriptPackageOwner::Engine: return TEXT("engine");
+		case EGloamsteadGeneratedScriptPackageOwner::GloamsteadProject: return TEXT("gloamstead_project");
+		case EGloamsteadGeneratedScriptPackageOwner::WorldForgePlugin: return TEXT("worldforge_plugin");
+		case EGloamsteadGeneratedScriptPackageOwner::ExternalPlugin: return TEXT("external_plugin");
+		case EGloamsteadGeneratedScriptPackageOwner::Unknown:
+		default: return TEXT("unknown");
+		}
+	}
+
+	bool CanonicalPluginRecord(
+		const FGloamsteadGeneratedEnabledPluginIdentity& Plugin,
+		FString& OutCanonical)
+	{
+		OutCanonical.Reset();
+		if (!IsStableId(Plugin.PluginName)
+			|| !IsCanonicalIdentityValue(Plugin.PluginVersion)
+			|| !IsSha256(Plugin.DescriptorSha256)
+			|| !IsSha256(Plugin.InstalledPluginTreeSha256)
+			|| !IsCanonicalIdentityValue(Plugin.BuildIdentity))
+		{
+			return false;
+		}
+		TArray<FString> Packages = Plugin.ScriptPackages;
+		Packages.Sort([](const FString& A, const FString& B) { return A < B; });
+		TSet<FString> Seen;
+		OutCanonical = FString::Printf(
+			TEXT("plugin=%s\nplugin_version=%s\nplugin_descriptor_sha256=%s\n")
+			TEXT("plugin_installed_tree_sha256=%s\nplugin_build_identity=%s\n"),
+			*Plugin.PluginName, *Plugin.PluginVersion,
+			*Plugin.DescriptorSha256.ToLower(), *Plugin.InstalledPluginTreeSha256.ToLower(),
+			*Plugin.BuildIdentity);
+		for (const FString& PackageName : Packages)
+		{
+			const FString Folded = PackageName.ToLower();
+			if (!IsCanonicalScriptPackage(PackageName) || Seen.Contains(Folded))
+			{
+				OutCanonical.Reset();
+				return false;
+			}
+			Seen.Add(Folded);
+			OutCanonical += FString::Printf(TEXT("plugin_script_package=%s\n"), *PackageName);
+		}
+		OutCanonical += FString::Printf(TEXT("plugin_end=%s\n"), *Plugin.PluginName);
+		return true;
+	}
+
+	bool CanonicalEnabledPluginInventory(
+		const TArray<FGloamsteadGeneratedEnabledPluginIdentity>& EnabledPlugins,
+		FString& OutCanonical)
+	{
+		OutCanonical.Reset();
+		if (EnabledPlugins.Num() == 0)
+		{
+			return false;
+		}
+		TArray<const FGloamsteadGeneratedEnabledPluginIdentity*> Sorted;
+		for (const FGloamsteadGeneratedEnabledPluginIdentity& Plugin : EnabledPlugins)
+		{
+			Sorted.Add(&Plugin);
+		}
+		Sorted.Sort([](const FGloamsteadGeneratedEnabledPluginIdentity& A,
+			const FGloamsteadGeneratedEnabledPluginIdentity& B)
+		{
+			return A.PluginName < B.PluginName;
+		});
+		TSet<FString> SeenPlugins;
+		TSet<FString> SeenPackages;
+		OutCanonical = TEXT("gloamstead.enabled-plugin-inventory@1\n");
+		for (const FGloamsteadGeneratedEnabledPluginIdentity* Plugin : Sorted)
+		{
+			const FString FoldedPlugin = Plugin->PluginName.ToLower();
+			if (SeenPlugins.Contains(FoldedPlugin))
+			{
+				OutCanonical.Reset();
+				return false;
+			}
+			SeenPlugins.Add(FoldedPlugin);
+			FString Record;
+			if (!CanonicalPluginRecord(*Plugin, Record))
+			{
+				OutCanonical.Reset();
+				return false;
+			}
+			for (const FString& PackageName : Plugin->ScriptPackages)
+			{
+				const FString FoldedPackage = PackageName.ToLower();
+				if (SeenPackages.Contains(FoldedPackage))
+				{
+					OutCanonical.Reset();
+					return false;
+				}
+				SeenPackages.Add(FoldedPackage);
+			}
+			OutCanonical += Record;
+		}
+		return true;
+	}
+
+	FString CoreOwnerIdentitySha256(
+		EGloamsteadGeneratedScriptPackageOwner OwnerClass,
+		const FGloamsteadGeneratedAssetRuntimeIdentity& Identity)
+	{
+		if (OwnerClass == EGloamsteadGeneratedScriptPackageOwner::Engine)
+		{
+			return Sha256Utf8(FString::Printf(
+				TEXT("gloamstead.script-owner.engine@1\nengine_version=%s\n")
+				TEXT("compatible_engine_version=%s\nengine_build_version=%s\n")
+				TEXT("engine_changelist=%u\ncompatible_engine_changelist=%u\n"),
+				*Identity.EngineVersion, *Identity.CompatibleEngineVersion,
+				*Identity.EngineBuildVersion, Identity.EngineChangelist,
+				Identity.CompatibleEngineChangelist));
+		}
+		if (OwnerClass == EGloamsteadGeneratedScriptPackageOwner::GloamsteadProject)
+		{
+			return Sha256Utf8(FString::Printf(
+				TEXT("gloamstead.script-owner.project@1\ngloamstead_commit=%s\nengine_build_version=%s\n"),
+				*Identity.GloamsteadCommit, *Identity.EngineBuildVersion));
+		}
+		return FString();
+	}
+
+	bool DeriveTerminalAuthoritiesInternal(
+		const FGloamsteadGeneratedAssetRuntimeIdentity& Identity,
+		TArray<FGloamsteadGeneratedScriptPackageAuthority>& OutAuthorities)
+	{
+		OutAuthorities.Reset();
+		if (Identity.EngineScriptPackages.Num() == 0 || Identity.GloamsteadScriptPackages.Num() == 0)
+		{
+			return false;
+		}
+		TSet<FString> SeenPackages;
+		auto AddAuthority = [&](const FString& PackageName,
+			EGloamsteadGeneratedScriptPackageOwner OwnerClass,
+			const FString& OwnerId,
+			const FString& OwnerIdentitySha256)
+		{
+			const FString Folded = PackageName.ToLower();
+			if (!IsCanonicalScriptPackage(PackageName) || SeenPackages.Contains(Folded)
+				|| !IsStableId(OwnerId) || !IsSha256(OwnerIdentitySha256))
+			{
+				return false;
+			}
+			SeenPackages.Add(Folded);
+			FGloamsteadGeneratedScriptPackageAuthority Authority;
+			Authority.PackageName = PackageName;
+			Authority.OwnerClass = OwnerClass;
+			Authority.OwnerId = OwnerId;
+			Authority.OwnerIdentitySha256 = OwnerIdentitySha256.ToLower();
+			OutAuthorities.Add(MoveTemp(Authority));
+			return true;
+		};
+
+		const FString EngineIdentity = CoreOwnerIdentitySha256(
+			EGloamsteadGeneratedScriptPackageOwner::Engine, Identity);
+		for (const FString& PackageName : Identity.EngineScriptPackages)
+		{
+			if (!AddAuthority(PackageName, EGloamsteadGeneratedScriptPackageOwner::Engine,
+				TEXT("UnrealEngine"), EngineIdentity))
+			{
+				OutAuthorities.Reset();
+				return false;
+			}
+		}
+		const FString ProjectIdentity = CoreOwnerIdentitySha256(
+			EGloamsteadGeneratedScriptPackageOwner::GloamsteadProject, Identity);
+		for (const FString& PackageName : Identity.GloamsteadScriptPackages)
+		{
+			if (!AddAuthority(PackageName, EGloamsteadGeneratedScriptPackageOwner::GloamsteadProject,
+				TEXT("Gloamstead"), ProjectIdentity))
+			{
+				OutAuthorities.Reset();
+				return false;
+			}
+		}
+
+		bool bFoundWorldForge = false;
+		for (const FGloamsteadGeneratedEnabledPluginIdentity& Plugin : Identity.EnabledPlugins)
+		{
+			FString PluginCanonical;
+			if (!CanonicalPluginRecord(Plugin, PluginCanonical))
+			{
+				OutAuthorities.Reset();
+				return false;
+			}
+			const bool bWorldForge = Plugin.PluginName.Equals(TEXT("WorldForge"), ESearchCase::CaseSensitive);
+			if (bWorldForge)
+			{
+				bFoundWorldForge = true;
+				if (Plugin.PluginVersion != Identity.PluginVersion
+					|| !Plugin.DescriptorSha256.Equals(Identity.PluginDescriptorSha256, ESearchCase::IgnoreCase)
+					|| !Plugin.InstalledPluginTreeSha256.Equals(Identity.InstalledPluginTreeSha256, ESearchCase::IgnoreCase)
+					|| Plugin.BuildIdentity != Identity.DeclaredPluginBuildIdentity)
+				{
+					OutAuthorities.Reset();
+					return false;
+				}
+			}
+			const FString PluginIdentity = Sha256Utf8(PluginCanonical);
+			for (const FString& PackageName : Plugin.ScriptPackages)
+			{
+				if (!AddAuthority(PackageName,
+					bWorldForge
+						? EGloamsteadGeneratedScriptPackageOwner::WorldForgePlugin
+						: EGloamsteadGeneratedScriptPackageOwner::ExternalPlugin,
+					Plugin.PluginName, PluginIdentity))
+				{
+					OutAuthorities.Reset();
+					return false;
+				}
+			}
+		}
+		if (!bFoundWorldForge)
+		{
+			OutAuthorities.Reset();
+			return false;
+		}
+		OutAuthorities.Sort([](const auto& A, const auto& B) { return A.PackageName < B.PackageName; });
+		return true;
+	}
+
 	bool IsVersionRoot(const FString& Root)
 	{
 		static const FString Prefix = TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/");
@@ -258,8 +505,23 @@ bool GACCanonicalRuntimeIdentity(
 		&& IsSha256(Identity.InstalledPluginTreeSha256)
 		&& IsSha256(Identity.VendorLockSha256)
 		&& IsSha256(Identity.DeclaredPluginPackageSha256)
-		&& IsWorldForgeBuildIdentity(Identity.DeclaredPluginBuildIdentity);
+		&& IsWorldForgeBuildIdentity(Identity.DeclaredPluginBuildIdentity)
+		&& IsSha256(Identity.EnabledPluginInventorySha256);
 	if (!bTextAxesValid || !bHashAxesValid)
+	{
+		OutFailureCodes.Add(TEXT("GAC037"));
+		return false;
+	}
+	FString PluginInventoryCanonical;
+	if (!CanonicalEnabledPluginInventory(Identity.EnabledPlugins, PluginInventoryCanonical)
+		|| !Sha256Utf8(PluginInventoryCanonical).Equals(
+			Identity.EnabledPluginInventorySha256, ESearchCase::IgnoreCase))
+	{
+		OutFailureCodes.Add(TEXT("GAC037"));
+		return false;
+	}
+	TArray<FGloamsteadGeneratedScriptPackageAuthority> Authorities;
+	if (!DeriveTerminalAuthoritiesInternal(Identity, Authorities))
 	{
 		OutFailureCodes.Add(TEXT("GAC037"));
 		return false;
@@ -279,7 +541,8 @@ bool GACCanonicalRuntimeIdentity(
 		TEXT("installed_plugin_tree_sha256=%s\n")
 		TEXT("vendor_lock_sha256=%s\n")
 		TEXT("declared_plugin_package_sha256=%s\n")
-		TEXT("declared_plugin_build_identity=%s\n"),
+		TEXT("declared_plugin_build_identity=%s\n")
+		TEXT("enabled_plugin_inventory_sha256=%s\n"),
 		*Identity.EngineVersion,
 		*Identity.CompatibleEngineVersion,
 		*Identity.EngineBuildVersion,
@@ -292,7 +555,43 @@ bool GACCanonicalRuntimeIdentity(
 		*Identity.InstalledPluginTreeSha256.ToLower(),
 		*Identity.VendorLockSha256.ToLower(),
 		*Identity.DeclaredPluginPackageSha256.ToLower(),
-		*Identity.DeclaredPluginBuildIdentity.ToLower());
+		*Identity.DeclaredPluginBuildIdentity.ToLower(),
+		*Identity.EnabledPluginInventorySha256.ToLower());
+	for (const FGloamsteadGeneratedScriptPackageAuthority& Authority : Authorities)
+	{
+		OutCanonical += FString::Printf(TEXT("terminal_script_authority=%s|%s|%s|%s\n"),
+			*Authority.PackageName, ScriptOwnerToken(Authority.OwnerClass), *Authority.OwnerId,
+			*Authority.OwnerIdentitySha256.ToLower());
+	}
+	return true;
+}
+
+FString GACEnabledPluginInventorySha256(
+	const TArray<FGloamsteadGeneratedEnabledPluginIdentity>& EnabledPlugins)
+{
+	FString Canonical;
+	return CanonicalEnabledPluginInventory(EnabledPlugins, Canonical)
+		? Sha256Utf8(Canonical)
+		: FString();
+}
+
+bool GACDeriveTerminalScriptPackageAuthorities(
+	const FGloamsteadGeneratedAssetRuntimeIdentity& Identity,
+	TArray<FGloamsteadGeneratedScriptPackageAuthority>& OutAuthorities,
+	TArray<FString>& OutFailureCodes)
+{
+	OutFailureCodes.Reset();
+	FString Canonical;
+	if (!GACCanonicalRuntimeIdentity(Identity, Canonical, OutFailureCodes))
+	{
+		OutAuthorities.Reset();
+		return false;
+	}
+	if (!DeriveTerminalAuthoritiesInternal(Identity, OutAuthorities))
+	{
+		OutFailureCodes.AddUnique(TEXT("GAC037"));
+		return false;
+	}
 	return true;
 }
 
@@ -390,8 +689,7 @@ TArray<FString> GACValidateCatalog(
 	for (const FString& Root : Catalog.TerminalPlatformPackageRoots)
 	{
 		const FString Folded = Root.ToLower();
-		if ((!Root.Equals(TEXT("/Engine"), ESearchCase::CaseSensitive)
-				&& !Root.Equals(TEXT("/Script"), ESearchCase::CaseSensitive))
+		if (!Root.Equals(TEXT("/Engine"), ESearchCase::CaseSensitive)
 			|| SeenTerminalRoots.Contains(Folded))
 		{
 			Codes.AddUnique(TEXT("GAC034"));
@@ -402,17 +700,45 @@ TArray<FString> GACValidateCatalog(
 	for (const FString& PackageName : Catalog.TerminalPlatformPackages)
 	{
 		const FString Folded = PackageName.ToLower();
-		const bool bPlatformPackage = IsPackageUnderRoot(PackageName, TEXT("/Engine"))
-			|| IsPackageUnderRoot(PackageName, TEXT("/Script"));
+		const bool bPlatformPackage = IsPackageUnderRoot(PackageName, TEXT("/Engine"));
 		if (!IsValidPackageName(PackageName) || !bPlatformPackage
 			|| PackageName.Equals(TEXT("/Engine"), ESearchCase::IgnoreCase)
-			|| PackageName.Equals(TEXT("/Script"), ESearchCase::IgnoreCase)
 			|| SeenTerminalPackages.Contains(Folded)
 			|| IsTerminalPlatformPackage(PackageName, {}, Catalog.TerminalPlatformPackageRoots))
 		{
 			Codes.AddUnique(TEXT("GAC034"));
 		}
 		SeenTerminalPackages.Add(Folded);
+	}
+	TSet<FString> TerminalScriptPackages;
+	for (const FGloamsteadGeneratedScriptPackageAuthority& Authority
+		: Catalog.TerminalScriptPackageAuthorities)
+	{
+		const FString Folded = Authority.PackageName.ToLower();
+		const UEnum* OwnerEnum = StaticEnum<EGloamsteadGeneratedScriptPackageOwner>();
+		const bool bOwnerValid = OwnerEnum
+			&& OwnerEnum->IsValidEnumValue(static_cast<int64>(Authority.OwnerClass))
+			&& Authority.OwnerClass != EGloamsteadGeneratedScriptPackageOwner::Unknown;
+		bool bOwnerIdValid = IsStableId(Authority.OwnerId);
+		if (Authority.OwnerClass == EGloamsteadGeneratedScriptPackageOwner::Engine)
+		{
+			bOwnerIdValid = Authority.OwnerId == TEXT("UnrealEngine");
+		}
+		else if (Authority.OwnerClass == EGloamsteadGeneratedScriptPackageOwner::GloamsteadProject)
+		{
+			bOwnerIdValid = Authority.OwnerId == TEXT("Gloamstead");
+		}
+		else if (Authority.OwnerClass == EGloamsteadGeneratedScriptPackageOwner::WorldForgePlugin)
+		{
+			bOwnerIdValid = Authority.OwnerId == TEXT("WorldForge");
+		}
+		if (!IsCanonicalScriptPackage(Authority.PackageName)
+			|| TerminalScriptPackages.Contains(Folded)
+			|| !bOwnerValid || !bOwnerIdValid || !IsSha256(Authority.OwnerIdentitySha256))
+		{
+			Codes.AddUnique(TEXT("GAC034"));
+		}
+		TerminalScriptPackages.Add(Folded);
 	}
 
 	TSet<FString> SeenKeys;
@@ -463,7 +789,8 @@ TArray<FString> GACValidateCatalog(
 		for (const FString& DependencyPackage : Record.DirectPackageDependencies)
 		{
 			const FString DependencyFolded = DependencyPackage.ToLower();
-			if (!IsValidPackageName(DependencyPackage) || DirectDependencies.Contains(DependencyFolded)
+			if ((!IsValidPackageName(DependencyPackage) && !IsCanonicalScriptPackage(DependencyPackage))
+				|| DirectDependencies.Contains(DependencyFolded)
 				|| DependencyPackage.Equals(Record.PackageName, ESearchCase::IgnoreCase))
 			{
 				Codes.AddUnique(TEXT("GAC034"));
@@ -497,7 +824,8 @@ TArray<FString> GACValidateCatalog(
 		for (const FString& DependencyPackage : Entry.DirectPackageDependencies)
 		{
 			const FString Folded = DependencyPackage.ToLower();
-			if (!IsValidPackageName(DependencyPackage) || DirectPackageDependencies.Contains(Folded)
+			if ((!IsValidPackageName(DependencyPackage) && !IsCanonicalScriptPackage(DependencyPackage))
+				|| DirectPackageDependencies.Contains(Folded)
 				|| DependencyPackage.Equals(Entry.Asset.ToSoftObjectPath().GetLongPackageName(), ESearchCase::IgnoreCase))
 			{
 				Codes.AddUnique(TEXT("GAC020"));
@@ -588,6 +916,10 @@ TArray<FString> GACValidateCatalog(
 		{
 			return;
 		}
+		if (TerminalScriptPackages.Contains(Folded))
+		{
+			return;
+		}
 		if (!ExternalPackages.Contains(Folded))
 		{
 			Codes.AddUnique(TEXT("GAC033"));
@@ -657,6 +989,47 @@ TArray<FString> GACValidateActiveBinding(
 		|| !Catalog.TargetBuildIdentitySha256.Equals(ObservedIdentitySha256, ESearchCase::IgnoreCase))
 	{
 		Codes.Add(TEXT("GAC036"));
+	}
+	TArray<FGloamsteadGeneratedScriptPackageAuthority> ObservedAuthorities;
+	TArray<FString> AuthorityFailures;
+	if (!GACDeriveTerminalScriptPackageAuthorities(
+		ObservedRuntimeIdentity, ObservedAuthorities, AuthorityFailures))
+	{
+		Codes.AddUnique(TEXT("GAC037"));
+	}
+	else
+	{
+		TMap<FString, const FGloamsteadGeneratedScriptPackageAuthority*> ExpectedByPackage;
+		TMap<FString, const FGloamsteadGeneratedScriptPackageAuthority*> ObservedByPackage;
+		for (const FGloamsteadGeneratedScriptPackageAuthority& Authority
+			: Catalog.TerminalScriptPackageAuthorities)
+		{
+			ExpectedByPackage.Add(Authority.PackageName.ToLower(), &Authority);
+		}
+		for (const FGloamsteadGeneratedScriptPackageAuthority& Authority : ObservedAuthorities)
+		{
+			ObservedByPackage.Add(Authority.PackageName.ToLower(), &Authority);
+		}
+		bool bAuthorityMismatch = ExpectedByPackage.Num() != ObservedByPackage.Num();
+		for (const TPair<FString, const FGloamsteadGeneratedScriptPackageAuthority*>& Pair
+			: ExpectedByPackage)
+		{
+			const FGloamsteadGeneratedScriptPackageAuthority* const* Observed =
+				ObservedByPackage.Find(Pair.Key);
+			if (!Observed
+				|| (*Observed)->PackageName != Pair.Value->PackageName
+				|| (*Observed)->OwnerClass != Pair.Value->OwnerClass
+				|| (*Observed)->OwnerId != Pair.Value->OwnerId
+				|| !(*Observed)->OwnerIdentitySha256.Equals(
+					Pair.Value->OwnerIdentitySha256, ESearchCase::IgnoreCase))
+			{
+				bAuthorityMismatch = true;
+			}
+		}
+		if (bAuthorityMismatch)
+		{
+			Codes.AddUnique(TEXT("GAC038"));
+		}
 	}
 	return Codes;
 }

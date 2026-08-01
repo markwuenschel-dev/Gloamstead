@@ -171,6 +171,8 @@ private:
 	FString ExpectedTargetBuildIdentitySha256;
 	TSharedPtr<FStreamableHandle> PreloadHandle;
 	TSharedPtr<const IGloamsteadGeneratedAssetRuntimeIdentitySource> RuntimeIdentitySource;
+	/** Exact authority set retained only after trusted runtime observation and catalog equality succeed. */
+	TSet<FName> VerifiedTerminalScriptPackages;
 	uint64 LoadGeneration = 0;
 #if WITH_DEV_AUTOMATION_TESTS
 	TMap<FSoftObjectPath, TWeakObjectPtr<UObject>> TestResolvedObjects;

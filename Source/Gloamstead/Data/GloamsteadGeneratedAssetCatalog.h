@@ -17,14 +17,53 @@ enum class EGloamsteadGeneratedAssetState : uint8
 
 GLOAMSTEAD_API FString GACStateToken(EGloamsteadGeneratedAssetState State);
 
+/** Authority class for an exact terminal `/Script/<Module>` package. */
+UENUM(BlueprintType)
+enum class EGloamsteadGeneratedScriptPackageOwner : uint8
+{
+	Unknown = 0,
+	Engine,
+	GloamsteadProject,
+	WorldForgePlugin,
+	ExternalPlugin,
+};
+
+/** One independently enumerated enabled plugin and all of its script-module packages. */
+struct FGloamsteadGeneratedEnabledPluginIdentity
+{
+	FString PluginName;
+	FString PluginVersion;
+	FString DescriptorSha256;
+	/** Digest of the exact installed plugin tree: descriptor, binaries, content, config, and sources. */
+	FString InstalledPluginTreeSha256;
+	FString BuildIdentity;
+	TArray<FString> ScriptPackages;
+};
+
+/** Exact catalog declaration derived from a trusted runtime inventory, never from a package-name prefix. */
+USTRUCT(BlueprintType)
+struct FGloamsteadGeneratedScriptPackageAuthority
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Generated Assets") FString PackageName;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Generated Assets")
+	EGloamsteadGeneratedScriptPackageOwner OwnerClass = EGloamsteadGeneratedScriptPackageOwner::Unknown;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Generated Assets") FString OwnerId;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Generated Assets") FString OwnerIdentitySha256;
+};
+
 /**
  * Independently observed runtime axes bound into a generated bundle.
  *
- * Canonical form is UTF-8, LF-only, with the contract line followed by the fields in declaration
- * order as `key=value` lines and one final LF. Values are restricted to printable ASCII without
- * CR/LF or '='. Package/build identities are deliberately named Declared: the production identity
- * source may return success only after it has independently verified installed descriptor/tree bytes
- * against the committed lock. This serializer is shared with vendor sync and WorldForgeEd.
+ * Canonical form is UTF-8, LF-only, with the contract line followed by scalar `key=value` lines,
+ * `enabled_plugin_inventory_sha256`, then sorted `terminal_script_authority` lines and one final LF.
+ * The inventory digest is recomputed from plugin-name-sorted records and package-name-sorted module
+ * lists. Every record binds version, descriptor digest, full installed-tree digest (binaries, content,
+ * config, and source), build identity, and zero or more exact `/Script/<Module>` packages. Values are
+ * restricted to printable ASCII without CR/LF or '='. The production identity source may return
+ * success only after independently enumerating every enabled plugin and verifying installed bytes
+ * against the committed lock/build evidence. This serializer is shared with vendor sync and WorldForgeEd.
  */
 struct FGloamsteadGeneratedAssetRuntimeIdentity
 {
@@ -41,6 +80,14 @@ struct FGloamsteadGeneratedAssetRuntimeIdentity
 	FString VendorLockSha256;
 	FString DeclaredPluginPackageSha256;
 	FString DeclaredPluginBuildIdentity;
+	/** Exact script packages compiled into the independently identified UE build. */
+	TArray<FString> EngineScriptPackages;
+	/** Exact script packages compiled from the independently identified Gloamstead commit/build. */
+	TArray<FString> GloamsteadScriptPackages;
+	/** Complete enabled-plugin inventory, including every script module exported by each plugin. */
+	TArray<FGloamsteadGeneratedEnabledPluginIdentity> EnabledPlugins;
+	/** Independently observed digest of the canonical complete EnabledPlugins inventory. */
+	FString EnabledPluginInventorySha256;
 };
 
 /** Fixed committed lock location consumed by both the runtime and the Task 4 sync tooling. */
@@ -54,6 +101,14 @@ GLOAMSTEAD_API bool GACCanonicalRuntimeIdentity(
 GLOAMSTEAD_API FString GACRuntimeIdentitySha256(
 	const FGloamsteadGeneratedAssetRuntimeIdentity& Identity,
 	TArray<FString>* OutFailureCodes = nullptr);
+/** Canonical digest of sorted enabled-plugin/module records, or empty for an incomplete/invalid inventory. */
+GLOAMSTEAD_API FString GACEnabledPluginInventorySha256(
+	const TArray<FGloamsteadGeneratedEnabledPluginIdentity>& EnabledPlugins);
+/** Derive the complete exact terminal script authority set from independently verified runtime axes. */
+GLOAMSTEAD_API bool GACDeriveTerminalScriptPackageAuthorities(
+	const FGloamsteadGeneratedAssetRuntimeIdentity& Identity,
+	TArray<FGloamsteadGeneratedScriptPackageAuthority>& OutAuthorities,
+	TArray<FString>& OutFailureCodes);
 
 /** Import-authored values read from the cooked/on-disk Asset Registry for one exact object path. */
 struct FGloamsteadGeneratedAssetObservedProvenance
@@ -125,12 +180,15 @@ public:
 	/** Canonical hash of the target UE build, Gloamstead base commit, and vendored plugin lock. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Generated Assets") FString TargetBuildIdentitySha256;
 	/**
-	 * Optional safe terminal platform roots. Only exact /Engine and /Script roots are valid; packages below
-	 * them are terminal and therefore bound by TargetBuildIdentitySha256 instead of recursively queried.
+	 * Optional safe terminal platform roots. Only exact /Engine is valid. Script modules are never
+	 * authorized by a root: they require the exact independently observed authority records below.
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Generated Assets") TArray<FString> TerminalPlatformPackageRoots;
-	/** Exact /Engine or /Script package names treated as terminal when a broad safe root is not desired. */
+	/** Exact /Engine packages treated as terminal when a broad safe root is not desired. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Generated Assets") TArray<FString> TerminalPlatformPackages;
+	/** Complete exact terminal script authority set; must equal the trusted runtime observation. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Generated Assets")
+	TArray<FGloamsteadGeneratedScriptPackageAuthority> TerminalScriptPackageAuthorities;
 	/** Every non-terminal external package, including /Game shared or plugin content, is recursively declared here. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Generated Assets") TArray<FGloamsteadGeneratedExternalPackageRecord> ExternalPackageRecords;
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Generated Assets") TArray<FGloamsteadGeneratedAssetEntry> Entries;
@@ -151,7 +209,8 @@ public:
  * 030 observed direct dependency omitted; 031 declared direct dependency unused; 032 dependency cycle;
  * 033 undeclared non-terminal dependency; 034 invalid external package/terminal policy declaration;
  * 035 external package provenance binding; 036 target UE/plugin build identity mismatch;
- * 037 independently observed runtime identity unavailable/incomplete.
+ * 037 independently observed runtime identity unavailable/incomplete;
+ * 038 terminal script authority/inventory mismatch.
  */
 GLOAMSTEAD_API TArray<FString> GACValidateCatalog(
 	const UGloamsteadGeneratedAssetCatalog& Catalog,
