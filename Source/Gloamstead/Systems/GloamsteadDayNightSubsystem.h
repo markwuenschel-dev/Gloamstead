@@ -48,6 +48,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DayNight")
 	bool RequestRest();
 
+	/** Controls only the dawn disk write; phase progression and reflection remain unchanged. */
+	UFUNCTION(BlueprintCallable, Category = "DayNight|Persistence")
+	void SetDawnAutosaveEnabled(bool bEnabled) { bDawnAutosaveEnabled = bEnabled; }
+
+	UFUNCTION(BlueprintPure, Category = "DayNight|Persistence")
+	bool IsDawnAutosaveEnabled() const { return bDawnAutosaveEnabled; }
+
 	/** True when the current phase is one the player may rest through (Day or Dawn). */
 	UFUNCTION(BlueprintPure, Category = "DayNight")
 	bool CanRestNow() const;
@@ -66,4 +73,7 @@ private:
 
 	UPROPERTY()
 	int32 NightCount = 0;
+
+	UPROPERTY()
+	bool bDawnAutosaveEnabled = true;
 };

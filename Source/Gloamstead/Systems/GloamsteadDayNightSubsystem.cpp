@@ -175,7 +175,12 @@ void UGloamsteadDayNightSubsystem::HandleEnterDawn()
 		}
 
 		// Autosave the sanctuary's full per-point state at dawn, once the night has been resolved.
-		if (UGloamsteadPCGSubsystem* PCG = World->GetSubsystem<UGloamsteadPCGSubsystem>())
+		// Demo maps may disable this without changing phase progression or dawn reflection.
+		if (!bDawnAutosaveEnabled)
+		{
+			UE_LOG(LogTemp, Log, TEXT("DayNight: dawn autosave disabled for this world."));
+		}
+		else if (UGloamsteadPCGSubsystem* PCG = World->GetSubsystem<UGloamsteadPCGSubsystem>())
 		{
 			const bool bSaved = PCG->SaveToSlot(UGloamsteadPCGSubsystem::DefaultSaveSlot);
 			UE_LOG(LogTemp, Log, TEXT("DayNight: dawn autosave (slot=%s) -> %s"),

@@ -175,7 +175,7 @@ public:
     // === Test seam (unconditional inline; unused in shipping → linker emits nothing) ===
     /** Test-only seam: install a known synthetic point-state set, bypassing PCG init. */
     void Test_SeedPointStates(const TArray<FRitualPointState>& InStates) { PointStates = InStates; }
-    /** Test-only seam: install synthetic point world locations (CachedPoints transforms) so index->location resolves. */
+    /** Test-only seam: install synthetic LanternPost points with metadata and rebuild the spatial grid. */
     void Test_SeedPoints(const TArray<FVector>& Locations);
     /** Test-only seam: read current point state for assertions. */
     const TArray<FRitualPointState>& Test_PeekPointStates() const { return PointStates; }

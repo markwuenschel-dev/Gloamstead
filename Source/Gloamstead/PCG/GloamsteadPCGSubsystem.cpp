@@ -383,13 +383,26 @@ int32 UGloamsteadPCGSubsystem::FindMostCorruptedPointIndex(bool bOnlyUnrestored)
 
 void UGloamsteadPCGSubsystem::Test_SeedPoints(const TArray<FVector>& Locations)
 {
-    CachedPoints.Reset(Locations.Num());
+    MutablePointData = NewObject<UPCGPointData>(this);
+    check(MutablePointData && MutablePointData->Metadata);
+
+    FPCGMetadataAttribute<int32>* RitualTypeAttribute =
+        MutablePointData->Metadata->CreateAttribute<int32>(
+            TEXT("RitualType"), static_cast<int32>(ERitualType::LanternPost),
+            /*bAllowsInterpolation*/ false, /*bOverrideParent*/ false);
+
+    TArray<FPCGPoint>& Points = MutablePointData->GetMutablePoints();
+    Points.Reset(Locations.Num());
     for (const FVector& Loc : Locations)
     {
         FPCGPoint P;
         P.Transform = FTransform(Loc);
-        CachedPoints.Add(P);
+        P.MetadataEntry = MutablePointData->Metadata->AddEntry();
+        RitualTypeAttribute->SetValue(P.MetadataEntry, static_cast<int32>(ERitualType::LanternPost));
+        Points.Add(P);
     }
+    CachedPoints = Points;
+    BuildSpatialGrid();
 }
 
 int32 UGloamsteadPCGSubsystem::FindRestoredPointIndex(bool bMostLit) const

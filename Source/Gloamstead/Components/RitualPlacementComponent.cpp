@@ -67,6 +67,10 @@ void URitualPlacementComponent::EnterPlacementMode()
 {
     if (!CachedSubsystem)
     {
+        CachedSubsystem = GetSubsystem();
+    }
+    if (!CachedSubsystem)
+    {
         UE_LOG(LogTemp, Warning, TEXT("RitualPlacementComponent: Cannot enter placement mode - Subsystem is missing."));
         return;
     }
@@ -119,8 +123,9 @@ bool URitualPlacementComponent::ConfirmPlacement()
     // === RULE: a confirmation that spawns NO actor still restores the point, and is reported as a
     // === degraded success. It is never refused, and never reported as clean.
     //
-    // SpawnRestoredActor is a BlueprintImplementableEvent with no C++ body, so until a Blueprint child of
-    // this component exists it returns null on EVERY confirmation. The three candidate rules:
+    // SpawnRestoredActor is a BlueprintNativeEvent. Its native implementation materialises the configured
+    // LanternPost class; a missing class still returns null and follows the degraded-success rule below.
+    // The three candidate rules:
     //
     //   REFUSE — return false here. Correct in the abstract, and wrong today: it would make the ritual
     //     loop unplayable for everyone until the presentation lane lands a Blueprint child.
@@ -195,6 +200,56 @@ bool URitualPlacementComponent::CommitRestorationWithEvidence(
     return true;
 }
 
+void URitualPlacementComponent::SpawnRestoredActor_Implementation(int32 PointIndex, AActor*& OutSpawnedActor)
+{
+    OutSpawnedActor = nullptr;
+
+    UGloamsteadPCGSubsystem* Subsystem = GetSubsystem();
+    UWorld* World = GetWorld();
+    if (!Subsystem || !World || PointIndex < 0)
+    {
+        return;
+    }
+
+    FPCGPoint Point;
+    if (!Subsystem->GetPointByIndex(PointIndex, Point))
+    {
+        return;
+    }
+
+    const ERitualType RitualType = static_cast<ERitualType>(
+        Subsystem->GetIntAttribute(Point, TEXT("RitualType"), static_cast<int32>(ERitualType::LanternPost)));
+    if (RitualType != ERitualType::LanternPost)
+    {
+        return;
+    }
+
+    UClass* ClassToSpawn = LanternPostRestoredClass.Get();
+    if (!ClassToSpawn && bUseProjectDefaultLanternPostClass)
+    {
+        ClassToSpawn = StaticLoadClass(AActor::StaticClass(), nullptr,
+            TEXT("/Game/Gloamstead/Restoration/FirstLantern/BP_Restored_LanternPost.BP_Restored_LanternPost_C"));
+    }
+    if (!ClassToSpawn)
+    {
+        return;
+    }
+
+    const FVector TerrainNormal = Subsystem->GetVectorAttribute(Point, TEXT("TerrainNormal"), FVector::UpVector);
+    const FVector SpawnLocation = Point.Transform.GetLocation() + TerrainNormal * VerticalOffset;
+    const FRotator SpawnRotation = CalculateAlignedRotation(SpawnLocation, TerrainNormal);
+
+    FActorSpawnParameters Params;
+    Params.Owner = GetOwner();
+    Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    OutSpawnedActor = World->SpawnActor<AActor>(ClassToSpawn, SpawnLocation, SpawnRotation, Params);
+    if (OutSpawnedActor)
+    {
+        OutSpawnedActor->Tags.AddUnique(TEXT("Gloamstead.RestoredLantern"));
+        OutSpawnedActor->Tags.AddUnique(*FString::Printf(TEXT("Gloamstead.RitualPoint.%d"), PointIndex));
+    }
+}
+
 void URitualPlacementComponent::PublishRestorationEvidence(
     const FRestorationEventPayload& AppliedPayload, const FString& RequestId)
 {
@@ -217,8 +272,8 @@ void URitualPlacementComponent::PublishRestorationEvidence(
         // for the rest of the session — so the player has permanently lost it with nothing visible in
         // its place. Error is also the level the automation framework escalates on, which means no
         // harness can certify a green run of the ritual loop while the loop is producing invisible
-        // lanterns. That is the intended consequence: it is currently the normal case, and it should
-        // stay red until a Blueprint child implements SpawnRestoredActor.
+        // lanterns. That is the intended consequence: a missing class or failed spawn stays red even
+        // though the point mutation remains authoritative.
         //
         // Logged here rather than in ConfirmPlacement so it fires on every path that publishes evidence,
         // including the ones that bail out below before an artifact is ever written.
@@ -226,7 +281,7 @@ void URitualPlacementComponent::PublishRestorationEvidence(
         UE_LOG(LogGloamstead, Error,
             TEXT("[GSS016] Point %d was restored but NO restored actor exists (request %s). The point is ")
             TEXT("spent and cannot be restored again, and nothing is visible there. SpawnRestoredActor ")
-            TEXT("has no implementation on this component."),
+            TEXT("had no usable class or the configured actor failed to spawn."),
             AppliedPayload.PointIndex, RequestId.IsEmpty() ? TEXT("<unminted>") : *RequestId);
     }
 
@@ -572,5 +627,13 @@ const URitualDefinition* URitualPlacementComponent::GetRitualDefinitionForType(E
 
 class UGloamsteadPCGSubsystem* URitualPlacementComponent::GetSubsystem() const
 {
-    return CachedSubsystem;
+    if (CachedSubsystem)
+    {
+        return CachedSubsystem;
+    }
+    if (const UWorld* World = GetWorld())
+    {
+        return World->GetSubsystem<UGloamsteadPCGSubsystem>();
+    }
+    return nullptr;
 }

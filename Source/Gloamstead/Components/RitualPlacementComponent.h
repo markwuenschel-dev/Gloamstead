@@ -143,8 +143,17 @@ public:
     UFUNCTION(BlueprintImplementableEvent, Category="Ritual|Placement")
     void OnPlacementModeExited();
 
-    UFUNCTION(BlueprintImplementableEvent, Category="Ritual|Placement")
+    /** Optional per-character override. When unset, the project-owned first-lantern Blueprint is loaded. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ritual|Placement")
+    TSubclassOf<AActor> LanternPostRestoredClass;
+
+    /** Keep enabled for the playable slice. Tests and specialized characters may disable the project fallback. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ritual|Placement", meta=(AdvancedDisplay))
+    bool bUseProjectDefaultLanternPostClass = true;
+
+    UFUNCTION(BlueprintNativeEvent, Category="Ritual|Placement")
     void SpawnRestoredActor(int32 PointIndex, AActor*& OutSpawnedActor);
+    virtual void SpawnRestoredActor_Implementation(int32 PointIndex, AActor*& OutSpawnedActor);
 
 protected:
     void UpdateTargetPoint();
