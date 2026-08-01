@@ -97,9 +97,16 @@ class ContractTests(unittest.TestCase):
 
     def test_qualified_label_without_independent_probe_evidence_is_red(self):
         with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "root"
+            shutil.copytree(ROOT / fc.VERSION_ROOT, root / fc.VERSION_ROOT)
             pins = Path(td) / "pins.json"
             pins.write_text(json.dumps({"qualified": True}), encoding="utf-8")
-            failures = fc.probe_workstation(ROOT, pins)
+            requirements_path = root / fc.VERSION_ROOT / "toolchain-requirements.json"
+            requirements = fc.load_json(requirements_path)
+            requirements["status"] = "qualified"
+            requirements["qualified_pins_sha256"] = fc.canonical_hash(fc.load_json(pins))
+            requirements_path.write_text(json.dumps(requirements), encoding="utf-8")
+            failures = fc.probe_workstation(root, pins)
             self.assertTrue(any(x.startswith("FAIL-UNVERIFIED-RUNTIME") for x in failures))
             self.assertTrue(any("probe_evidence" in x for x in failures))
 

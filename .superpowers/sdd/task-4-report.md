@@ -28,7 +28,7 @@ Implemented the Gloamstead-owned Sanctuary biome intent, immutable inventory, ac
 - Verified package install/hand-edit rejection in disposable repositories: PASS.
 - ZIP traversal/unexpected-file negative: PASS.
 - Workstation dry probe: expected typed rejection: no qualified ComfyUI/model/workflow/custom-node/license stack, no legitimate Substance Automation Toolkit, and Houdini 21.0.729 versus Houdini Engine 21.0.753.
-- A `qualified: true` label cannot bypass probes: the operator independently re-hashes every workflow/model/custom-node/graph/HDA/executable/plugin/license receipt, confirms tool versions and the ComfyUI Git commit/API/hardware report, and requires three production-use license receipts.
+- A `qualified: true` label cannot bypass review or probes: canonical qualified-pin bytes must match the hash in the committed Gloamstead toolchain approval, after which the operator independently re-hashes every workflow/model/custom-node/graph/HDA/executable/plugin/license receipt, confirms tool versions and the ComfyUI Git commit/API/hardware report, and requires three production-use license receipts.
 - Parameterless operator: expected typed `FAIL-UNVERIFIED-RUNTIME` until the three explicit execution/toolchain settings are configured.
 
 ## Remaining external gate

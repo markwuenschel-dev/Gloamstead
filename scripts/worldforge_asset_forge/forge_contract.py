@@ -19,6 +19,7 @@ import tempfile
 import uuid
 import zipfile
 import urllib.request
+import urllib.parse
 
 VERSION_ROOT = Path("specs/worldforge_asset_forge/sanctuary-biome-kit-1.0.0")
 LOCK_PATH = Path("specs/worldforge_asset_forge/worldforge-plugin.lock.json")
@@ -195,8 +196,8 @@ def validate_repository_contract(root: Path):
     if not errors and pointer != {"schema_version":"gloamstead.sanctuary.active-pointer.v1","catalog_object_path":"/Game/Gloamstead/Generated/DA_GeneratedAssetCatalog.DA_GeneratedAssetCatalog","active_bundle_id":None,"expected_next_bundle_id":"sanctuary-biome-kit-1.0.0"}:
         errors.append("FAIL-POINTER-CLOSURE: committed active pointer contract drift")
     toolchain = load_json(root / VERSION_ROOT / "toolchain-requirements.json")
-    errors += _exact_keys(toolchain, ["schema_version", "status", "ue", "comfyui", "substance", "houdini"], "toolchain requirements")
-    if toolchain.get("status") not in {"unqualified", "qualified"} or toolchain.get("ue", {}).get("changelist") != 55116800:
+    errors += _exact_keys(toolchain, ["schema_version", "status", "qualified_pins_sha256", "ue", "comfyui", "substance", "houdini"], "toolchain requirements")
+    if toolchain.get("status") not in {"unqualified", "qualified"} or toolchain.get("ue", {}).get("changelist") != 55116800 or (toolchain.get("status") == "unqualified" and toolchain.get("qualified_pins_sha256") is not None) or (toolchain.get("status") == "qualified" and not SHA_RE.fullmatch(str(toolchain.get("qualified_pins_sha256")))):
         errors.append("FAIL-UNVERIFIED-RUNTIME: toolchain declaration drift")
     for schema_path in sorted((root / "specs/worldforge_asset_forge/schemas").glob("*.schema.json")):
         schema = load_json(schema_path)
@@ -358,15 +359,16 @@ def verify_installed_plugin(root: Path):
     return []
 
 
-def _observed_file(path_value, expected_sha, label, failures):
+def _observed_file(path_value, expected_sha, label, failures, allow_directory=False):
     if not isinstance(path_value, str):
         failures.append(f"FAIL-UNVERIFIED-RUNTIME: {label} path is absent")
         return None
     path = Path(path_value)
-    if not path.is_absolute() or not path.is_file():
-        failures.append(f"FAIL-UNVERIFIED-RUNTIME: {label} is not an explicit existing absolute file")
+    if not path.is_absolute() or not (path.is_file() or (allow_directory and path.is_dir())):
+        failures.append(f"FAIL-UNVERIFIED-RUNTIME: {label} is not an explicit existing absolute {'path' if allow_directory else 'file'}")
         return None
-    if not SHA_RE.fullmatch(str(expected_sha)) or sha256_file(path) != expected_sha:
+    observed_sha = sha256_file(path) if path.is_file() else _tree_digest((p.relative_to(path).as_posix(), sha256_file(p), p.stat().st_size) for p in path.rglob("*") if p.is_file())
+    if not SHA_RE.fullmatch(str(expected_sha)) or observed_sha != expected_sha:
         failures.append(f"FAIL-AI-PIN-DRIFT: {label} hash drift")
         return None
     return path
@@ -400,8 +402,11 @@ def probe_workstation(root: Path, pins_path: Path | None = None):
     except (OSError, json.JSONDecodeError):
         failures.append("FAIL-UNVERIFIED-RUNTIME: qualified pins document is unreadable")
         return failures
+    if req.get("status") != "qualified" or req.get("qualified_pins_sha256") != canonical_hash(pins):
+        failures.append("FAIL-CONTRACT-DRIFT: qualified pins are not bound by the committed toolchain approval")
+        return failures
     evidence = pins.get("probe_evidence")
-    if pins.get("qualified") is not True or not isinstance(evidence, dict) or set(evidence) != {"comfyui", "substance", "houdini", "license_receipts"}:
+    if set(pins) != {"qualified", "comfy", "substance", "houdini", "vendor_pins", "validator_pins", "probe_evidence"} or pins.get("qualified") is not True or not isinstance(evidence, dict) or set(evidence) != {"comfyui", "substance", "houdini", "license_receipts"}:
         failures.append("FAIL-UNVERIFIED-RUNTIME: qualified pins require exact probe_evidence")
         return failures
     for key in ("comfy", "substance", "houdini", "vendor_pins", "validator_pins"):
@@ -413,21 +418,25 @@ def probe_workstation(root: Path, pins_path: Path | None = None):
         failures.append("FAIL-UNVERIFIED-RUNTIME: incomplete ComfyUI probe evidence")
     else:
         checkout = Path(comfy_ev["checkout"])
-        if not checkout.is_absolute() or not (checkout / ".git").exists(): failures.append("FAIL-UNVERIFIED-RUNTIME: ComfyUI checkout is not explicit Git checkout")
+        if not checkout.is_absolute() or not (checkout / ".git").exists() or not _git_clean(checkout): failures.append("FAIL-UNVERIFIED-RUNTIME: ComfyUI checkout is not explicit and clean")
         else:
             commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=checkout, capture_output=True, text=True)
             if commit.returncode or commit.stdout.strip() != comfy.get("repository_commit"): failures.append("FAIL-AI-PIN-DRIFT: ComfyUI commit drift")
         for evidence_key, pin_key in [("creation_workflow","creation_workflow_sha256"),("evaluation_workflow","evaluation_workflow_sha256"),("checkpoint","checkpoint_sha256"),("vae","vae_sha256"),("lora","lora_sha256"),("control_model","control_model_sha256"),("custom_node_lock","custom_node_lock_sha256"),("hardware_report","hardware_report_sha256")]:
             _observed_file(comfy_ev[evidence_key], comfy.get(pin_key) if pin_key in comfy else comfy_ev.get(pin_key), f"ComfyUI {evidence_key}", failures)
+        parsed_server = urllib.parse.urlparse(comfy_ev["server_url"])
+        if parsed_server.scheme != "http" or parsed_server.hostname not in {"127.0.0.1", "localhost", "::1"}:
+            failures.append("FAIL-SCOPE-CREEP: ComfyUI API must be explicit local loopback HTTP")
         try:
             hardware = load_json(Path(comfy_ev["hardware_report"]))
             if hardware.get("hardware_class") != comfy.get("hardware_class"): failures.append("FAIL-AI-PIN-DRIFT: ComfyUI hardware class drift")
         except (OSError, json.JSONDecodeError): failures.append("FAIL-UNVERIFIED-RUNTIME: ComfyUI hardware report is unreadable")
-        try:
-            with urllib.request.urlopen(comfy_ev["server_url"].rstrip("/") + "/system_stats", timeout=3) as response:
-                if response.status != 200 or not response.read(): failures.append("FAIL-UNVERIFIED-RUNTIME: ComfyUI API system probe failed")
-        except Exception:
-            failures.append("FAIL-UNVERIFIED-RUNTIME: ComfyUI API is unavailable")
+        if parsed_server.scheme == "http" and parsed_server.hostname in {"127.0.0.1", "localhost", "::1"}:
+            try:
+                with urllib.request.urlopen(comfy_ev["server_url"].rstrip("/") + "/system_stats", timeout=3) as response:
+                    if response.status != 200 or not response.read(): failures.append("FAIL-UNVERIFIED-RUNTIME: ComfyUI API system probe failed")
+            except Exception:
+                failures.append("FAIL-UNVERIFIED-RUNTIME: ComfyUI API is unavailable")
     substance, sub_ev = pins["substance"], evidence["substance"]
     if not isinstance(sub_ev, dict) or set(sub_ev) != {"sbscooker", "sbsrender", "graph"}:
         failures.append("FAIL-UNVERIFIED-RUNTIME: incomplete Substance probe evidence")
@@ -442,16 +451,17 @@ def probe_workstation(root: Path, pins_path: Path | None = None):
         failures.append("FAIL-UNVERIFIED-RUNTIME: incomplete Houdini probe evidence")
     else:
         houdini_exe = _observed_file(h_ev["executable"], houdini.get("houdini_executable_sha256"), "Houdini executable", failures)
-        _observed_file(h_ev["engine_plugin"], houdini.get("houdini_engine_plugin_sha256"), "Houdini Engine plugin", failures)
+        _observed_file(h_ev["engine_plugin"], houdini.get("houdini_engine_plugin_sha256"), "Houdini Engine plugin", failures, allow_directory=True)
         _observed_file(h_ev["hda"], houdini.get("hda_sha256"), "governed HDA", failures)
         _version_probe(houdini_exe, houdini.get("houdini_version", ""), "Houdini", failures)
     if houdini.get("houdini_version") != houdini.get("houdini_engine_version"):
         failures.append("FAIL-UNVERIFIED-RUNTIME: Houdini and Houdini Engine version drift")
     receipts = evidence["license_receipts"]
-    if not isinstance(receipts, list) or {r.get("subject") for r in receipts if isinstance(r, dict)} != {"comfy-model-stack", "substance-automation-toolkit", "houdini-engine"}:
+    if not isinstance(receipts, list) or len(receipts) != 3 or {r.get("subject") for r in receipts if isinstance(r, dict)} != {"comfy-model-stack", "substance-automation-toolkit", "houdini-engine"}:
         failures.append("FAIL-LICENSE-PROOF: exact production license receipts are missing")
     else:
         for receipt in receipts:
+            if set(receipt) != {"subject", "path", "sha256", "production_use_allowed"}: failures.append("FAIL-LICENSE-PROOF: license receipt shape drift"); continue
             if receipt.get("production_use_allowed") is not True: failures.append(f"FAIL-LICENSE-PROOF: {receipt.get('subject')} is not production-cleared"); continue
             _observed_file(receipt.get("path"), receipt.get("sha256"), f"{receipt.get('subject')} license receipt", failures)
     return failures

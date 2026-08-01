@@ -1,6 +1,7 @@
 {
   "schema_version": "gloamstead.sanctuary.toolchain-requirements.v1",
   "status": "unqualified",
+  "qualified_pins_sha256": null,
   "ue": {
     "root": "D:/UE_5.8",
     "version": "5.8.0",
