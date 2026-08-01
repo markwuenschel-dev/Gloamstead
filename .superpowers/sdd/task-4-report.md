@@ -21,13 +21,14 @@ Implemented the Gloamstead-owned Sanctuary biome intent, immutable inventory, ac
 
 ## Verification
 
-- `pwsh -NoProfile -File scripts/Test-SanctuaryBiomeKit.ps1`: PASS, 11 tests.
+- `pwsh -NoProfile -File scripts/Test-SanctuaryBiomeKit.ps1`: PASS, 12 tests.
 - Real PowerShell JSON Schema validation: PASS for intent, acceptance, inventory, and vendor lock.
 - Frozen WorldForge `BiomeKitRequest.from_dict` interoperability: PASS.
 - Canonical hash mutation fuzz: 200/200 rejected.
 - Verified package install/hand-edit rejection in disposable repositories: PASS.
 - ZIP traversal/unexpected-file negative: PASS.
 - Workstation dry probe: expected typed rejection: no qualified ComfyUI/model/workflow/custom-node/license stack, no legitimate Substance Automation Toolkit, and Houdini 21.0.729 versus Houdini Engine 21.0.753.
+- A `qualified: true` label cannot bypass probes: the operator independently re-hashes every workflow/model/custom-node/graph/HDA/executable/plugin/license receipt, confirms tool versions and the ComfyUI Git commit/API/hardware report, and requires three production-use license receipts.
 - Parameterless operator: expected typed `FAIL-UNVERIFIED-RUNTIME` until the three explicit execution/toolchain settings are configured.
 
 ## Remaining external gate

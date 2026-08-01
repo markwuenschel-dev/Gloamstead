@@ -95,6 +95,14 @@ class ContractTests(unittest.TestCase):
         self.assertTrue(any("Substance" in x for x in failures))
         self.assertTrue(any("21.0.729" in x and "21.0.753" in x for x in failures))
 
+    def test_qualified_label_without_independent_probe_evidence_is_red(self):
+        with tempfile.TemporaryDirectory() as td:
+            pins = Path(td) / "pins.json"
+            pins.write_text(json.dumps({"qualified": True}), encoding="utf-8")
+            failures = fc.probe_workstation(ROOT, pins)
+            self.assertTrue(any(x.startswith("FAIL-UNVERIFIED-RUNTIME") for x in failures))
+            self.assertTrue(any("probe_evidence" in x for x in failures))
+
     def test_real_json_schema_rejects_unknown_field_and_traversal(self):
         inventory = fc.load_json(ROOT / fc.VERSION_ROOT / "inventory.json")
         inventory["unknown"] = True

@@ -18,6 +18,7 @@ import subprocess
 import tempfile
 import uuid
 import zipfile
+import urllib.request
 
 VERSION_ROOT = Path("specs/worldforge_asset_forge/sanctuary-biome-kit-1.0.0")
 LOCK_PATH = Path("specs/worldforge_asset_forge/worldforge-plugin.lock.json")
@@ -357,7 +358,31 @@ def verify_installed_plugin(root: Path):
     return []
 
 
-def probe_workstation(root: Path):
+def _observed_file(path_value, expected_sha, label, failures):
+    if not isinstance(path_value, str):
+        failures.append(f"FAIL-UNVERIFIED-RUNTIME: {label} path is absent")
+        return None
+    path = Path(path_value)
+    if not path.is_absolute() or not path.is_file():
+        failures.append(f"FAIL-UNVERIFIED-RUNTIME: {label} is not an explicit existing absolute file")
+        return None
+    if not SHA_RE.fullmatch(str(expected_sha)) or sha256_file(path) != expected_sha:
+        failures.append(f"FAIL-AI-PIN-DRIFT: {label} hash drift")
+        return None
+    return path
+
+
+def _version_probe(executable, expected, label, failures):
+    if executable is None: return
+    try:
+        observed = subprocess.run([str(executable), "--version"], capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.TimeoutExpired):
+        failures.append(f"FAIL-UNVERIFIED-RUNTIME: {label} version probe failed"); return
+    if observed.returncode or expected not in (observed.stdout + observed.stderr):
+        failures.append(f"FAIL-UNVERIFIED-RUNTIME: {label} version drift")
+
+
+def probe_workstation(root: Path, pins_path: Path | None = None):
     req = load_json(root / VERSION_ROOT / "toolchain-requirements.json")
     failures = []
     build = Path(req["ue"]["root"]) / "Engine/Build/Build.version"
@@ -366,10 +391,69 @@ def probe_workstation(root: Path):
         data = load_json(build)
         if data.get("MajorVersion") != 5 or data.get("MinorVersion") != 8 or data.get("Changelist") != req["ue"]["changelist"]:
             failures.append("FAIL-UNVERIFIED-RUNTIME: UE build identity drift")
-    if req.get("status") != "qualified":
+    if pins_path is None:
         failures += ["FAIL-AI-PIN-DRIFT: ComfyUI/model/workflow/custom-node/license stack is unqualified",
                      "FAIL-UNVERIFIED-RUNTIME: licensed Substance Automation Toolkit is unavailable",
                      "FAIL-UNVERIFIED-RUNTIME: Houdini 21.0.729 does not match Houdini Engine 21.0.753"]
+        return failures
+    try: pins = load_json(pins_path)
+    except (OSError, json.JSONDecodeError):
+        failures.append("FAIL-UNVERIFIED-RUNTIME: qualified pins document is unreadable")
+        return failures
+    evidence = pins.get("probe_evidence")
+    if pins.get("qualified") is not True or not isinstance(evidence, dict) or set(evidence) != {"comfyui", "substance", "houdini", "license_receipts"}:
+        failures.append("FAIL-UNVERIFIED-RUNTIME: qualified pins require exact probe_evidence")
+        return failures
+    for key in ("comfy", "substance", "houdini", "vendor_pins", "validator_pins"):
+        if not isinstance(pins.get(key), dict) or not pins[key]: failures.append(f"FAIL-UNVERIFIED-RUNTIME: missing qualified {key} pins")
+    if failures: return failures
+    comfy, comfy_ev = pins["comfy"], evidence["comfyui"]
+    expected_comfy_ev = {"checkout", "creation_workflow", "evaluation_workflow", "checkpoint", "vae", "lora", "control_model", "custom_node_lock", "server_url", "hardware_report", "hardware_report_sha256"}
+    if not isinstance(comfy_ev, dict) or set(comfy_ev) != expected_comfy_ev:
+        failures.append("FAIL-UNVERIFIED-RUNTIME: incomplete ComfyUI probe evidence")
+    else:
+        checkout = Path(comfy_ev["checkout"])
+        if not checkout.is_absolute() or not (checkout / ".git").exists(): failures.append("FAIL-UNVERIFIED-RUNTIME: ComfyUI checkout is not explicit Git checkout")
+        else:
+            commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=checkout, capture_output=True, text=True)
+            if commit.returncode or commit.stdout.strip() != comfy.get("repository_commit"): failures.append("FAIL-AI-PIN-DRIFT: ComfyUI commit drift")
+        for evidence_key, pin_key in [("creation_workflow","creation_workflow_sha256"),("evaluation_workflow","evaluation_workflow_sha256"),("checkpoint","checkpoint_sha256"),("vae","vae_sha256"),("lora","lora_sha256"),("control_model","control_model_sha256"),("custom_node_lock","custom_node_lock_sha256"),("hardware_report","hardware_report_sha256")]:
+            _observed_file(comfy_ev[evidence_key], comfy.get(pin_key) if pin_key in comfy else comfy_ev.get(pin_key), f"ComfyUI {evidence_key}", failures)
+        try:
+            hardware = load_json(Path(comfy_ev["hardware_report"]))
+            if hardware.get("hardware_class") != comfy.get("hardware_class"): failures.append("FAIL-AI-PIN-DRIFT: ComfyUI hardware class drift")
+        except (OSError, json.JSONDecodeError): failures.append("FAIL-UNVERIFIED-RUNTIME: ComfyUI hardware report is unreadable")
+        try:
+            with urllib.request.urlopen(comfy_ev["server_url"].rstrip("/") + "/system_stats", timeout=3) as response:
+                if response.status != 200 or not response.read(): failures.append("FAIL-UNVERIFIED-RUNTIME: ComfyUI API system probe failed")
+        except Exception:
+            failures.append("FAIL-UNVERIFIED-RUNTIME: ComfyUI API is unavailable")
+    substance, sub_ev = pins["substance"], evidence["substance"]
+    if not isinstance(sub_ev, dict) or set(sub_ev) != {"sbscooker", "sbsrender", "graph"}:
+        failures.append("FAIL-UNVERIFIED-RUNTIME: incomplete Substance probe evidence")
+    else:
+        cooker = _observed_file(sub_ev["sbscooker"], substance.get("sbscooker_sha256"), "sbscooker", failures)
+        renderer = _observed_file(sub_ev["sbsrender"], substance.get("sbsrender_sha256"), "sbsrender", failures)
+        _observed_file(sub_ev["graph"], substance.get("graph_sha256"), "governed Substance graph", failures)
+        _version_probe(cooker, substance.get("sbscooker_version", ""), "sbscooker", failures)
+        _version_probe(renderer, substance.get("sbsrender_version", ""), "sbsrender", failures)
+    houdini, h_ev = pins["houdini"], evidence["houdini"]
+    if not isinstance(h_ev, dict) or set(h_ev) != {"executable", "engine_plugin", "hda"}:
+        failures.append("FAIL-UNVERIFIED-RUNTIME: incomplete Houdini probe evidence")
+    else:
+        houdini_exe = _observed_file(h_ev["executable"], houdini.get("houdini_executable_sha256"), "Houdini executable", failures)
+        _observed_file(h_ev["engine_plugin"], houdini.get("houdini_engine_plugin_sha256"), "Houdini Engine plugin", failures)
+        _observed_file(h_ev["hda"], houdini.get("hda_sha256"), "governed HDA", failures)
+        _version_probe(houdini_exe, houdini.get("houdini_version", ""), "Houdini", failures)
+    if houdini.get("houdini_version") != houdini.get("houdini_engine_version"):
+        failures.append("FAIL-UNVERIFIED-RUNTIME: Houdini and Houdini Engine version drift")
+    receipts = evidence["license_receipts"]
+    if not isinstance(receipts, list) or {r.get("subject") for r in receipts if isinstance(r, dict)} != {"comfy-model-stack", "substance-automation-toolkit", "houdini-engine"}:
+        failures.append("FAIL-LICENSE-PROOF: exact production license receipts are missing")
+    else:
+        for receipt in receipts:
+            if receipt.get("production_use_allowed") is not True: failures.append(f"FAIL-LICENSE-PROOF: {receipt.get('subject')} is not production-cleared"); continue
+            _observed_file(receipt.get("path"), receipt.get("sha256"), f"{receipt.get('subject')} license receipt", failures)
     return failures
 
 
@@ -425,7 +509,7 @@ def run_operator(root: Path, pins_path: Path, deadline: str, generation_ref: str
         raise ForgeError("FAIL-UNVERIFIED-RUNTIME", "Explicit WorldForge checkout is missing or dirty", "preflight")
     if not worldforge_python.is_file():
         raise ForgeError("FAIL-UNVERIFIED-RUNTIME", "Explicit WorldForge Python executable is missing", "preflight")
-    failures = probe_workstation(root)
+    failures = probe_workstation(root, pins_path)
     if failures:
         raise ForgeError(failures[0].split(":",1)[0], "; ".join(failures), "probe")
     pointer = load_json(root / VERSION_ROOT / "active-kit-pointer.json")
