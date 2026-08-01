@@ -139,6 +139,17 @@ namespace
 			H[0],H[1],H[2],H[3],H[4],H[5],H[6],H[7]);
 	}
 
+	bool Utf8BytesLess(const FString& A, const FString& B)
+	{
+		const FTCHARToUTF8 Utf8A(*A);
+		const FTCHARToUTF8 Utf8B(*B);
+		const int32 SharedLength = FMath::Min(Utf8A.Length(), Utf8B.Length());
+		const int32 PrefixOrder = SharedLength > 0
+			? FMemory::Memcmp(Utf8A.Get(), Utf8B.Get(), SharedLength)
+			: 0;
+		return PrefixOrder < 0 || (PrefixOrder == 0 && Utf8A.Length() < Utf8B.Length());
+	}
+
 	bool IsStableId(const FString& Value)
 	{
 		if (Value.IsEmpty())
@@ -646,7 +657,7 @@ FString GACCanonicalCatalogContract(const UGloamsteadGeneratedAssetCatalog& Cata
 	auto AppendSortedValues = [&AppendField](
 		FString& Out, const TCHAR* CountName, const TCHAR* ItemName, TArray<FString> Values)
 	{
-		Values.Sort([](const FString& A, const FString& B) { return A < B; });
+		Values.Sort([](const FString& A, const FString& B) { return Utf8BytesLess(A, B); });
 		AppendField(Out, CountName, FString::FromInt(Values.Num()));
 		for (const FString& Value : Values)
 		{

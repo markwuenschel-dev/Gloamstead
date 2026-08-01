@@ -131,9 +131,11 @@ public:
 	/** Test seam: exercises the same validation transition without requiring an authored .uasset. */
 	void Test_SetLoadedCatalog(UGloamsteadGeneratedAssetCatalog* Catalog,
 		const FString& ExpectedBundleId, const FString& ExpectedReceiptSha256,
-		const FGloamsteadGeneratedAssetRuntimeIdentity& ObservedRuntimeIdentity);
+		const FGloamsteadGeneratedAssetRuntimeIdentity& ObservedRuntimeIdentity,
+		FSimpleDelegate ObservationCallback = FSimpleDelegate());
 	void Test_SetObservedRuntimeIdentity(
-		const FGloamsteadGeneratedAssetRuntimeIdentity& ObservedRuntimeIdentity);
+		const FGloamsteadGeneratedAssetRuntimeIdentity& ObservedRuntimeIdentity,
+		FSimpleDelegate ObservationCallback = FSimpleDelegate());
 	/** Test-only deterministic stand-ins for cooked Asset Registry/object resolution. */
 	void Test_SetResolvedObject(const FSoftObjectPath& ObjectPath, UObject* Object);
 	void Test_SetObservedProvenance(const FSoftObjectPath& ObjectPath,
@@ -142,6 +144,9 @@ public:
 	void Test_SetPackageDependencies(const FSoftObjectPath& ObjectPath,
 		const TArray<FName>& DependencyPackages);
 	void Test_MarkPackageDependencyQueryUnavailable(const FString& PackageName);
+	void Test_SetObjectResolutionCallback(FSimpleDelegate Callback);
+	void Test_SetActorSpawnCallback(
+		TFunction<void(AGloamsteadMeshForgeProxyActor*)> Callback);
 	TArray<FString> Test_ValidateDependencyClosure();
 	void Test_ForceSpawnFailure(bool bForce) { bTestForceSpawnFailure = bForce; }
 	uint64 Test_BeginPendingCatalogLoad();
@@ -159,8 +164,11 @@ private:
 	bool EnsureAcceptedCatalogContractCurrent();
 	/** Irreversibly reject this configuration; only Configure followed by a fresh load clears the latch. */
 	void InvalidateAcceptedCatalog(const TArray<FString>& Codes);
+	bool IsCatalogObjectGenerationQuarantined(
+		const UGloamsteadGeneratedAssetCatalog* Catalog) const;
+	void QuarantineCatalogObjectGeneration(UGloamsteadGeneratedAssetCatalog* Catalog);
 	void Fail(const TArray<FString>& Codes);
-	UObject* ResolveEntryObject(const FSoftObjectPath& ObjectPath) const;
+	UObject* ResolveEntryObject(const FSoftObjectPath& ObjectPath);
 	FGloamsteadGeneratedAssetObservedProvenance ReadObservedProvenance(
 		const FSoftObjectPath& ObjectPath) const;
 	bool ReadPackageDependencies(FName PackageName, TArray<FName>& OutDependencies) const;
@@ -179,14 +187,18 @@ private:
 	TSet<FName> VerifiedTerminalScriptPackages;
 	/** Canonical digest of every catalog contract field at the moment the provider entered Ready. */
 	FString AcceptedCatalogContractSha256;
-	/** Set only by post-acceptance mutation. Preload/revalidation cannot clear it; Configure must. */
+	/** Set by an integrity mutation. Preload/revalidation cannot clear it; Configure must. */
 	bool bRequiresFreshConfiguration = false;
+	/** Mutated UObject generations remain quarantined across Configure; only a new serialized load may replace one. */
+	TArray<TWeakObjectPtr<UGloamsteadGeneratedAssetCatalog>> RejectedCatalogObjectGenerations;
 	uint64 LoadGeneration = 0;
 #if WITH_DEV_AUTOMATION_TESTS
 	TMap<FSoftObjectPath, TWeakObjectPtr<UObject>> TestResolvedObjects;
 	TMap<FSoftObjectPath, FGloamsteadGeneratedAssetObservedProvenance> TestObservedProvenance;
 	TMap<FName, TArray<FName>> TestPackageDependencies;
 	TSet<FName> TestUnavailablePackageDependencyQueries;
+	FSimpleDelegate TestObjectResolutionCallback;
+	TFunction<void(AGloamsteadMeshForgeProxyActor*)> TestActorSpawnCallback;
 	bool bTestForceSpawnFailure = false;
 #endif
 };

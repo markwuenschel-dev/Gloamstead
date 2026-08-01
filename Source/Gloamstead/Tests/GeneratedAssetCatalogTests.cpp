@@ -579,7 +579,117 @@ bool FGloamGeneratedAssetProviderProvenanceTest::RunTest(const FString& /*Parame
 	TestTrue(TEXT("unresolved location is explicit -> GAC025"),
 		MissingLocation.FailureCodes.Contains(TEXT("GAC025")));
 
+	auto ConfigureSpawnableProvider = [&](UGloamsteadGeneratedAssetCatalog* InCatalog)
+	{
+		UGloamsteadGeneratedAssetMeshForgeProvider* Result =
+			NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+		Result->Test_SetLoadedCatalog(InCatalog, InCatalog->BundleId, InCatalog->ReceiptSha256,
+			MakeObservedRuntimeIdentity());
+		const FSoftObjectPath InPath = InCatalog->Entries[0].Asset.ToSoftObjectPath();
+		Result->Test_SetPackageDependencies(InPath, {});
+		Result->Test_SetResolvedObject(InPath, TestMesh);
+		Result->Test_SetObservedProvenance(InPath, {
+			InCatalog->Entries[0].ObjectSha256, InCatalog->ReceiptSha256, InCatalog->BundleId });
+		return Result;
+	};
+
+	Binding.bLocationResolved = true;
+	UGloamsteadGeneratedAssetCatalog* LoadMutationCatalog = MakeValidCatalog();
+	UGloamsteadGeneratedAssetMeshForgeProvider* LoadMutationProvider =
+		ConfigureSpawnableProvider(LoadMutationCatalog);
+	LoadMutationProvider->Test_SetObjectResolutionCallback(
+		FSimpleDelegate::CreateLambda([LoadMutationCatalog]()
+		{
+			LoadMutationCatalog->Entries[0].LicenseId = TEXT("LicenseRef-ReentrantLoad");
+		}));
+	const FGloamsteadMeshForgeProxyInstance LoadMutation =
+		LoadMutationProvider->CreateProxy(Spec, Binding, World);
+	TestTrue(TEXT("contract mutation from reentrant asset load reports GAC039"),
+		LoadMutation.FailureCodes.Contains(TEXT("GAC039")));
+	TestFalse(TEXT("reentrant asset-load mutation never spawns"), LoadMutation.bSpawned);
+
+	UGloamsteadGeneratedAssetCatalog* SpawnMutationCatalog = MakeValidCatalog();
+	UGloamsteadGeneratedAssetMeshForgeProvider* SpawnMutationProvider =
+		ConfigureSpawnableProvider(SpawnMutationCatalog);
+	AGloamsteadMeshForgeProxyActor* ActorObservedInsideSpawnBoundary = nullptr;
+	SpawnMutationProvider->Test_SetActorSpawnCallback(
+		[SpawnMutationCatalog, &ActorObservedInsideSpawnBoundary](
+			AGloamsteadMeshForgeProxyActor* SpawnedActor)
+		{
+			ActorObservedInsideSpawnBoundary = SpawnedActor;
+			SpawnMutationCatalog->Entries[0].OwnershipId = TEXT("gloamstead-reentrant-spawn");
+		});
+	const FGloamsteadMeshForgeProxyInstance SpawnMutation =
+		SpawnMutationProvider->CreateProxy(Spec, Binding, World);
+	TestTrue(TEXT("contract mutation from reentrant actor spawn reports GAC039"),
+		SpawnMutation.FailureCodes.Contains(TEXT("GAC039")));
+	TestFalse(TEXT("spawn-boundary mutation clears the returned actor"), SpawnMutation.bSpawned);
+	TestNotNull(TEXT("hostile callback observed the exact spawned actor"),
+		ActorObservedInsideSpawnBoundary);
+	TestTrue(TEXT("spawn-boundary mutation destroys the actor before returning"),
+		ActorObservedInsideSpawnBoundary
+			&& (!IsValid(ActorObservedInsideSpawnBoundary)
+				|| ActorObservedInsideSpawnBoundary->IsActorBeingDestroyed()));
+
 	World->DestroyWorld(false);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamGeneratedAssetProviderLoadCompletionTest,
+	"Gloamstead.GeneratedAssets.CurrentGenerationLoadCompletesExactlyOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamGeneratedAssetProviderLoadCompletionTest::RunTest(const FString& /*Parameters*/)
+{
+	auto CountCompletion = [](int32& Count)
+	{
+		return FSimpleDelegate::CreateLambda([&Count]() { ++Count; });
+	};
+
+	UGloamsteadGeneratedAssetMeshForgeProvider* NullProvider =
+		NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+	int32 NullCount = 0;
+	const uint64 NullGeneration = NullProvider->Test_BeginPendingCatalogLoad();
+	NullProvider->Test_CompleteCatalogLoad(NullGeneration, FSoftObjectPath(), nullptr,
+		CountCompletion(NullCount));
+	TestEqual(TEXT("current-generation null-catalog terminal path completes once"), NullCount, 1);
+
+	UGloamsteadGeneratedAssetMeshForgeProvider* PathProvider =
+		NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+	int32 PathCount = 0;
+	const uint64 PathGeneration = PathProvider->Test_BeginPendingCatalogLoad();
+	PathProvider->Test_CompleteCatalogLoad(PathGeneration,
+		FSoftObjectPath(TEXT("/Game/Unexpected.Unexpected")), MakeValidCatalog(),
+		CountCompletion(PathCount));
+	TestEqual(TEXT("current-generation path-mismatch terminal path completes once"), PathCount, 1);
+
+	UGloamsteadGeneratedAssetCatalog* Catalog = MakeValidCatalog();
+	UGloamsteadGeneratedAssetMeshForgeProvider* SuccessProvider =
+		NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+	SuccessProvider->Test_SetLoadedCatalog(Catalog, Catalog->BundleId, Catalog->ReceiptSha256,
+		MakeObservedRuntimeIdentity());
+	int32 SuccessCount = 0;
+	const uint64 SuccessGeneration = SuccessProvider->Test_BeginPendingCatalogLoad();
+	SuccessProvider->Test_CompleteCatalogLoad(SuccessGeneration, FSoftObjectPath(), Catalog,
+		CountCompletion(SuccessCount));
+	TestEqual(TEXT("current-generation successful terminal path completes once"), SuccessCount, 1);
+
+	int32 MutationCount = 0;
+	const uint64 MutationGeneration = SuccessProvider->Test_BeginPendingCatalogLoad();
+	Catalog->Entries[0].LicenseId = TEXT("LicenseRef-CompletionMutation");
+	SuccessProvider->Test_CompleteCatalogLoad(MutationGeneration, FSoftObjectPath(), Catalog,
+		CountCompletion(MutationCount));
+	TestEqual(TEXT("current-generation mutation rejection completes once"), MutationCount, 1);
+
+	UGloamsteadGeneratedAssetMeshForgeProvider* StaleProvider =
+		NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+	int32 StaleCount = 0;
+	const uint64 StaleGeneration = StaleProvider->Test_BeginPendingCatalogLoad();
+	StaleProvider->Test_BeginPendingCatalogLoad();
+	StaleProvider->Test_CompleteCatalogLoad(StaleGeneration, FSoftObjectPath(), MakeValidCatalog(),
+		CountCompletion(StaleCount));
+	TestEqual(TEXT("stale generation remains intentionally ignored"), StaleCount, 0);
 	return true;
 }
 
@@ -779,9 +889,80 @@ bool FGloamGeneratedAssetProviderImmutableCatalogTest::RunTest(const FString& /*
 	StaleProvider->Test_SetObservedRuntimeIdentity(MakeObservedRuntimeIdentity());
 	const uint64 FreshGeneration = StaleProvider->Test_BeginPendingCatalogLoad();
 	StaleProvider->Test_CompleteCatalogLoad(FreshGeneration, FreshSettings->Catalog.ToSoftObjectPath(),
-		FreshCatalog);
-	TestTrue(TEXT("explicit Configure plus fresh async load can accept a fresh immutable catalog"),
+		StaleCatalog);
+	TestTrue(TEXT("Configure cannot reaccept the same cached UObject generation after mutation"),
+		StaleProvider->HasFailed() && StaleProvider->GetFailureCodes().Contains(TEXT("GAC039")));
+	StaleProvider->Configure(*FreshSettings);
+	StaleProvider->Test_SetObservedRuntimeIdentity(MakeObservedRuntimeIdentity());
+	const uint64 SerializedGeneration = StaleProvider->Test_BeginPendingCatalogLoad();
+	StaleProvider->Test_CompleteCatalogLoad(SerializedGeneration,
+		FreshSettings->Catalog.ToSoftObjectPath(), FreshCatalog);
+	TestTrue(TEXT("explicit Configure plus a fresh UObject generation can accept serialized catalog bytes"),
 		StaleProvider->IsReadyForBuild());
+
+	UGloamsteadGeneratedAssetCatalog* InitialMutationCatalog = MakeContractCatalog();
+	UGloamsteadGeneratedAssetMeshForgeProvider* InitialMutationProvider =
+		NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+	InitialMutationProvider->Test_SetLoadedCatalog(InitialMutationCatalog,
+		InitialMutationCatalog->BundleId, InitialMutationCatalog->ReceiptSha256,
+		MakeObservedRuntimeIdentity(), FSimpleDelegate::CreateLambda([InitialMutationCatalog]()
+		{
+			// This remains structurally valid and therefore specifically exercises the hash sandwich.
+			InitialMutationCatalog->Entries[0].LicenseId = TEXT("LicenseRef-Observer");
+		}));
+	TestTrue(TEXT("valid observer-time mutation during initial acceptance fails closed"),
+		InitialMutationProvider->HasFailed()
+			&& InitialMutationProvider->GetFailureCodes().Contains(TEXT("GAC039")));
+
+	UGloamsteadGeneratedAssetCatalog* RevalidateMutationCatalog = MakeContractCatalog();
+	UGloamsteadGeneratedAssetMeshForgeProvider* RevalidateMutationProvider =
+		NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+	RevalidateMutationProvider->Test_SetLoadedCatalog(RevalidateMutationCatalog,
+		RevalidateMutationCatalog->BundleId, RevalidateMutationCatalog->ReceiptSha256,
+		MakeObservedRuntimeIdentity());
+	RevalidateMutationProvider->Test_SetObservedRuntimeIdentity(MakeObservedRuntimeIdentity(),
+		FSimpleDelegate::CreateLambda([RevalidateMutationCatalog]()
+		{
+			RevalidateMutationCatalog->Entries[0].OwnershipId = TEXT("gloamstead-observer");
+		}));
+	TestFalse(TEXT("valid observer-time mutation during revalidation is rejected"),
+		RevalidateMutationProvider->RevalidateRuntimeIdentity());
+	TestTrue(TEXT("revalidation mutation reports GAC039"),
+		RevalidateMutationProvider->GetFailureCodes().Contains(TEXT("GAC039")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamGeneratedAssetCatalogCanonicalUtf8OrderTest,
+	"Gloamstead.GeneratedAssets.CatalogCanonicalOrderingUsesUtf8Bytes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamGeneratedAssetCatalogCanonicalUtf8OrderTest::RunTest(const FString& /*Parameters*/)
+{
+	UGloamsteadGeneratedAssetCatalog* Catalog = MakeValidCatalog();
+	FString PrivateUseThenAscii;
+	PrivateUseThenAscii.AppendChar(static_cast<TCHAR>(0xe000));
+	PrivateUseThenAscii.AppendChar(TEXT('a'));
+	FString Supplementary;
+	Supplementary.AppendChar(static_cast<TCHAR>(0xd800));
+	Supplementary.AppendChar(static_cast<TCHAR>(0xdc00));
+	Catalog->TerminalPlatformPackages = { Supplementary, PrivateUseThenAscii };
+
+	const FTCHARToUTF8 PrivateUseUtf8(*PrivateUseThenAscii);
+	const FTCHARToUTF8 SupplementaryUtf8(*Supplementary);
+	TestEqual(TEXT("known vector strings have equal UTF-8 byte lengths"),
+		PrivateUseUtf8.Length(), SupplementaryUtf8.Length());
+	TestTrue(TEXT("independent known vector orders U+E000+'a' before U+10000 in UTF-8"),
+		FMemory::Memcmp(PrivateUseUtf8.Get(), SupplementaryUtf8.Get(), PrivateUseUtf8.Length()) < 0);
+	const FString Canonical = GACCanonicalCatalogContract(*Catalog);
+	const int32 PrivateUseIndex = Canonical.Find(PrivateUseThenAscii, ESearchCase::CaseSensitive);
+	const int32 SupplementaryIndex = Canonical.Find(Supplementary, ESearchCase::CaseSensitive);
+	TestTrue(TEXT("catalog canonical serializer follows UTF-8 byte order, not UTF-16 TCHAR order"),
+		PrivateUseIndex != INDEX_NONE && SupplementaryIndex != INDEX_NONE
+			&& PrivateUseIndex < SupplementaryIndex);
+	TestEqual(TEXT("catalog digest matches the independent Python UTF-8 serializer vector"),
+		GACCatalogContractSha256(*Catalog),
+		FString(TEXT("1124eca43183e5c7b96a947c4edc1ea70685a9d9b0960bcd99070ce3840f6702")));
 	return true;
 }
 
