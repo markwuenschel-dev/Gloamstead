@@ -365,6 +365,52 @@ bool FGloamGeneratedAssetProviderFailClosedTest::RunTest(const FString& /*Parame
 	TestTrue(TEXT("production source without verified plugin/lock evidence fails closed -> GAC037"),
 		UnverifiedRuntimeProvider->GetFailureCodes().Contains(TEXT("GAC037")));
 
+	UGloamsteadGeneratedAssetMeshForgeProvider* LifecycleProvider =
+		NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+	LifecycleProvider->Test_SetLoadedCatalog(Catalog, Catalog->BundleId, Catalog->ReceiptSha256,
+		MakeObservedRuntimeIdentity());
+	TestTrue(TEXT("explicit test identity can qualify only its immediate test use"),
+		LifecycleProvider->IsReadyForBuild());
+	LifecycleProvider->Configure(*UnverifiedRuntimeSettings);
+	const uint64 ReconfiguredGeneration = LifecycleProvider->Test_BeginPendingCatalogLoad();
+	LifecycleProvider->Test_CompleteCatalogLoad(
+		ReconfiguredGeneration, UnverifiedRuntimeSettings->Catalog.ToSoftObjectPath(), Catalog);
+	TestTrue(TEXT("Configure discards a test identity and restores production fail-closed observation -> GAC037"),
+		LifecycleProvider->GetFailureCodes().Contains(TEXT("GAC037")));
+	TestFalse(TEXT("revalidation cannot recover the discarded test identity"),
+		LifecycleProvider->RevalidateRuntimeIdentity());
+	TestTrue(TEXT("revalidation remains fail-closed after Configure -> GAC037"),
+		LifecycleProvider->GetFailureCodes().Contains(TEXT("GAC037")));
+
+	LifecycleProvider->Test_SetLoadedCatalog(Catalog, Catalog->BundleId, Catalog->ReceiptSha256,
+		MakeObservedRuntimeIdentity());
+	const uint64 PreDeactivateGeneration = LifecycleProvider->Test_BeginPendingCatalogLoad();
+	const FSoftObjectPath PreDeactivatePath = UnverifiedRuntimeSettings->Catalog.ToSoftObjectPath();
+	LifecycleProvider->Deactivate();
+	bool bDeactivatedCompletionRan = false;
+	LifecycleProvider->Test_CompleteCatalogLoad(
+		PreDeactivateGeneration, PreDeactivatePath, Catalog,
+		FSimpleDelegate::CreateLambda(
+			[&bDeactivatedCompletionRan]() { bDeactivatedCompletionRan = true; }));
+	TestFalse(TEXT("a completion from before Deactivate is ignored"), bDeactivatedCompletionRan);
+	TestNull(TEXT("a completion from before Deactivate cannot restore the catalog"),
+		LifecycleProvider->GetCatalog());
+	const uint64 PostDeactivateGeneration = LifecycleProvider->Test_BeginPendingCatalogLoad();
+	LifecycleProvider->Test_CompleteCatalogLoad(
+		PostDeactivateGeneration, PreDeactivatePath, Catalog);
+	TestTrue(TEXT("Deactivate itself discards a test identity -> GAC037"),
+		LifecycleProvider->GetFailureCodes().Contains(TEXT("GAC037")));
+
+	LifecycleProvider->Test_SetLoadedCatalog(Catalog, Catalog->BundleId, Catalog->ReceiptSha256,
+		MakeObservedRuntimeIdentity());
+	LifecycleProvider->Deactivate();
+	LifecycleProvider->Configure(*UnverifiedRuntimeSettings);
+	const uint64 ReconfiguredAfterDeactivateGeneration = LifecycleProvider->Test_BeginPendingCatalogLoad();
+	LifecycleProvider->Test_CompleteCatalogLoad(
+		ReconfiguredAfterDeactivateGeneration, PreDeactivatePath, Catalog);
+	TestTrue(TEXT("Deactivate followed by Configure cannot retain a test identity -> GAC037"),
+		LifecycleProvider->GetFailureCodes().Contains(TEXT("GAC037")));
+
 	UGloamsteadGeneratedAssetSettings* FirstSettings = NewObject<UGloamsteadGeneratedAssetSettings>();
 	FirstSettings->Catalog = TSoftObjectPtr<UGloamsteadGeneratedAssetCatalog>(FSoftObjectPath(
 		TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/DA_First.DA_First")));

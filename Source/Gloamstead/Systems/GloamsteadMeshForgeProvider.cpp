@@ -283,6 +283,9 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadEnginePrimitiveMeshForgeProvider::C
 void UGloamsteadGeneratedAssetMeshForgeProvider::Configure(const UGloamsteadGeneratedAssetSettings& Settings)
 {
 	CancelOutstandingPreload();
+	// Configuration is a production lifecycle boundary. A development automation observer is valid
+	// only for the explicit test operation that installed it and must never survive reuse of this UObject.
+	RuntimeIdentitySource = MakeShared<FUnavailableRuntimeIdentitySource>();
 	CatalogPath = Settings.Catalog;
 	ExpectedBundleId = Settings.ExpectedActiveBundleId;
 	ExpectedReceiptSha256 = Settings.ExpectedReceiptSha256;
@@ -295,6 +298,7 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::Configure(const UGloamsteadGene
 void UGloamsteadGeneratedAssetMeshForgeProvider::Deactivate()
 {
 	CancelOutstandingPreload();
+	RuntimeIdentitySource = MakeShared<FUnavailableRuntimeIdentitySource>();
 	LoadedCatalog = nullptr;
 	FailureCodes.Reset();
 	State = EGMFGeneratedProviderState::Uninitialized;
