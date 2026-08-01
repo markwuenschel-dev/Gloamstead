@@ -11,6 +11,25 @@
 
 namespace
 {
+	FGloamsteadGeneratedAssetRuntimeIdentity MakeObservedRuntimeIdentity()
+	{
+		FGloamsteadGeneratedAssetRuntimeIdentity Identity;
+		Identity.EngineVersion = TEXT("5.8.0-55116800+++UE5+Release-5.8");
+		Identity.CompatibleEngineVersion = TEXT("5.8.0-55116800+++UE5+Release-5.8");
+		Identity.EngineBuildVersion = TEXT("++UE5+Release-5.8-CL-55116800");
+		Identity.EngineChangelist = 55116800;
+		Identity.CompatibleEngineChangelist = 55116800;
+		Identity.GloamsteadCommit = TEXT("0123456789abcdef0123456789abcdef01234567");
+		Identity.PluginVersion = TEXT("0.2.0");
+		Identity.PluginEngineVersion = TEXT("5.8.0");
+		Identity.PluginDescriptorSha256 = TEXT("1111111111111111111111111111111111111111111111111111111111111111");
+		Identity.InstalledPluginTreeSha256 = TEXT("2222222222222222222222222222222222222222222222222222222222222222");
+		Identity.VendorLockSha256 = TEXT("3333333333333333333333333333333333333333333333333333333333333333");
+		Identity.DeclaredPluginPackageSha256 = TEXT("4444444444444444444444444444444444444444444444444444444444444444");
+		Identity.DeclaredPluginBuildIdentity = TEXT("wfplugin-5555555555555555555555555555555555555555555555555555555555555555");
+		return Identity;
+	}
+
 	FGloamsteadGeneratedAssetEntry MakeValidMeshEntry(
 		FName Role = TEXT("sanctuary.heart"),
 		EGloamsteadGeneratedAssetState State = EGloamsteadGeneratedAssetState::Restored)
@@ -34,7 +53,7 @@ namespace
 		Catalog->BundleId = TEXT("sanctuary-v1");
 		Catalog->ReceiptSha256 = TEXT("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
 		Catalog->VersionRoot = TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1");
-		Catalog->TargetBuildIdentitySha256 = TEXT("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+		Catalog->TargetBuildIdentitySha256 = GACRuntimeIdentitySha256(MakeObservedRuntimeIdentity());
 		Catalog->Entries.Add(MakeValidMeshEntry());
 		return Catalog;
 	}
@@ -140,14 +159,15 @@ bool FGloamGeneratedAssetCatalogFailClosedTest::RunTest(const FString& /*Paramet
 	Catalog->Entries[0] = MakeValidMeshEntry();
 	TestTrue(TEXT("stale bundle -> GAC014"),
 		GACValidateActiveBinding(*Catalog, TEXT("sanctuary-v2"), Catalog->ReceiptSha256,
-			Catalog->TargetBuildIdentitySha256).Contains(TEXT("GAC014")));
+			Catalog->TargetBuildIdentitySha256, MakeObservedRuntimeIdentity()).Contains(TEXT("GAC014")));
 	TestTrue(TEXT("stale receipt -> GAC015"),
 		GACValidateActiveBinding(*Catalog, Catalog->BundleId,
 			TEXT("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
-			Catalog->TargetBuildIdentitySha256).Contains(TEXT("GAC015")));
+			Catalog->TargetBuildIdentitySha256, MakeObservedRuntimeIdentity()).Contains(TEXT("GAC015")));
 	TestTrue(TEXT("stale target build identity -> GAC036"),
 		GACValidateActiveBinding(*Catalog, Catalog->BundleId, Catalog->ReceiptSha256,
-			TEXT("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"))
+			TEXT("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"),
+			MakeObservedRuntimeIdentity())
 			.Contains(TEXT("GAC036")));
 	Catalog->TerminalPlatformPackageRoots = { TEXT("/Game") };
 	TestTrue(TEXT("terminal policy is limited to safe platform roots -> GAC034"),
@@ -160,8 +180,7 @@ bool FGloamGeneratedAssetCatalogFailClosedTest::RunTest(const FString& /*Paramet
 	Catalog->TargetBuildIdentitySha256.Reset();
 	TestTrue(TEXT("catalog target build identity is mandatory -> GAC036"),
 		GACValidateCatalog(*Catalog).Contains(TEXT("GAC036")));
-	Catalog->TargetBuildIdentitySha256 =
-		TEXT("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+	Catalog->TargetBuildIdentitySha256 = GACRuntimeIdentitySha256(MakeObservedRuntimeIdentity());
 	Catalog->Entries[0].DirectPackageDependencies = { TEXT("/Game/Shared/Opaque") };
 	TestTrue(TEXT("arbitrary game package requires a recursive record -> GAC033"),
 		GACValidateCatalog(*Catalog).Contains(TEXT("GAC033")));
@@ -211,6 +230,51 @@ bool FGloamGeneratedAssetCatalogFailClosedTest::RunTest(const FString& /*Paramet
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamGeneratedAssetRuntimeIdentityContractTest,
+	"Gloamstead.GeneratedAssets.RuntimeIdentityContractIsCanonicalAndIndependent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamGeneratedAssetRuntimeIdentityContractTest::RunTest(const FString& /*Parameters*/)
+{
+	const FGloamsteadGeneratedAssetRuntimeIdentity Observed = MakeObservedRuntimeIdentity();
+	FString Canonical;
+	TArray<FString> Failures;
+	TestTrue(TEXT("complete independently observed identity canonicalizes"),
+		GACCanonicalRuntimeIdentity(Observed, Canonical, Failures));
+	const FString ExpectedCanonical =
+		TEXT("gloamstead.worldforge.runtime-identity@1\n")
+		TEXT("engine_version=5.8.0-55116800+++UE5+Release-5.8\n")
+		TEXT("compatible_engine_version=5.8.0-55116800+++UE5+Release-5.8\n")
+		TEXT("engine_build_version=++UE5+Release-5.8-CL-55116800\n")
+		TEXT("engine_changelist=55116800\n")
+		TEXT("compatible_engine_changelist=55116800\n")
+		TEXT("gloamstead_commit=0123456789abcdef0123456789abcdef01234567\n")
+		TEXT("plugin_version=0.2.0\n")
+		TEXT("plugin_engine_version=5.8.0\n")
+		TEXT("plugin_descriptor_sha256=1111111111111111111111111111111111111111111111111111111111111111\n")
+		TEXT("installed_plugin_tree_sha256=2222222222222222222222222222222222222222222222222222222222222222\n")
+		TEXT("vendor_lock_sha256=3333333333333333333333333333333333333333333333333333333333333333\n")
+		TEXT("declared_plugin_package_sha256=4444444444444444444444444444444444444444444444444444444444444444\n")
+		TEXT("declared_plugin_build_identity=wfplugin-5555555555555555555555555555555555555555555555555555555555555555\n");
+	TestEqual(TEXT("canonical bytes contract is exact and ordered"), Canonical, ExpectedCanonical);
+	TestEqual(TEXT("canonical identity matches independent Python SHA-256 vector"),
+		GACRuntimeIdentitySha256(Observed),
+		FString(TEXT("354fd50d48b60f0af25644a5acc016cb81aa933be8a6245f1404c72d1105a355")));
+
+	FGloamsteadGeneratedAssetRuntimeIdentity NoCommit = Observed;
+	NoCommit.GloamsteadCommit = TEXT("unavailable");
+	TestFalse(TEXT("packaged identity without an embedded Gloamstead commit fails closed"),
+		GACCanonicalRuntimeIdentity(NoCommit, Canonical, Failures));
+	TestTrue(TEXT("missing embedded commit -> GAC037"), Failures.Contains(TEXT("GAC037")));
+	FGloamsteadGeneratedAssetRuntimeIdentity RawBuildHash = Observed;
+	RawBuildHash.DeclaredPluginBuildIdentity =
+		TEXT("5555555555555555555555555555555555555555555555555555555555555555");
+	TestFalse(TEXT("raw hash cannot masquerade as WorldForge release build identity"),
+		GACCanonicalRuntimeIdentity(RawBuildHash, Canonical, Failures));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FGloamGeneratedAssetSettingsDefaultTest,
 	"Gloamstead.GeneratedAssets.ConfigAbsenceDefaultsToGeneratedMode",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -233,7 +297,8 @@ bool FGloamGeneratedAssetProviderFailClosedTest::RunTest(const FString& /*Parame
 	UGloamsteadGeneratedAssetMeshForgeProvider* Provider =
 		NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
 	UGloamsteadGeneratedAssetCatalog* Catalog = MakeValidCatalog();
-	Provider->Test_SetLoadedCatalog(Catalog, Catalog->BundleId, Catalog->ReceiptSha256);
+	Provider->Test_SetLoadedCatalog(Catalog, Catalog->BundleId, Catalog->ReceiptSha256,
+		MakeObservedRuntimeIdentity());
 	TestTrue(TEXT("valid catalog reaches deterministic ready state"), Provider->IsReadyForBuild());
 	TestFalse(TEXT("valid catalog is not failed"), Provider->HasFailed());
 	TestTrue(TEXT("provider remains generated-owned"),
@@ -256,11 +321,21 @@ bool FGloamGeneratedAssetProviderFailClosedTest::RunTest(const FString& /*Parame
 	TestTrue(TEXT("unresolved world fails loudly -> GAC025"), LoadFailure.FailureCodes.Contains(TEXT("GAC025")));
 	TestFalse(TEXT("load failure never spawns"), LoadFailure.bSpawned);
 
-	Provider->Test_SetLoadedCatalog(Catalog, TEXT("sanctuary-v2"), Catalog->ReceiptSha256);
+	Provider->Test_SetLoadedCatalog(Catalog, TEXT("sanctuary-v2"), Catalog->ReceiptSha256,
+		MakeObservedRuntimeIdentity());
 	TestTrue(TEXT("stale expected bundle fails provider"), Provider->HasFailed());
 	TestTrue(TEXT("stale bundle is reported"), Provider->GetFailureCodes().Contains(TEXT("GAC014")));
 	TestTrue(TEXT("failed generated provider never changes type"),
 		Provider->GetDescriptor().ProviderType == EGMFProviderType::GeneratedOwnedMeshForgeAsset);
+
+	UGloamsteadGeneratedAssetCatalog* CoordinatedCatalog = MakeValidCatalog();
+	const FString CoordinatedExpected =
+		TEXT("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+	CoordinatedCatalog->TargetBuildIdentitySha256 = CoordinatedExpected;
+	TestTrue(TEXT("coordinated catalog/settings edits cannot bless different observed runtime bytes"),
+		GACValidateActiveBinding(*CoordinatedCatalog, CoordinatedCatalog->BundleId,
+			CoordinatedCatalog->ReceiptSha256, CoordinatedExpected, MakeObservedRuntimeIdentity())
+			.Contains(TEXT("GAC036")));
 
 	UGloamsteadGeneratedAssetSettings* MissingSettings = NewObject<UGloamsteadGeneratedAssetSettings>();
 	MissingSettings->ProviderMode = EGloamsteadMeshForgeProviderMode::GeneratedCatalog;
@@ -273,6 +348,22 @@ bool FGloamGeneratedAssetProviderFailClosedTest::RunTest(const FString& /*Parame
 	TestTrue(TEXT("missing catalog reports load failure"), Provider->GetFailureCodes().Contains(TEXT("GAC017")));
 	TestTrue(TEXT("missing catalog never activates primitive fallback"),
 		Provider->GetDescriptor().ProviderType == EGMFProviderType::GeneratedOwnedMeshForgeAsset);
+
+	UGloamsteadGeneratedAssetMeshForgeProvider* UnverifiedRuntimeProvider =
+		NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+	UGloamsteadGeneratedAssetSettings* UnverifiedRuntimeSettings =
+		NewObject<UGloamsteadGeneratedAssetSettings>();
+	UnverifiedRuntimeSettings->Catalog = TSoftObjectPtr<UGloamsteadGeneratedAssetCatalog>(FSoftObjectPath(
+		TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/DA_Catalog.DA_Catalog")));
+	UnverifiedRuntimeSettings->ExpectedActiveBundleId = Catalog->BundleId;
+	UnverifiedRuntimeSettings->ExpectedReceiptSha256 = Catalog->ReceiptSha256;
+	UnverifiedRuntimeSettings->ExpectedTargetBuildIdentitySha256 = Catalog->TargetBuildIdentitySha256;
+	UnverifiedRuntimeProvider->Configure(*UnverifiedRuntimeSettings);
+	const uint64 UnverifiedGeneration = UnverifiedRuntimeProvider->Test_BeginPendingCatalogLoad();
+	UnverifiedRuntimeProvider->Test_CompleteCatalogLoad(
+		UnverifiedGeneration, UnverifiedRuntimeSettings->Catalog.ToSoftObjectPath(), Catalog);
+	TestTrue(TEXT("production source without verified plugin/lock evidence fails closed -> GAC037"),
+		UnverifiedRuntimeProvider->GetFailureCodes().Contains(TEXT("GAC037")));
 
 	UGloamsteadGeneratedAssetSettings* FirstSettings = NewObject<UGloamsteadGeneratedAssetSettings>();
 	FirstSettings->Catalog = TSoftObjectPtr<UGloamsteadGeneratedAssetCatalog>(FSoftObjectPath(
@@ -309,7 +400,8 @@ bool FGloamGeneratedAssetProviderProvenanceTest::RunTest(const FString& /*Parame
 	UGloamsteadGeneratedAssetCatalog* Catalog = MakeValidCatalog();
 	UGloamsteadGeneratedAssetMeshForgeProvider* Provider =
 		NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
-	Provider->Test_SetLoadedCatalog(Catalog, Catalog->BundleId, Catalog->ReceiptSha256);
+	Provider->Test_SetLoadedCatalog(Catalog, Catalog->BundleId, Catalog->ReceiptSha256,
+		MakeObservedRuntimeIdentity());
 	const FSoftObjectPath ObjectPath = Catalog->Entries[0].Asset.ToSoftObjectPath();
 	Provider->Test_SetPackageDependencies(ObjectPath, {});
 	UStaticMesh* TestMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
@@ -432,7 +524,8 @@ bool FGloamGeneratedAssetDependencyClosureTest::RunTest(const FString& /*Paramet
 	auto ConfigureGraph = [&](UGloamsteadGeneratedAssetMeshForgeProvider* Provider,
 		UGloamsteadGeneratedAssetCatalog* Catalog)
 	{
-		Provider->Test_SetLoadedCatalog(Catalog, Catalog->BundleId, Catalog->ReceiptSha256);
+		Provider->Test_SetLoadedCatalog(Catalog, Catalog->BundleId, Catalog->ReceiptSha256,
+			MakeObservedRuntimeIdentity());
 		ConfigureEvidence(Provider, Catalog);
 		Provider->Test_SetPackageDependencies(Catalog->Entries[0].Asset.ToSoftObjectPath(), {
 			FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/M_Heart")),

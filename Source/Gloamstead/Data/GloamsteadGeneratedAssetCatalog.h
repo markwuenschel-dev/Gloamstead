@@ -17,6 +17,44 @@ enum class EGloamsteadGeneratedAssetState : uint8
 
 GLOAMSTEAD_API FString GACStateToken(EGloamsteadGeneratedAssetState State);
 
+/**
+ * Independently observed runtime axes bound into a generated bundle.
+ *
+ * Canonical form is UTF-8, LF-only, with the contract line followed by the fields in declaration
+ * order as `key=value` lines and one final LF. Values are restricted to printable ASCII without
+ * CR/LF or '='. Package/build identities are deliberately named Declared: the production identity
+ * source may return success only after it has independently verified installed descriptor/tree bytes
+ * against the committed lock. This serializer is shared with vendor sync and WorldForgeEd.
+ */
+struct FGloamsteadGeneratedAssetRuntimeIdentity
+{
+	FString EngineVersion;
+	FString CompatibleEngineVersion;
+	FString EngineBuildVersion;
+	uint32 EngineChangelist = 0;
+	uint32 CompatibleEngineChangelist = 0;
+	FString GloamsteadCommit;
+	FString PluginVersion;
+	FString PluginEngineVersion;
+	FString PluginDescriptorSha256;
+	FString InstalledPluginTreeSha256;
+	FString VendorLockSha256;
+	FString DeclaredPluginPackageSha256;
+	FString DeclaredPluginBuildIdentity;
+};
+
+/** Fixed committed lock location consumed by both the runtime and the Task 4 sync tooling. */
+GLOAMSTEAD_API const FString& GACWorldForgeVendorLockRelativePath();
+/** Exact canonical bytes-as-text for runtime identity contract `gloamstead.worldforge.runtime-identity@1`. */
+GLOAMSTEAD_API bool GACCanonicalRuntimeIdentity(
+	const FGloamsteadGeneratedAssetRuntimeIdentity& Identity,
+	FString& OutCanonical,
+	TArray<FString>& OutFailureCodes);
+/** SHA-256 of the canonical UTF-8 identity, or empty when any axis is absent/unverified. */
+GLOAMSTEAD_API FString GACRuntimeIdentitySha256(
+	const FGloamsteadGeneratedAssetRuntimeIdentity& Identity,
+	TArray<FString>* OutFailureCodes = nullptr);
+
 /** Import-authored values read from the cooked/on-disk Asset Registry for one exact object path. */
 struct FGloamsteadGeneratedAssetObservedProvenance
 {
@@ -112,7 +150,8 @@ public:
  * 027 dependency query unavailable; 028 generated dependency root escape; 029 ambiguous package mapping;
  * 030 observed direct dependency omitted; 031 declared direct dependency unused; 032 dependency cycle;
  * 033 undeclared non-terminal dependency; 034 invalid external package/terminal policy declaration;
- * 035 external package provenance binding; 036 target UE/plugin build identity binding.
+ * 035 external package provenance binding; 036 target UE/plugin build identity mismatch;
+ * 037 independently observed runtime identity unavailable/incomplete.
  */
 GLOAMSTEAD_API TArray<FString> GACValidateCatalog(
 	const UGloamsteadGeneratedAssetCatalog& Catalog,
@@ -123,7 +162,8 @@ GLOAMSTEAD_API TArray<FString> GACValidateActiveBinding(
 	const UGloamsteadGeneratedAssetCatalog& Catalog,
 	const FString& ExpectedBundleId,
 	const FString& ExpectedReceiptSha256,
-	const FString& ExpectedTargetBuildIdentitySha256);
+	const FString& ExpectedTargetBuildIdentitySha256,
+	const FGloamsteadGeneratedAssetRuntimeIdentity& ObservedRuntimeIdentity);
 
 /** Validate a loaded object against one entry after its expected class has been resolved. */
 GLOAMSTEAD_API TArray<FString> GACValidateLoadedObject(

@@ -401,6 +401,50 @@ bool FGloamMeshForgeProviderSelectionTest::RunTest(const FString& /*Parameters*/
 	TestTrue(TEXT("generated mode selects only the generated provider"),
 		GeneratedProvider
 		&& GeneratedProvider->GetDescriptor().ProviderType == EGMFProviderType::GeneratedOwnedMeshForgeAsset);
+
+	Generated->Catalog = TSoftObjectPtr<UGloamsteadGeneratedAssetCatalog>(FSoftObjectPath(
+		TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/DA_Catalog.DA_Catalog")));
+	Generated->ExpectedActiveBundleId = TEXT("sanctuary-v1");
+	Generated->ExpectedReceiptSha256 = TEXT("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+	Generated->ExpectedTargetBuildIdentitySha256 = TEXT("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+	UGloamsteadGeneratedAssetMeshForgeProvider* FirstConfigured =
+		Cast<UGloamsteadGeneratedAssetMeshForgeProvider>(
+			Adapter->Test_CreateProviderForSettings(Generated, false));
+	TestNotNull(TEXT("first generated configuration creates a generated provider"), FirstConfigured);
+	if (!FirstConfigured)
+	{
+		return false;
+	}
+	const uint64 StaleLoadGeneration = FirstConfigured->Test_BeginPendingCatalogLoad();
+	const FSoftObjectPath StaleCatalogPath = Generated->Catalog.ToSoftObjectPath();
+	TestTrue(TEXT("identical same-mode settings reuse the provider"),
+		Adapter->Test_EnsureProviderForSettings(Generated, false) == FirstConfigured);
+
+	Generated->ExpectedActiveBundleId = TEXT("sanctuary-v2");
+	UGloamsteadMeshForgeProvider* BundleDrift =
+		Adapter->Test_EnsureProviderForSettings(Generated, false);
+	TestTrue(TEXT("same-mode active-pointer drift recreates the provider"), BundleDrift != FirstConfigured);
+	TestTrue(TEXT("replaced provider's pending preload is cancelled"),
+		FirstConfigured->GetState() == EGMFGeneratedProviderState::Uninitialized);
+	bool bStaleCompletionRan = false;
+	FirstConfigured->Test_CompleteCatalogLoad(StaleLoadGeneration, StaleCatalogPath, nullptr,
+		FSimpleDelegate::CreateLambda([&bStaleCompletionRan]() { bStaleCompletionRan = true; }));
+	TestFalse(TEXT("cancelled provider cannot deliver a stale adapter completion"), bStaleCompletionRan);
+
+	Generated->ExpectedReceiptSha256 = TEXT("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc");
+	UGloamsteadMeshForgeProvider* ReceiptDrift =
+		Adapter->Test_EnsureProviderForSettings(Generated, false);
+	TestTrue(TEXT("same-mode receipt drift recreates the provider"), ReceiptDrift != BundleDrift);
+	Generated->ExpectedTargetBuildIdentitySha256 =
+		TEXT("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd");
+	UGloamsteadMeshForgeProvider* IdentityDrift =
+		Adapter->Test_EnsureProviderForSettings(Generated, false);
+	TestTrue(TEXT("same-mode runtime identity drift recreates the provider"), IdentityDrift != ReceiptDrift);
+	Generated->Catalog = TSoftObjectPtr<UGloamsteadGeneratedAssetCatalog>(FSoftObjectPath(
+		TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v2/DA_Catalog.DA_Catalog")));
+	UGloamsteadMeshForgeProvider* CatalogDrift =
+		Adapter->Test_EnsureProviderForSettings(Generated, false);
+	TestTrue(TEXT("same-mode catalog-path drift recreates the provider"), CatalogDrift != IdentityDrift);
 	return true;
 }
 

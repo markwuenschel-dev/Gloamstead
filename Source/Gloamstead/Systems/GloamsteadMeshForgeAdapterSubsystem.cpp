@@ -42,6 +42,21 @@ namespace
 		default: return NAME_None;
 		}
 	}
+
+	FString BuildProviderConfigurationFingerprint(
+		const UGloamsteadGeneratedAssetSettings& Settings,
+		bool bPrimitiveFallbackGateOpen)
+	{
+		if (Settings.ProviderMode == EGloamsteadMeshForgeProviderMode::EnginePrimitiveDevelopmentFallback)
+		{
+			return FString::Printf(TEXT("primitive@1|gate=%d"), bPrimitiveFallbackGateOpen ? 1 : 0);
+		}
+		return FString::Printf(TEXT("generated@1|catalog=%s|bundle=%s|receipt=%s|runtime=%s"),
+			*Settings.Catalog.ToSoftObjectPath().ToString(),
+			*Settings.ExpectedActiveBundleId,
+			*Settings.ExpectedReceiptSha256.ToLower(),
+			*Settings.ExpectedTargetBuildIdentitySha256.ToLower());
+	}
 }
 
 // Development gate for the runtime debug proxies. The MeshForge visibility adapter is a DIAGNOSTIC overlay
@@ -126,6 +141,7 @@ void UGloamsteadMeshForgeAdapterSubsystem::Deinitialize()
 		World->GetTimerManager().ClearTimer(RebuildTimer);
 	}
 	UnbindSourceEvents();
+	ReleaseProvider();
 	Super::Deinitialize();
 }
 
@@ -189,17 +205,27 @@ void UGloamsteadMeshForgeAdapterSubsystem::BuildFor(
 	if (UGloamsteadGeneratedAssetMeshForgeProvider* Generated =
 		Cast<UGloamsteadGeneratedAssetMeshForgeProvider>(Provider))
 	{
+		PendingBuildWorld = World;
 		if (Generated->GetState() == EGMFGeneratedProviderState::Uninitialized)
 		{
-			PendingBuildWorld = World;
-			Generated->PreloadCatalogAsync(FSimpleDelegate::CreateUObject(
-				this, &UGloamsteadMeshForgeAdapterSubsystem::HandleGeneratedProviderPreloadComplete));
+			const uint64 ExpectedGeneration = ProviderGeneration;
+			const TWeakObjectPtr<UGloamsteadGeneratedAssetMeshForgeProvider> ExpectedProvider = Generated;
+			Generated->PreloadCatalogAsync(FSimpleDelegate::CreateWeakLambda(this,
+				[this, ExpectedGeneration, ExpectedProvider]()
+				{
+					HandleGeneratedProviderPreloadComplete(ExpectedGeneration, ExpectedProvider);
+				}));
 			if (Generated->HasFailed()) { AdapterFailureCodes = Generated->GetFailureCodes(); }
 			return;
 		}
 		if (!Generated->IsReadyForBuild())
 		{
 			if (Generated->HasFailed()) { AdapterFailureCodes = Generated->GetFailureCodes(); }
+			return;
+		}
+		if (!Generated->RevalidateRuntimeIdentity())
+		{
+			AdapterFailureCodes = Generated->GetFailureCodes();
 			return;
 		}
 	}
@@ -224,40 +250,66 @@ bool UGloamsteadMeshForgeAdapterSubsystem::EnsureProvider(
 {
 	if (!Settings)
 	{
-		Provider = nullptr;
 		RejectProviderSelection(TEXT("GMF025"), TEXT("generated-asset settings are unavailable"));
 		return false;
+	}
+	const FString DesiredFingerprint = BuildProviderConfigurationFingerprint(
+		*Settings, bPrimitiveFallbackGateOpen);
+	if (Provider && ProviderConfigurationFingerprint == DesiredFingerprint)
+	{
+		switch (Settings->ProviderMode)
+		{
+		case EGloamsteadMeshForgeProviderMode::GeneratedCatalog:
+			return Cast<UGloamsteadGeneratedAssetMeshForgeProvider>(Provider) != nullptr;
+		case EGloamsteadMeshForgeProviderMode::EnginePrimitiveDevelopmentFallback:
+			return bPrimitiveFallbackGateOpen
+				&& Cast<UGloamsteadEnginePrimitiveMeshForgeProvider>(Provider) != nullptr;
+		default:
+			break;
+		}
+	}
+	if (Provider)
+	{
+		ReleaseProvider();
 	}
 
 	switch (Settings->ProviderMode)
 	{
 	case EGloamsteadMeshForgeProviderMode::GeneratedCatalog:
-		if (Cast<UGloamsteadGeneratedAssetMeshForgeProvider>(Provider))
-		{
-			return true;
-		}
 		break;
 	case EGloamsteadMeshForgeProviderMode::EnginePrimitiveDevelopmentFallback:
 		if (!bPrimitiveFallbackGateOpen)
 		{
-			Provider = nullptr;
 			RejectProviderSelection(TEXT("GMF027"),
 				TEXT("engine-primitive development fallback is not enabled by its runtime gate"));
 			return false;
 		}
-		if (Cast<UGloamsteadEnginePrimitiveMeshForgeProvider>(Provider))
-		{
-			return true;
-		}
 		break;
 	default:
-		Provider = nullptr;
 		RejectProviderSelection(TEXT("GMF026"), TEXT("provider mode is outside the declared enum"));
 		return false;
 	}
 
 	Provider = CreateProviderForMode(Settings, bPrimitiveFallbackGateOpen);
+	if (Provider)
+	{
+		ProviderConfigurationFingerprint = DesiredFingerprint;
+		++ProviderGeneration;
+	}
 	return Provider != nullptr;
+}
+
+void UGloamsteadMeshForgeAdapterSubsystem::ReleaseProvider()
+{
+	if (UGloamsteadGeneratedAssetMeshForgeProvider* Generated =
+		Cast<UGloamsteadGeneratedAssetMeshForgeProvider>(Provider))
+	{
+		Generated->Deactivate();
+	}
+	Provider = nullptr;
+	ProviderConfigurationFingerprint.Reset();
+	PendingBuildWorld.Reset();
+	++ProviderGeneration;
 }
 
 UGloamsteadMeshForgeProvider* UGloamsteadMeshForgeAdapterSubsystem::CreateProviderForMode(
@@ -299,8 +351,7 @@ void UGloamsteadMeshForgeAdapterSubsystem::RejectProviderSelection(
 {
 	// Invalidate any provider selected before a settings/configuration change. A stale generated or
 	// development provider must never survive a newly invalid selection decision.
-	Provider = nullptr;
-	PendingBuildWorld.Reset();
+	ReleaseProvider();
 	AdapterFailureCodes.AddUnique(FailureCode);
 	UE_LOG(LogGloamstead, Error, TEXT("MeshForge provider selection failed closed [%s]: %s"),
 		FailureCode, Detail);
@@ -311,7 +362,16 @@ UGloamsteadMeshForgeProvider* UGloamsteadMeshForgeAdapterSubsystem::Test_CreateP
 	const UGloamsteadGeneratedAssetSettings* Settings,
 	bool bPrimitiveFallbackGateOpen)
 {
-	Provider = nullptr;
+	ReleaseProvider();
+	AdapterFailureCodes.Reset();
+	EnsureProvider(Settings, bPrimitiveFallbackGateOpen);
+	return Provider;
+}
+
+UGloamsteadMeshForgeProvider* UGloamsteadMeshForgeAdapterSubsystem::Test_EnsureProviderForSettings(
+	const UGloamsteadGeneratedAssetSettings* Settings,
+	bool bPrimitiveFallbackGateOpen)
+{
 	AdapterFailureCodes.Reset();
 	EnsureProvider(Settings, bPrimitiveFallbackGateOpen);
 	return Provider;
@@ -331,8 +391,14 @@ void UGloamsteadMeshForgeAdapterSubsystem::ClearProxies()
 	NightFeedbackProxyIndex = -1;
 }
 
-void UGloamsteadMeshForgeAdapterSubsystem::HandleGeneratedProviderPreloadComplete()
+void UGloamsteadMeshForgeAdapterSubsystem::HandleGeneratedProviderPreloadComplete(
+	uint64 ExpectedProviderGeneration,
+	TWeakObjectPtr<UGloamsteadGeneratedAssetMeshForgeProvider> ExpectedProvider)
 {
+	if (ExpectedProviderGeneration != ProviderGeneration || ExpectedProvider.Get() != Provider)
+	{
+		return;
+	}
 	UGloamsteadGeneratedAssetMeshForgeProvider* Generated =
 		Cast<UGloamsteadGeneratedAssetMeshForgeProvider>(Provider);
 	if (!Generated)

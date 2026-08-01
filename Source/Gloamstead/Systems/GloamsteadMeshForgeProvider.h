@@ -10,7 +10,18 @@ class UStaticMesh;
 class UMaterialInstanceDynamic;
 class UGloamsteadGeneratedAssetCatalog;
 class UGloamsteadGeneratedAssetSettings;
+struct FGloamsteadGeneratedAssetRuntimeIdentity;
 struct FStreamableHandle;
+
+/** Narrow runtime observation protocol. Implementations must inspect runtime state, never expected catalog data. */
+class GLOAMSTEAD_API IGloamsteadGeneratedAssetRuntimeIdentitySource
+{
+public:
+	virtual ~IGloamsteadGeneratedAssetRuntimeIdentitySource() = default;
+	virtual bool Observe(
+		FGloamsteadGeneratedAssetRuntimeIdentity& OutIdentity,
+		TArray<FString>& OutFailureCodes) const = 0;
+};
 
 /** The visible body of one runtime proxy: a single primitive mesh, no collision (never blocks the player). */
 UCLASS()
@@ -99,7 +110,11 @@ class GLOAMSTEAD_API UGloamsteadGeneratedAssetMeshForgeProvider : public UGloams
 
 public:
 	void Configure(const UGloamsteadGeneratedAssetSettings& Settings);
+	/** Cancel async work and invalidate this provider before adapter replacement/shutdown. */
+	void Deactivate();
 	void PreloadCatalogAsync(FSimpleDelegate Completion = FSimpleDelegate());
+	/** Re-observe and bind the runtime identity; called on every adapter build/rebuild. */
+	bool RevalidateRuntimeIdentity();
 
 	EGMFGeneratedProviderState GetState() const { return State; }
 	bool IsReadyForBuild() const { return State == EGMFGeneratedProviderState::Ready; }
@@ -115,7 +130,10 @@ public:
 #if WITH_DEV_AUTOMATION_TESTS
 	/** Test seam: exercises the same validation transition without requiring an authored .uasset. */
 	void Test_SetLoadedCatalog(UGloamsteadGeneratedAssetCatalog* Catalog,
-		const FString& ExpectedBundleId, const FString& ExpectedReceiptSha256);
+		const FString& ExpectedBundleId, const FString& ExpectedReceiptSha256,
+		const FGloamsteadGeneratedAssetRuntimeIdentity& ObservedRuntimeIdentity);
+	void Test_SetObservedRuntimeIdentity(
+		const FGloamsteadGeneratedAssetRuntimeIdentity& ObservedRuntimeIdentity);
 	/** Test-only deterministic stand-ins for cooked Asset Registry/object resolution. */
 	void Test_SetResolvedObject(const FSoftObjectPath& ObjectPath, UObject* Object);
 	void Test_SetObservedProvenance(const FSoftObjectPath& ObjectPath,
@@ -152,6 +170,7 @@ private:
 	FString ExpectedReceiptSha256;
 	FString ExpectedTargetBuildIdentitySha256;
 	TSharedPtr<FStreamableHandle> PreloadHandle;
+	TSharedPtr<const IGloamsteadGeneratedAssetRuntimeIdentitySource> RuntimeIdentitySource;
 	uint64 LoadGeneration = 0;
 #if WITH_DEV_AUTOMATION_TESTS
 	TMap<FSoftObjectPath, TWeakObjectPtr<UObject>> TestResolvedObjects;

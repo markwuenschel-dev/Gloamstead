@@ -15,6 +15,40 @@
 
 namespace
 {
+	class FUnavailableRuntimeIdentitySource final : public IGloamsteadGeneratedAssetRuntimeIdentitySource
+	{
+	public:
+		virtual bool Observe(
+			FGloamsteadGeneratedAssetRuntimeIdentity& OutIdentity,
+			TArray<FString>& OutFailureCodes) const override
+		{
+			OutIdentity = {};
+			OutFailureCodes = { TEXT("GAC037") };
+			return false;
+		}
+	};
+
+#if WITH_DEV_AUTOMATION_TESTS
+	class FFixedRuntimeIdentitySource final : public IGloamsteadGeneratedAssetRuntimeIdentitySource
+	{
+	public:
+		explicit FFixedRuntimeIdentitySource(const FGloamsteadGeneratedAssetRuntimeIdentity& InIdentity)
+			: Identity(InIdentity) {}
+
+		virtual bool Observe(
+			FGloamsteadGeneratedAssetRuntimeIdentity& OutIdentity,
+			TArray<FString>& OutFailureCodes) const override
+		{
+			OutIdentity = Identity;
+			OutFailureCodes.Reset();
+			return true;
+		}
+
+	private:
+		FGloamsteadGeneratedAssetRuntimeIdentity Identity;
+	};
+#endif
+
 	const FString GloamGeneratedPackageRoot = TEXT("/Game/Gloamstead/Generated");
 
 	bool IsPackageUnderRoot(const FString& PackageName, const FString& Root)
@@ -258,6 +292,14 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::Configure(const UGloamsteadGene
 	State = EGMFGeneratedProviderState::Uninitialized;
 }
 
+void UGloamsteadGeneratedAssetMeshForgeProvider::Deactivate()
+{
+	CancelOutstandingPreload();
+	LoadedCatalog = nullptr;
+	FailureCodes.Reset();
+	State = EGMFGeneratedProviderState::Uninitialized;
+}
+
 void UGloamsteadGeneratedAssetMeshForgeProvider::PreloadCatalogAsync(FSimpleDelegate Completion)
 {
 	CancelOutstandingPreload();
@@ -337,8 +379,22 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::ValidateLoadedCatalog()
 	// The catalog is intentionally generic and may also carry placement/material/VFX entries. Selection
 	// enforces the provider's narrower static-mesh support on the exact chosen entry before spawning.
 	TArray<FString> Codes = GACValidateCatalog(*LoadedCatalog, /*bRequireMeshForgeCompatibleClasses*/ false);
+	FGloamsteadGeneratedAssetRuntimeIdentity ObservedRuntimeIdentity;
+	TArray<FString> ObservationFailures;
+	if (!RuntimeIdentitySource.IsValid())
+	{
+		RuntimeIdentitySource = MakeShared<FUnavailableRuntimeIdentitySource>();
+	}
+	if (!RuntimeIdentitySource->Observe(ObservedRuntimeIdentity, ObservationFailures))
+	{
+		ObservationFailures.AddUnique(TEXT("GAC037"));
+	}
+	for (const FString& Code : ObservationFailures)
+	{
+		Codes.AddUnique(Code);
+	}
 	for (const FString& Code : GACValidateActiveBinding(*LoadedCatalog, ExpectedBundleId,
-		ExpectedReceiptSha256, ExpectedTargetBuildIdentitySha256))
+		ExpectedReceiptSha256, ExpectedTargetBuildIdentitySha256, ObservedRuntimeIdentity))
 	{
 		Codes.AddUnique(Code);
 	}
@@ -350,6 +406,36 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::ValidateLoadedCatalog()
 
 	FailureCodes.Reset();
 	State = EGMFGeneratedProviderState::Ready;
+}
+
+bool UGloamsteadGeneratedAssetMeshForgeProvider::RevalidateRuntimeIdentity()
+{
+	if (!LoadedCatalog)
+	{
+		Fail({ TEXT("GAC017") });
+		return false;
+	}
+	FGloamsteadGeneratedAssetRuntimeIdentity ObservedRuntimeIdentity;
+	TArray<FString> Codes;
+	if (!RuntimeIdentitySource.IsValid())
+	{
+		RuntimeIdentitySource = MakeShared<FUnavailableRuntimeIdentitySource>();
+	}
+	if (!RuntimeIdentitySource->Observe(ObservedRuntimeIdentity, Codes))
+	{
+		Codes.AddUnique(TEXT("GAC037"));
+	}
+	for (const FString& Code : GACValidateActiveBinding(*LoadedCatalog, ExpectedBundleId,
+		ExpectedReceiptSha256, ExpectedTargetBuildIdentitySha256, ObservedRuntimeIdentity))
+	{
+		Codes.AddUnique(Code);
+	}
+	if (Codes.Num() > 0)
+	{
+		Fail(Codes);
+		return false;
+	}
+	return true;
 }
 
 void UGloamsteadGeneratedAssetMeshForgeProvider::Fail(const TArray<FString>& Codes)
@@ -741,8 +827,10 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadGeneratedAssetMeshForgeProvider::Cr
 void UGloamsteadGeneratedAssetMeshForgeProvider::Test_SetLoadedCatalog(
 	UGloamsteadGeneratedAssetCatalog* Catalog,
 	const FString& InExpectedBundleId,
-	const FString& InExpectedReceiptSha256)
+	const FString& InExpectedReceiptSha256,
+	const FGloamsteadGeneratedAssetRuntimeIdentity& ObservedRuntimeIdentity)
 {
+	Test_SetObservedRuntimeIdentity(ObservedRuntimeIdentity);
 	LoadedCatalog = Catalog;
 	ExpectedBundleId = InExpectedBundleId;
 	ExpectedReceiptSha256 = InExpectedReceiptSha256;
@@ -750,6 +838,12 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::Test_SetLoadedCatalog(
 	FailureCodes.Reset();
 	State = EGMFGeneratedProviderState::Uninitialized;
 	ValidateLoadedCatalog();
+}
+
+void UGloamsteadGeneratedAssetMeshForgeProvider::Test_SetObservedRuntimeIdentity(
+	const FGloamsteadGeneratedAssetRuntimeIdentity& ObservedRuntimeIdentity)
+{
+	RuntimeIdentitySource = MakeShared<FFixedRuntimeIdentitySource>(ObservedRuntimeIdentity);
 }
 
 void UGloamsteadGeneratedAssetMeshForgeProvider::Test_SetResolvedObject(
