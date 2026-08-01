@@ -25,5 +25,6 @@
       "Any modification to vendor content roots"
     ]
   },
-  "enforcement": "Enforced via scope_roots.json (readonly_roots, vendor_content_roots, forbidden_roots), Assert-EditScope.ps1, Assert-BashPolicy.ps1, explicit handoff fields (file_ownership + generated_output_ownership), Critic audits of diffs and binary file lists, and candidate integration verification that generated content loads correctly."
+  "enforcement": "Enforced via scope_roots.json (readonly_roots, vendor_content_roots, forbidden_roots), Assert-EditScope.ps1, explicit handoff fields (file_ownership + generated_output_ownership), Critic audits of diffs and binary file lists, and candidate integration verification that generated content loads correctly. Assert-BashPolicy.ps1 is listed separately under shell_guard because it is a guard, not an enforcement mechanism.",
+  "shell_guard": "Assert-BashPolicy.ps1 is a DIRECT-INVOCATION GUARD, not worker containment (scope corrected 2026-07-27; it was wired to nothing at all until that date). It inspects the submitted command string only -- it does not read the body of a script that command runs, nor see processes that script spawns, so one level of script indirection passes it by construction. It catches a careless direct call. Do not plan around it as containment."
 }

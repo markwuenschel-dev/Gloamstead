@@ -5,14 +5,17 @@
     "text-only": {
       "purpose": "Validate text changes, schemas, specs, code, configs, manifests, and documentation without running Unreal.",
       "required_capabilities": ["repository-read", "text-file-editing"],
-      "required_commands": [],
-      "expected_evidence": ["list of changed text files", "schema validation results if applicable", "diff review"],
+      "required_commands": [
+        "pwsh -NoProfile -File agent_collab/scripts/Test-ShellGuard.ps1",
+        "pwsh -NoProfile -File agent_collab/scripts/Test-AgentCollabScaffold.ps1"
+      ],
+      "expected_evidence": ["list of changed text files", "schema validation results if applicable", "diff review", "Test-ShellGuard.ps1 exit 0 with suite and per-rule coverage counts"],
       "may_run_autonomously": true,
       "requires_human": false,
       "blocks_promotion_on_failure": true,
       "availability": "available",
       "unavailable_reason": null,
-      "notes": "Default safe profile for pure source and spec tasks."
+      "notes": "Default safe profile for pure source and spec tasks. Test-ShellGuard.ps1 is text-only (no Unreal), runs in seconds, and is also invoked first by gate.ps1; it verifies the shell-policy classifier corpus, its fuzz/property invariants, the live PreToolUse hook, and that the run left agent_collab/state/ byte-identical. Any change under agent_collab/scripts/, agent_collab/tests/, agent_collab/context/command_policy.json, command-policy-spec.md, or agent_collab/adapters/*/hooks/ requires it — see the exemption carve-out in AGENTS.md."
     },
     "compile": {
       "purpose": "Compile the project (Development Editor target for the Gloamstead module) to catch C++ and build errors.",
@@ -53,14 +56,16 @@
     "automation-test": {
       "purpose": "Run UE Automation Framework tests (unit or functional) relevant to the task or slice.",
       "required_capabilities": ["automation-testing"],
-      "required_commands": [],
-      "expected_evidence": ["test results report (passed/failed counts and logs)"],
+      "required_commands": [
+        "pwsh -File ./gate.ps1"
+      ],
+      "expected_evidence": ["test results report (passed/failed counts and logs)", "GATE PASS line naming the green test count", "GloamsteadForge evidence validators green (nonce-bound)"],
       "may_run_autonomously": false,
       "requires_human": true,
       "blocks_promotion_on_failure": true,
-      "availability": "unavailable",
-      "unavailable_reason": "No automation test code or runner entry points discovered in the repository.",
-      "notes": ""
+      "availability": "available",
+      "unavailable_reason": null,
+      "notes": "Corrected 2026-07-29: this profile previously claimed no runner existed. gate.ps1 at the repo root IS the runner and is the documented authority (AGENTS.md). Order: the text-only shell-guard suite runs FIRST (fail-fast, seconds), then it builds GloamsteadEditor, runs the Gloamstead automation filter via UnrealEditor-Cmd, parses index.json and fails closed on no-report/zero-tests/any non-Success, then runs five nonce-bound GloamsteadForge evidence validators. Still requires_human because it needs the editor closed and is RAM-heavy on the current machine."
     },
     "functional-test": {
       "purpose": "Execute functional or integration tests (may overlap with automation-test or manual PIE flows).",

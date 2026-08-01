@@ -13,7 +13,7 @@ When working in this repo as the **main Grok session**, you may act as the **Col
 - Only the Orchestrator writes `agent_collab/state/`, `handoffs/`, `outbox/`, `logs/decisions.md`.
 - Workers (Task subagents) never spawn workers; return BLOCKED + `needs` if stuck.
 - Before Coder edits: `New-TaskWorktree.ps1` then `Assert-EditScope.ps1` per file.
-- Before Bash: `Assert-BashPolicy.ps1` on the command string.
+- Before Bash: `Assert-BashPolicy.ps1` on the command string. It is a direct-invocation guard, not containment — it sees the command string only, never script bodies or spawned processes.
 - Promote to `agent-collab/gloam/work` only after integration Critic APPROVED on candidate.
 - No git push, rebase, amend, or hard reset.
 

@@ -21,14 +21,25 @@ $dirMaps = @(
     @{ From = "$src/hooks"; To = '.claude/hooks' }
 )
 
+# -Recurse (added 2026-07-29): this was a flat, non-recursive copy, so a subdirectory added under
+# adapters/claude-code/{agents,commands,hooks} would be silently skipped. Since .gitignore now
+# treats these projection targets as generated-and-ignored, a file the projection cannot reproduce
+# is a file that cannot be recovered. Mirrors Project-GrokAdapter.ps1's Copy-Tree.
 foreach ($m in $dirMaps) {
     if (-not (Test-Path $m.From)) { throw "Missing source dir: $($m.From)" }
     if (-not $WhatIf) { New-Item -ItemType Directory -Path $m.To -Force | Out-Null }
 
-    Get-ChildItem $m.From -File | ForEach-Object {
-        $dest = Join-Path $m.To $_.Name
+    $fromRoot = (Resolve-Path $m.From).Path
+    Get-ChildItem $m.From -Recurse -File | ForEach-Object {
+        $rel  = $_.FullName.Substring($fromRoot.Length + 1)
+        $dest = Join-Path $m.To $rel
         if ($WhatIf) { Write-Output "WOULD COPY $($_.FullName) -> $dest" }
-        else { Copy-Item $_.FullName $dest -Force; Write-Output "COPIED $($_.Name) -> $dest" }
+        else {
+            $destDir = Split-Path $dest -Parent
+            if ($destDir) { New-Item -ItemType Directory -Path $destDir -Force | Out-Null }
+            Copy-Item $_.FullName $dest -Force
+            Write-Output "COPIED $rel -> $dest"
+        }
     }
 }
 

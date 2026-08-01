@@ -48,6 +48,17 @@ if (-not $Engine -or -not (Test-Path (Join-Path $Engine 'Engine\Build\BatchFiles
 Write-Host "GATE: engine=$Engine" -ForegroundColor Cyan
 Write-Host "GATE: proj=$Proj"     -ForegroundColor Cyan
 
+# Hoisted above the shell-guard step below; also used by ForgeStep further down.
+$Pwsh = Join-Path $PSHOME 'pwsh.exe'
+
+# 0. Shell-policy guard - text-only, seconds, so it runs FIRST and fails fast.
+#    Verifies the Allow/Ask/Deny classifier, its fuzz/property invariants, and the live PreToolUse
+#    hook, then proves the run left agent_collab/state/ byte-identical. Placed before the build
+#    deliberately: a classifier regression should not cost a ten-minute UBT link to discover.
+#    Fail-closed with no -Strict escape hatch - see that script's .NOTES.
+& $Pwsh -NoProfile -File (Join-Path $RepoRoot 'agent_collab\scripts\Test-ShellGuard.ps1')
+if ($LASTEXITCODE -ne 0) { Fail "shell-policy guard verification failed ($LASTEXITCODE)" }
+
 # 1. Build - exit code IS the oracle here.
 #    -MaxParallelActions=6 keeps UBA from kill-looping on RAM with the heavy NeoStackAI TUs.
 #    Requires the editor/game to be closed: it links UnrealEditor-Gloamstead.dll, which a running
@@ -83,7 +94,6 @@ Write-Host "GATE: build green, $($tests.Count) test(s) green" -ForegroundColor G
 
 # 3. GloamsteadForge evidence gate - validate the freshly-emitted reports, fail closed. This runs in the
 #    SAME invocation right after emission (nonce-bound), so a report must have been produced by this run.
-$Pwsh    = Join-Path $PSHOME 'pwsh.exe'
 $Scripts = Join-Path $RepoRoot 'scripts'
 $Reports = Join-Path $RepoRoot 'procedural\reports\gloamsteadforge'
 function ForgeStep([string]$Name, [string]$File, [string[]]$FArgs) {

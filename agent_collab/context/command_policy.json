@@ -1,14 +1,14 @@
 {
-  "policy_version": "1.0",
-  "description": "Defense-in-depth command policy. Unreal generation, cooking, packaging, and similar high-privilege commands are never treated as generally safe. They require explicit per-handoff permission, assigned generated output ownership, and will be audited. Discovered commands only; no invention of paths or wrappers.",
+  "policy_version": "1.1",
+  "description": "Defense-in-depth command policy. Unreal generation, cooking, packaging, and similar high-privilege commands are never treated as generally safe. They require explicit per-handoff permission, assigned generated output ownership, and will be audited. Discovered commands only; no invention of paths or wrappers. AUTHORITATIVE DECLARATION (R-PROT-1, 2026-07-29): the 'classifier' block below is the single source of truth for the protected set and the lexer's tables; CommandPolicy.psm1 reads them from here and hardcodes none of them, and Assert-BashPolicy.ps1 reads 'blocked_patterns' and 'vendor_content_patterns' from here rather than duplicating them.",
   "blocked_patterns": [
     {
       "pattern": "git\\s+(push|pull|fetch\\s+origin|remote|pr)\\b",
       "reason": "No remote mutations or PRs from any agent. Orchestrator coordinates branches locally only."
     },
     {
-      "pattern": "git\\s+reset\\s+--hard|git\\s+rebase|git\\s+amend|git\\s+filter-(branch|repo)",
-      "reason": "History rewrite forbidden."
+      "pattern": "git\\s+reset\\s+--hard|git\\s+rebase|git\\s+commit\\b[^;|&\\n]*--am(e(n(d)?)?)?\\b|git\\s+filter-(branch|repo)",
+      "reason": "History rewrite forbidden. (2026-07-29: the previous alternative was 'git\\s+amend', which matched a command git does not have and never matched the real 'git commit --amend'. Aligned with Assert-ActionPolicy.ps1's irreversible-pattern list; the --am(e(n(d)?)?) tail also covers git's unambiguous option abbreviations --am/--ame/--amen.)"
     },
     {
       "pattern": "(^|;\\s*|\\|\\s*)rm\\s+-rf\\s+|Remove-Item\\s+.*-Recurse",
@@ -23,6 +23,127 @@
       "reason": "Privilege escalation outside controlled environment."
     }
   ],
+  "vendor_content_patterns": [
+    {
+      "pattern": "Content/(ThirdPerson|Characters|Mannequins|Marketplace|Fab|Sample)",
+      "reason": "Command appears to target vendor/sample content (read-only per content_policy.json)."
+    }
+  ],
+  "classifier": {
+    "comment": "Tables consumed by CommandPolicy.psm1. Adding a protected target here MUST NOT require editing the lexer (R-PROT-4). Names are compared lower-case after Win32 canonicalisation (trailing dots and whitespace trimmed) and, for 'protected_basenames'/'protected_basename_patterns', after stripping one executable suffix matched by 'executable_suffix_pattern'. 'protected_filenames' are compared WITH their suffix, for targets whose bare stem is too generic to protect safely (build, cook).",
+    "max_depth": 12,
+    "max_input_length": 200000,
+    "executable_suffix_pattern": "\\.(exe|bat|cmd|sh)$",
+    "expansion_pattern": "(\\$\\()|(\\$\\{)|(\\$env:)|(\\$[A-Za-z_][A-Za-z0-9_]*)|(\\$[0-9@*?$#!-])|(%[A-Za-z_][A-Za-z0-9_]*%)|(%~[a-zA-Z]*[0-9])|(%[0-9])|(![A-Za-z_][A-Za-z0-9_]*!)",
+    "protected_basenames": [
+      "unrealeditor",
+      "unrealeditor-cmd",
+      "runuat",
+      "buildcookrun",
+      "generateprojectfiles",
+      "unrealbuildtool",
+      "automationtool",
+      "unrealpak"
+    ],
+    "protected_basename_patterns": [
+      "^unrealeditor(-cmd)?-win64-[a-z0-9]+$",
+      "^unrealeditor(-cmd)?-(linux|mac|win32)-[a-z0-9]+$",
+      "^unrealbuildtool(-[a-z0-9]+)*$",
+      "^automationtool(-[a-z0-9]+)*$"
+    ],
+    "protected_filenames": [
+      "build.bat",
+      "build.cmd",
+      "cook.bat",
+      "cook.cmd"
+    ],
+    "protected_subcommands": [
+      {
+        "command": "git",
+        "subcommand": "lfs",
+        "verbs": ["pull", "checkout", "smudge"],
+        "global_value_flags": ["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--super-prefix"],
+        "reason": "LFS operations on binaries should be controlled; avoid in workers (R-PROT-3). Matched only when 'git' holds a proven command position and 'lfs' is its first subcommand, so 'git commit -m \"ran git lfs pull\"' stays data. git's own global options are skipped first (with their values, per global_value_flags) so 'git -C submodule lfs pull' still matches."
+      }
+    ],
+    "interpreter_families": {
+      "powershell": ["pwsh", "powershell"],
+      "cmd": ["cmd"],
+      "posix_shell": ["bash", "sh", "zsh", "dash", "ksh"],
+      "eval": ["invoke-expression", "iex", "eval"],
+      "process_launcher": ["start-process", "saps", "invoke-item", "ii"],
+      "job": ["invoke-command", "icm", "start-job", "start-threadjob"],
+      "foreign_eval": ["python", "python3", "py", "node", "nodejs", "perl", "ruby", "php"],
+      "find": ["find"],
+      "schtasks": ["schtasks"]
+    },
+    "foreign_eval_mention_ask": false,
+    "pass_through_prefixes": [
+      { "name": "sudo", "value_flags": ["-u", "-g", "-p", "-C", "-h", "--user", "--group", "--prompt", "--chdir", "--host"] },
+      { "name": "doas", "value_flags": ["-u", "-C"] },
+      { "name": "env", "value_flags": ["-u", "--unset", "-C", "--chdir", "-S", "--split-string"] },
+      { "name": "nohup" },
+      { "name": "setsid" },
+      { "name": "time", "value_flags": ["-f", "--format", "-o", "--output"] },
+      { "name": "timeout", "skip_positionals": 1, "value_flags": ["-s", "--signal", "-k", "--kill-after"] },
+      { "name": "nice", "value_flags": ["-n", "--adjustment"] },
+      { "name": "ionice", "value_flags": ["-c", "-n", "-p"] },
+      { "name": "stdbuf", "value_flags": ["-i", "-o", "-e"] },
+      { "name": "watch", "value_flags": ["-n", "--interval", "-d"] },
+      { "name": "command" },
+      { "name": "exec" },
+      { "name": "builtin" },
+      { "name": "start", "value_flags": ["/d", "/node", "/affinity", "/machine"] },
+      { "name": "npx", "value_flags": ["-p", "--package", "--node-arg"] },
+      { "name": "xargs", "value_flags": ["-I", "-i", "-n", "-L", "-P", "-s", "-d", "-E", "-a", "--replace", "--max-args", "--max-procs", "--delimiter", "--arg-file", "--max-lines"] },
+      { "name": "wsl", "value_flags": ["-d", "--distribution", "-u", "--user", "--cd", "--shell-type", "--system"] },
+      { "name": "ssh", "skip_positionals": 1, "value_flags": ["-p", "-i", "-l", "-o", "-F", "-L", "-R", "-D", "-J", "-b", "-c", "-E", "-e", "-I", "-m", "-O", "-Q", "-S", "-W", "-w"] },
+      { "name": "do" },
+      { "name": "then" },
+      { "name": "else" },
+      { "name": "elif" },
+      { "name": "if" },
+      { "name": "while" },
+      { "name": "until" },
+      { "name": "for" },
+      { "name": "!" }
+    ],
+    "call_operators": [".", "&"],
+    "control_keywords": ["if", "elseif", "while", "until", "for", "foreach", "switch", "do"],
+    "stdin_executors": {
+      "comment": "R-STDIN-1: a heredoc / here-string body redirected into one of these is scanned as COMMANDS, not data. Membership alone is not enough - the module also inspects the owning command's own arguments, because 'bash -c x <<EOF' and 'bash script.sh <<EOF' both make stdin data again.",
+      "posix_shell": ["bash", "sh", "zsh", "dash", "ksh"],
+      "powershell": ["pwsh", "powershell"],
+      "foreign": ["python", "python3", "py", "node", "nodejs", "perl", "ruby", "php", "irb"],
+      "always": ["iex", "invoke-expression", "source", "."]
+    },
+    "stdin_data_commands": [
+      "cat", "tac", "tee", "nl", "grep", "egrep", "fgrep", "rg", "ag", "ack", "sed", "awk", "sort",
+      "uniq", "wc", "head", "tail", "less", "more", "jq", "yq", "tr", "cut", "paste", "column",
+      "diff", "patch", "xxd", "od", "base64", "md5sum", "sha1sum", "sha256sum", "fold", "expand",
+      "unexpand", "rev", "strings", "iconv", "dos2unix", "unix2dos", "envsubst", "tar", "zip",
+      "unzip", "gzip", "gunzip", "openssl", "gpg", "mail", "mailx", "sendmail", "xargs", "git",
+      "gh", "curl", "wget", "docker", "kubectl", "psql", "mysql", "sqlite3", "sqlcmd", "ffmpeg",
+      "write-output", "write-host", "write-error", "out-file", "out-string", "set-content",
+      "add-content", "convertfrom-json", "convertfrom-csv", "select-string", "echo", "printf",
+      "cmp", "csvlook", "pandoc", "bc", "dc"
+    ],
+    "start_process_target_params": [
+      "-filepath", "-path", "-fp", "-f", "-fi", "-fil", "-file", "-filep", "-filepa", "-filepat",
+      "-pa", "-pat"
+    ],
+    "start_process_switch_params": [
+      "-wait", "-nonewwindow", "-passthru", "-usenewenvironment", "-loaduserprofile", "-verbose",
+      "-debug", "-whatif", "-confirm", "-nowait", "-w", "-nnw", "-pt", "-asjob"
+    ],
+    "process_launcher_value_params": [
+      "-argumentlist", "-args", "-workingdirectory", "-wd", "-verb", "-windowstyle",
+      "-redirectstandardoutput", "-redirectstandarderror", "-redirectstandardinput",
+      "-credential", "-environment", "-warningaction", "-informationaction", "-errorvariable",
+      "-outvariable", "-name", "-scriptblock", "-computername", "-session", "-configurationname",
+      "-throttlelimit", "-jobname", "-argumentlist", "-initializationscript", "-inputobject"
+    ]
+  },
   "unreal_command_classification": {
     "read_only": [
       "Basic repository reads, git status/log/diff (within worktree), text inspection of .uproject/Config/Content (text parts only)."
@@ -50,11 +171,11 @@
   "whitelisted_commands": [
     {
       "pattern": "Invoke-GloamsteadDataAssetImport\\.ps1",
-      "reason": "Approved Data Asset factory wrapper (VS-POLISH-FACTORY-DATA-01). Must use -Manifest under specs/data/."
+      "reason": "Approved Data Asset factory wrapper (VS-POLISH-FACTORY-DATA-01). Must use -Manifest under specs/data/. NOTE (2026-07-29): this is DOCUMENTATION, not an enforcement short-circuit. Assert-BashPolicy.ps1 used to 'exit 0' on a substring match of this pattern anywhere in the command, which made any string containing it a universal off switch ('echo x # Invoke-GloamsteadDataAssetImport.ps1' passed every rule). That short-circuit is removed: the wrapper is a .ps1 script path, so the classifier allows it natively under R-NEST-2 with no bypass required."
     },
     {
       "pattern": "gate\\.ps1",
-      "reason": "Approved build+test oracle (2026-07-10 rebaseline). Builds GloamsteadEditor + runs Gloamstead automation tests, fails closed on the report. Reversible: writes only Intermediate/Binaries + TEMP report, no content or history mutation. Requires the editor closed."
+      "reason": "Approved build+test oracle (2026-07-10 rebaseline). Builds GloamsteadEditor + runs Gloamstead automation tests, fails closed on the report. Reversible: writes only Intermediate/Binaries + TEMP report, no content or history mutation. Requires the editor closed. Also documentation only: 'pwsh -File gate.ps1' is allowed by R-NEST-2, not by a whitelist bypass."
     }
   ]
 }
