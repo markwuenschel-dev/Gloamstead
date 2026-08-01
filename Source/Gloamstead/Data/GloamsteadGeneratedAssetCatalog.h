@@ -17,6 +17,22 @@ enum class EGloamsteadGeneratedAssetState : uint8
 
 GLOAMSTEAD_API FString GACStateToken(EGloamsteadGeneratedAssetState State);
 
+/** Import-authored values read from the cooked/on-disk Asset Registry for one exact object path. */
+struct FGloamsteadGeneratedAssetObservedProvenance
+{
+	FString ObjectSha256;
+	FString ReceiptSha256;
+	FString BundleId;
+};
+
+/** Generic Asset Registry tag names authored by the asset installer; they carry no Gloamstead semantics. */
+namespace GloamsteadGeneratedAssetProvenanceTags
+{
+	GLOAMSTEAD_API extern const FName ObjectSha256;
+	GLOAMSTEAD_API extern const FName ReceiptSha256;
+	GLOAMSTEAD_API extern const FName BundleId;
+}
+
 /** One immutable receipt-bound generated asset selection. */
 USTRUCT(BlueprintType)
 struct FGloamsteadGeneratedAssetEntry
@@ -56,7 +72,8 @@ public:
  * 006 unknown state; 007 outside generated root; 008 wrong version; 009 ownership; 010 license;
  * 011 expected class; 012 object hash; 013 provider-incompatible loaded class; 015 receipt binding;
  * 016 exact entry missing; 017 soft load failure; 018 loaded class mismatch; 019 empty catalog;
- * 020 duplicate dependency; 021 dependency closure; 022 duplicate asset path.
+ * 020 duplicate dependency; 021 dependency closure; 022 duplicate asset path; 023 provenance absent;
+ * 024 provenance mismatch; 025 unresolved spawn target; 026 actor spawn failure.
  */
 GLOAMSTEAD_API TArray<FString> GACValidateCatalog(
 	const UGloamsteadGeneratedAssetCatalog& Catalog,
@@ -73,3 +90,9 @@ GLOAMSTEAD_API TArray<FString> GACValidateLoadedObject(
 	const FGloamsteadGeneratedAssetEntry& Entry,
 	const UObject* LoadedObject,
 	bool bRequireStaticMeshForProvider = false);
+
+/** Bind the catalog declaration to independently stored Asset Registry evidence. */
+GLOAMSTEAD_API TArray<FString> GACValidateObservedProvenance(
+	const FGloamsteadGeneratedAssetEntry& Entry,
+	const UGloamsteadGeneratedAssetCatalog& Catalog,
+	const FGloamsteadGeneratedAssetObservedProvenance& Observed);

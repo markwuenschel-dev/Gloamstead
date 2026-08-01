@@ -73,6 +73,10 @@ namespace
 	}
 }
 
+const FName GloamsteadGeneratedAssetProvenanceTags::ObjectSha256(TEXT("WorldForge.ObjectSha256"));
+const FName GloamsteadGeneratedAssetProvenanceTags::ReceiptSha256(TEXT("WorldForge.ReceiptSha256"));
+const FName GloamsteadGeneratedAssetProvenanceTags::BundleId(TEXT("WorldForge.BundleId"));
+
 FString GACStateToken(EGloamsteadGeneratedAssetState State)
 {
 	switch (State)
@@ -89,7 +93,10 @@ FString GACStateToken(EGloamsteadGeneratedAssetState State)
 const FGloamsteadGeneratedAssetEntry* UGloamsteadGeneratedAssetCatalog::FindExact(
 	FName SemanticRole, EGloamsteadGeneratedAssetState State) const
 {
-	if (SemanticRole.IsNone() || State == EGloamsteadGeneratedAssetState::Unknown)
+	const UEnum* StateEnum = StaticEnum<EGloamsteadGeneratedAssetState>();
+	if (SemanticRole.IsNone() || !StateEnum
+		|| !StateEnum->IsValidEnumValue(static_cast<int64>(State))
+		|| State == EGloamsteadGeneratedAssetState::Unknown)
 	{
 		return nullptr;
 	}
@@ -148,7 +155,9 @@ TArray<FString> GACValidateCatalog(
 		{
 			Codes.AddUnique(TEXT("GAC004"));
 		}
-		if (Entry.RestorationState == EGloamsteadGeneratedAssetState::Unknown)
+		const UEnum* StateEnum = StaticEnum<EGloamsteadGeneratedAssetState>();
+		if (!StateEnum || !StateEnum->IsValidEnumValue(static_cast<int64>(Entry.RestorationState))
+			|| Entry.RestorationState == EGloamsteadGeneratedAssetState::Unknown)
 		{
 			Codes.AddUnique(TEXT("GAC006"));
 		}
@@ -207,6 +216,26 @@ TArray<FString> GACValidateCatalog(
 		{
 			Codes.AddUnique(TEXT("GAC015"));
 		}
+	}
+	return Codes;
+}
+
+TArray<FString> GACValidateObservedProvenance(
+	const FGloamsteadGeneratedAssetEntry& Entry,
+	const UGloamsteadGeneratedAssetCatalog& Catalog,
+	const FGloamsteadGeneratedAssetObservedProvenance& Observed)
+{
+	TArray<FString> Codes;
+	if (Observed.ObjectSha256.IsEmpty() || Observed.ReceiptSha256.IsEmpty() || Observed.BundleId.IsEmpty())
+	{
+		Codes.Add(TEXT("GAC023"));
+		return Codes;
+	}
+	if (!Observed.ObjectSha256.Equals(Entry.ObjectSha256, ESearchCase::IgnoreCase)
+		|| !Observed.ReceiptSha256.Equals(Catalog.ReceiptSha256, ESearchCase::IgnoreCase)
+		|| Observed.BundleId != Catalog.BundleId)
+	{
+		Codes.Add(TEXT("GAC024"));
 	}
 	return Codes;
 }

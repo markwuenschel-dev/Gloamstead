@@ -133,6 +133,7 @@ TArray<FString> GMFValidateInstance(const FGloamsteadMeshForgeProxyInstance& I)
 		{
 			Codes.AddUnique(TEXT("GMF021"));
 		}
+		if (!I.bSpawned || !I.bVisibleProxyCreated) { Codes.AddUnique(TEXT("GMF024")); }
 	}
 
 	// A proxy cannot claim it is visible without having spawned.
@@ -161,9 +162,24 @@ TArray<FString> GMFValidateReport(const FGloamsteadMeshForgeVisibilityReport& R)
 		if (!GMFIsGeneratedVersionRoot(R.ActiveGeneratedVersionRoot)) { Codes.AddUnique(TEXT("GMF020")); }
 		if (R.ActiveGeneratedBundleId.IsEmpty()) { Codes.AddUnique(TEXT("GMF018")); }
 		if (!GMFIsSha256(R.ActiveGeneratedReceiptSha256)) { Codes.AddUnique(TEXT("GMF019")); }
-		if (R.ProxyCount != R.Proxies.Num() || R.GeneratedAssetCount != R.ProxyCount)
+		if (R.ProxyCount != R.Proxies.Num())
 		{
 			Codes.AddUnique(TEXT("GMF015"));
+		}
+		int32 VerifiedVisibleGeneratedAssets = 0;
+		for (const FGloamsteadMeshForgeProxyInstance& Instance : R.Proxies)
+		{
+			if (Instance.ProviderType == EGMFProviderType::GeneratedOwnedMeshForgeAsset
+				&& !Instance.GeneratedAssetPath.IsEmpty()
+				&& Instance.bSpawned && Instance.bVisibleProxyCreated)
+			{
+				++VerifiedVisibleGeneratedAssets;
+			}
+		}
+		if (R.GeneratedAssetCount != VerifiedVisibleGeneratedAssets
+			|| R.GeneratedAssetCount != R.ProxyCount)
+		{
+			Codes.AddUnique(TEXT("GMF024"));
 		}
 	}
 

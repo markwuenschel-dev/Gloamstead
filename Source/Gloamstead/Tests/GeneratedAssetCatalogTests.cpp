@@ -4,6 +4,7 @@
 #include "Settings/GloamsteadGeneratedAssetSettings.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
+#include "Engine/World.h"
 #include "Materials/MaterialInterface.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -99,6 +100,11 @@ bool FGloamGeneratedAssetCatalogFailClosedTest::RunTest(const FString& /*Paramet
 	Catalog->Entries[0] = MakeValidMeshEntry();
 	Catalog->Entries[0].RestorationState = EGloamsteadGeneratedAssetState::Unknown;
 	TestTrue(TEXT("unknown state -> GAC006"), GACValidateCatalog(*Catalog).Contains(TEXT("GAC006")));
+	Catalog->Entries[0] = MakeValidMeshEntry();
+	Catalog->Entries[0].RestorationState = static_cast<EGloamsteadGeneratedAssetState>(255);
+	TestTrue(TEXT("out-of-range state -> GAC006"), GACValidateCatalog(*Catalog).Contains(TEXT("GAC006")));
+	TestNull(TEXT("out-of-range state never resolves"), Catalog->FindExact(
+		TEXT("sanctuary.heart"), static_cast<EGloamsteadGeneratedAssetState>(255)));
 
 	Catalog->Entries[0] = MakeValidMeshEntry();
 	Catalog->Entries[0].OwnershipId.Reset();
@@ -165,6 +171,17 @@ bool FGloamGeneratedAssetCatalogFailClosedTest::RunTest(const FString& /*Paramet
 	Heart.Dependencies.Add(Material.Asset);
 	Catalog->Entries = { Heart, Material };
 	TestEqual(TEXT("unique same-catalog dependency closure is valid"), GACValidateCatalog(*Catalog).Num(), 0);
+
+	const FGloamsteadGeneratedAssetObservedProvenance Matching{
+		Heart.ObjectSha256, Catalog->ReceiptSha256, Catalog->BundleId };
+	TestEqual(TEXT("matching registry provenance is accepted"),
+		GACValidateObservedProvenance(Heart, *Catalog, Matching).Num(), 0);
+	FGloamsteadGeneratedAssetObservedProvenance Stale = Matching;
+	Stale.ObjectSha256 = TEXT("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc");
+	TestTrue(TEXT("stale object digest -> GAC024"),
+		GACValidateObservedProvenance(Heart, *Catalog, Stale).Contains(TEXT("GAC024")));
+	TestTrue(TEXT("missing registry provenance -> GAC023"),
+		GACValidateObservedProvenance(Heart, *Catalog, {}).Contains(TEXT("GAC023")));
 	return true;
 }
 
@@ -211,7 +228,7 @@ bool FGloamGeneratedAssetProviderFailClosedTest::RunTest(const FString& /*Parame
 
 	Spec.GeneratedAssetState = EGloamsteadGeneratedAssetState::Restored;
 	FGloamsteadMeshForgeProxyInstance LoadFailure = Provider->CreateProxy(Spec, Binding, nullptr);
-	TestTrue(TEXT("unloadable soft reference -> GAC017"), LoadFailure.FailureCodes.Contains(TEXT("GAC017")));
+	TestTrue(TEXT("unresolved world fails loudly -> GAC025"), LoadFailure.FailureCodes.Contains(TEXT("GAC025")));
 	TestFalse(TEXT("load failure never spawns"), LoadFailure.bSpawned);
 
 	Provider->Test_SetLoadedCatalog(Catalog, TEXT("sanctuary-v2"), Catalog->ReceiptSha256);
@@ -231,6 +248,86 @@ bool FGloamGeneratedAssetProviderFailClosedTest::RunTest(const FString& /*Parame
 	TestTrue(TEXT("missing catalog reports load failure"), Provider->GetFailureCodes().Contains(TEXT("GAC017")));
 	TestTrue(TEXT("missing catalog never activates primitive fallback"),
 		Provider->GetDescriptor().ProviderType == EGMFProviderType::GeneratedOwnedMeshForgeAsset);
+
+	UGloamsteadGeneratedAssetSettings* FirstSettings = NewObject<UGloamsteadGeneratedAssetSettings>();
+	FirstSettings->Catalog = TSoftObjectPtr<UGloamsteadGeneratedAssetCatalog>(FSoftObjectPath(
+		TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/DA_First.DA_First")));
+	FirstSettings->ExpectedActiveBundleId = Catalog->BundleId;
+	FirstSettings->ExpectedReceiptSha256 = Catalog->ReceiptSha256;
+	Provider->Configure(*FirstSettings);
+	const uint64 StaleGeneration = Provider->Test_BeginPendingCatalogLoad();
+	const FSoftObjectPath StalePath = FirstSettings->Catalog.ToSoftObjectPath();
+
+	UGloamsteadGeneratedAssetSettings* SecondSettings = NewObject<UGloamsteadGeneratedAssetSettings>();
+	SecondSettings->Catalog = TSoftObjectPtr<UGloamsteadGeneratedAssetCatalog>(FSoftObjectPath(
+		TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v2/DA_Second.DA_Second")));
+	SecondSettings->ExpectedActiveBundleId = TEXT("sanctuary-v2");
+	SecondSettings->ExpectedReceiptSha256 = Catalog->ReceiptSha256;
+	Provider->Configure(*SecondSettings);
+	bool bStaleCompletionRan = false;
+	Provider->Test_CompleteCatalogLoad(StaleGeneration, StalePath, Catalog,
+		FSimpleDelegate::CreateLambda([&bStaleCompletionRan]() { bStaleCompletionRan = true; }));
+	TestFalse(TEXT("stale completion delegate is ignored"), bStaleCompletionRan);
+	TestNull(TEXT("stale completion cannot install the prior catalog"), Provider->GetCatalog());
+	TestTrue(TEXT("reconfigured provider remains uninitialized"),
+		Provider->GetState() == EGMFGeneratedProviderState::Uninitialized);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamGeneratedAssetProviderProvenanceTest,
+	"Gloamstead.GeneratedAssets.ProviderRequiresRegistryProvenanceBeforeSpawn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamGeneratedAssetProviderProvenanceTest::RunTest(const FString& /*Parameters*/)
+{
+	UGloamsteadGeneratedAssetCatalog* Catalog = MakeValidCatalog();
+	UGloamsteadGeneratedAssetMeshForgeProvider* Provider =
+		NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+	Provider->Test_SetLoadedCatalog(Catalog, Catalog->BundleId, Catalog->ReceiptSha256);
+	const FSoftObjectPath ObjectPath = Catalog->Entries[0].Asset.ToSoftObjectPath();
+	UStaticMesh* TestMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+	Provider->Test_SetResolvedObject(ObjectPath, TestMesh);
+
+	FGloamsteadGeneratedAssetObservedProvenance Observed{
+		TEXT("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
+		Catalog->ReceiptSha256,
+		Catalog->BundleId };
+	Provider->Test_SetObservedProvenance(ObjectPath, Observed);
+
+	FGloamsteadMeshForgeProxySpec Spec;
+	Spec.ProxyId = TEXT("heart");
+	Spec.GeneratedAssetRole = TEXT("sanctuary.heart");
+	Spec.GeneratedAssetState = EGloamsteadGeneratedAssetState::Restored;
+	FGloamsteadMeshForgeSourceBinding Binding;
+	Binding.SourceSystem = EGMFSourceSystem::VeilHeart;
+	Binding.bLocationResolved = true;
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+	if (!TestNotNull(TEXT("test world created"), World) || !TestNotNull(TEXT("test mesh loaded"), TestMesh))
+	{
+		if (World) { World->DestroyWorld(false); }
+		return false;
+	}
+
+	const FGloamsteadMeshForgeProxyInstance Stale = Provider->CreateProxy(Spec, Binding, World);
+	TestTrue(TEXT("stale registry digest fails before spawn -> GAC024"),
+		Stale.FailureCodes.Contains(TEXT("GAC024")));
+	TestFalse(TEXT("stale registry digest never spawns"), Stale.bSpawned);
+
+	Observed.ObjectSha256 = Catalog->Entries[0].ObjectSha256;
+	Provider->Test_SetObservedProvenance(ObjectPath, Observed);
+	Provider->Test_ForceSpawnFailure(true);
+	const FGloamsteadMeshForgeProxyInstance SpawnFailure = Provider->CreateProxy(Spec, Binding, World);
+	TestTrue(TEXT("actor spawn failure is explicit -> GAC026"),
+		SpawnFailure.FailureCodes.Contains(TEXT("GAC026")));
+	TestFalse(TEXT("failed actor spawn is not visibility"), SpawnFailure.bVisibleProxyCreated);
+
+	Binding.bLocationResolved = false;
+	const FGloamsteadMeshForgeProxyInstance MissingLocation = Provider->CreateProxy(Spec, Binding, World);
+	TestTrue(TEXT("unresolved location is explicit -> GAC025"),
+		MissingLocation.FailureCodes.Contains(TEXT("GAC025")));
+
+	World->DestroyWorld(false);
 	return true;
 }
 

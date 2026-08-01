@@ -383,13 +383,32 @@ int32 UGloamsteadPCGSubsystem::FindMostCorruptedPointIndex(bool bOnlyUnrestored)
 
 void UGloamsteadPCGSubsystem::Test_SeedPoints(const TArray<FVector>& Locations)
 {
-    CachedPoints.Reset(Locations.Num());
-    for (const FVector& Loc : Locations)
-    {
-        FPCGPoint P;
-        P.Transform = FTransform(Loc);
-        CachedPoints.Add(P);
-    }
+	Test_SeedPoints(Locations, {}, {});
+}
+
+void UGloamsteadPCGSubsystem::Test_SeedPoints(
+	const TArray<FVector>& Locations,
+	const TArray<float>& Wetness,
+	const TArray<FName>& RecommendedWarningTags)
+{
+	MutablePointData = NewObject<UPCGPointData>(this);
+	UPCGMetadata* Metadata = MutablePointData->MutableMetadata();
+	FPCGMetadataAttribute<float>* WetnessAttribute = Metadata->CreateAttribute<float>(
+		TEXT("Wetness"), 0.f, /*bAllowsInterpolation*/ true, /*bOverrideParent*/ false);
+	FPCGMetadataAttribute<FName>* WarningAttribute = Metadata->CreateAttribute<FName>(
+		TEXT("RecommendedForWarning"), NAME_None, /*bAllowsInterpolation*/ false, /*bOverrideParent*/ false);
+	CachedPoints.Reset(Locations.Num());
+	for (int32 Index = 0; Index < Locations.Num(); ++Index)
+	{
+		FPCGPoint P;
+		P.Transform = FTransform(Locations[Index]);
+		P.MetadataEntry = Metadata->AddEntry();
+		WetnessAttribute->SetValue(P.MetadataEntry, Wetness.IsValidIndex(Index) ? Wetness[Index] : 0.f);
+		WarningAttribute->SetValue(P.MetadataEntry,
+			RecommendedWarningTags.IsValidIndex(Index) ? RecommendedWarningTags[Index] : NAME_None);
+		CachedPoints.Add(P);
+	}
+	MutablePointData->SetPoints(CachedPoints);
 }
 
 int32 UGloamsteadPCGSubsystem::FindRestoredPointIndex(bool bMostLit) const

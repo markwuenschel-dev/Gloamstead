@@ -300,6 +300,7 @@ void UGloamsteadMeshForgeAdapterSubsystem::BuildRitualPointProxies(UWorld* World
 		// Record ritual-type provenance, read read-only from the point's PCG metadata (0 == ERitualType::Invalid
 		// when a synthetic/unlabelled point carries no attribute). The adapter never writes this attribute.
 		Binding.RitualType = static_cast<ERitualType>(PCG->GetIntAttribute(Point, TEXT("RitualType"), 0));
+		Binding.WarningTag = PCG->GetNameAttribute(Point, TEXT("RecommendedForWarning"), NAME_None);
 		Binding.WorldLocation = Point.Transform.GetLocation() + FVector(0, 0, 40);
 		Binding.bLocationResolved = true;
 
@@ -331,6 +332,7 @@ void UGloamsteadMeshForgeAdapterSubsystem::BuildRitualPointProxies(UWorld* World
 		Spec.GeneratedAssetRole = Spec.ProxyType == EGMFProxyType::LanternRestore
 			? FName(TEXT("sanctuary.lantern_restore"))
 			: FName(TEXT("sanctuary.ritual_point"));
+		Spec.ProjectedWetness = FMath::Clamp(PCG->GetFloatAttribute(Point, TEXT("Wetness"), 0.f), 0.f, 1.f);
 		Spec.ProjectedWarningTag = Binding.WarningTag;
 
 		Proxies.Add(Provider->CreateProxy(Spec, Binding, World));
@@ -492,14 +494,26 @@ FGloamsteadMeshForgeVisibilityReport UGloamsteadMeshForgeAdapterSubsystem::Build
 		}
 	}
 
-	const int32 Lantern = CountProxiesOfType(EGMFProxyType::LanternRestore);
+	auto CountVisibleType = [this](EGMFProxyType Type)
+	{
+		int32 Count = 0;
+		for (const FGloamsteadMeshForgeProxyInstance& Instance : Proxies)
+		{
+			if (Instance.Spec.ProxyType == Type && Instance.bSpawned && Instance.bVisibleProxyCreated)
+			{
+				++Count;
+			}
+		}
+		return Count;
+	};
+	const int32 Lantern = CountVisibleType(EGMFProxyType::LanternRestore);
 	R.ProxyCount = Proxies.Num();
-	R.HeartProxyCount = CountProxiesOfType(EGMFProxyType::Heart);
+	R.HeartProxyCount = CountVisibleType(EGMFProxyType::Heart);
 	// "Ritual point" coverage counts every point-derived proxy (plain ritual points + lantern-restore markers).
-	R.RitualPointProxyCount = CountProxiesOfType(EGMFProxyType::RitualPoint) + Lantern;
+	R.RitualPointProxyCount = CountVisibleType(EGMFProxyType::RitualPoint) + Lantern;
 	R.LanternProxyCount = Lantern;
-	R.InteractionRadiusProxyCount = CountProxiesOfType(EGMFProxyType::InteractionRadius);
-	R.NightFeedbackProxyCount = CountProxiesOfType(EGMFProxyType::NightFeedback);
+	R.InteractionRadiusProxyCount = CountVisibleType(EGMFProxyType::InteractionRadius);
+	R.NightFeedbackProxyCount = CountVisibleType(EGMFProxyType::NightFeedback);
 
 	for (FGloamsteadMeshForgeProxyInstance I : Proxies)
 	{
@@ -508,7 +522,7 @@ FGloamsteadMeshForgeVisibilityReport UGloamsteadMeshForgeAdapterSubsystem::Build
 			// Should never happen for the engine-primitive provider; validators catch it if it does.
 		}
 		if (I.bRuntimeOnly) { ++R.RuntimeOnlyProxyCount; }
-		if (!I.GeneratedAssetPath.IsEmpty()) { ++R.GeneratedAssetCount; }
+		if (!I.GeneratedAssetPath.IsEmpty() && I.bSpawned && I.bVisibleProxyCreated) { ++R.GeneratedAssetCount; }
 		for (const FString& Code : GMFValidateInstance(I)) { I.FailureCodes.AddUnique(Code); }
 		R.Proxies.Add(I);
 	}

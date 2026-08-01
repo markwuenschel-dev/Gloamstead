@@ -6,6 +6,9 @@
 #include "Engine/World.h"
 #include "Engine/AssetManager.h"
 #include "Engine/StreamableManager.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetRegistry/AssetData.h"
+#include "Modules/ModuleManager.h"
 #include "Data/GloamsteadGeneratedAssetCatalog.h"
 #include "Settings/GloamsteadGeneratedAssetSettings.h"
 
@@ -211,6 +214,7 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadEnginePrimitiveMeshForgeProvider::C
 
 void UGloamsteadGeneratedAssetMeshForgeProvider::Configure(const UGloamsteadGeneratedAssetSettings& Settings)
 {
+	CancelOutstandingPreload();
 	CatalogPath = Settings.Catalog;
 	ExpectedBundleId = Settings.ExpectedActiveBundleId;
 	ExpectedReceiptSha256 = Settings.ExpectedReceiptSha256;
@@ -221,39 +225,70 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::Configure(const UGloamsteadGene
 
 void UGloamsteadGeneratedAssetMeshForgeProvider::PreloadCatalogAsync(FSimpleDelegate Completion)
 {
-	PreloadCompletion = MoveTemp(Completion);
+	CancelOutstandingPreload();
 	FailureCodes.Reset();
 	LoadedCatalog = nullptr;
 	if (CatalogPath.IsNull())
 	{
 		Fail({ TEXT("GAC017") });
-		PreloadCompletion.ExecuteIfBound();
+		Completion.ExecuteIfBound();
 		return;
 	}
 
 	State = EGMFGeneratedProviderState::Loading;
+	const uint64 RequestGeneration = LoadGeneration;
+	const FSoftObjectPath RequestedPath = CatalogPath.ToSoftObjectPath();
 	PreloadHandle = UAssetManager::GetStreamableManager().RequestAsyncLoad(
-		CatalogPath.ToSoftObjectPath(),
-		FStreamableDelegate::CreateUObject(this, &UGloamsteadGeneratedAssetMeshForgeProvider::FinishCatalogLoad));
+		RequestedPath,
+		FStreamableDelegate::CreateWeakLambda(this,
+			[this, RequestGeneration, RequestedPath, Completion]() mutable
+			{
+				FinishCatalogLoad(RequestGeneration, RequestedPath, MoveTemp(Completion));
+			}));
 	if (!PreloadHandle.IsValid())
 	{
 		Fail({ TEXT("GAC017") });
-		PreloadCompletion.ExecuteIfBound();
+		Completion.ExecuteIfBound();
 	}
 }
 
-void UGloamsteadGeneratedAssetMeshForgeProvider::FinishCatalogLoad()
+void UGloamsteadGeneratedAssetMeshForgeProvider::CancelOutstandingPreload()
 {
-	LoadedCatalog = CatalogPath.Get();
-	if (!LoadedCatalog)
+	++LoadGeneration;
+	if (PreloadHandle.IsValid())
 	{
-		Fail({ TEXT("GAC017") });
+		PreloadHandle->CancelHandle();
+		PreloadHandle->ReleaseHandle();
+		PreloadHandle.Reset();
 	}
-	else
+}
+
+void UGloamsteadGeneratedAssetMeshForgeProvider::FinishCatalogLoad(
+	uint64 InLoadGeneration, FSoftObjectPath RequestedPath, FSimpleDelegate Completion)
+{
+	UGloamsteadGeneratedAssetCatalog* Catalog = Cast<UGloamsteadGeneratedAssetCatalog>(RequestedPath.ResolveObject());
+	AcceptCatalogLoad(InLoadGeneration, RequestedPath, Catalog, MoveTemp(Completion));
+}
+
+void UGloamsteadGeneratedAssetMeshForgeProvider::AcceptCatalogLoad(
+	uint64 InLoadGeneration,
+	const FSoftObjectPath& RequestedPath,
+	UGloamsteadGeneratedAssetCatalog* Catalog,
+	FSimpleDelegate Completion)
+{
+	if (InLoadGeneration != LoadGeneration || RequestedPath != CatalogPath.ToSoftObjectPath())
 	{
-		ValidateLoadedCatalog();
+		return;
 	}
-	PreloadCompletion.ExecuteIfBound();
+	if (PreloadHandle.IsValid())
+	{
+		PreloadHandle->ReleaseHandle();
+		PreloadHandle.Reset();
+	}
+	LoadedCatalog = Catalog;
+	if (!LoadedCatalog) { Fail({ TEXT("GAC017") }); }
+	else { ValidateLoadedCatalog(); }
+	Completion.ExecuteIfBound();
 }
 
 void UGloamsteadGeneratedAssetMeshForgeProvider::ValidateLoadedCatalog()
@@ -311,6 +346,41 @@ bool UGloamsteadGeneratedAssetMeshForgeProvider::CanSpawn(EGMFProxyType /*Type*/
 	return IsReadyForBuild();
 }
 
+UObject* UGloamsteadGeneratedAssetMeshForgeProvider::ResolveEntryObject(const FSoftObjectPath& ObjectPath) const
+{
+#if WITH_DEV_AUTOMATION_TESTS
+	if (const TWeakObjectPtr<UObject>* Override = TestResolvedObjects.Find(ObjectPath))
+	{
+		return Override->Get();
+	}
+#endif
+	return ObjectPath.TryLoad();
+}
+
+FGloamsteadGeneratedAssetObservedProvenance
+UGloamsteadGeneratedAssetMeshForgeProvider::ReadObservedProvenance(const FSoftObjectPath& ObjectPath) const
+{
+#if WITH_DEV_AUTOMATION_TESTS
+	if (const FGloamsteadGeneratedAssetObservedProvenance* Override = TestObservedProvenance.Find(ObjectPath))
+	{
+		return *Override;
+	}
+#endif
+	FGloamsteadGeneratedAssetObservedProvenance Observed;
+	const FAssetRegistryModule& Module = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+	// On-disk/cooked tags are the independent installer-authored evidence. In-memory catalog values cannot
+	// satisfy this lookup, so a caller cannot bless stale content by mutating the catalog at runtime.
+	const FAssetData AssetData = Module.Get().GetAssetByObjectPath(
+		ObjectPath, /*bIncludeOnlyOnDiskAssets*/ true, /*bSkipARFilteredAssets*/ false);
+	if (AssetData.IsValid())
+	{
+		AssetData.GetTagValue(GloamsteadGeneratedAssetProvenanceTags::ObjectSha256, Observed.ObjectSha256);
+		AssetData.GetTagValue(GloamsteadGeneratedAssetProvenanceTags::ReceiptSha256, Observed.ReceiptSha256);
+		AssetData.GetTagValue(GloamsteadGeneratedAssetProvenanceTags::BundleId, Observed.BundleId);
+	}
+	return Observed;
+}
+
 FGloamsteadMeshForgeProxyInstance UGloamsteadGeneratedAssetMeshForgeProvider::CreateProxy(
 	const FGloamsteadMeshForgeProxySpec& Spec,
 	const FGloamsteadMeshForgeSourceBinding& Binding,
@@ -345,8 +415,13 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadGeneratedAssetMeshForgeProvider::Cr
 	Instance.GeneratedObjectSha256 = Entry->ObjectSha256;
 	Instance.GeneratedOwnershipId = Entry->OwnershipId;
 	Instance.GeneratedLicenseId = Entry->LicenseId;
+	if (!World || !Binding.bLocationResolved)
+	{
+		Instance.FailureCodes.Add(TEXT("GAC025"));
+		return Instance;
+	}
 
-	UObject* LoadedObject = Entry->Asset.LoadSynchronous();
+	UObject* LoadedObject = ResolveEntryObject(Entry->Asset.ToSoftObjectPath());
 	if (!LoadedObject)
 	{
 		Instance.FailureCodes.Add(TEXT("GAC017"));
@@ -354,11 +429,31 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadGeneratedAssetMeshForgeProvider::Cr
 	}
 	for (const TSoftObjectPtr<UObject>& Dependency : Entry->Dependencies)
 	{
-		if (!Dependency.LoadSynchronous())
+		const FGloamsteadGeneratedAssetEntry* DependencyEntry = nullptr;
+		for (const FGloamsteadGeneratedAssetEntry& Candidate : LoadedCatalog->Entries)
+		{
+			if (Candidate.Asset.ToSoftObjectPath() == Dependency.ToSoftObjectPath())
+			{
+				DependencyEntry = &Candidate;
+				break;
+			}
+		}
+		UObject* DependencyObject = ResolveEntryObject(Dependency.ToSoftObjectPath());
+		if (!DependencyEntry || !DependencyObject)
 		{
 			Instance.FailureCodes.AddUnique(TEXT("GAC017"));
 			return Instance;
 		}
+		for (const FString& Code : GACValidateLoadedObject(*DependencyEntry, DependencyObject, false))
+		{
+			Instance.FailureCodes.AddUnique(Code);
+		}
+		for (const FString& Code : GACValidateObservedProvenance(
+			*DependencyEntry, *LoadedCatalog, ReadObservedProvenance(Dependency.ToSoftObjectPath())))
+		{
+			Instance.FailureCodes.AddUnique(Code);
+		}
+		if (Instance.FailureCodes.Num() > 0) { return Instance; }
 	}
 	UClass* ExpectedClass = Entry->ExpectedClass.LoadSynchronous();
 	if (!ExpectedClass)
@@ -372,16 +467,24 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadGeneratedAssetMeshForgeProvider::Cr
 	{
 		return Instance;
 	}
-	UStaticMesh* Mesh = CastChecked<UStaticMesh>(LoadedObject);
-	if (!World || !Binding.bLocationResolved)
+	Instance.FailureCodes = GACValidateObservedProvenance(
+		*Entry, *LoadedCatalog, ReadObservedProvenance(Entry->Asset.ToSoftObjectPath()));
+	if (Instance.FailureCodes.Num() > 0)
 	{
 		return Instance;
 	}
+	UStaticMesh* Mesh = CastChecked<UStaticMesh>(LoadedObject);
 
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	AGloamsteadMeshForgeProxyActor* Actor = World->SpawnActor<AGloamsteadMeshForgeProxyActor>(
-		AGloamsteadMeshForgeProxyActor::StaticClass(), Binding.WorldLocation, FRotator::ZeroRotator, Params);
+	AGloamsteadMeshForgeProxyActor* Actor = nullptr;
+#if WITH_DEV_AUTOMATION_TESTS
+	if (!bTestForceSpawnFailure)
+#endif
+	{
+		Actor = World->SpawnActor<AGloamsteadMeshForgeProxyActor>(
+			AGloamsteadMeshForgeProxyActor::StaticClass(), Binding.WorldLocation, FRotator::ZeroRotator, Params);
+	}
 	if (Actor)
 	{
 		Actor->ConfigureGeneratedVisual(Mesh, Spec.Color,
@@ -390,6 +493,10 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadGeneratedAssetMeshForgeProvider::Cr
 		Instance.SpawnedActor = Actor;
 		Instance.bSpawned = true;
 		Instance.bVisibleProxyCreated = Actor->HasVisibleMesh();
+	}
+	if (!Actor || !Instance.bVisibleProxyCreated)
+	{
+		Instance.FailureCodes.Add(TEXT("GAC026"));
 	}
 	return Instance;
 }
@@ -406,5 +513,34 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::Test_SetLoadedCatalog(
 	FailureCodes.Reset();
 	State = EGMFGeneratedProviderState::Uninitialized;
 	ValidateLoadedCatalog();
+}
+
+void UGloamsteadGeneratedAssetMeshForgeProvider::Test_SetResolvedObject(
+	const FSoftObjectPath& ObjectPath, UObject* Object)
+{
+	TestResolvedObjects.Add(ObjectPath, Object);
+}
+
+void UGloamsteadGeneratedAssetMeshForgeProvider::Test_SetObservedProvenance(
+	const FSoftObjectPath& ObjectPath,
+	const FGloamsteadGeneratedAssetObservedProvenance& Provenance)
+{
+	TestObservedProvenance.Add(ObjectPath, Provenance);
+}
+
+uint64 UGloamsteadGeneratedAssetMeshForgeProvider::Test_BeginPendingCatalogLoad()
+{
+	CancelOutstandingPreload();
+	State = EGMFGeneratedProviderState::Loading;
+	return LoadGeneration;
+}
+
+void UGloamsteadGeneratedAssetMeshForgeProvider::Test_CompleteCatalogLoad(
+	uint64 InLoadGeneration,
+	const FSoftObjectPath& RequestedPath,
+	UGloamsteadGeneratedAssetCatalog* Catalog,
+	FSimpleDelegate Completion)
+{
+	AcceptCatalogLoad(InLoadGeneration, RequestedPath, Catalog, MoveTemp(Completion));
 }
 #endif

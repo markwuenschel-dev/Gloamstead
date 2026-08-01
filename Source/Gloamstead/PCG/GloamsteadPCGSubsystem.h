@@ -177,6 +177,9 @@ public:
     void Test_SeedPointStates(const TArray<FRitualPointState>& InStates) { PointStates = InStates; }
     /** Test-only seam: install synthetic point world locations (CachedPoints transforms) so index->location resolves. */
     void Test_SeedPoints(const TArray<FVector>& Locations);
+    /** Test-only seam: seed the same authoritative metadata fields the PCG graph supplies to visual consumers. */
+    void Test_SeedPoints(const TArray<FVector>& Locations, const TArray<float>& Wetness,
+        const TArray<FName>& RecommendedWarningTags);
     /** Test-only seam: read current point state for assertions. */
     const TArray<FRitualPointState>& Test_PeekPointStates() const { return PointStates; }
 

@@ -116,12 +116,26 @@ public:
 	/** Test seam: exercises the same validation transition without requiring an authored .uasset. */
 	void Test_SetLoadedCatalog(UGloamsteadGeneratedAssetCatalog* Catalog,
 		const FString& ExpectedBundleId, const FString& ExpectedReceiptSha256);
+	/** Test-only deterministic stand-ins for cooked Asset Registry/object resolution. */
+	void Test_SetResolvedObject(const FSoftObjectPath& ObjectPath, UObject* Object);
+	void Test_SetObservedProvenance(const FSoftObjectPath& ObjectPath,
+		const FGloamsteadGeneratedAssetObservedProvenance& Provenance);
+	void Test_ForceSpawnFailure(bool bForce) { bTestForceSpawnFailure = bForce; }
+	uint64 Test_BeginPendingCatalogLoad();
+	void Test_CompleteCatalogLoad(uint64 LoadGeneration, const FSoftObjectPath& RequestedPath,
+		UGloamsteadGeneratedAssetCatalog* Catalog, FSimpleDelegate Completion = FSimpleDelegate());
 #endif
 
 private:
-	void FinishCatalogLoad();
+	void CancelOutstandingPreload();
+	void FinishCatalogLoad(uint64 LoadGeneration, FSoftObjectPath RequestedPath, FSimpleDelegate Completion);
+	void AcceptCatalogLoad(uint64 LoadGeneration, const FSoftObjectPath& RequestedPath,
+		UGloamsteadGeneratedAssetCatalog* Catalog, FSimpleDelegate Completion);
 	void ValidateLoadedCatalog();
 	void Fail(const TArray<FString>& Codes);
+	UObject* ResolveEntryObject(const FSoftObjectPath& ObjectPath) const;
+	FGloamsteadGeneratedAssetObservedProvenance ReadObservedProvenance(
+		const FSoftObjectPath& ObjectPath) const;
 
 	UPROPERTY() TSoftObjectPtr<UGloamsteadGeneratedAssetCatalog> CatalogPath;
 	UPROPERTY() TObjectPtr<UGloamsteadGeneratedAssetCatalog> LoadedCatalog;
@@ -130,5 +144,10 @@ private:
 	FString ExpectedBundleId;
 	FString ExpectedReceiptSha256;
 	TSharedPtr<FStreamableHandle> PreloadHandle;
-	FSimpleDelegate PreloadCompletion;
+	uint64 LoadGeneration = 0;
+#if WITH_DEV_AUTOMATION_TESTS
+	TMap<FSoftObjectPath, TWeakObjectPtr<UObject>> TestResolvedObjects;
+	TMap<FSoftObjectPath, FGloamsteadGeneratedAssetObservedProvenance> TestObservedProvenance;
+	bool bTestForceSpawnFailure = false;
+#endif
 };

@@ -52,6 +52,8 @@ namespace
 		I.GeneratedObjectSha256 = TEXT("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 		I.GeneratedOwnershipId = TEXT("gloamstead");
 		I.GeneratedLicenseId = TEXT("LicenseRef-001");
+		I.bSpawned = true;
+		I.bVisibleProxyCreated = true;
 		return I;
 	}
 }
@@ -162,6 +164,15 @@ bool FGloamMeshForgeGeneratedProvenanceTest::RunTest(const FString& /*Parameters
 	Report.Proxies.Add(Ritual);
 	TestEqual(TEXT("receipt-closed generated report is valid"), GMFValidateReport(Report).Num(), 0);
 
+	Report.Proxies[1].bSpawned = false;
+	Report.Proxies[1].bVisibleProxyCreated = false;
+	Report.GeneratedAssetCount = 1;
+	TestTrue(TEXT("unspawned generated attempt is not visibility coverage -> GMF024"),
+		GMFValidateReport(Report).Contains(TEXT("GMF024")));
+	Report.Proxies[1].bSpawned = true;
+	Report.Proxies[1].bVisibleProxyCreated = true;
+	Report.GeneratedAssetCount = 2;
+
 	Report.Proxies[1].GeneratedReceiptSha256 = TEXT("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc");
 	TestTrue(TEXT("mixed receipts -> GMF019"), GMFValidateReport(Report).Contains(TEXT("GMF019")));
 	return true;
@@ -194,7 +205,10 @@ bool FGloamMeshForgeLiveWorldTest::RunTest(const FString& /*Parameters*/)
 	if (bReady)
 	{
 		// Seed 3 ritual points: index 0 restored, index 1 corrupted, index 2 restorable.
-		PCG->Test_SeedPoints({ FVector(0,0,0), FVector(300,0,0), FVector(600,0,0) });
+		PCG->Test_SeedPoints(
+			{ FVector(0,0,0), FVector(300,0,0), FVector(600,0,0) },
+			{ 0.15f, 1.4f, -0.2f },
+			{ TEXT("ash_remembers_water"), NAME_None, TEXT("lantern_warns") });
 		TArray<FRitualPointState> States;
 		{
 			FRitualPointState A; A.bIsRestored = true;  A.LightLevel = 0.6f; A.CorruptionLevel = 0.1f; States.Add(A);
@@ -208,6 +222,15 @@ bool FGloamMeshForgeLiveWorldTest::RunTest(const FString& /*Parameters*/)
 
 		// Capture gameplay state before the adapter runs (it must not mutate it).
 		const TArray<FRitualPointState> Before = PCG->Test_PeekPointStates();
+		TArray<float> WetnessBefore;
+		TArray<FName> WarningsBefore;
+		for (int32 Index = 0; Index < 3; ++Index)
+		{
+			FPCGPoint Point;
+			PCG->GetPointByIndex(Index, Point);
+			WetnessBefore.Add(PCG->GetFloatAttribute(Point, TEXT("Wetness"), -1.f));
+			WarningsBefore.Add(PCG->GetNameAttribute(Point, TEXT("RecommendedForWarning"), NAME_None));
+		}
 
 		Adapter->Test_BuildFor(World);
 
@@ -224,6 +247,22 @@ bool FGloamMeshForgeLiveWorldTest::RunTest(const FString& /*Parameters*/)
 			if (I.bSpawned && I.bVisibleProxyCreated) { ++Visible; }
 		}
 		TestTrue(TEXT("proxies are visible (mesh assigned)"), Visible == Adapter->GetProxies().Num() && Visible > 0);
+		TMap<int32, const FGloamsteadMeshForgeProxyInstance*> PointProxies;
+		for (const FGloamsteadMeshForgeProxyInstance& I : Adapter->GetProxies())
+		{
+			if (I.Binding.SourceSystem == EGMFSourceSystem::PCGSubsystem)
+			{
+				PointProxies.Add(I.Binding.SourcePointIndex, &I);
+			}
+		}
+		TestTrue(TEXT("point zero warning is projected"), PointProxies.Contains(0)
+			&& PointProxies[0]->Spec.ProjectedWarningTag == TEXT("ash_remembers_water"));
+		TestTrue(TEXT("point zero wetness is projected"), PointProxies.Contains(0)
+			&& FMath::IsNearlyEqual(PointProxies[0]->Spec.ProjectedWetness, 0.15f));
+		TestTrue(TEXT("wetness projection clamps high source values"), PointProxies.Contains(1)
+			&& FMath::IsNearlyEqual(PointProxies[1]->Spec.ProjectedWetness, 1.f));
+		TestTrue(TEXT("wetness projection clamps low source values"), PointProxies.Contains(2)
+			&& FMath::IsNearlyZero(PointProxies[2]->Spec.ProjectedWetness));
 
 		// Gameplay authority unchanged — the adapter only read.
 		const TArray<FRitualPointState>& After = PCG->Test_PeekPointStates();
@@ -236,6 +275,17 @@ bool FGloamMeshForgeLiveWorldTest::RunTest(const FString& /*Parameters*/)
 				&& FMath::IsNearlyEqual(After[i].LightLevel, Before[i].LightLevel);
 		}
 		TestTrue(TEXT("adapter did not mutate gameplay state"), bStateUnchanged);
+		bool bProjectionSourcesUnchanged = true;
+		for (int32 Index = 0; Index < 3; ++Index)
+		{
+			FPCGPoint Point;
+			PCG->GetPointByIndex(Index, Point);
+			bProjectionSourcesUnchanged &= FMath::IsNearlyEqual(
+				PCG->GetFloatAttribute(Point, TEXT("Wetness"), -1.f), WetnessBefore[Index]);
+			bProjectionSourcesUnchanged &= PCG->GetNameAttribute(
+				Point, TEXT("RecommendedForWarning"), NAME_None) == WarningsBefore[Index];
+		}
+		TestTrue(TEXT("adapter did not mutate projection-source metadata"), bProjectionSourcesUnchanged);
 
 		// A phase change drives the night-feedback proxy without crashing (live delegate dispatch).
 		if (UGloamsteadDayNightSubsystem* DayNight = World->GetSubsystem<UGloamsteadDayNightSubsystem>())
