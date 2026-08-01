@@ -348,41 +348,26 @@ namespace
 
 	bool ReadSymbolicRef(const FResolvedGitMetadata& Metadata, const FString& RefName, FString& OutCommit)
 	{
-		const FString Roots[] = { Metadata.WorktreeGitDir, Metadata.CommonGitDir };
-		for (int32 Index = 0; Index < UE_ARRAY_COUNT(Roots); ++Index)
+		// refs/heads is shared across linked worktrees. HEAD itself belongs to the worktree
+		// administrative directory, but its branch target must be resolved exclusively from the
+		// authenticated common Git directory. Looking in WorktreeGitDir would let a non-authoritative
+		// refs/heads or packed-refs lookalike shadow repository identity evidence.
+		if (!IsSafeHeadRef(RefName))
 		{
-			if (Index > 0 && IsSamePath(Roots[Index], Roots[0]))
-			{
-				continue;
-			}
-			const ERefReadResult LooseResult = ReadLooseRef(Roots[Index], RefName, OutCommit);
-			if (LooseResult == ERefReadResult::Found)
-			{
-				return true;
-			}
-			if (LooseResult == ERefReadResult::Invalid)
-			{
-				return false;
-			}
+			return false;
 		}
 
-		for (int32 Index = 0; Index < UE_ARRAY_COUNT(Roots); ++Index)
+		const ERefReadResult LooseResult = ReadLooseRef(Metadata.CommonGitDir, RefName, OutCommit);
+		if (LooseResult == ERefReadResult::Found)
 		{
-			if (Index > 0 && IsSamePath(Roots[Index], Roots[0]))
-			{
-				continue;
-			}
-			const ERefReadResult PackedResult = ReadPackedRef(Roots[Index], RefName, OutCommit);
-			if (PackedResult == ERefReadResult::Found)
-			{
-				return true;
-			}
-			if (PackedResult == ERefReadResult::Invalid)
-			{
-				return false;
-			}
+			return true;
 		}
-		return false;
+		if (LooseResult == ERefReadResult::Invalid)
+		{
+			return false;
+		}
+
+		return ReadPackedRef(Metadata.CommonGitDir, RefName, OutCommit) == ERefReadResult::Found;
 	}
 
 	// Round to 4 decimals so serialized corruption values stay clean (0.6, not 0.60000002).

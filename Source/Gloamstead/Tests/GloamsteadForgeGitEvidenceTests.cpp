@@ -85,7 +85,8 @@ bool FGloamsteadGitEvidenceValidLayoutsTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("detached branch is empty"), Branch.IsEmpty());
 
 	// A linked worktree authenticates its administrative directory through both commondir and
-	// the worktree gitdir back-pointer. A worktree-local loose ref takes precedence.
+	// the worktree gitdir back-pointer. Branch refs are shared repository metadata, so hostile
+	// lookalikes in the per-worktree administrative directory must never override the common ref.
 	const FString LinkedProject = Scratch.Path(TEXT("linked"));
 	const FString LinkedDotGit = FPaths::Combine(LinkedProject, TEXT(".git"));
 	const FString Admin = Scratch.Path(TEXT("repository/.git/worktrees/linked"));
@@ -97,9 +98,9 @@ bool FGloamsteadGitEvidenceValidLayoutsTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("write linked back-pointer"), Scratch.Write(TEXT("repository/.git/worktrees/linked/gitdir"), LinkedDotGit + TEXT("\r\n")));
 	TestTrue(TEXT("write linked HEAD"), Scratch.Write(TEXT("repository/.git/worktrees/linked/HEAD"), TEXT("ref: refs/heads/linked-branch\n")));
 	TestTrue(TEXT("write common loose ref"), Scratch.Write(TEXT("repository/.git/refs/heads/linked-branch"), ShaA + TEXT("\n")));
-	TestTrue(TEXT("write worktree loose ref"), Scratch.Write(TEXT("repository/.git/worktrees/linked/refs/heads/linked-branch"), ShaB + TEXT("\r\n")));
+	TestTrue(TEXT("write hostile worktree loose shadow"), Scratch.Write(TEXT("repository/.git/worktrees/linked/refs/heads/linked-branch"), ShaB + TEXT("\r\n")));
 	TestTrue(TEXT("linked identity resolves"), Read(LinkedProject, Commit, Branch));
-	TestEqual(TEXT("worktree loose ref wins"), Commit, ShaB);
+	TestEqual(TEXT("common loose ref is authoritative"), Commit, ShaA);
 	TestEqual(TEXT("linked branch"), Branch, FString(TEXT("linked-branch")));
 
 	// Relative gitdir indirection and an exact packed-refs match are also supported.
@@ -111,7 +112,8 @@ bool FGloamsteadGitEvidenceValidLayoutsTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("write packed commondir"), Scratch.Write(TEXT("packed-repository/.git/worktrees/packed/commondir"), TEXT("../..\r\n")));
 	TestTrue(TEXT("write packed back-pointer"), Scratch.Write(TEXT("packed-repository/.git/worktrees/packed/gitdir"), PackedDotGit + TEXT("\n")));
 	TestTrue(TEXT("write packed HEAD"), Scratch.Write(TEXT("packed-repository/.git/worktrees/packed/HEAD"), TEXT("ref: refs/heads/main\r\n")));
-	TestTrue(TEXT("write packed refs"), Scratch.Write(TEXT("packed-repository/.git/packed-refs"), FString::Printf(TEXT("# pack-refs with: peeled fully-peeled\n%s refs/heads/main\n"), *ShaA)));
+	TestTrue(TEXT("write common packed refs"), Scratch.Write(TEXT("packed-repository/.git/packed-refs"), FString::Printf(TEXT("# pack-refs with: peeled fully-peeled\n%s refs/heads/main\n"), *ShaA)));
+	TestTrue(TEXT("write hostile packed-worktree packed shadow"), Scratch.Write(TEXT("packed-repository/.git/worktrees/packed/packed-refs"), FString::Printf(TEXT("%s refs/heads/main\n"), *ShaB)));
 	TestTrue(TEXT("packed linked identity resolves"), Read(PackedProject, Commit, Branch));
 	TestEqual(TEXT("packed linked commit"), Commit, ShaA);
 	TestEqual(TEXT("packed linked branch"), Branch, FString(TEXT("main")));
@@ -200,6 +202,11 @@ bool FGloamsteadGitEvidenceHostileLayoutsTest::RunTest(const FString& Parameters
 	Scratch.Write(TEXT("traversal/.git/HEAD"), TEXT("ref: refs/heads/../../outside\n"));
 	Scratch.Write(TEXT("outside"), ShaA + TEXT("\n"));
 	ExpectRejected(TEXT("ref traversal rejected"), Scratch.Path(TEXT("traversal")));
+
+	Scratch.Directory(TEXT("unsupported-ref/.git/refs/remotes/origin"));
+	Scratch.Write(TEXT("unsupported-ref/.git/HEAD"), TEXT("ref: refs/remotes/origin/main\n"));
+	Scratch.Write(TEXT("unsupported-ref/.git/refs/remotes/origin/main"), ShaA + TEXT("\n"));
+	ExpectRejected(TEXT("non-head symbolic ref rejected"), Scratch.Path(TEXT("unsupported-ref")));
 
 	Scratch.Directory(TEXT("packed-suffix/.git"));
 	Scratch.Write(TEXT("packed-suffix/.git/HEAD"), TEXT("ref: refs/heads/main\n"));
