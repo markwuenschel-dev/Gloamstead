@@ -60,6 +60,8 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Generated Assets") FString BundleId;
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Generated Assets") FString ReceiptSha256;
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Generated Assets") FString VersionRoot;
+	/** Explicit caller-owned allowlist for non-generated package dependencies (for example /Engine or /Script). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Generated Assets") TArray<FString> AllowedExternalDependencyRoots;
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Generated Assets") TArray<FGloamsteadGeneratedAssetEntry> Entries;
 
 	/** Exact role/state lookup. Invalid or duplicate catalogs never use first-match fallback. */
@@ -73,7 +75,10 @@ public:
  * 011 expected class; 012 object hash; 013 provider-incompatible loaded class; 015 receipt binding;
  * 016 exact entry missing; 017 soft load failure; 018 loaded class mismatch; 019 empty catalog;
  * 020 duplicate dependency; 021 dependency closure; 022 duplicate asset path; 023 provenance absent;
- * 024 provenance mismatch; 025 unresolved spawn target; 026 actor spawn failure.
+ * 024 provenance mismatch; 025 unresolved spawn target; 026 actor spawn failure;
+ * 027 dependency query unavailable; 028 generated dependency root escape; 029 ambiguous package mapping;
+ * 030 observed generated dependency omitted; 031 declared dependency unused; 032 dependency cycle;
+ * 033 external dependency outside explicit policy; 034 invalid external dependency policy.
  */
 GLOAMSTEAD_API TArray<FString> GACValidateCatalog(
 	const UGloamsteadGeneratedAssetCatalog& Catalog,

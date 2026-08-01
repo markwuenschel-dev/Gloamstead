@@ -142,6 +142,10 @@ bool FGloamGeneratedAssetCatalogFailClosedTest::RunTest(const FString& /*Paramet
 	TestTrue(TEXT("stale receipt -> GAC015"),
 		GACValidateActiveBinding(*Catalog, Catalog->BundleId,
 			TEXT("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")).Contains(TEXT("GAC015")));
+	Catalog->AllowedExternalDependencyRoots = { TEXT("/Game") };
+	TestTrue(TEXT("external policy cannot broadly authorize generated roots -> GAC034"),
+		GACValidateCatalog(*Catalog).Contains(TEXT("GAC034")));
+	Catalog->AllowedExternalDependencyRoots.Reset();
 
 	Catalog->Entries.Reset();
 	TestTrue(TEXT("empty catalog -> GAC019"), GACValidateCatalog(*Catalog).Contains(TEXT("GAC019")));
@@ -286,6 +290,7 @@ bool FGloamGeneratedAssetProviderProvenanceTest::RunTest(const FString& /*Parame
 		NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
 	Provider->Test_SetLoadedCatalog(Catalog, Catalog->BundleId, Catalog->ReceiptSha256);
 	const FSoftObjectPath ObjectPath = Catalog->Entries[0].Asset.ToSoftObjectPath();
+	Provider->Test_SetPackageDependencies(ObjectPath, {});
 	UStaticMesh* TestMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
 	Provider->Test_SetResolvedObject(ObjectPath, TestMesh);
 
@@ -328,6 +333,111 @@ bool FGloamGeneratedAssetProviderProvenanceTest::RunTest(const FString& /*Parame
 		MissingLocation.FailureCodes.Contains(TEXT("GAC025")));
 
 	World->DestroyWorld(false);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamGeneratedAssetDependencyClosureTest,
+	"Gloamstead.GeneratedAssets.AssetRegistryDependencyClosureIsExact",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamGeneratedAssetDependencyClosureTest::RunTest(const FString& /*Parameters*/)
+{
+	auto MakeThreeEntryCatalog = []()
+	{
+		UGloamsteadGeneratedAssetCatalog* Catalog = MakeValidCatalog();
+		FGloamsteadGeneratedAssetEntry Material = MakeValidMeshEntry(
+			TEXT("sanctuary.heart.material"), EGloamsteadGeneratedAssetState::Restored);
+		Material.Asset = TSoftObjectPtr<UObject>(FSoftObjectPath(
+			TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/M_Heart.M_Heart")));
+		Material.ExpectedClass = UMaterialInterface::StaticClass();
+		Material.ObjectSha256 = TEXT("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc");
+		FGloamsteadGeneratedAssetEntry Texture = MakeValidMeshEntry(
+			TEXT("sanctuary.heart.texture"), EGloamsteadGeneratedAssetState::Restored);
+		Texture.Asset = TSoftObjectPtr<UObject>(FSoftObjectPath(
+			TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/T_Heart.T_Heart")));
+		Texture.ExpectedClass = UTexture2D::StaticClass();
+		Texture.ObjectSha256 = TEXT("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd");
+		Catalog->Entries[0].Dependencies.Add(Material.Asset);
+		Material.Dependencies.Add(Texture.Asset);
+		Catalog->Entries.Add(Material);
+		Catalog->Entries.Add(Texture);
+		Catalog->AllowedExternalDependencyRoots = { TEXT("/Engine"), TEXT("/Script") };
+		return Catalog;
+	};
+
+	auto ConfigureEvidence = [](UGloamsteadGeneratedAssetMeshForgeProvider* Provider,
+		UGloamsteadGeneratedAssetCatalog* Catalog)
+	{
+		for (const FGloamsteadGeneratedAssetEntry& Entry : Catalog->Entries)
+		{
+			Provider->Test_SetObservedProvenance(Entry.Asset.ToSoftObjectPath(), {
+				Entry.ObjectSha256, Catalog->ReceiptSha256, Catalog->BundleId });
+		}
+	};
+
+	UGloamsteadGeneratedAssetCatalog* Catalog = MakeThreeEntryCatalog();
+	UGloamsteadGeneratedAssetMeshForgeProvider* Provider =
+		NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+	Provider->Test_SetLoadedCatalog(Catalog, Catalog->BundleId, Catalog->ReceiptSha256);
+	ConfigureEvidence(Provider, Catalog);
+	Provider->Test_SetPackageDependencies(Catalog->Entries[0].Asset.ToSoftObjectPath(), {
+		FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/M_Heart")),
+		FName(TEXT("/Engine/EngineMaterials/DefaultMaterial")) });
+	Provider->Test_SetPackageDependencies(Catalog->Entries[1].Asset.ToSoftObjectPath(), {
+		FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/T_Heart")),
+		FName(TEXT("/Script/Engine")) });
+	Provider->Test_SetPackageDependencies(Catalog->Entries[2].Asset.ToSoftObjectPath(), {});
+	TestEqual(TEXT("hard/soft generated closure and explicit external policy pass"),
+		Provider->Test_ValidateDependencyClosure().Num(), 0);
+
+	Provider->Test_SetPackageDependencies(Catalog->Entries[0].Asset.ToSoftObjectPath(), {
+		FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/M_Heart")),
+		FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/T_Heart")) });
+	TestTrue(TEXT("omitted actual direct dependency -> GAC030"),
+		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC030")));
+
+	Provider->Test_SetPackageDependencies(Catalog->Entries[0].Asset.ToSoftObjectPath(), {
+		FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/M_Heart")) });
+	FGloamsteadGeneratedAssetObservedProvenance Stale{
+		TEXT("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"),
+		Catalog->ReceiptSha256, Catalog->BundleId };
+	Provider->Test_SetObservedProvenance(Catalog->Entries[2].Asset.ToSoftObjectPath(), Stale);
+	TestTrue(TEXT("stale transitive dependency provenance -> GAC024"),
+		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC024")));
+	Provider->Test_SetObservedProvenance(Catalog->Entries[2].Asset.ToSoftObjectPath(), {});
+	TestTrue(TEXT("missing transitive dependency provenance -> GAC023"),
+		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC023")));
+	ConfigureEvidence(Provider, Catalog);
+
+	Provider->Test_SetPackageDependencies(Catalog->Entries[1].Asset.ToSoftObjectPath(), {});
+	TestTrue(TEXT("declared dependency absent from registry graph -> GAC031"),
+		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC031")));
+
+	Provider->Test_SetPackageDependencies(Catalog->Entries[1].Asset.ToSoftObjectPath(), {
+		FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/T_Heart")) });
+	Provider->Test_SetPackageDependencies(Catalog->Entries[2].Asset.ToSoftObjectPath(), {
+		FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/SM_Heart")) });
+	TestTrue(TEXT("generated dependency cycle -> GAC032"),
+		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC032")));
+
+	Provider->Test_SetPackageDependencies(Catalog->Entries[2].Asset.ToSoftObjectPath(), {
+		FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v2/T_Stale")) });
+	TestTrue(TEXT("generated dependency version-root escape -> GAC028"),
+		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC028")));
+
+	Provider->Test_SetPackageDependencies(Catalog->Entries[2].Asset.ToSoftObjectPath(), {
+		FName(TEXT("/Game/Unapproved/SharedAsset")) });
+	TestTrue(TEXT("external package outside caller policy -> GAC033"),
+		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC033")));
+
+	FGloamsteadGeneratedAssetEntry Ambiguous = Catalog->Entries[2];
+	Ambiguous.SemanticRole = TEXT("sanctuary.heart.texture.variant");
+	Ambiguous.Asset = TSoftObjectPtr<UObject>(FSoftObjectPath(
+		TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/T_Heart.T_HeartVariant")));
+	Catalog->Entries.Add(Ambiguous);
+	TestTrue(TEXT("two entries in one generated package -> GAC029"),
+		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC029")));
 	return true;
 }
 

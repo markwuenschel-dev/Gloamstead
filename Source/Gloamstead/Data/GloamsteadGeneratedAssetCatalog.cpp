@@ -47,6 +47,19 @@ namespace
 			&& IsStableId(Version);
 	}
 
+	bool IsSafeExternalPackageRoot(const FString& Root)
+	{
+		static const FString GeneratedRoot = TEXT("/Game/Gloamstead/Generated");
+		if (!Root.StartsWith(TEXT("/")) || Root.Len() < 2 || Root.EndsWith(TEXT("/"))
+			|| Root.Contains(TEXT("\\")) || Root.Contains(TEXT("//")) || Root.Contains(TEXT("..")))
+		{
+			return false;
+		}
+		// A broad policy such as /Game must not silently authorize another generated version.
+		return !Root.StartsWith(GeneratedRoot, ESearchCase::IgnoreCase)
+			&& !GeneratedRoot.StartsWith(Root + TEXT("/"), ESearchCase::IgnoreCase);
+	}
+
 	void ValidateObjectPath(const FSoftObjectPath& ObjectPath, const FString& VersionRoot, TArray<FString>& Codes)
 	{
 		static const FString GeneratedRoot = TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/");
@@ -137,9 +150,20 @@ TArray<FString> GACValidateCatalog(
 	{
 		Codes.Add(TEXT("GAC019"));
 	}
+	TSet<FString> SeenPolicyRoots;
+	for (const FString& Root : Catalog.AllowedExternalDependencyRoots)
+	{
+		const FString Folded = Root.ToLower();
+		if (!IsSafeExternalPackageRoot(Root) || SeenPolicyRoots.Contains(Folded))
+		{
+			Codes.AddUnique(TEXT("GAC034"));
+		}
+		SeenPolicyRoots.Add(Folded);
+	}
 
 	TSet<FString> SeenKeys;
 	TSet<FString> CatalogAssets;
+	TSet<FString> CatalogPackages;
 	for (const FGloamsteadGeneratedAssetEntry& Entry : Catalog.Entries)
 	{
 		const FString AssetPath = Entry.Asset.ToSoftObjectPath().ToString();
@@ -148,6 +172,12 @@ TArray<FString> GACValidateCatalog(
 			Codes.AddUnique(TEXT("GAC022"));
 		}
 		CatalogAssets.Add(AssetPath);
+		const FString PackageName = Entry.Asset.ToSoftObjectPath().GetLongPackageName();
+		if (!PackageName.IsEmpty() && CatalogPackages.Contains(PackageName))
+		{
+			Codes.AddUnique(TEXT("GAC029"));
+		}
+		CatalogPackages.Add(PackageName);
 	}
 	for (const FGloamsteadGeneratedAssetEntry& Entry : Catalog.Entries)
 	{

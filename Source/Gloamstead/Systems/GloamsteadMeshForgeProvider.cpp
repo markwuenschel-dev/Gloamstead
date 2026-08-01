@@ -8,9 +8,34 @@
 #include "Engine/StreamableManager.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/IAssetRegistry.h"
 #include "Modules/ModuleManager.h"
 #include "Data/GloamsteadGeneratedAssetCatalog.h"
 #include "Settings/GloamsteadGeneratedAssetSettings.h"
+
+namespace
+{
+	const FString GloamGeneratedPackageRoot = TEXT("/Game/Gloamstead/Generated");
+
+	bool IsPackageUnderRoot(const FString& PackageName, const FString& Root)
+	{
+		return PackageName.Equals(Root, ESearchCase::IgnoreCase)
+			|| PackageName.StartsWith(Root + TEXT("/"), ESearchCase::IgnoreCase);
+	}
+
+	bool IsExplicitExternalDependencyAllowed(
+		const FString& PackageName, const TArray<FString>& AllowedRoots)
+	{
+		for (const FString& Root : AllowedRoots)
+		{
+			if (IsPackageUnderRoot(PackageName, Root))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+}
 
 // ===== AGloamsteadMeshForgeProxyActor =====
 
@@ -381,6 +406,145 @@ UGloamsteadGeneratedAssetMeshForgeProvider::ReadObservedProvenance(const FSoftOb
 	return Observed;
 }
 
+bool UGloamsteadGeneratedAssetMeshForgeProvider::ReadPackageDependencies(
+	FName PackageName, TArray<FName>& OutDependencies) const
+{
+	OutDependencies.Reset();
+#if WITH_DEV_AUTOMATION_TESTS
+	if (const TArray<FName>* Override = TestPackageDependencies.Find(PackageName))
+	{
+		OutDependencies = *Override;
+		return true;
+	}
+#endif
+	const FAssetRegistryModule& Module =
+		FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+	// The empty query includes both Hard and Soft package edges and reads only the on-disk/cooked graph.
+	return Module.Get().GetDependencies(
+		PackageName,
+		OutDependencies,
+		UE::AssetRegistry::EDependencyCategory::Package,
+		UE::AssetRegistry::FDependencyQuery());
+}
+
+TArray<FString> UGloamsteadGeneratedAssetMeshForgeProvider::ValidateCatalogDependencyClosure() const
+{
+	TArray<FString> Codes;
+	if (!LoadedCatalog)
+	{
+		Codes.Add(TEXT("GAC017"));
+		return Codes;
+	}
+
+	TMap<FName, int32> EntryByPackage;
+	TSet<FName> AmbiguousPackages;
+	for (int32 Index = 0; Index < LoadedCatalog->Entries.Num(); ++Index)
+	{
+		const FGloamsteadGeneratedAssetEntry& Entry = LoadedCatalog->Entries[Index];
+		const FName PackageName(*Entry.Asset.ToSoftObjectPath().GetLongPackageName());
+		if (PackageName.IsNone() || EntryByPackage.Contains(PackageName))
+		{
+			Codes.AddUnique(TEXT("GAC029"));
+			AmbiguousPackages.Add(PackageName);
+		}
+		else
+		{
+			EntryByPackage.Add(PackageName, Index);
+		}
+
+		for (const FString& Code : GACValidateObservedProvenance(
+			Entry, *LoadedCatalog, ReadObservedProvenance(Entry.Asset.ToSoftObjectPath())))
+		{
+			Codes.AddUnique(Code);
+		}
+	}
+
+	TMap<FName, uint8> VisitState; // 1 = active recursion stack, 2 = fully visited.
+	TFunction<void(FName)> Visit = [&](FName PackageName)
+	{
+		if (VisitState.FindRef(PackageName) == 1)
+		{
+			Codes.AddUnique(TEXT("GAC032"));
+			return;
+		}
+		if (VisitState.FindRef(PackageName) == 2)
+		{
+			return;
+		}
+		const int32* EntryIndex = EntryByPackage.Find(PackageName);
+		if (!EntryIndex || AmbiguousPackages.Contains(PackageName))
+		{
+			Codes.AddUnique(TEXT("GAC029"));
+			return;
+		}
+		VisitState.Add(PackageName, 1);
+
+		TArray<FName> ObservedDependencies;
+		if (!ReadPackageDependencies(PackageName, ObservedDependencies))
+		{
+			Codes.AddUnique(TEXT("GAC027"));
+			VisitState.Add(PackageName, 2);
+			return;
+		}
+
+		TSet<FName> ObservedGenerated;
+		for (const FName DependencyPackage : ObservedDependencies)
+		{
+			const FString DependencyName = DependencyPackage.ToString();
+			if (IsPackageUnderRoot(DependencyName, LoadedCatalog->VersionRoot))
+			{
+				ObservedGenerated.Add(DependencyPackage);
+				if (!EntryByPackage.Contains(DependencyPackage)
+					|| AmbiguousPackages.Contains(DependencyPackage))
+				{
+					Codes.AddUnique(TEXT("GAC029"));
+				}
+				else
+				{
+					Visit(DependencyPackage);
+				}
+			}
+			else if (IsPackageUnderRoot(DependencyName, GloamGeneratedPackageRoot))
+			{
+				Codes.AddUnique(TEXT("GAC028"));
+			}
+			else if (!IsExplicitExternalDependencyAllowed(
+				DependencyName, LoadedCatalog->AllowedExternalDependencyRoots))
+			{
+				Codes.AddUnique(TEXT("GAC033"));
+			}
+		}
+
+		TSet<FName> DeclaredGenerated;
+		const FGloamsteadGeneratedAssetEntry& Entry = LoadedCatalog->Entries[*EntryIndex];
+		for (const TSoftObjectPtr<UObject>& Dependency : Entry.Dependencies)
+		{
+			DeclaredGenerated.Add(FName(*Dependency.ToSoftObjectPath().GetLongPackageName()));
+		}
+		for (const FName Observed : ObservedGenerated)
+		{
+			if (!DeclaredGenerated.Contains(Observed))
+			{
+				Codes.AddUnique(TEXT("GAC030"));
+			}
+		}
+		for (const FName Declared : DeclaredGenerated)
+		{
+			if (!ObservedGenerated.Contains(Declared))
+			{
+				Codes.AddUnique(TEXT("GAC031"));
+			}
+		}
+		VisitState.Add(PackageName, 2);
+	};
+
+	for (const TPair<FName, int32>& Pair : EntryByPackage)
+	{
+		Visit(Pair.Key);
+	}
+	return Codes;
+}
+
 FGloamsteadMeshForgeProxyInstance UGloamsteadGeneratedAssetMeshForgeProvider::CreateProxy(
 	const FGloamsteadMeshForgeProxySpec& Spec,
 	const FGloamsteadMeshForgeSourceBinding& Binding,
@@ -418,6 +582,11 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadGeneratedAssetMeshForgeProvider::Cr
 	if (!World || !Binding.bLocationResolved)
 	{
 		Instance.FailureCodes.Add(TEXT("GAC025"));
+		return Instance;
+	}
+	Instance.FailureCodes = ValidateCatalogDependencyClosure();
+	if (Instance.FailureCodes.Num() > 0)
+	{
 		return Instance;
 	}
 
@@ -526,6 +695,18 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::Test_SetObservedProvenance(
 	const FGloamsteadGeneratedAssetObservedProvenance& Provenance)
 {
 	TestObservedProvenance.Add(ObjectPath, Provenance);
+}
+
+void UGloamsteadGeneratedAssetMeshForgeProvider::Test_SetPackageDependencies(
+	const FSoftObjectPath& ObjectPath,
+	const TArray<FName>& DependencyPackages)
+{
+	TestPackageDependencies.Add(FName(*ObjectPath.GetLongPackageName()), DependencyPackages);
+}
+
+TArray<FString> UGloamsteadGeneratedAssetMeshForgeProvider::Test_ValidateDependencyClosure() const
+{
+	return ValidateCatalogDependencyClosure();
 }
 
 uint64 UGloamsteadGeneratedAssetMeshForgeProvider::Test_BeginPendingCatalogLoad()

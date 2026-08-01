@@ -120,6 +120,10 @@ public:
 	void Test_SetResolvedObject(const FSoftObjectPath& ObjectPath, UObject* Object);
 	void Test_SetObservedProvenance(const FSoftObjectPath& ObjectPath,
 		const FGloamsteadGeneratedAssetObservedProvenance& Provenance);
+	/** Inject the exact direct hard+soft package dependencies returned by the cooked Asset Registry. */
+	void Test_SetPackageDependencies(const FSoftObjectPath& ObjectPath,
+		const TArray<FName>& DependencyPackages);
+	TArray<FString> Test_ValidateDependencyClosure() const;
 	void Test_ForceSpawnFailure(bool bForce) { bTestForceSpawnFailure = bForce; }
 	uint64 Test_BeginPendingCatalogLoad();
 	void Test_CompleteCatalogLoad(uint64 LoadGeneration, const FSoftObjectPath& RequestedPath,
@@ -136,6 +140,8 @@ private:
 	UObject* ResolveEntryObject(const FSoftObjectPath& ObjectPath) const;
 	FGloamsteadGeneratedAssetObservedProvenance ReadObservedProvenance(
 		const FSoftObjectPath& ObjectPath) const;
+	bool ReadPackageDependencies(FName PackageName, TArray<FName>& OutDependencies) const;
+	TArray<FString> ValidateCatalogDependencyClosure() const;
 
 	UPROPERTY() TSoftObjectPtr<UGloamsteadGeneratedAssetCatalog> CatalogPath;
 	UPROPERTY() TObjectPtr<UGloamsteadGeneratedAssetCatalog> LoadedCatalog;
@@ -148,6 +154,7 @@ private:
 #if WITH_DEV_AUTOMATION_TESTS
 	TMap<FSoftObjectPath, TWeakObjectPtr<UObject>> TestResolvedObjects;
 	TMap<FSoftObjectPath, FGloamsteadGeneratedAssetObservedProvenance> TestObservedProvenance;
+	TMap<FName, TArray<FName>> TestPackageDependencies;
 	bool bTestForceSpawnFailure = false;
 #endif
 };
