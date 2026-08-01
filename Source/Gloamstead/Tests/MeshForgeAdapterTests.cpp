@@ -35,6 +35,25 @@ namespace
 		I.bVisibleProxyCreated = true;
 		return I;
 	}
+
+	FGloamsteadMeshForgeProxyInstance MakeCleanGeneratedInstance()
+	{
+		FGloamsteadMeshForgeProxyInstance I;
+		I.Spec.ProxyId = TEXT("generated_heart");
+		I.Spec.ProxyType = EGMFProxyType::Heart;
+		I.Binding.SourceSystem = EGMFSourceSystem::VeilHeart;
+		I.ProviderType = EGMFProviderType::GeneratedOwnedMeshForgeAsset;
+		I.OwnershipClass = EGMFOwnershipClass::GeneratedOwned;
+		I.bRuntimeOnly = false;
+		I.GeneratedVersionRoot = TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1");
+		I.GeneratedAssetPath = I.GeneratedVersionRoot + TEXT("/SM_Heart.SM_Heart");
+		I.GeneratedBundleId = TEXT("sanctuary-v1");
+		I.GeneratedReceiptSha256 = TEXT("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+		I.GeneratedObjectSha256 = TEXT("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+		I.GeneratedOwnershipId = TEXT("gloamstead");
+		I.GeneratedLicenseId = TEXT("LicenseRef-001");
+		return I;
+	}
 }
 
 // 1. Descriptor + instance overclaim rejection.
@@ -108,6 +127,43 @@ bool FGloamMeshForgeReportValidationTest::RunTest(const FString& /*Parameters*/)
 	TestTrue(TEXT("generated assets on runtime provider -> GMF015"), GMFValidateReport(Gen).Contains(TEXT("GMF015")));
 	FGloamsteadMeshForgeVisibilityReport Own = R; Own.OwnershipClass = EGMFOwnershipClass::GeneratedOwned;
 	TestTrue(TEXT("runtime report claiming generated ownership -> GMF014"), GMFValidateReport(Own).Contains(TEXT("GMF014")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamMeshForgeGeneratedProvenanceTest,
+	"Gloamstead.MeshForge.GeneratedProvenanceIsReceiptClosed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamMeshForgeGeneratedProvenanceTest::RunTest(const FString& /*Parameters*/)
+{
+	FGloamsteadMeshForgeProxyInstance Instance = MakeCleanGeneratedInstance();
+	TestEqual(TEXT("closed generated instance is valid"), GMFValidateInstance(Instance).Num(), 0);
+
+	FGloamsteadMeshForgeProxyInstance Escaped = Instance;
+	Escaped.GeneratedAssetPath = TEXT("/Game/Other/SM_Heart.SM_Heart");
+	TestTrue(TEXT("version-root escape -> GMF020"), GMFValidateInstance(Escaped).Contains(TEXT("GMF020")));
+
+	FGloamsteadMeshForgeVisibilityReport Report;
+	Report.ProviderType = EGMFProviderType::GeneratedOwnedMeshForgeAsset;
+	Report.OwnershipClass = EGMFOwnershipClass::GeneratedOwned;
+	Report.ProxyCount = 2;
+	Report.HeartProxyCount = 1;
+	Report.RitualPointProxyCount = 1;
+	Report.GeneratedAssetCount = 2;
+	Report.ActiveGeneratedVersionRoot = Instance.GeneratedVersionRoot;
+	Report.ActiveGeneratedBundleId = Instance.GeneratedBundleId;
+	Report.ActiveGeneratedReceiptSha256 = Instance.GeneratedReceiptSha256;
+	Report.Proxies.Add(Instance);
+	FGloamsteadMeshForgeProxyInstance Ritual = Instance;
+	Ritual.Spec.ProxyId = TEXT("generated_ritual");
+	Ritual.Spec.ProxyType = EGMFProxyType::RitualPoint;
+	Ritual.GeneratedAssetPath = Ritual.GeneratedVersionRoot + TEXT("/SM_Ritual.SM_Ritual");
+	Report.Proxies.Add(Ritual);
+	TestEqual(TEXT("receipt-closed generated report is valid"), GMFValidateReport(Report).Num(), 0);
+
+	Report.Proxies[1].GeneratedReceiptSha256 = TEXT("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc");
+	TestTrue(TEXT("mixed receipts -> GMF019"), GMFValidateReport(Report).Contains(TEXT("GMF019")));
 	return true;
 }
 
@@ -197,6 +253,41 @@ bool FGloamMeshForgeLiveWorldTest::RunTest(const FString& /*Parameters*/)
 		TestEqual(TEXT("no generated assets claimed"), Rep.GeneratedAssetCount, 0);
 		TestEqual(TEXT("all proxies are runtime-only"), Rep.RuntimeOnlyProxyCount, Rep.ProxyCount);
 		TestFalse(TEXT("no binary content touched"), Rep.bBinaryContentTouched);
+	}
+
+	GEngine->DestroyWorldContext(World);
+	World->DestroyWorld(false);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamMeshForgeAmbiguousHeartTest,
+	"Gloamstead.MeshForge.RegistryAmbiguityNeverChoosesFirstHeart",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamMeshForgeAmbiguousHeartTest::RunTest(const FString& /*Parameters*/)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+	if (!TestNotNull(TEXT("world created"), World)) { return false; }
+	FWorldContext& Context = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Context.SetCurrentWorld(World);
+	FURL URL;
+	World->InitializeActorsForPlay(URL);
+	World->BeginPlay();
+
+	UGloamsteadMeshForgeAdapterSubsystem* Adapter = World->GetSubsystem<UGloamsteadMeshForgeAdapterSubsystem>();
+	TestNotNull(TEXT("adapter exists"), Adapter);
+	AVeilHeart* First = World->SpawnActor<AVeilHeart>(FVector::ZeroVector, FRotator::ZeroRotator);
+	AVeilHeart* Second = World->SpawnActor<AVeilHeart>(FVector(1000.f, 0.f, 0.f), FRotator::ZeroRotator);
+	TestNotNull(TEXT("first heart spawned"), First);
+	TestNotNull(TEXT("second heart spawned"), Second);
+	if (Adapter)
+	{
+		Adapter->Test_BuildFor(World);
+		TestEqual(TEXT("ambiguous registry result creates no Heart proxy"),
+			Adapter->CountProxiesOfType(EGMFProxyType::Heart), 0);
+		TestTrue(TEXT("ambiguity is reported"),
+			Adapter->BuildVisibilityReport().FailureCodes.Contains(TEXT("GSS007")));
 	}
 
 	GEngine->DestroyWorldContext(World);

@@ -9,6 +9,22 @@
 #include "Misc/DateTime.h"
 #include "HAL/FileManager.h"
 
+namespace
+{
+	bool GMFIsSha256(const FString& Value)
+	{
+		if (Value.Len() != 64) { return false; }
+		for (const TCHAR Ch : Value) { if (!FChar::IsHexDigit(Ch)) { return false; } }
+		return true;
+	}
+
+	bool GMFIsGeneratedVersionRoot(const FString& Root)
+	{
+		static const FString Prefix = TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/");
+		return Root.StartsWith(Prefix) && Root.Len() > Prefix.Len() && !Root.EndsWith(TEXT("/"));
+	}
+}
+
 // ===== Tokens =====
 
 FString GMFProxyTypeToken(EGMFProxyType Type)
@@ -103,6 +119,21 @@ TArray<FString> GMFValidateInstance(const FGloamsteadMeshForgeProxyInstance& I)
 	if (I.OwnershipClass == EGMFOwnershipClass::GeneratedOwned && !bHasPath) { Codes.Add(TEXT("GMF015")); } // generated but no path
 	if (I.OwnershipClass == EGMFOwnershipClass::GeneratedOwned && I.bRuntimeOnly) { Codes.Add(TEXT("GMF015")); }
 	if (I.OwnershipClass == EGMFOwnershipClass::CodeOwnedRuntimeProxy && !I.bRuntimeOnly) { Codes.Add(TEXT("GMF015")); }
+	if (I.ProviderType == EGMFProviderType::GeneratedOwnedMeshForgeAsset)
+	{
+		if (I.OwnershipClass != EGMFOwnershipClass::GeneratedOwned || I.bRuntimeOnly) { Codes.AddUnique(TEXT("GMF015")); }
+		if (!GMFIsGeneratedVersionRoot(I.GeneratedVersionRoot)
+			|| !I.GeneratedAssetPath.StartsWith(I.GeneratedVersionRoot + TEXT("/")))
+		{
+			Codes.AddUnique(TEXT("GMF020"));
+		}
+		if (I.GeneratedBundleId.IsEmpty()) { Codes.AddUnique(TEXT("GMF018")); }
+		if (!GMFIsSha256(I.GeneratedReceiptSha256)) { Codes.AddUnique(TEXT("GMF019")); }
+		if (!GMFIsSha256(I.GeneratedObjectSha256) || I.GeneratedOwnershipId.IsEmpty() || I.GeneratedLicenseId.IsEmpty())
+		{
+			Codes.AddUnique(TEXT("GMF021"));
+		}
+	}
 
 	// A proxy cannot claim it is visible without having spawned.
 	if (I.bVisibleProxyCreated && !I.bSpawned) { Codes.Add(TEXT("GMF009")); }
@@ -123,6 +154,18 @@ TArray<FString> GMFValidateReport(const FGloamsteadMeshForgeVisibilityReport& R)
 		if (R.GeneratedAssetCount > 0) { Codes.Add(TEXT("GMF015")); } // no generated assets on a runtime provider
 		if (R.RuntimeOnlyProxyCount != R.ProxyCount) { Codes.Add(TEXT("GMF015")); }
 	}
+	else if (R.ProviderType == EGMFProviderType::GeneratedOwnedMeshForgeAsset)
+	{
+		if (R.OwnershipClass != EGMFOwnershipClass::GeneratedOwned) { Codes.AddUnique(TEXT("GMF003")); }
+		if (R.RuntimeOnlyProxyCount != 0) { Codes.AddUnique(TEXT("GMF015")); }
+		if (!GMFIsGeneratedVersionRoot(R.ActiveGeneratedVersionRoot)) { Codes.AddUnique(TEXT("GMF020")); }
+		if (R.ActiveGeneratedBundleId.IsEmpty()) { Codes.AddUnique(TEXT("GMF018")); }
+		if (!GMFIsSha256(R.ActiveGeneratedReceiptSha256)) { Codes.AddUnique(TEXT("GMF019")); }
+		if (R.ProxyCount != R.Proxies.Num() || R.GeneratedAssetCount != R.ProxyCount)
+		{
+			Codes.AddUnique(TEXT("GMF015"));
+		}
+	}
 
 	// Coverage: a readable sanctuary needs the Heart and at least one ritual point visible.
 	if (R.HeartProxyCount <= 0) { Codes.Add(TEXT("GMF010")); }
@@ -132,6 +175,16 @@ TArray<FString> GMFValidateReport(const FGloamsteadMeshForgeVisibilityReport& R)
 	for (const FGloamsteadMeshForgeProxyInstance& I : R.Proxies)
 	{
 		for (const FString& C : GMFValidateInstance(I)) { Codes.AddUnique(C); }
+		if (I.FailureCodes.Num() > 0) { Codes.AddUnique(TEXT("GMF023")); }
+		if (R.ProviderType == EGMFProviderType::GeneratedOwnedMeshForgeAsset)
+		{
+			if (I.GeneratedVersionRoot != R.ActiveGeneratedVersionRoot) { Codes.AddUnique(TEXT("GMF020")); }
+			if (I.GeneratedBundleId != R.ActiveGeneratedBundleId) { Codes.AddUnique(TEXT("GMF018")); }
+			if (!I.GeneratedReceiptSha256.Equals(R.ActiveGeneratedReceiptSha256, ESearchCase::IgnoreCase))
+			{
+				Codes.AddUnique(TEXT("GMF019"));
+			}
+		}
 	}
 
 	return Codes;
@@ -168,9 +221,20 @@ namespace
 		O->SetBoolField(TEXT("spawned"), I.bSpawned);
 		O->SetBoolField(TEXT("visible_proxy_created"), I.bVisibleProxyCreated);
 		O->SetBoolField(TEXT("interaction_relevant"), I.Spec.bInteractionRelevant);
+		O->SetStringField(TEXT("generated_asset_role"), I.Spec.GeneratedAssetRole.ToString());
+		O->SetStringField(TEXT("generated_asset_state"), GACStateToken(I.Spec.GeneratedAssetState));
+		O->SetStringField(TEXT("projected_day_phase"), I.Spec.ProjectedDayPhase.ToString());
+		O->SetNumberField(TEXT("projected_wetness"), I.Spec.ProjectedWetness);
+		O->SetStringField(TEXT("projected_warning_tag"), I.Spec.ProjectedWarningTag.ToString());
 		O->SetBoolField(TEXT("runtime_only"), I.bRuntimeOnly);
 		if (I.GeneratedAssetPath.IsEmpty()) { O->SetField(TEXT("generated_asset_path"), MakeShared<FJsonValueNull>()); }
 		else { O->SetStringField(TEXT("generated_asset_path"), I.GeneratedAssetPath); }
+		O->SetStringField(TEXT("generated_version_root"), I.GeneratedVersionRoot);
+		O->SetStringField(TEXT("generated_bundle_id"), I.GeneratedBundleId);
+		O->SetStringField(TEXT("generated_receipt_sha256"), I.GeneratedReceiptSha256);
+		O->SetStringField(TEXT("generated_object_sha256"), I.GeneratedObjectSha256);
+		O->SetStringField(TEXT("generated_ownership_id"), I.GeneratedOwnershipId);
+		O->SetStringField(TEXT("generated_license_id"), I.GeneratedLicenseId);
 		TArray<TSharedPtr<FJsonValue>> Fc;
 		for (const FString& C : I.FailureCodes) { Fc.Add(MakeShared<FJsonValueString>(C)); }
 		O->SetArrayField(TEXT("failure_codes"), Fc);
@@ -200,7 +264,7 @@ bool GloamsteadMeshForgeReport::WriteReports(const FGloamsteadMeshForgeVisibilit
 
 	// --- visibility_proxy_report.json (primary) ---
 	TSharedPtr<FJsonObject> Vis = MakeShared<FJsonObject>();
-	Vis->SetStringField(TEXT("schema"), TEXT("GloamsteadMeshForgeVisibilityReport/v1"));
+	Vis->SetStringField(TEXT("schema"), TEXT("GloamsteadMeshForgeVisibilityReport/v2"));
 	Vis->SetStringField(TEXT("report_id"), Report.ReportId);
 	Vis->SetStringField(TEXT("created_at"), Now);
 	Vis->SetStringField(TEXT("git_sha"), GitSha);
@@ -214,6 +278,9 @@ bool GloamsteadMeshForgeReport::WriteReports(const FGloamsteadMeshForgeVisibilit
 	Vis->SetNumberField(TEXT("night_feedback_proxy_count"), Report.NightFeedbackProxyCount);
 	Vis->SetNumberField(TEXT("generated_asset_count"), Report.GeneratedAssetCount);
 	Vis->SetNumberField(TEXT("runtime_only_proxy_count"), Report.RuntimeOnlyProxyCount);
+	Vis->SetStringField(TEXT("active_generated_version_root"), Report.ActiveGeneratedVersionRoot);
+	Vis->SetStringField(TEXT("active_generated_bundle_id"), Report.ActiveGeneratedBundleId);
+	Vis->SetStringField(TEXT("active_generated_receipt_sha256"), Report.ActiveGeneratedReceiptSha256);
 	Vis->SetBoolField(TEXT("binary_content_touched"), Report.bBinaryContentTouched);
 	{
 		TArray<TSharedPtr<FJsonValue>> Fc;

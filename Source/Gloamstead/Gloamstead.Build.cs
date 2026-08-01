@@ -12,6 +12,7 @@ public class Gloamstead : ModuleRules
 			"Core",
 			"CoreUObject",
 			"Engine",
+			"DeveloperSettings",
 			"InputCore",
 			"EnhancedInput",
 			"AIModule",

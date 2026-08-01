@@ -8,6 +8,9 @@
 class UStaticMeshComponent;
 class UStaticMesh;
 class UMaterialInstanceDynamic;
+class UGloamsteadGeneratedAssetCatalog;
+class UGloamsteadGeneratedAssetSettings;
+struct FStreamableHandle;
 
 /** The visible body of one runtime proxy: a single primitive mesh, no collision (never blocks the player). */
 UCLASS()
@@ -20,6 +23,9 @@ public:
 
 	/** Set the mesh + (possibly non-uniform) scale, and best-effort colour/emissive via a dynamic material. */
 	void ConfigureVisual(UStaticMesh* Mesh, const FLinearColor& Color, const FVector& Scale, bool bEmissive);
+	/** Configure a generated mesh without substituting any engine material fallback. */
+	void ConfigureGeneratedVisual(UStaticMesh* Mesh, const FLinearColor& Color, const FVector& Scale, bool bEmissive);
+	void SetProjectedMaterialParameters(float Wetness, bool bWarningActive);
 
 	/** Re-tint at runtime (e.g. a night-feedback proxy reacting to the phase). Best-effort. */
 	void SetVisualColor(const FLinearColor& Color, bool bEmissive);
@@ -30,6 +36,7 @@ public:
 private:
 	UPROPERTY() TObjectPtr<UStaticMeshComponent> MeshComponent;
 	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> DynMaterial;
+	bool bAllowEngineTintMaterial = true;
 };
 
 /**
@@ -73,4 +80,55 @@ public:
 
 	/** Per-type primitive scale (a tall pillar for the Heart, a flat disc for the interaction radius, etc.). */
 	static FVector ScaleForType(EGMFProxyType Type, float SpecScale);
+};
+
+UENUM(BlueprintType)
+enum class EGMFGeneratedProviderState : uint8
+{
+	Uninitialized = 0,
+	Loading,
+	Ready,
+	Failed,
+};
+
+/** Receipt-closed generated catalog provider. It never falls back to engine primitives. */
+UCLASS()
+class GLOAMSTEAD_API UGloamsteadGeneratedAssetMeshForgeProvider : public UGloamsteadMeshForgeProvider
+{
+	GENERATED_BODY()
+
+public:
+	void Configure(const UGloamsteadGeneratedAssetSettings& Settings);
+	void PreloadCatalogAsync(FSimpleDelegate Completion = FSimpleDelegate());
+
+	EGMFGeneratedProviderState GetState() const { return State; }
+	bool IsReadyForBuild() const { return State == EGMFGeneratedProviderState::Ready; }
+	bool HasFailed() const { return State == EGMFGeneratedProviderState::Failed; }
+	const TArray<FString>& GetFailureCodes() const { return FailureCodes; }
+	const UGloamsteadGeneratedAssetCatalog* GetCatalog() const { return LoadedCatalog; }
+
+	virtual FGloamsteadMeshForgeProviderDescriptor GetDescriptor() const override;
+	virtual bool CanSpawn(EGMFProxyType Type) const override;
+	virtual FGloamsteadMeshForgeProxyInstance CreateProxy(const FGloamsteadMeshForgeProxySpec& Spec,
+		const FGloamsteadMeshForgeSourceBinding& Binding, UWorld* World) override;
+
+#if WITH_DEV_AUTOMATION_TESTS
+	/** Test seam: exercises the same validation transition without requiring an authored .uasset. */
+	void Test_SetLoadedCatalog(UGloamsteadGeneratedAssetCatalog* Catalog,
+		const FString& ExpectedBundleId, const FString& ExpectedReceiptSha256);
+#endif
+
+private:
+	void FinishCatalogLoad();
+	void ValidateLoadedCatalog();
+	void Fail(const TArray<FString>& Codes);
+
+	UPROPERTY() TSoftObjectPtr<UGloamsteadGeneratedAssetCatalog> CatalogPath;
+	UPROPERTY() TObjectPtr<UGloamsteadGeneratedAssetCatalog> LoadedCatalog;
+	UPROPERTY() EGMFGeneratedProviderState State = EGMFGeneratedProviderState::Uninitialized;
+	UPROPERTY() TArray<FString> FailureCodes;
+	FString ExpectedBundleId;
+	FString ExpectedReceiptSha256;
+	TSharedPtr<FStreamableHandle> PreloadHandle;
+	FSimpleDelegate PreloadCompletion;
 };

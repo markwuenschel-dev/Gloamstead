@@ -45,6 +45,8 @@ public:
 
 	/** Test seam: run the full build against an explicit world without OnWorldBeginPlay. */
 	void Test_BuildFor(UWorld* World);
+	/** Test seam: explicit provider injection, preserving settings-only production selection. */
+	void Test_UseProvider(UGloamsteadMeshForgeProvider* InProvider) { Provider = InProvider; }
 
 private:
 	void BuildFor(UWorld* World);
@@ -53,7 +55,8 @@ private:
 	void BindSourceEvents(UWorld* World);
 	void UnbindSourceEvents();
 
-	AVeilHeart* FindHeart(UWorld* World) const;
+	AVeilHeart* ResolveHeart(UWorld* World);
+	void HandleGeneratedProviderPreloadComplete();
 
 	void BuildHeartProxy(UWorld* World, AVeilHeart* Heart);
 	void BuildRitualPointProxies(UWorld* World, UGloamsteadPCGSubsystem* PCG);
@@ -74,6 +77,11 @@ private:
 
 	UPROPERTY()
 	TArray<FGloamsteadMeshForgeProxyInstance> Proxies;
+
+	UPROPERTY()
+	TArray<FString> AdapterFailureCodes;
+
+	TWeakObjectPtr<UWorld> PendingBuildWorld;
 
 	int32 NightFeedbackProxyIndex = -1;
 	int32 RebuildAttempts = 0;
