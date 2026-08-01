@@ -23,10 +23,19 @@ namespace
 			|| PackageName.StartsWith(Root + TEXT("/"), ESearchCase::IgnoreCase);
 	}
 
-	bool IsExplicitExternalDependencyAllowed(
-		const FString& PackageName, const TArray<FString>& AllowedRoots)
+	bool IsTerminalPlatformPackage(
+		const FString& PackageName,
+		const TArray<FString>& ExactPackages,
+		const TArray<FString>& SafeRoots)
 	{
-		for (const FString& Root : AllowedRoots)
+		for (const FString& ExactPackage : ExactPackages)
+		{
+			if (PackageName.Equals(ExactPackage, ESearchCase::IgnoreCase))
+			{
+				return true;
+			}
+		}
+		for (const FString& Root : SafeRoots)
 		{
 			if (IsPackageUnderRoot(PackageName, Root))
 			{
@@ -243,6 +252,7 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::Configure(const UGloamsteadGene
 	CatalogPath = Settings.Catalog;
 	ExpectedBundleId = Settings.ExpectedActiveBundleId;
 	ExpectedReceiptSha256 = Settings.ExpectedReceiptSha256;
+	ExpectedTargetBuildIdentitySha256 = Settings.ExpectedTargetBuildIdentitySha256;
 	LoadedCatalog = nullptr;
 	FailureCodes.Reset();
 	State = EGMFGeneratedProviderState::Uninitialized;
@@ -327,7 +337,8 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::ValidateLoadedCatalog()
 	// The catalog is intentionally generic and may also carry placement/material/VFX entries. Selection
 	// enforces the provider's narrower static-mesh support on the exact chosen entry before spawning.
 	TArray<FString> Codes = GACValidateCatalog(*LoadedCatalog, /*bRequireMeshForgeCompatibleClasses*/ false);
-	for (const FString& Code : GACValidateActiveBinding(*LoadedCatalog, ExpectedBundleId, ExpectedReceiptSha256))
+	for (const FString& Code : GACValidateActiveBinding(*LoadedCatalog, ExpectedBundleId,
+		ExpectedReceiptSha256, ExpectedTargetBuildIdentitySha256))
 	{
 		Codes.AddUnique(Code);
 	}
@@ -402,6 +413,7 @@ UGloamsteadGeneratedAssetMeshForgeProvider::ReadObservedProvenance(const FSoftOb
 		AssetData.GetTagValue(GloamsteadGeneratedAssetProvenanceTags::ObjectSha256, Observed.ObjectSha256);
 		AssetData.GetTagValue(GloamsteadGeneratedAssetProvenanceTags::ReceiptSha256, Observed.ReceiptSha256);
 		AssetData.GetTagValue(GloamsteadGeneratedAssetProvenanceTags::BundleId, Observed.BundleId);
+		AssetData.GetTagValue(GloamsteadGeneratedAssetProvenanceTags::PackageSha256, Observed.PackageSha256);
 	}
 	return Observed;
 }
@@ -411,6 +423,10 @@ bool UGloamsteadGeneratedAssetMeshForgeProvider::ReadPackageDependencies(
 {
 	OutDependencies.Reset();
 #if WITH_DEV_AUTOMATION_TESTS
+	if (TestUnavailablePackageDependencyQueries.Contains(PackageName))
+	{
+		return false;
+	}
 	if (const TArray<FName>* Override = TestPackageDependencies.Find(PackageName))
 	{
 		OutDependencies = *Override;
@@ -437,6 +453,7 @@ TArray<FString> UGloamsteadGeneratedAssetMeshForgeProvider::ValidateCatalogDepen
 	}
 
 	TMap<FName, int32> EntryByPackage;
+	TMap<FName, int32> ExternalByPackage;
 	TSet<FName> AmbiguousPackages;
 	for (int32 Index = 0; Index < LoadedCatalog->Entries.Num(); ++Index)
 	{
@@ -458,6 +475,27 @@ TArray<FString> UGloamsteadGeneratedAssetMeshForgeProvider::ValidateCatalogDepen
 			Codes.AddUnique(Code);
 		}
 	}
+	for (int32 Index = 0; Index < LoadedCatalog->ExternalPackageRecords.Num(); ++Index)
+	{
+		const FGloamsteadGeneratedExternalPackageRecord& Record =
+			LoadedCatalog->ExternalPackageRecords[Index];
+		const FName PackageName(*Record.PackageName);
+		if (PackageName.IsNone() || EntryByPackage.Contains(PackageName)
+			|| ExternalByPackage.Contains(PackageName))
+		{
+			Codes.AddUnique(TEXT("GAC029"));
+			AmbiguousPackages.Add(PackageName);
+		}
+		else
+		{
+			ExternalByPackage.Add(PackageName, Index);
+		}
+		for (const FString& Code : GACValidateObservedProvenance(
+			Record, *LoadedCatalog, ReadObservedProvenance(Record.ProvenanceObject.ToSoftObjectPath())))
+		{
+			Codes.AddUnique(Code);
+		}
+	}
 
 	TMap<FName, uint8> VisitState; // 1 = active recursion stack, 2 = fully visited.
 	TFunction<void(FName)> Visit = [&](FName PackageName)
@@ -472,9 +510,11 @@ TArray<FString> UGloamsteadGeneratedAssetMeshForgeProvider::ValidateCatalogDepen
 			return;
 		}
 		const int32* EntryIndex = EntryByPackage.Find(PackageName);
-		if (!EntryIndex || AmbiguousPackages.Contains(PackageName))
+		const int32* ExternalIndex = ExternalByPackage.Find(PackageName);
+		if ((!EntryIndex && !ExternalIndex) || AmbiguousPackages.Contains(PackageName))
 		{
-			Codes.AddUnique(TEXT("GAC029"));
+			Codes.AddUnique(IsPackageUnderRoot(PackageName.ToString(), GloamGeneratedPackageRoot)
+				? TEXT("GAC029") : TEXT("GAC033"));
 			return;
 		}
 		VisitState.Add(PackageName, 1);
@@ -487,13 +527,52 @@ TArray<FString> UGloamsteadGeneratedAssetMeshForgeProvider::ValidateCatalogDepen
 			return;
 		}
 
-		TSet<FName> ObservedGenerated;
+		TSet<FName> ObservedDirect;
 		for (const FName DependencyPackage : ObservedDependencies)
 		{
+			ObservedDirect.Add(DependencyPackage);
+		}
+		TSet<FName> DeclaredDirect;
+		const TArray<FString>* DeclaredDependencyNames = nullptr;
+		if (EntryIndex)
+		{
+			DeclaredDependencyNames = &LoadedCatalog->Entries[*EntryIndex].DirectPackageDependencies;
+		}
+		else
+		{
+			DeclaredDependencyNames =
+				&LoadedCatalog->ExternalPackageRecords[*ExternalIndex].DirectPackageDependencies;
+		}
+		for (const FString& DeclaredName : *DeclaredDependencyNames)
+		{
+			DeclaredDirect.Add(FName(*DeclaredName));
+		}
+		for (const FName Observed : ObservedDirect)
+		{
+			if (!DeclaredDirect.Contains(Observed))
+			{
+				Codes.AddUnique(TEXT("GAC030"));
+			}
+		}
+		for (const FName Declared : DeclaredDirect)
+		{
+			if (!ObservedDirect.Contains(Declared))
+			{
+				Codes.AddUnique(TEXT("GAC031"));
+			}
+		}
+
+		for (const FName DependencyPackage : ObservedDirect)
+		{
 			const FString DependencyName = DependencyPackage.ToString();
+			if (IsTerminalPlatformPackage(DependencyName,
+				LoadedCatalog->TerminalPlatformPackages,
+				LoadedCatalog->TerminalPlatformPackageRoots))
+			{
+				continue;
+			}
 			if (IsPackageUnderRoot(DependencyName, LoadedCatalog->VersionRoot))
 			{
-				ObservedGenerated.Add(DependencyPackage);
 				if (!EntryByPackage.Contains(DependencyPackage)
 					|| AmbiguousPackages.Contains(DependencyPackage))
 				{
@@ -508,37 +587,25 @@ TArray<FString> UGloamsteadGeneratedAssetMeshForgeProvider::ValidateCatalogDepen
 			{
 				Codes.AddUnique(TEXT("GAC028"));
 			}
-			else if (!IsExplicitExternalDependencyAllowed(
-				DependencyName, LoadedCatalog->AllowedExternalDependencyRoots))
+			else if (!ExternalByPackage.Contains(DependencyPackage)
+				|| AmbiguousPackages.Contains(DependencyPackage))
 			{
 				Codes.AddUnique(TEXT("GAC033"));
 			}
-		}
-
-		TSet<FName> DeclaredGenerated;
-		const FGloamsteadGeneratedAssetEntry& Entry = LoadedCatalog->Entries[*EntryIndex];
-		for (const TSoftObjectPtr<UObject>& Dependency : Entry.Dependencies)
-		{
-			DeclaredGenerated.Add(FName(*Dependency.ToSoftObjectPath().GetLongPackageName()));
-		}
-		for (const FName Observed : ObservedGenerated)
-		{
-			if (!DeclaredGenerated.Contains(Observed))
+			else
 			{
-				Codes.AddUnique(TEXT("GAC030"));
-			}
-		}
-		for (const FName Declared : DeclaredGenerated)
-		{
-			if (!ObservedGenerated.Contains(Declared))
-			{
-				Codes.AddUnique(TEXT("GAC031"));
+				Visit(DependencyPackage);
 			}
 		}
 		VisitState.Add(PackageName, 2);
 	};
 
 	for (const TPair<FName, int32>& Pair : EntryByPackage)
+	{
+		Visit(Pair.Key);
+	}
+	// External records are not permitted to hide an unattached, unverified subgraph.
+	for (const TPair<FName, int32>& Pair : ExternalByPackage)
 	{
 		Visit(Pair.Key);
 	}
@@ -679,6 +746,7 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::Test_SetLoadedCatalog(
 	LoadedCatalog = Catalog;
 	ExpectedBundleId = InExpectedBundleId;
 	ExpectedReceiptSha256 = InExpectedReceiptSha256;
+	ExpectedTargetBuildIdentitySha256 = Catalog ? Catalog->TargetBuildIdentitySha256 : FString();
 	FailureCodes.Reset();
 	State = EGMFGeneratedProviderState::Uninitialized;
 	ValidateLoadedCatalog();
@@ -702,6 +770,12 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::Test_SetPackageDependencies(
 	const TArray<FName>& DependencyPackages)
 {
 	TestPackageDependencies.Add(FName(*ObjectPath.GetLongPackageName()), DependencyPackages);
+}
+
+void UGloamsteadGeneratedAssetMeshForgeProvider::Test_MarkPackageDependencyQueryUnavailable(
+	const FString& PackageName)
+{
+	TestUnavailablePackageDependencyQueries.Add(FName(*PackageName));
 }
 
 TArray<FString> UGloamsteadGeneratedAssetMeshForgeProvider::Test_ValidateDependencyClosure() const

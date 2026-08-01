@@ -38,4 +38,8 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Provider")
 	FString ExpectedReceiptSha256;
+
+	/** Expected canonical target UE build + Gloamstead base commit + vendored plugin lock hash. */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Provider")
+	FString ExpectedTargetBuildIdentitySha256;
 };

@@ -34,6 +34,7 @@ namespace
 		Catalog->BundleId = TEXT("sanctuary-v1");
 		Catalog->ReceiptSha256 = TEXT("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
 		Catalog->VersionRoot = TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1");
+		Catalog->TargetBuildIdentitySha256 = TEXT("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 		Catalog->Entries.Add(MakeValidMeshEntry());
 		return Catalog;
 	}
@@ -138,14 +139,33 @@ bool FGloamGeneratedAssetCatalogFailClosedTest::RunTest(const FString& /*Paramet
 
 	Catalog->Entries[0] = MakeValidMeshEntry();
 	TestTrue(TEXT("stale bundle -> GAC014"),
-		GACValidateActiveBinding(*Catalog, TEXT("sanctuary-v2"), Catalog->ReceiptSha256).Contains(TEXT("GAC014")));
+		GACValidateActiveBinding(*Catalog, TEXT("sanctuary-v2"), Catalog->ReceiptSha256,
+			Catalog->TargetBuildIdentitySha256).Contains(TEXT("GAC014")));
 	TestTrue(TEXT("stale receipt -> GAC015"),
 		GACValidateActiveBinding(*Catalog, Catalog->BundleId,
-			TEXT("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")).Contains(TEXT("GAC015")));
-	Catalog->AllowedExternalDependencyRoots = { TEXT("/Game") };
-	TestTrue(TEXT("external policy cannot broadly authorize generated roots -> GAC034"),
+			TEXT("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
+			Catalog->TargetBuildIdentitySha256).Contains(TEXT("GAC015")));
+	TestTrue(TEXT("stale target build identity -> GAC036"),
+		GACValidateActiveBinding(*Catalog, Catalog->BundleId, Catalog->ReceiptSha256,
+			TEXT("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"))
+			.Contains(TEXT("GAC036")));
+	Catalog->TerminalPlatformPackageRoots = { TEXT("/Game") };
+	TestTrue(TEXT("terminal policy is limited to safe platform roots -> GAC034"),
 		GACValidateCatalog(*Catalog).Contains(TEXT("GAC034")));
-	Catalog->AllowedExternalDependencyRoots.Reset();
+	Catalog->TerminalPlatformPackageRoots.Reset();
+	Catalog->TerminalPlatformPackages = { TEXT("/Game/Shared/Opaque") };
+	TestTrue(TEXT("arbitrary game package cannot be terminal -> GAC034"),
+		GACValidateCatalog(*Catalog).Contains(TEXT("GAC034")));
+	Catalog->TerminalPlatformPackages.Reset();
+	Catalog->TargetBuildIdentitySha256.Reset();
+	TestTrue(TEXT("catalog target build identity is mandatory -> GAC036"),
+		GACValidateCatalog(*Catalog).Contains(TEXT("GAC036")));
+	Catalog->TargetBuildIdentitySha256 =
+		TEXT("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+	Catalog->Entries[0].DirectPackageDependencies = { TEXT("/Game/Shared/Opaque") };
+	TestTrue(TEXT("arbitrary game package requires a recursive record -> GAC033"),
+		GACValidateCatalog(*Catalog).Contains(TEXT("GAC033")));
+	Catalog->Entries[0].DirectPackageDependencies.Reset();
 
 	Catalog->Entries.Reset();
 	TestTrue(TEXT("empty catalog -> GAC019"), GACValidateCatalog(*Catalog).Contains(TEXT("GAC019")));
@@ -173,6 +193,7 @@ bool FGloamGeneratedAssetCatalogFailClosedTest::RunTest(const FString& /*Paramet
 		TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/M_Heart.M_Heart")));
 	Material.ExpectedClass = UMaterialInterface::StaticClass();
 	Heart.Dependencies.Add(Material.Asset);
+	Heart.DirectPackageDependencies.Add(Material.Asset.ToSoftObjectPath().GetLongPackageName());
 	Catalog->Entries = { Heart, Material };
 	TestEqual(TEXT("unique same-catalog dependency closure is valid"), GACValidateCatalog(*Catalog).Num(), 0);
 
@@ -343,7 +364,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FGloamGeneratedAssetDependencyClosureTest::RunTest(const FString& /*Parameters*/)
 {
-	auto MakeThreeEntryCatalog = []()
+	auto MakeClosedCatalog = []()
 	{
 		UGloamsteadGeneratedAssetCatalog* Catalog = MakeValidCatalog();
 		FGloamsteadGeneratedAssetEntry Material = MakeValidMeshEntry(
@@ -359,10 +380,37 @@ bool FGloamGeneratedAssetDependencyClosureTest::RunTest(const FString& /*Paramet
 		Texture.ExpectedClass = UTexture2D::StaticClass();
 		Texture.ObjectSha256 = TEXT("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd");
 		Catalog->Entries[0].Dependencies.Add(Material.Asset);
+		Catalog->Entries[0].DirectPackageDependencies = {
+			TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/M_Heart"),
+			TEXT("/Game/Shared/M_Master"),
+			TEXT("/Engine/EngineMaterials/DefaultMaterial") };
 		Material.Dependencies.Add(Texture.Asset);
+		Material.DirectPackageDependencies = {
+			TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/T_Heart"),
+			TEXT("/Script/Engine") };
 		Catalog->Entries.Add(Material);
 		Catalog->Entries.Add(Texture);
-		Catalog->AllowedExternalDependencyRoots = { TEXT("/Engine"), TEXT("/Script") };
+		Catalog->TerminalPlatformPackageRoots = { TEXT("/Script") };
+		Catalog->TerminalPlatformPackages = { TEXT("/Engine/EngineMaterials/DefaultMaterial") };
+
+		FGloamsteadGeneratedExternalPackageRecord SharedMaterial;
+		SharedMaterial.PackageName = TEXT("/Game/Shared/M_Master");
+		SharedMaterial.ProvenanceObject = TSoftObjectPtr<UObject>(FSoftObjectPath(
+			TEXT("/Game/Shared/M_Master.M_Master")));
+		SharedMaterial.PackageSha256 = TEXT("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+		SharedMaterial.ReceiptSha256 = Catalog->ReceiptSha256;
+		SharedMaterial.BundleId = Catalog->BundleId;
+		SharedMaterial.DirectPackageDependencies = {
+			TEXT("/Game/Shared/T_Shared"), TEXT("/Script/Engine") };
+
+		FGloamsteadGeneratedExternalPackageRecord SharedTexture;
+		SharedTexture.PackageName = TEXT("/Game/Shared/T_Shared");
+		SharedTexture.ProvenanceObject = TSoftObjectPtr<UObject>(FSoftObjectPath(
+			TEXT("/Game/Shared/T_Shared.T_Shared")));
+		SharedTexture.PackageSha256 = TEXT("1111111111111111111111111111111111111111111111111111111111111111");
+		SharedTexture.ReceiptSha256 = Catalog->ReceiptSha256;
+		SharedTexture.BundleId = Catalog->BundleId;
+		Catalog->ExternalPackageRecords = { SharedMaterial, SharedTexture };
 		return Catalog;
 	};
 
@@ -374,70 +422,106 @@ bool FGloamGeneratedAssetDependencyClosureTest::RunTest(const FString& /*Paramet
 			Provider->Test_SetObservedProvenance(Entry.Asset.ToSoftObjectPath(), {
 				Entry.ObjectSha256, Catalog->ReceiptSha256, Catalog->BundleId });
 		}
+		for (const FGloamsteadGeneratedExternalPackageRecord& Record : Catalog->ExternalPackageRecords)
+		{
+			Provider->Test_SetObservedProvenance(Record.ProvenanceObject.ToSoftObjectPath(), {
+				FString(), Catalog->ReceiptSha256, Catalog->BundleId, Record.PackageSha256 });
+		}
 	};
 
-	UGloamsteadGeneratedAssetCatalog* Catalog = MakeThreeEntryCatalog();
+	auto ConfigureGraph = [&](UGloamsteadGeneratedAssetMeshForgeProvider* Provider,
+		UGloamsteadGeneratedAssetCatalog* Catalog)
+	{
+		Provider->Test_SetLoadedCatalog(Catalog, Catalog->BundleId, Catalog->ReceiptSha256);
+		ConfigureEvidence(Provider, Catalog);
+		Provider->Test_SetPackageDependencies(Catalog->Entries[0].Asset.ToSoftObjectPath(), {
+			FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/M_Heart")),
+			FName(TEXT("/Game/Shared/M_Master")),
+			FName(TEXT("/Engine/EngineMaterials/DefaultMaterial")) });
+		Provider->Test_SetPackageDependencies(Catalog->Entries[1].Asset.ToSoftObjectPath(), {
+			FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/T_Heart")),
+			FName(TEXT("/Script/Engine")) });
+		Provider->Test_SetPackageDependencies(Catalog->Entries[2].Asset.ToSoftObjectPath(), {});
+		Provider->Test_SetPackageDependencies(
+			Catalog->ExternalPackageRecords[0].ProvenanceObject.ToSoftObjectPath(), {
+				FName(TEXT("/Game/Shared/T_Shared")), FName(TEXT("/Script/Engine")) });
+		Provider->Test_SetPackageDependencies(
+			Catalog->ExternalPackageRecords[1].ProvenanceObject.ToSoftObjectPath(), {});
+	};
+
+	UGloamsteadGeneratedAssetCatalog* Catalog = MakeClosedCatalog();
 	UGloamsteadGeneratedAssetMeshForgeProvider* Provider =
 		NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
-	Provider->Test_SetLoadedCatalog(Catalog, Catalog->BundleId, Catalog->ReceiptSha256);
-	ConfigureEvidence(Provider, Catalog);
-	Provider->Test_SetPackageDependencies(Catalog->Entries[0].Asset.ToSoftObjectPath(), {
-		FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/M_Heart")),
-		FName(TEXT("/Engine/EngineMaterials/DefaultMaterial")) });
-	Provider->Test_SetPackageDependencies(Catalog->Entries[1].Asset.ToSoftObjectPath(), {
-		FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/T_Heart")),
-		FName(TEXT("/Script/Engine")) });
-	Provider->Test_SetPackageDependencies(Catalog->Entries[2].Asset.ToSoftObjectPath(), {});
-	TestEqual(TEXT("hard/soft generated closure and explicit external policy pass"),
+	ConfigureGraph(Provider, Catalog);
+	TestEqual(TEXT("full generated, shared external, and platform-terminal closure passes"),
 		Provider->Test_ValidateDependencyClosure().Num(), 0);
-
-	Provider->Test_SetPackageDependencies(Catalog->Entries[0].Asset.ToSoftObjectPath(), {
-		FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/M_Heart")),
-		FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/T_Heart")) });
-	TestTrue(TEXT("omitted actual direct dependency -> GAC030"),
-		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC030")));
-
-	Provider->Test_SetPackageDependencies(Catalog->Entries[0].Asset.ToSoftObjectPath(), {
-		FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/M_Heart")) });
-	FGloamsteadGeneratedAssetObservedProvenance Stale{
-		TEXT("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"),
-		Catalog->ReceiptSha256, Catalog->BundleId };
-	Provider->Test_SetObservedProvenance(Catalog->Entries[2].Asset.ToSoftObjectPath(), Stale);
-	TestTrue(TEXT("stale transitive dependency provenance -> GAC024"),
-		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC024")));
-	Provider->Test_SetObservedProvenance(Catalog->Entries[2].Asset.ToSoftObjectPath(), {});
-	TestTrue(TEXT("missing transitive dependency provenance -> GAC023"),
-		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC023")));
+	Provider->Test_SetObservedProvenance(
+		Catalog->ExternalPackageRecords[1].ProvenanceObject.ToSoftObjectPath(), {
+			FString(), Catalog->ReceiptSha256, Catalog->BundleId,
+			TEXT("2222222222222222222222222222222222222222222222222222222222222222") });
+	TestTrue(TEXT("stale external package digest -> GAC035"),
+		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC035")));
 	ConfigureEvidence(Provider, Catalog);
 
-	Provider->Test_SetPackageDependencies(Catalog->Entries[1].Asset.ToSoftObjectPath(), {});
-	TestTrue(TEXT("declared dependency absent from registry graph -> GAC031"),
-		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC031")));
+	Provider->Test_SetPackageDependencies(
+		Catalog->ExternalPackageRecords[0].ProvenanceObject.ToSoftObjectPath(), {
+			FName(TEXT("/Game/Shared/T_Shared")), FName(TEXT("/Script/Engine")),
+			FName(TEXT("/Game/Shared/T_Drift")) });
+	const TArray<FString> ExternalDriftCodes = Provider->Test_ValidateDependencyClosure();
+	TestTrue(TEXT("external direct edge drift -> GAC030"), ExternalDriftCodes.Contains(TEXT("GAC030")));
+	TestTrue(TEXT("undeclared external transitive -> GAC033"), ExternalDriftCodes.Contains(TEXT("GAC033")));
 
-	Provider->Test_SetPackageDependencies(Catalog->Entries[1].Asset.ToSoftObjectPath(), {
-		FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/T_Heart")) });
-	Provider->Test_SetPackageDependencies(Catalog->Entries[2].Asset.ToSoftObjectPath(), {
-		FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/SM_Heart")) });
-	TestTrue(TEXT("generated dependency cycle -> GAC032"),
-		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC032")));
-
-	Provider->Test_SetPackageDependencies(Catalog->Entries[2].Asset.ToSoftObjectPath(), {
-		FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v2/T_Stale")) });
-	TestTrue(TEXT("generated dependency version-root escape -> GAC028"),
+	Provider = NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+	ConfigureGraph(Provider, Catalog);
+	Catalog->ExternalPackageRecords[0].DirectPackageDependencies.Add(
+		TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v0/SM_Prior"));
+	Provider->Test_SetPackageDependencies(
+		Catalog->ExternalPackageRecords[0].ProvenanceObject.ToSoftObjectPath(), {
+			FName(TEXT("/Game/Shared/T_Shared")), FName(TEXT("/Script/Engine")),
+			FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v0/SM_Prior")) });
+	TestTrue(TEXT("declared shared package cannot reenter a prior generated version -> GAC028"),
 		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC028")));
+	Catalog->ExternalPackageRecords[0].DirectPackageDependencies.Pop();
 
-	Provider->Test_SetPackageDependencies(Catalog->Entries[2].Asset.ToSoftObjectPath(), {
-		FName(TEXT("/Game/Unapproved/SharedAsset")) });
-	TestTrue(TEXT("external package outside caller policy -> GAC033"),
-		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC033")));
-
-	FGloamsteadGeneratedAssetEntry Ambiguous = Catalog->Entries[2];
-	Ambiguous.SemanticRole = TEXT("sanctuary.heart.texture.variant");
-	Ambiguous.Asset = TSoftObjectPtr<UObject>(FSoftObjectPath(
-		TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/T_Heart.T_HeartVariant")));
-	Catalog->Entries.Add(Ambiguous);
-	TestTrue(TEXT("two entries in one generated package -> GAC029"),
+	Provider = NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+	ConfigureGraph(Provider, Catalog);
+	Catalog->ExternalPackageRecords[0].DirectPackageDependencies.Add(
+		TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/SM_Undeclared"));
+	Provider->Test_SetPackageDependencies(
+		Catalog->ExternalPackageRecords[0].ProvenanceObject.ToSoftObjectPath(), {
+			FName(TEXT("/Game/Shared/T_Shared")), FName(TEXT("/Script/Engine")),
+			FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/SM_Undeclared")) });
+	TestTrue(TEXT("declared shared package cannot reenter an unmapped current-version package -> GAC029"),
 		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC029")));
+	Catalog->ExternalPackageRecords[0].DirectPackageDependencies.Pop();
+
+	Provider = NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+	ConfigureGraph(Provider, Catalog);
+	Provider->Test_SetPackageDependencies(Catalog->Entries[0].Asset.ToSoftObjectPath(), {
+		FName(TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v1/M_Heart")),
+		FName(TEXT("/Game/Shared/M_Master")),
+		FName(TEXT("/Engine/EngineMaterials/WorldGridMaterial")) });
+	const TArray<FString> TerminalDriftCodes = Provider->Test_ValidateDependencyClosure();
+	TestTrue(TEXT("terminal package substitution is an observed omission -> GAC030"),
+		TerminalDriftCodes.Contains(TEXT("GAC030")));
+	TestTrue(TEXT("the declared terminal package is unused -> GAC031"),
+		TerminalDriftCodes.Contains(TEXT("GAC031")));
+	TestTrue(TEXT("a non-policy platform substitution is not implicitly terminal -> GAC033"),
+		TerminalDriftCodes.Contains(TEXT("GAC033")));
+
+	Provider = NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+	ConfigureGraph(Provider, Catalog);
+	Provider->Test_MarkPackageDependencyQueryUnavailable(TEXT("/Game/Shared/T_Shared"));
+	TestTrue(TEXT("external query failure remains fail-closed -> GAC027"),
+		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC027")));
+
+	Provider = NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+	ConfigureGraph(Provider, Catalog);
+	Provider->Test_SetPackageDependencies(
+		Catalog->ExternalPackageRecords[1].ProvenanceObject.ToSoftObjectPath(), {
+			FName(TEXT("/Game/Shared/M_Master")) });
+	TestTrue(TEXT("external package cycle -> GAC032"),
+		Provider->Test_ValidateDependencyClosure().Contains(TEXT("GAC032")));
 	return true;
 }
 

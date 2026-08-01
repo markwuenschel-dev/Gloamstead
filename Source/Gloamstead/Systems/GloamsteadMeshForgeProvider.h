@@ -123,6 +123,7 @@ public:
 	/** Inject the exact direct hard+soft package dependencies returned by the cooked Asset Registry. */
 	void Test_SetPackageDependencies(const FSoftObjectPath& ObjectPath,
 		const TArray<FName>& DependencyPackages);
+	void Test_MarkPackageDependencyQueryUnavailable(const FString& PackageName);
 	TArray<FString> Test_ValidateDependencyClosure() const;
 	void Test_ForceSpawnFailure(bool bForce) { bTestForceSpawnFailure = bForce; }
 	uint64 Test_BeginPendingCatalogLoad();
@@ -149,12 +150,14 @@ private:
 	UPROPERTY() TArray<FString> FailureCodes;
 	FString ExpectedBundleId;
 	FString ExpectedReceiptSha256;
+	FString ExpectedTargetBuildIdentitySha256;
 	TSharedPtr<FStreamableHandle> PreloadHandle;
 	uint64 LoadGeneration = 0;
 #if WITH_DEV_AUTOMATION_TESTS
 	TMap<FSoftObjectPath, TWeakObjectPtr<UObject>> TestResolvedObjects;
 	TMap<FSoftObjectPath, FGloamsteadGeneratedAssetObservedProvenance> TestObservedProvenance;
 	TMap<FName, TArray<FName>> TestPackageDependencies;
+	TSet<FName> TestUnavailablePackageDependencyQueries;
 	bool bTestForceSpawnFailure = false;
 #endif
 };
