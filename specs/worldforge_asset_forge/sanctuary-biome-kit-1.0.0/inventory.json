@@ -1,6 +1,6 @@
 {
   "schema_version": "gloamstead.sanctuary.inventory.v1",
-  "document_sha256": "ebd02aed2d50bde4b29fbbc9d46d04257bb92f1e95b8ba303576ac74469ef88f",
+  "document_sha256": "bf571186dc55117e3cc7cfc39074ff5da92b868f80f9b2163c2a19bc43fe7af4",
   "kit_id": "sanctuary-biome-kit",
   "version": "1.0.0",
   "pointer_value": "sanctuary-biome-kit-1.0.0",
@@ -13,11 +13,16 @@
       "family": "surfaces",
       "semantic_role": "Ashen soil",
       "art_purpose": "Grounds the sanctuary in ashen soil with authored PBR response",
-      "asset_class": "Material",
+      "asset_class": "MaterialInstance",
       "restoration_state": null,
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/surface_ashen_soil.sbs",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/surface_ashen_soil.surface_ashen_soil",
-      "dependency_ids": [],
+      "dependency_ids": [
+        "master-surface",
+        "texture-ashen-soil-base-color",
+        "texture-ashen-soil-normal",
+        "texture-ashen-soil-orm"
+      ],
       "acceptance_tags": [
         "pbr",
         "surface",
@@ -27,18 +32,24 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "surfaces"
+      "asset_family_lane": "surfaces",
+      "production_spec": null
     },
     {
       "id": "surface-cracked-stone",
       "family": "surfaces",
       "semantic_role": "Cracked sanctuary stone",
       "art_purpose": "Grounds the sanctuary in cracked sanctuary stone with authored PBR response",
-      "asset_class": "Material",
+      "asset_class": "MaterialInstance",
       "restoration_state": null,
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/surface_cracked_stone.sbs",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/surface_cracked_stone.surface_cracked_stone",
-      "dependency_ids": [],
+      "dependency_ids": [
+        "master-surface",
+        "texture-cracked-stone-base-color",
+        "texture-cracked-stone-normal",
+        "texture-cracked-stone-orm"
+      ],
       "acceptance_tags": [
         "pbr",
         "surface",
@@ -48,18 +59,24 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "surfaces"
+      "asset_family_lane": "surfaces",
+      "production_spec": null
     },
     {
       "id": "surface-withered-loam-moss",
       "family": "surfaces",
       "semantic_role": "Withered loam and moss",
       "art_purpose": "Grounds the sanctuary in withered loam and moss with authored PBR response",
-      "asset_class": "Material",
+      "asset_class": "MaterialInstance",
       "restoration_state": null,
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/surface_withered_loam_moss.sbs",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/surface_withered_loam_moss.surface_withered_loam_moss",
-      "dependency_ids": [],
+      "dependency_ids": [
+        "master-surface",
+        "texture-withered-loam-moss-base-color",
+        "texture-withered-loam-moss-normal",
+        "texture-withered-loam-moss-orm"
+      ],
       "acceptance_tags": [
         "pbr",
         "surface",
@@ -69,7 +86,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "surfaces"
+      "asset_family_lane": "surfaces",
+      "production_spec": null
     },
     {
       "id": "mi-sanctuary-before",
@@ -93,7 +111,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "hero-ritual"
+      "asset_family_lane": "hero-ritual",
+      "production_spec": null
     },
     {
       "id": "mi-sanctuary-restoration_in_progress",
@@ -117,7 +136,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "hero-ritual"
+      "asset_family_lane": "hero-ritual",
+      "production_spec": null
     },
     {
       "id": "mi-sanctuary-restored",
@@ -141,7 +161,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "hero-ritual"
+      "asset_family_lane": "hero-ritual",
+      "production_spec": null
     },
     {
       "id": "mi-sanctuary-corrupted",
@@ -165,7 +186,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "hero-ritual"
+      "asset_family_lane": "hero-ritual",
+      "production_spec": null
     },
     {
       "id": "veil-heart-before",
@@ -189,7 +211,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "hero-ritual"
+      "asset_family_lane": "hero-ritual",
+      "production_spec": null
     },
     {
       "id": "veil-heart-restoration_in_progress",
@@ -213,7 +236,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "hero-ritual"
+      "asset_family_lane": "hero-ritual",
+      "production_spec": null
     },
     {
       "id": "veil-heart-restored",
@@ -237,7 +261,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "hero-ritual"
+      "asset_family_lane": "hero-ritual",
+      "production_spec": null
     },
     {
       "id": "veil-heart-corrupted",
@@ -261,7 +286,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "hero-ritual"
+      "asset_family_lane": "hero-ritual",
+      "production_spec": null
     },
     {
       "id": "lantern-before",
@@ -285,7 +311,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "hero-ritual"
+      "asset_family_lane": "hero-ritual",
+      "production_spec": null
     },
     {
       "id": "lantern-restoration_in_progress",
@@ -309,7 +336,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "hero-ritual"
+      "asset_family_lane": "hero-ritual",
+      "production_spec": null
     },
     {
       "id": "lantern-restored",
@@ -333,7 +361,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "hero-ritual"
+      "asset_family_lane": "hero-ritual",
+      "production_spec": null
     },
     {
       "id": "lantern-corrupted",
@@ -357,7 +386,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "hero-ritual"
+      "asset_family_lane": "hero-ritual",
+      "production_spec": null
     },
     {
       "id": "mirror-pillar-before",
@@ -381,7 +411,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "hero-ritual"
+      "asset_family_lane": "hero-ritual",
+      "production_spec": null
     },
     {
       "id": "mirror-pillar-restoration_in_progress",
@@ -405,7 +436,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "hero-ritual"
+      "asset_family_lane": "hero-ritual",
+      "production_spec": null
     },
     {
       "id": "mirror-pillar-restored",
@@ -429,7 +461,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "hero-ritual"
+      "asset_family_lane": "hero-ritual",
+      "production_spec": null
     },
     {
       "id": "mirror-pillar-corrupted",
@@ -453,7 +486,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "hero-ritual"
+      "asset_family_lane": "hero-ritual",
+      "production_spec": null
     },
     {
       "id": "bell-shrine-before",
@@ -477,7 +511,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "hero-ritual"
+      "asset_family_lane": "hero-ritual",
+      "production_spec": null
     },
     {
       "id": "bell-shrine-restoration_in_progress",
@@ -501,7 +536,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "hero-ritual"
+      "asset_family_lane": "hero-ritual",
+      "production_spec": null
     },
     {
       "id": "bell-shrine-restored",
@@ -525,7 +561,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "hero-ritual"
+      "asset_family_lane": "hero-ritual",
+      "production_spec": null
     },
     {
       "id": "bell-shrine-corrupted",
@@ -549,13 +586,14 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "hero-ritual"
+      "asset_family_lane": "hero-ritual",
+      "production_spec": null
     },
     {
       "id": "ruin-piece-01",
       "family": "architecture",
-      "semantic_role": "Modular ruin piece 1",
-      "art_purpose": "Distinct snap-compatible sanctuary ruin module 1",
+      "semantic_role": "modular ruin gateway-arch",
+      "art_purpose": "Caller-authored gateway-arch module for deterministic sanctuary composition",
       "asset_class": "StaticMesh",
       "restoration_state": null,
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_01.fbx",
@@ -573,13 +611,29 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "architecture"
+      "asset_family_lane": "architecture",
+      "production_spec": {
+        "functional_role": "gateway-arch",
+        "dimensions_cm": [
+          400,
+          120,
+          520
+        ],
+        "snap_interfaces": [
+          "north-wall",
+          "south-wall"
+        ],
+        "silhouette_requirement": "broken lancet arch",
+        "placement_consumers": [
+          "placement-perimeter-ruins"
+        ]
+      }
     },
     {
       "id": "ruin-piece-02",
       "family": "architecture",
-      "semantic_role": "Modular ruin piece 2",
-      "art_purpose": "Distinct snap-compatible sanctuary ruin module 2",
+      "semantic_role": "modular ruin wall-straight",
+      "art_purpose": "Caller-authored wall-straight module for deterministic sanctuary composition",
       "asset_class": "StaticMesh",
       "restoration_state": null,
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_02.fbx",
@@ -597,13 +651,29 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "architecture"
+      "asset_family_lane": "architecture",
+      "production_spec": {
+        "functional_role": "wall-straight",
+        "dimensions_cm": [
+          400,
+          60,
+          300
+        ],
+        "snap_interfaces": [
+          "east-edge",
+          "west-edge"
+        ],
+        "silhouette_requirement": "crenellated straight wall",
+        "placement_consumers": [
+          "placement-perimeter-ruins"
+        ]
+      }
     },
     {
       "id": "ruin-piece-03",
       "family": "architecture",
-      "semantic_role": "Modular ruin piece 3",
-      "art_purpose": "Distinct snap-compatible sanctuary ruin module 3",
+      "semantic_role": "modular ruin wall-corner-inner",
+      "art_purpose": "Caller-authored wall-corner-inner module for deterministic sanctuary composition",
       "asset_class": "StaticMesh",
       "restoration_state": null,
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_03.fbx",
@@ -621,13 +691,29 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "architecture"
+      "asset_family_lane": "architecture",
+      "production_spec": {
+        "functional_role": "wall-corner-inner",
+        "dimensions_cm": [
+          300,
+          300,
+          300
+        ],
+        "snap_interfaces": [
+          "north-edge",
+          "east-edge"
+        ],
+        "silhouette_requirement": "inward buttressed corner",
+        "placement_consumers": [
+          "placement-perimeter-ruins"
+        ]
+      }
     },
     {
       "id": "ruin-piece-04",
       "family": "architecture",
-      "semantic_role": "Modular ruin piece 4",
-      "art_purpose": "Distinct snap-compatible sanctuary ruin module 4",
+      "semantic_role": "modular ruin wall-corner-outer",
+      "art_purpose": "Caller-authored wall-corner-outer module for deterministic sanctuary composition",
       "asset_class": "StaticMesh",
       "restoration_state": null,
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_04.fbx",
@@ -645,13 +731,29 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "architecture"
+      "asset_family_lane": "architecture",
+      "production_spec": {
+        "functional_role": "wall-corner-outer",
+        "dimensions_cm": [
+          300,
+          300,
+          300
+        ],
+        "snap_interfaces": [
+          "south-edge",
+          "west-edge"
+        ],
+        "silhouette_requirement": "outward broken corner",
+        "placement_consumers": [
+          "placement-perimeter-ruins"
+        ]
+      }
     },
     {
       "id": "ruin-piece-05",
       "family": "architecture",
-      "semantic_role": "Modular ruin piece 5",
-      "art_purpose": "Distinct snap-compatible sanctuary ruin module 5",
+      "semantic_role": "modular ruin floor-square",
+      "art_purpose": "Caller-authored floor-square module for deterministic sanctuary composition",
       "asset_class": "StaticMesh",
       "restoration_state": null,
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_05.fbx",
@@ -669,13 +771,31 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "architecture"
+      "asset_family_lane": "architecture",
+      "production_spec": {
+        "functional_role": "floor-square",
+        "dimensions_cm": [
+          400,
+          400,
+          40
+        ],
+        "snap_interfaces": [
+          "north-edge",
+          "south-edge",
+          "east-edge",
+          "west-edge"
+        ],
+        "silhouette_requirement": "cracked flagstone square",
+        "placement_consumers": [
+          "placement-courtyard"
+        ]
+      }
     },
     {
       "id": "ruin-piece-06",
       "family": "architecture",
-      "semantic_role": "Modular ruin piece 6",
-      "art_purpose": "Distinct snap-compatible sanctuary ruin module 6",
+      "semantic_role": "modular ruin floor-wedge",
+      "art_purpose": "Caller-authored floor-wedge module for deterministic sanctuary composition",
       "asset_class": "StaticMesh",
       "restoration_state": null,
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_06.fbx",
@@ -693,13 +813,29 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "architecture"
+      "asset_family_lane": "architecture",
+      "production_spec": {
+        "functional_role": "floor-wedge",
+        "dimensions_cm": [
+          400,
+          400,
+          40
+        ],
+        "snap_interfaces": [
+          "radial-inner",
+          "radial-outer"
+        ],
+        "silhouette_requirement": "ritual approach wedge",
+        "placement_consumers": [
+          "placement-ritual-approaches"
+        ]
+      }
     },
     {
       "id": "ruin-piece-07",
       "family": "architecture",
-      "semantic_role": "Modular ruin piece 7",
-      "art_purpose": "Distinct snap-compatible sanctuary ruin module 7",
+      "semantic_role": "modular ruin column-whole",
+      "art_purpose": "Caller-authored column-whole module for deterministic sanctuary composition",
       "asset_class": "StaticMesh",
       "restoration_state": null,
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_07.fbx",
@@ -717,13 +853,29 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "architecture"
+      "asset_family_lane": "architecture",
+      "production_spec": {
+        "functional_role": "column-whole",
+        "dimensions_cm": [
+          100,
+          100,
+          500
+        ],
+        "snap_interfaces": [
+          "base-100",
+          "capital-100"
+        ],
+        "silhouette_requirement": "tall thorned column",
+        "placement_consumers": [
+          "placement-ritual-approaches"
+        ]
+      }
     },
     {
       "id": "ruin-piece-08",
       "family": "architecture",
-      "semantic_role": "Modular ruin piece 8",
-      "art_purpose": "Distinct snap-compatible sanctuary ruin module 8",
+      "semantic_role": "modular ruin column-broken",
+      "art_purpose": "Caller-authored column-broken module for deterministic sanctuary composition",
       "asset_class": "StaticMesh",
       "restoration_state": null,
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_08.fbx",
@@ -741,13 +893,29 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "architecture"
+      "asset_family_lane": "architecture",
+      "production_spec": {
+        "functional_role": "column-broken",
+        "dimensions_cm": [
+          100,
+          100,
+          280
+        ],
+        "snap_interfaces": [
+          "base-100",
+          "fracture-100"
+        ],
+        "silhouette_requirement": "jagged broken column",
+        "placement_consumers": [
+          "placement-corruption-pockets"
+        ]
+      }
     },
     {
       "id": "ruin-piece-09",
       "family": "architecture",
-      "semantic_role": "Modular ruin piece 9",
-      "art_purpose": "Distinct snap-compatible sanctuary ruin module 9",
+      "semantic_role": "modular ruin buttress-low",
+      "art_purpose": "Caller-authored buttress-low module for deterministic sanctuary composition",
       "asset_class": "StaticMesh",
       "restoration_state": null,
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_09.fbx",
@@ -765,13 +933,29 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "architecture"
+      "asset_family_lane": "architecture",
+      "production_spec": {
+        "functional_role": "buttress-low",
+        "dimensions_cm": [
+          160,
+          100,
+          220
+        ],
+        "snap_interfaces": [
+          "wall-face-100",
+          "ground-100"
+        ],
+        "silhouette_requirement": "low flying buttress",
+        "placement_consumers": [
+          "placement-perimeter-ruins"
+        ]
+      }
     },
     {
       "id": "ruin-piece-10",
       "family": "architecture",
-      "semantic_role": "Modular ruin piece 10",
-      "art_purpose": "Distinct snap-compatible sanctuary ruin module 10",
+      "semantic_role": "modular ruin stair-three-step",
+      "art_purpose": "Caller-authored stair-three-step module for deterministic sanctuary composition",
       "asset_class": "StaticMesh",
       "restoration_state": null,
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_10.fbx",
@@ -789,13 +973,29 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "architecture"
+      "asset_family_lane": "architecture",
+      "production_spec": {
+        "functional_role": "stair-three-step",
+        "dimensions_cm": [
+          300,
+          240,
+          60
+        ],
+        "snap_interfaces": [
+          "top-300",
+          "bottom-300"
+        ],
+        "silhouette_requirement": "three worn sanctuary steps",
+        "placement_consumers": [
+          "placement-ritual-approaches"
+        ]
+      }
     },
     {
       "id": "ruin-piece-11",
       "family": "architecture",
-      "semantic_role": "Modular ruin piece 11",
-      "art_purpose": "Distinct snap-compatible sanctuary ruin module 11",
+      "semantic_role": "modular ruin rubble-edge",
+      "art_purpose": "Caller-authored rubble-edge module for deterministic sanctuary composition",
       "asset_class": "StaticMesh",
       "restoration_state": null,
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_11.fbx",
@@ -813,13 +1013,29 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "architecture"
+      "asset_family_lane": "architecture",
+      "production_spec": {
+        "functional_role": "rubble-edge",
+        "dimensions_cm": [
+          300,
+          120,
+          90
+        ],
+        "snap_interfaces": [
+          "east-edge",
+          "west-edge"
+        ],
+        "silhouette_requirement": "low rubble silhouette",
+        "placement_consumers": [
+          "placement-corruption-pockets"
+        ]
+      }
     },
     {
       "id": "ruin-piece-12",
       "family": "architecture",
-      "semantic_role": "Modular ruin piece 12",
-      "art_purpose": "Distinct snap-compatible sanctuary ruin module 12",
+      "semantic_role": "modular ruin ritual-plinth",
+      "art_purpose": "Caller-authored ritual-plinth module for deterministic sanctuary composition",
       "asset_class": "StaticMesh",
       "restoration_state": null,
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/architecture/ruin_piece_12.fbx",
@@ -837,7 +1053,26 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "architecture"
+      "asset_family_lane": "architecture",
+      "production_spec": {
+        "functional_role": "ritual-plinth",
+        "dimensions_cm": [
+          240,
+          240,
+          100
+        ],
+        "snap_interfaces": [
+          "north-edge",
+          "south-edge",
+          "east-edge",
+          "west-edge",
+          "center-anchor"
+        ],
+        "silhouette_requirement": "octagonal ritual plinth",
+        "placement_consumers": [
+          "placement-courtyard"
+        ]
+      }
     },
     {
       "id": "foliage-withered-ivy",
@@ -849,6 +1084,7 @@
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/foliage_withered_ivy.fbx",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/foliage_withered_ivy.foliage_withered_ivy",
       "dependency_ids": [
+        "mi-foliage-withered-ivy",
         "surface-withered-loam-moss"
       ],
       "acceptance_tags": [
@@ -861,7 +1097,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "foliage"
+      "asset_family_lane": "foliage",
+      "production_spec": null
     },
     {
       "id": "foliage-blackthorn-root",
@@ -873,6 +1110,7 @@
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/foliage_blackthorn_root.fbx",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/foliage_blackthorn_root.foliage_blackthorn_root",
       "dependency_ids": [
+        "mi-foliage-blackthorn-root",
         "surface-withered-loam-moss"
       ],
       "acceptance_tags": [
@@ -885,7 +1123,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "foliage"
+      "asset_family_lane": "foliage",
+      "production_spec": null
     },
     {
       "id": "foliage-grave-fern",
@@ -897,6 +1136,7 @@
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/foliage_grave_fern.fbx",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/foliage_grave_fern.foliage_grave_fern",
       "dependency_ids": [
+        "mi-foliage-grave-fern",
         "surface-withered-loam-moss"
       ],
       "acceptance_tags": [
@@ -909,7 +1149,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "foliage"
+      "asset_family_lane": "foliage",
+      "production_spec": null
     },
     {
       "id": "foliage-ash-reed",
@@ -921,6 +1162,7 @@
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/foliage_ash_reed.fbx",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/foliage_ash_reed.foliage_ash_reed",
       "dependency_ids": [
+        "mi-foliage-ash-reed",
         "surface-withered-loam-moss"
       ],
       "acceptance_tags": [
@@ -933,7 +1175,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "foliage"
+      "asset_family_lane": "foliage",
+      "production_spec": null
     },
     {
       "id": "foliage-veil-bramble",
@@ -945,6 +1188,7 @@
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/foliage_veil_bramble.fbx",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/foliage_veil_bramble.foliage_veil_bramble",
       "dependency_ids": [
+        "mi-foliage-veil-bramble",
         "surface-withered-loam-moss"
       ],
       "acceptance_tags": [
@@ -957,7 +1201,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "foliage"
+      "asset_family_lane": "foliage",
+      "production_spec": null
     },
     {
       "id": "foliage-hollow-stump",
@@ -969,6 +1214,7 @@
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/foliage_hollow_stump.fbx",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/foliage_hollow_stump.foliage_hollow_stump",
       "dependency_ids": [
+        "mi-foliage-hollow-stump",
         "surface-withered-loam-moss"
       ],
       "acceptance_tags": [
@@ -981,7 +1227,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "foliage"
+      "asset_family_lane": "foliage",
+      "production_spec": null
     },
     {
       "id": "decal-hairline-cracks",
@@ -990,10 +1237,11 @@
       "art_purpose": "Surface storytelling motif for Hairline cracks",
       "asset_class": "MaterialInstance",
       "restoration_state": null,
-      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_hairline_cracks.png",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/mi_hairline_cracks.json",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_hairline_cracks.decal_hairline_cracks",
       "dependency_ids": [
-        "surface-cracked-stone"
+        "master-decal",
+        "texture-decal-hairline-cracks"
       ],
       "acceptance_tags": [
         "decal",
@@ -1004,7 +1252,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "decals"
+      "asset_family_lane": "decals",
+      "production_spec": null
     },
     {
       "id": "decal-ritual-fissures",
@@ -1013,10 +1262,11 @@
       "art_purpose": "Surface storytelling motif for Ritual fissures",
       "asset_class": "MaterialInstance",
       "restoration_state": null,
-      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_ritual_fissures.png",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/mi_ritual_fissures.json",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_ritual_fissures.decal_ritual_fissures",
       "dependency_ids": [
-        "surface-cracked-stone"
+        "master-decal",
+        "texture-decal-ritual-fissures"
       ],
       "acceptance_tags": [
         "decal",
@@ -1027,7 +1277,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "decals"
+      "asset_family_lane": "decals",
+      "production_spec": null
     },
     {
       "id": "decal-soot-smear",
@@ -1036,10 +1287,11 @@
       "art_purpose": "Surface storytelling motif for Soot smear",
       "asset_class": "MaterialInstance",
       "restoration_state": null,
-      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_soot_smear.png",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/mi_soot_smear.json",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_soot_smear.decal_soot_smear",
       "dependency_ids": [
-        "surface-cracked-stone"
+        "master-decal",
+        "texture-decal-soot-smear"
       ],
       "acceptance_tags": [
         "decal",
@@ -1050,7 +1302,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "decals"
+      "asset_family_lane": "decals",
+      "production_spec": null
     },
     {
       "id": "decal-soot-bloom",
@@ -1059,10 +1312,11 @@
       "art_purpose": "Surface storytelling motif for Soot bloom",
       "asset_class": "MaterialInstance",
       "restoration_state": null,
-      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_soot_bloom.png",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/mi_soot_bloom.json",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_soot_bloom.decal_soot_bloom",
       "dependency_ids": [
-        "surface-cracked-stone"
+        "master-decal",
+        "texture-decal-soot-bloom"
       ],
       "acceptance_tags": [
         "decal",
@@ -1073,7 +1327,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "decals"
+      "asset_family_lane": "decals",
+      "production_spec": null
     },
     {
       "id": "decal-ritual-circle",
@@ -1082,10 +1337,11 @@
       "art_purpose": "Surface storytelling motif for Ritual circle",
       "asset_class": "MaterialInstance",
       "restoration_state": null,
-      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_ritual_circle.png",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/mi_ritual_circle.json",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_ritual_circle.decal_ritual_circle",
       "dependency_ids": [
-        "surface-cracked-stone"
+        "master-decal",
+        "texture-decal-ritual-circle"
       ],
       "acceptance_tags": [
         "decal",
@@ -1096,7 +1352,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "decals"
+      "asset_family_lane": "decals",
+      "production_spec": null
     },
     {
       "id": "decal-ritual-runes",
@@ -1105,10 +1362,11 @@
       "art_purpose": "Surface storytelling motif for Ritual runes",
       "asset_class": "MaterialInstance",
       "restoration_state": null,
-      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_ritual_runes.png",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/mi_ritual_runes.json",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_ritual_runes.decal_ritual_runes",
       "dependency_ids": [
-        "surface-cracked-stone"
+        "master-decal",
+        "texture-decal-ritual-runes"
       ],
       "acceptance_tags": [
         "decal",
@@ -1119,7 +1377,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "decals"
+      "asset_family_lane": "decals",
+      "production_spec": null
     },
     {
       "id": "decal-moss-creep",
@@ -1128,10 +1387,11 @@
       "art_purpose": "Surface storytelling motif for Moss creep",
       "asset_class": "MaterialInstance",
       "restoration_state": null,
-      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_moss_creep.png",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/mi_moss_creep.json",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_moss_creep.decal_moss_creep",
       "dependency_ids": [
-        "surface-cracked-stone"
+        "master-decal",
+        "texture-decal-moss-creep"
       ],
       "acceptance_tags": [
         "decal",
@@ -1142,7 +1402,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "decals"
+      "asset_family_lane": "decals",
+      "production_spec": null
     },
     {
       "id": "decal-corruption-veins",
@@ -1151,10 +1412,11 @@
       "art_purpose": "Surface storytelling motif for Corruption veins",
       "asset_class": "MaterialInstance",
       "restoration_state": null,
-      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_corruption_veins.png",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/mi_corruption_veins.json",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/decal_corruption_veins.decal_corruption_veins",
       "dependency_ids": [
-        "surface-cracked-stone"
+        "master-decal",
+        "texture-decal-corruption-veins"
       ],
       "acceptance_tags": [
         "decal",
@@ -1165,7 +1427,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "decals"
+      "asset_family_lane": "decals",
+      "production_spec": null
     },
     {
       "id": "vfx-heart-ambience",
@@ -1174,10 +1437,10 @@
       "art_purpose": "Readable atmospheric source family for Heart ambience",
       "asset_class": "NiagaraSystem",
       "restoration_state": "before",
-      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/vfx_heart_ambience.exr",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/heart_ambience_niagara.json",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/vfx_heart_ambience.vfx_heart_ambience",
       "dependency_ids": [
-        "mi-sanctuary-before"
+        "flipbook-vfx-heart-ambience"
       ],
       "acceptance_tags": [
         "vfx",
@@ -1188,7 +1451,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "vfx"
+      "asset_family_lane": "vfx",
+      "production_spec": null
     },
     {
       "id": "vfx-restoration-motes",
@@ -1197,10 +1461,10 @@
       "art_purpose": "Readable atmospheric source family for Restoration motes",
       "asset_class": "NiagaraSystem",
       "restoration_state": "restoration_in_progress",
-      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/vfx_restoration_motes.exr",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/restoration_motes_niagara.json",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/vfx_restoration_motes.vfx_restoration_motes",
       "dependency_ids": [
-        "mi-sanctuary-restoration_in_progress"
+        "flipbook-vfx-restoration-motes"
       ],
       "acceptance_tags": [
         "vfx",
@@ -1211,7 +1475,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "vfx"
+      "asset_family_lane": "vfx",
+      "production_spec": null
     },
     {
       "id": "vfx-corruption-wisps",
@@ -1220,10 +1485,10 @@
       "art_purpose": "Readable atmospheric source family for Corruption wisps",
       "asset_class": "NiagaraSystem",
       "restoration_state": "corrupted",
-      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/vfx_corruption_wisps.exr",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/corruption_wisps_niagara.json",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/vfx_corruption_wisps.vfx_corruption_wisps",
       "dependency_ids": [
-        "mi-sanctuary-corrupted"
+        "flipbook-vfx-corruption-wisps"
       ],
       "acceptance_tags": [
         "vfx",
@@ -1234,7 +1499,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "vfx"
+      "asset_family_lane": "vfx",
+      "production_spec": null
     },
     {
       "id": "vfx-ground-fog",
@@ -1243,10 +1509,10 @@
       "art_purpose": "Readable atmospheric source family for Ground fog",
       "asset_class": "NiagaraSystem",
       "restoration_state": null,
-      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/vfx_ground_fog.exr",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/ground_fog_niagara.json",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/vfx_ground_fog.vfx_ground_fog",
       "dependency_ids": [
-        "surface-ashen-soil"
+        "flipbook-vfx-ground-fog"
       ],
       "acceptance_tags": [
         "vfx",
@@ -1257,7 +1523,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "vfx"
+      "asset_family_lane": "vfx",
+      "production_spec": null
     },
     {
       "id": "placement-courtyard",
@@ -1282,7 +1549,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "placement-pcg"
+      "asset_family_lane": "placement-pcg",
+      "production_spec": null
     },
     {
       "id": "placement-perimeter-ruins",
@@ -1307,7 +1575,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "placement-pcg"
+      "asset_family_lane": "placement-pcg",
+      "production_spec": null
     },
     {
       "id": "placement-ritual-approaches",
@@ -1332,7 +1601,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "placement-pcg"
+      "asset_family_lane": "placement-pcg",
+      "production_spec": null
     },
     {
       "id": "placement-corruption-pockets",
@@ -1358,7 +1628,1078 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "placement-pcg"
+      "asset_family_lane": "placement-pcg",
+      "production_spec": null
+    },
+    {
+      "id": "master-surface",
+      "family": "materials",
+      "semantic_role": "master surface material",
+      "art_purpose": "PBR surface parent",
+      "asset_class": "Material",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/materials/master_surface.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/materials/M_Master_surface.M_Master_surface",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "material",
+        "dependency",
+        "runtime"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "materials",
+      "production_spec": null
+    },
+    {
+      "id": "master-decal",
+      "family": "materials",
+      "semantic_role": "master decal material",
+      "art_purpose": "deferred decal parent",
+      "asset_class": "Material",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/materials/master_decal.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/materials/M_Master_decal.M_Master_decal",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "material",
+        "dependency",
+        "runtime"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "materials",
+      "production_spec": null
+    },
+    {
+      "id": "master-foliage-card",
+      "family": "materials",
+      "semantic_role": "master foliage-card material",
+      "art_purpose": "masked two-sided foliage card parent",
+      "asset_class": "Material",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/materials/master_foliage_card.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/materials/M_Master_foliage_card.M_Master_foliage_card",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "material",
+        "dependency",
+        "runtime"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "materials",
+      "production_spec": null
+    },
+    {
+      "id": "master-vfx-flipbook",
+      "family": "materials",
+      "semantic_role": "master vfx-flipbook material",
+      "art_purpose": "additive translucent flipbook parent",
+      "asset_class": "Material",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/materials/master_vfx_flipbook.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/materials/M_Master_vfx_flipbook.M_Master_vfx_flipbook",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "material",
+        "dependency",
+        "runtime"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "materials",
+      "production_spec": null
+    },
+    {
+      "id": "texture-ashen-soil-base-color",
+      "family": "surfaces",
+      "semantic_role": "ashen-soil base-color texture",
+      "art_purpose": "Accepted reproducible base-color channel for ashen-soil",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/ashen_soil_base_color.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/T_ashen_soil_base_color.T_ashen_soil_base_color",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "pbr",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "surfaces",
+      "production_spec": null
+    },
+    {
+      "id": "texture-ashen-soil-normal",
+      "family": "surfaces",
+      "semantic_role": "ashen-soil normal texture",
+      "art_purpose": "Accepted reproducible normal channel for ashen-soil",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/ashen_soil_normal.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/T_ashen_soil_normal.T_ashen_soil_normal",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "pbr",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "surfaces",
+      "production_spec": null
+    },
+    {
+      "id": "texture-ashen-soil-orm",
+      "family": "surfaces",
+      "semantic_role": "ashen-soil orm texture",
+      "art_purpose": "Accepted reproducible orm channel for ashen-soil",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/ashen_soil_orm.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/T_ashen_soil_orm.T_ashen_soil_orm",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "pbr",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "surfaces",
+      "production_spec": null
+    },
+    {
+      "id": "texture-cracked-stone-base-color",
+      "family": "surfaces",
+      "semantic_role": "cracked-stone base-color texture",
+      "art_purpose": "Accepted reproducible base-color channel for cracked-stone",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/cracked_stone_base_color.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/T_cracked_stone_base_color.T_cracked_stone_base_color",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "pbr",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "surfaces",
+      "production_spec": null
+    },
+    {
+      "id": "texture-cracked-stone-normal",
+      "family": "surfaces",
+      "semantic_role": "cracked-stone normal texture",
+      "art_purpose": "Accepted reproducible normal channel for cracked-stone",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/cracked_stone_normal.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/T_cracked_stone_normal.T_cracked_stone_normal",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "pbr",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "surfaces",
+      "production_spec": null
+    },
+    {
+      "id": "texture-cracked-stone-orm",
+      "family": "surfaces",
+      "semantic_role": "cracked-stone orm texture",
+      "art_purpose": "Accepted reproducible orm channel for cracked-stone",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/cracked_stone_orm.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/T_cracked_stone_orm.T_cracked_stone_orm",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "pbr",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "surfaces",
+      "production_spec": null
+    },
+    {
+      "id": "texture-withered-loam-moss-base-color",
+      "family": "surfaces",
+      "semantic_role": "withered-loam-moss base-color texture",
+      "art_purpose": "Accepted reproducible base-color channel for withered-loam-moss",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/withered_loam_moss_base_color.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/T_withered_loam_moss_base_color.T_withered_loam_moss_base_color",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "pbr",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "surfaces",
+      "production_spec": null
+    },
+    {
+      "id": "texture-withered-loam-moss-normal",
+      "family": "surfaces",
+      "semantic_role": "withered-loam-moss normal texture",
+      "art_purpose": "Accepted reproducible normal channel for withered-loam-moss",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/withered_loam_moss_normal.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/T_withered_loam_moss_normal.T_withered_loam_moss_normal",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "pbr",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "surfaces",
+      "production_spec": null
+    },
+    {
+      "id": "texture-withered-loam-moss-orm",
+      "family": "surfaces",
+      "semantic_role": "withered-loam-moss orm texture",
+      "art_purpose": "Accepted reproducible orm channel for withered-loam-moss",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/withered_loam_moss_orm.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/T_withered_loam_moss_orm.T_withered_loam_moss_orm",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "pbr",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "surfaces",
+      "production_spec": null
+    },
+    {
+      "id": "texture-foliage-withered-ivy-base-color-alpha",
+      "family": "foliage",
+      "semantic_role": "withered-ivy card base-color-alpha",
+      "art_purpose": "Normalized foliage-card base-color-alpha texture",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/withered_ivy_base_color_alpha.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_withered_ivy_base_color_alpha.T_withered_ivy_base_color_alpha",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "foliage-card",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage",
+      "production_spec": null
+    },
+    {
+      "id": "texture-foliage-withered-ivy-normal",
+      "family": "foliage",
+      "semantic_role": "withered-ivy card normal",
+      "art_purpose": "Normalized foliage-card normal texture",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/withered_ivy_normal.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_withered_ivy_normal.T_withered_ivy_normal",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "foliage-card",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage",
+      "production_spec": null
+    },
+    {
+      "id": "mi-foliage-withered-ivy",
+      "family": "foliage",
+      "semantic_role": "withered-ivy card material",
+      "art_purpose": "Masked two-sided material assembly for foliage cards",
+      "asset_class": "MaterialInstance",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/mi_withered_ivy.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/MI_withered_ivy.MI_withered_ivy",
+      "dependency_ids": [
+        "master-foliage-card",
+        "texture-foliage-withered-ivy-base-color-alpha",
+        "texture-foliage-withered-ivy-normal"
+      ],
+      "acceptance_tags": [
+        "material",
+        "foliage-card",
+        "assembly"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage",
+      "production_spec": null
+    },
+    {
+      "id": "texture-foliage-blackthorn-root-base-color-alpha",
+      "family": "foliage",
+      "semantic_role": "blackthorn-root card base-color-alpha",
+      "art_purpose": "Normalized foliage-card base-color-alpha texture",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/blackthorn_root_base_color_alpha.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_blackthorn_root_base_color_alpha.T_blackthorn_root_base_color_alpha",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "foliage-card",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage",
+      "production_spec": null
+    },
+    {
+      "id": "texture-foliage-blackthorn-root-normal",
+      "family": "foliage",
+      "semantic_role": "blackthorn-root card normal",
+      "art_purpose": "Normalized foliage-card normal texture",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/blackthorn_root_normal.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_blackthorn_root_normal.T_blackthorn_root_normal",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "foliage-card",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage",
+      "production_spec": null
+    },
+    {
+      "id": "mi-foliage-blackthorn-root",
+      "family": "foliage",
+      "semantic_role": "blackthorn-root card material",
+      "art_purpose": "Masked two-sided material assembly for foliage cards",
+      "asset_class": "MaterialInstance",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/mi_blackthorn_root.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/MI_blackthorn_root.MI_blackthorn_root",
+      "dependency_ids": [
+        "master-foliage-card",
+        "texture-foliage-blackthorn-root-base-color-alpha",
+        "texture-foliage-blackthorn-root-normal"
+      ],
+      "acceptance_tags": [
+        "material",
+        "foliage-card",
+        "assembly"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage",
+      "production_spec": null
+    },
+    {
+      "id": "texture-foliage-grave-fern-base-color-alpha",
+      "family": "foliage",
+      "semantic_role": "grave-fern card base-color-alpha",
+      "art_purpose": "Normalized foliage-card base-color-alpha texture",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/grave_fern_base_color_alpha.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_grave_fern_base_color_alpha.T_grave_fern_base_color_alpha",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "foliage-card",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage",
+      "production_spec": null
+    },
+    {
+      "id": "texture-foliage-grave-fern-normal",
+      "family": "foliage",
+      "semantic_role": "grave-fern card normal",
+      "art_purpose": "Normalized foliage-card normal texture",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/grave_fern_normal.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_grave_fern_normal.T_grave_fern_normal",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "foliage-card",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage",
+      "production_spec": null
+    },
+    {
+      "id": "mi-foliage-grave-fern",
+      "family": "foliage",
+      "semantic_role": "grave-fern card material",
+      "art_purpose": "Masked two-sided material assembly for foliage cards",
+      "asset_class": "MaterialInstance",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/mi_grave_fern.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/MI_grave_fern.MI_grave_fern",
+      "dependency_ids": [
+        "master-foliage-card",
+        "texture-foliage-grave-fern-base-color-alpha",
+        "texture-foliage-grave-fern-normal"
+      ],
+      "acceptance_tags": [
+        "material",
+        "foliage-card",
+        "assembly"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage",
+      "production_spec": null
+    },
+    {
+      "id": "texture-foliage-ash-reed-base-color-alpha",
+      "family": "foliage",
+      "semantic_role": "ash-reed card base-color-alpha",
+      "art_purpose": "Normalized foliage-card base-color-alpha texture",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/ash_reed_base_color_alpha.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_ash_reed_base_color_alpha.T_ash_reed_base_color_alpha",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "foliage-card",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage",
+      "production_spec": null
+    },
+    {
+      "id": "texture-foliage-ash-reed-normal",
+      "family": "foliage",
+      "semantic_role": "ash-reed card normal",
+      "art_purpose": "Normalized foliage-card normal texture",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/ash_reed_normal.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_ash_reed_normal.T_ash_reed_normal",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "foliage-card",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage",
+      "production_spec": null
+    },
+    {
+      "id": "mi-foliage-ash-reed",
+      "family": "foliage",
+      "semantic_role": "ash-reed card material",
+      "art_purpose": "Masked two-sided material assembly for foliage cards",
+      "asset_class": "MaterialInstance",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/mi_ash_reed.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/MI_ash_reed.MI_ash_reed",
+      "dependency_ids": [
+        "master-foliage-card",
+        "texture-foliage-ash-reed-base-color-alpha",
+        "texture-foliage-ash-reed-normal"
+      ],
+      "acceptance_tags": [
+        "material",
+        "foliage-card",
+        "assembly"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage",
+      "production_spec": null
+    },
+    {
+      "id": "texture-foliage-veil-bramble-base-color-alpha",
+      "family": "foliage",
+      "semantic_role": "veil-bramble card base-color-alpha",
+      "art_purpose": "Normalized foliage-card base-color-alpha texture",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/veil_bramble_base_color_alpha.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_veil_bramble_base_color_alpha.T_veil_bramble_base_color_alpha",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "foliage-card",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage",
+      "production_spec": null
+    },
+    {
+      "id": "texture-foliage-veil-bramble-normal",
+      "family": "foliage",
+      "semantic_role": "veil-bramble card normal",
+      "art_purpose": "Normalized foliage-card normal texture",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/veil_bramble_normal.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_veil_bramble_normal.T_veil_bramble_normal",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "foliage-card",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage",
+      "production_spec": null
+    },
+    {
+      "id": "mi-foliage-veil-bramble",
+      "family": "foliage",
+      "semantic_role": "veil-bramble card material",
+      "art_purpose": "Masked two-sided material assembly for foliage cards",
+      "asset_class": "MaterialInstance",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/mi_veil_bramble.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/MI_veil_bramble.MI_veil_bramble",
+      "dependency_ids": [
+        "master-foliage-card",
+        "texture-foliage-veil-bramble-base-color-alpha",
+        "texture-foliage-veil-bramble-normal"
+      ],
+      "acceptance_tags": [
+        "material",
+        "foliage-card",
+        "assembly"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage",
+      "production_spec": null
+    },
+    {
+      "id": "texture-foliage-hollow-stump-base-color-alpha",
+      "family": "foliage",
+      "semantic_role": "hollow-stump card base-color-alpha",
+      "art_purpose": "Normalized foliage-card base-color-alpha texture",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/hollow_stump_base_color_alpha.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_hollow_stump_base_color_alpha.T_hollow_stump_base_color_alpha",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "foliage-card",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage",
+      "production_spec": null
+    },
+    {
+      "id": "texture-foliage-hollow-stump-normal",
+      "family": "foliage",
+      "semantic_role": "hollow-stump card normal",
+      "art_purpose": "Normalized foliage-card normal texture",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/hollow_stump_normal.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_hollow_stump_normal.T_hollow_stump_normal",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "foliage-card",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage",
+      "production_spec": null
+    },
+    {
+      "id": "mi-foliage-hollow-stump",
+      "family": "foliage",
+      "semantic_role": "hollow-stump card material",
+      "art_purpose": "Masked two-sided material assembly for foliage cards",
+      "asset_class": "MaterialInstance",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/mi_hollow_stump.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/MI_hollow_stump.MI_hollow_stump",
+      "dependency_ids": [
+        "master-foliage-card",
+        "texture-foliage-hollow-stump-base-color-alpha",
+        "texture-foliage-hollow-stump-normal"
+      ],
+      "acceptance_tags": [
+        "material",
+        "foliage-card",
+        "assembly"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "foliage",
+      "production_spec": null
+    },
+    {
+      "id": "texture-decal-hairline-cracks",
+      "family": "decals",
+      "semantic_role": "hairline-cracks decal texture",
+      "art_purpose": "Normalized alpha-bearing decal source for hairline-cracks",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/hairline_cracks.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/T_hairline_cracks.T_hairline_cracks",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "decal",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "decals",
+      "production_spec": null
+    },
+    {
+      "id": "texture-decal-ritual-fissures",
+      "family": "decals",
+      "semantic_role": "ritual-fissures decal texture",
+      "art_purpose": "Normalized alpha-bearing decal source for ritual-fissures",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/ritual_fissures.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/T_ritual_fissures.T_ritual_fissures",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "decal",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "decals",
+      "production_spec": null
+    },
+    {
+      "id": "texture-decal-soot-smear",
+      "family": "decals",
+      "semantic_role": "soot-smear decal texture",
+      "art_purpose": "Normalized alpha-bearing decal source for soot-smear",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/soot_smear.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/T_soot_smear.T_soot_smear",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "decal",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "decals",
+      "production_spec": null
+    },
+    {
+      "id": "texture-decal-soot-bloom",
+      "family": "decals",
+      "semantic_role": "soot-bloom decal texture",
+      "art_purpose": "Normalized alpha-bearing decal source for soot-bloom",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/soot_bloom.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/T_soot_bloom.T_soot_bloom",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "decal",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "decals",
+      "production_spec": null
+    },
+    {
+      "id": "texture-decal-ritual-circle",
+      "family": "decals",
+      "semantic_role": "ritual-circle decal texture",
+      "art_purpose": "Normalized alpha-bearing decal source for ritual-circle",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/ritual_circle.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/T_ritual_circle.T_ritual_circle",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "decal",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "decals",
+      "production_spec": null
+    },
+    {
+      "id": "texture-decal-ritual-runes",
+      "family": "decals",
+      "semantic_role": "ritual-runes decal texture",
+      "art_purpose": "Normalized alpha-bearing decal source for ritual-runes",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/ritual_runes.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/T_ritual_runes.T_ritual_runes",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "decal",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "decals",
+      "production_spec": null
+    },
+    {
+      "id": "texture-decal-moss-creep",
+      "family": "decals",
+      "semantic_role": "moss-creep decal texture",
+      "art_purpose": "Normalized alpha-bearing decal source for moss-creep",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/moss_creep.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/T_moss_creep.T_moss_creep",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "decal",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "decals",
+      "production_spec": null
+    },
+    {
+      "id": "texture-decal-corruption-veins",
+      "family": "decals",
+      "semantic_role": "corruption-veins decal texture",
+      "art_purpose": "Normalized alpha-bearing decal source for corruption-veins",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/corruption_veins.png",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/T_corruption_veins.T_corruption_veins",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "decal",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "decals",
+      "production_spec": null
+    },
+    {
+      "id": "texture-vfx-heart-ambience",
+      "family": "vfx",
+      "semantic_role": "heart-ambience source plate texture",
+      "art_purpose": "Normalized EXR source plate for heart-ambience",
+      "asset_class": "Texture2D",
+      "restoration_state": "before",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/heart_ambience.exr",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/T_heart_ambience.T_heart_ambience",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "vfx",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "vfx",
+      "production_spec": null
+    },
+    {
+      "id": "flipbook-vfx-heart-ambience",
+      "family": "vfx",
+      "semantic_role": "heart-ambience flipbook assembly",
+      "art_purpose": "Deterministic SubUV assembly for heart-ambience",
+      "asset_class": "SubUVAnimation",
+      "restoration_state": "before",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/heart_ambience_flipbook.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/SA_heart_ambience.SA_heart_ambience",
+      "dependency_ids": [
+        "master-vfx-flipbook",
+        "texture-vfx-heart-ambience"
+      ],
+      "acceptance_tags": [
+        "vfx",
+        "flipbook",
+        "assembly"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "vfx",
+      "production_spec": null
+    },
+    {
+      "id": "texture-vfx-restoration-motes",
+      "family": "vfx",
+      "semantic_role": "restoration-motes source plate texture",
+      "art_purpose": "Normalized EXR source plate for restoration-motes",
+      "asset_class": "Texture2D",
+      "restoration_state": "restoration_in_progress",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/restoration_motes.exr",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/T_restoration_motes.T_restoration_motes",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "vfx",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "vfx",
+      "production_spec": null
+    },
+    {
+      "id": "flipbook-vfx-restoration-motes",
+      "family": "vfx",
+      "semantic_role": "restoration-motes flipbook assembly",
+      "art_purpose": "Deterministic SubUV assembly for restoration-motes",
+      "asset_class": "SubUVAnimation",
+      "restoration_state": "restoration_in_progress",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/restoration_motes_flipbook.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/SA_restoration_motes.SA_restoration_motes",
+      "dependency_ids": [
+        "master-vfx-flipbook",
+        "texture-vfx-restoration-motes"
+      ],
+      "acceptance_tags": [
+        "vfx",
+        "flipbook",
+        "assembly"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "vfx",
+      "production_spec": null
+    },
+    {
+      "id": "texture-vfx-corruption-wisps",
+      "family": "vfx",
+      "semantic_role": "corruption-wisps source plate texture",
+      "art_purpose": "Normalized EXR source plate for corruption-wisps",
+      "asset_class": "Texture2D",
+      "restoration_state": "corrupted",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/corruption_wisps.exr",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/T_corruption_wisps.T_corruption_wisps",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "vfx",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "vfx",
+      "production_spec": null
+    },
+    {
+      "id": "flipbook-vfx-corruption-wisps",
+      "family": "vfx",
+      "semantic_role": "corruption-wisps flipbook assembly",
+      "art_purpose": "Deterministic SubUV assembly for corruption-wisps",
+      "asset_class": "SubUVAnimation",
+      "restoration_state": "corrupted",
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/corruption_wisps_flipbook.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/SA_corruption_wisps.SA_corruption_wisps",
+      "dependency_ids": [
+        "master-vfx-flipbook",
+        "texture-vfx-corruption-wisps"
+      ],
+      "acceptance_tags": [
+        "vfx",
+        "flipbook",
+        "assembly"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "vfx",
+      "production_spec": null
+    },
+    {
+      "id": "texture-vfx-ground-fog",
+      "family": "vfx",
+      "semantic_role": "ground-fog source plate texture",
+      "art_purpose": "Normalized EXR source plate for ground-fog",
+      "asset_class": "Texture2D",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/ground_fog.exr",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/T_ground_fog.T_ground_fog",
+      "dependency_ids": [],
+      "acceptance_tags": [
+        "texture",
+        "vfx",
+        "channel-qa"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "vfx",
+      "production_spec": null
+    },
+    {
+      "id": "flipbook-vfx-ground-fog",
+      "family": "vfx",
+      "semantic_role": "ground-fog flipbook assembly",
+      "art_purpose": "Deterministic SubUV assembly for ground-fog",
+      "asset_class": "SubUVAnimation",
+      "restoration_state": null,
+      "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/ground_fog_flipbook.json",
+      "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/SA_ground_fog.SA_ground_fog",
+      "dependency_ids": [
+        "master-vfx-flipbook",
+        "texture-vfx-ground-fog"
+      ],
+      "acceptance_tags": [
+        "vfx",
+        "flipbook",
+        "assembly"
+      ],
+      "ownership": {
+        "owner": "Gloamstead",
+        "license": "Proprietary-Gloamstead"
+      },
+      "asset_family_lane": "vfx",
+      "production_spec": null
     },
     {
       "id": "biome-manifest",
@@ -1426,7 +2767,54 @@
         "placement-courtyard",
         "placement-perimeter-ruins",
         "placement-ritual-approaches",
-        "placement-corruption-pockets"
+        "placement-corruption-pockets",
+        "master-surface",
+        "master-decal",
+        "master-foliage-card",
+        "master-vfx-flipbook",
+        "texture-ashen-soil-base-color",
+        "texture-ashen-soil-normal",
+        "texture-ashen-soil-orm",
+        "texture-cracked-stone-base-color",
+        "texture-cracked-stone-normal",
+        "texture-cracked-stone-orm",
+        "texture-withered-loam-moss-base-color",
+        "texture-withered-loam-moss-normal",
+        "texture-withered-loam-moss-orm",
+        "texture-foliage-withered-ivy-base-color-alpha",
+        "texture-foliage-withered-ivy-normal",
+        "mi-foliage-withered-ivy",
+        "texture-foliage-blackthorn-root-base-color-alpha",
+        "texture-foliage-blackthorn-root-normal",
+        "mi-foliage-blackthorn-root",
+        "texture-foliage-grave-fern-base-color-alpha",
+        "texture-foliage-grave-fern-normal",
+        "mi-foliage-grave-fern",
+        "texture-foliage-ash-reed-base-color-alpha",
+        "texture-foliage-ash-reed-normal",
+        "mi-foliage-ash-reed",
+        "texture-foliage-veil-bramble-base-color-alpha",
+        "texture-foliage-veil-bramble-normal",
+        "mi-foliage-veil-bramble",
+        "texture-foliage-hollow-stump-base-color-alpha",
+        "texture-foliage-hollow-stump-normal",
+        "mi-foliage-hollow-stump",
+        "texture-decal-hairline-cracks",
+        "texture-decal-ritual-fissures",
+        "texture-decal-soot-smear",
+        "texture-decal-soot-bloom",
+        "texture-decal-ritual-circle",
+        "texture-decal-ritual-runes",
+        "texture-decal-moss-creep",
+        "texture-decal-corruption-veins",
+        "texture-vfx-heart-ambience",
+        "flipbook-vfx-heart-ambience",
+        "texture-vfx-restoration-motes",
+        "flipbook-vfx-restoration-motes",
+        "texture-vfx-corruption-wisps",
+        "flipbook-vfx-corruption-wisps",
+        "texture-vfx-ground-fog",
+        "flipbook-vfx-ground-fog"
       ],
       "acceptance_tags": [
         "manifest",
@@ -1436,7 +2824,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "integration"
+      "asset_family_lane": "integration",
+      "production_spec": null
     },
     {
       "id": "generated-catalog",
@@ -1458,7 +2847,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "integration"
+      "asset_family_lane": "integration",
+      "production_spec": null
     },
     {
       "id": "runtime-bindings",
@@ -1470,11 +2860,7 @@
       "source_path": "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/integration/runtime_bindings.json",
       "unreal_object_path": "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/integration/runtime_bindings.runtime_bindings",
       "dependency_ids": [
-        "generated-catalog",
-        "placement-courtyard",
-        "placement-perimeter-ruins",
-        "placement-ritual-approaches",
-        "placement-corruption-pockets"
+        "generated-catalog"
       ],
       "acceptance_tags": [
         "runtime",
@@ -1485,7 +2871,8 @@
         "owner": "Gloamstead",
         "license": "Proprietary-Gloamstead"
       },
-      "asset_family_lane": "integration"
+      "asset_family_lane": "integration",
+      "production_spec": null
     }
   ],
   "output_allowlist": {
@@ -1531,22 +2918,69 @@
       "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/foliage_ash_reed.fbx",
       "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/foliage_veil_bramble.fbx",
       "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/foliage_hollow_stump.fbx",
-      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_hairline_cracks.png",
-      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_ritual_fissures.png",
-      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_soot_smear.png",
-      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_soot_bloom.png",
-      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_ritual_circle.png",
-      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_ritual_runes.png",
-      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_moss_creep.png",
-      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/decal_corruption_veins.png",
-      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/vfx_heart_ambience.exr",
-      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/vfx_restoration_motes.exr",
-      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/vfx_corruption_wisps.exr",
-      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/vfx_ground_fog.exr",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/mi_hairline_cracks.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/mi_ritual_fissures.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/mi_soot_smear.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/mi_soot_bloom.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/mi_ritual_circle.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/mi_ritual_runes.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/mi_moss_creep.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/mi_corruption_veins.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/heart_ambience_niagara.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/restoration_motes_niagara.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/corruption_wisps_niagara.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/ground_fog_niagara.json",
       "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/placement/placement_courtyard.json",
       "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/placement/placement_perimeter_ruins.json",
       "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/placement/placement_ritual_approaches.json",
       "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/placement/placement_corruption_pockets.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/materials/master_surface.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/materials/master_decal.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/materials/master_foliage_card.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/materials/master_vfx_flipbook.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/ashen_soil_base_color.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/ashen_soil_normal.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/ashen_soil_orm.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/cracked_stone_base_color.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/cracked_stone_normal.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/cracked_stone_orm.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/withered_loam_moss_base_color.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/withered_loam_moss_normal.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/surfaces/withered_loam_moss_orm.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/withered_ivy_base_color_alpha.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/withered_ivy_normal.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/mi_withered_ivy.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/blackthorn_root_base_color_alpha.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/blackthorn_root_normal.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/mi_blackthorn_root.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/grave_fern_base_color_alpha.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/grave_fern_normal.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/mi_grave_fern.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/ash_reed_base_color_alpha.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/ash_reed_normal.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/mi_ash_reed.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/veil_bramble_base_color_alpha.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/veil_bramble_normal.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/mi_veil_bramble.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/hollow_stump_base_color_alpha.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/hollow_stump_normal.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/foliage/mi_hollow_stump.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/hairline_cracks.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/ritual_fissures.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/soot_smear.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/soot_bloom.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/ritual_circle.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/ritual_runes.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/moss_creep.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/decals/corruption_veins.png",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/heart_ambience.exr",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/heart_ambience_flipbook.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/restoration_motes.exr",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/restoration_motes_flipbook.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/corruption_wisps.exr",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/corruption_wisps_flipbook.json",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/ground_fog.exr",
+      "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/vfx/ground_fog_flipbook.json",
       "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/integration/biome_manifest.json",
       "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/integration/generated_catalog.json",
       "SourceArt/WorldForge/Accepted/Sanctuary/1.0.0/integration/runtime_bindings.json"
@@ -1609,6 +3043,53 @@
       "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/placement/placement_perimeter_ruins.placement_perimeter_ruins",
       "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/placement/placement_ritual_approaches.placement_ritual_approaches",
       "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/placement/placement_corruption_pockets.placement_corruption_pockets",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/materials/M_Master_surface.M_Master_surface",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/materials/M_Master_decal.M_Master_decal",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/materials/M_Master_foliage_card.M_Master_foliage_card",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/materials/M_Master_vfx_flipbook.M_Master_vfx_flipbook",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/T_ashen_soil_base_color.T_ashen_soil_base_color",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/T_ashen_soil_normal.T_ashen_soil_normal",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/T_ashen_soil_orm.T_ashen_soil_orm",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/T_cracked_stone_base_color.T_cracked_stone_base_color",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/T_cracked_stone_normal.T_cracked_stone_normal",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/T_cracked_stone_orm.T_cracked_stone_orm",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/T_withered_loam_moss_base_color.T_withered_loam_moss_base_color",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/T_withered_loam_moss_normal.T_withered_loam_moss_normal",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/surfaces/T_withered_loam_moss_orm.T_withered_loam_moss_orm",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_withered_ivy_base_color_alpha.T_withered_ivy_base_color_alpha",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_withered_ivy_normal.T_withered_ivy_normal",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/MI_withered_ivy.MI_withered_ivy",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_blackthorn_root_base_color_alpha.T_blackthorn_root_base_color_alpha",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_blackthorn_root_normal.T_blackthorn_root_normal",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/MI_blackthorn_root.MI_blackthorn_root",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_grave_fern_base_color_alpha.T_grave_fern_base_color_alpha",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_grave_fern_normal.T_grave_fern_normal",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/MI_grave_fern.MI_grave_fern",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_ash_reed_base_color_alpha.T_ash_reed_base_color_alpha",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_ash_reed_normal.T_ash_reed_normal",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/MI_ash_reed.MI_ash_reed",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_veil_bramble_base_color_alpha.T_veil_bramble_base_color_alpha",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_veil_bramble_normal.T_veil_bramble_normal",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/MI_veil_bramble.MI_veil_bramble",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_hollow_stump_base_color_alpha.T_hollow_stump_base_color_alpha",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/T_hollow_stump_normal.T_hollow_stump_normal",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/foliage/MI_hollow_stump.MI_hollow_stump",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/T_hairline_cracks.T_hairline_cracks",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/T_ritual_fissures.T_ritual_fissures",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/T_soot_smear.T_soot_smear",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/T_soot_bloom.T_soot_bloom",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/T_ritual_circle.T_ritual_circle",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/T_ritual_runes.T_ritual_runes",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/T_moss_creep.T_moss_creep",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/decals/T_corruption_veins.T_corruption_veins",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/T_heart_ambience.T_heart_ambience",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/SA_heart_ambience.SA_heart_ambience",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/T_restoration_motes.T_restoration_motes",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/SA_restoration_motes.SA_restoration_motes",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/T_corruption_wisps.T_corruption_wisps",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/SA_corruption_wisps.SA_corruption_wisps",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/T_ground_fog.T_ground_fog",
+      "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/vfx/SA_ground_fog.SA_ground_fog",
       "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/integration/biome_manifest.biome_manifest",
       "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/integration/generated_catalog.generated_catalog",
       "/Game/Gloamstead/Generated/Biomes/Sanctuary/1_0_0/integration/runtime_bindings.runtime_bindings"
