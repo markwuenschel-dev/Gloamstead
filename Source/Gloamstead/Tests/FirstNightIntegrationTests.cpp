@@ -158,13 +158,17 @@ bool FGloamFirstNightSeededLoopToDawnTest::RunTest(const FString& /*Parameters*/
 	Director->RequestAdvanceToDusk();
 	TestTrue(TEXT("dusk gate holds before restoration"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
 
-	// Restore the lantern -> the director advances the phase authority to Dusk.
+	// Restore the lantern -> the director opens the gate by unlocking the first rest; the player's rest
+	// at the Heart is what actually advances the phase authority to Dusk.
 	FRestorationEventPayload Restore;
 	Restore.RitualType = ERitualType::LanternPost;
 	Restore.WorldLocation = FVector(300.f, -120.f, 0.f);
 	Director->HandleStructureRestored(Restore);
-	TestTrue(TEXT("lantern restoration opens the dusk gate"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk);
 	TestEqual(TEXT("lantern restored beat fired once"), Director->Test_LanternRestoredCount, 1);
+	TestTrue(TEXT("lantern restoration opens the dusk gate"), DayNight->CanRestNow());
+	TestTrue(TEXT("still Day until the player rests"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
+	TestTrue(TEXT("player rests at the Heart"), DayNight->RequestRest());
+	TestTrue(TEXT("rest advances to Dusk"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk);
 
 	// Dusk cue on the phase change.
 	Director->HandlePhaseChanged(EGloamsteadDayPhase::Day, EGloamsteadDayPhase::Dusk);

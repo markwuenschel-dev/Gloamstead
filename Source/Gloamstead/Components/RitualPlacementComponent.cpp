@@ -93,7 +93,100 @@ void URitualPlacementComponent::ExitPlacementMode()
     bIsInPlacementMode = false;
     CurrentTargetPointIndex = -1;
 
+    // Cancel must leave nothing behind, or re-entry stacks a second ghost on the first.
+    DestroyPreviewActor();
+
     OnPlacementModeExited();
+}
+
+void URitualPlacementComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    // A ghost outliving PIE would be a visible leak in the next session.
+    DestroyPreviewActor();
+    Super::EndPlay(EndPlayReason);
+}
+
+UClass* URitualPlacementComponent::ResolvePreviewClass() const
+{
+    if (PreviewActorClass)
+    {
+        return PreviewActorClass;
+    }
+    if (!bUseProjectDefaultPreviewClass)
+    {
+        return nullptr;
+    }
+    // Mirrors SpawnRestoredActor_Implementation's fallback: the slice ships one project-owned preview.
+    static const TCHAR* PreviewPath = TEXT("/Game/Gloamstead/Placement/BP_RitualPreview.BP_RitualPreview_C");
+    return LoadClass<AActor>(nullptr, PreviewPath);
+}
+
+void URitualPlacementComponent::DestroyPreviewActor()
+{
+    if (AActor* Preview = ActivePreviewActor.Get())
+    {
+        Preview->Destroy();
+    }
+    ActivePreviewActor.Reset();
+}
+
+void URitualPlacementComponent::RefreshPreviewActor()
+{
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    // A ghost is shown only for a target the player could actually confirm. Anything else — out of
+    // placement mode, no target, or a target out of range — shows nothing, so the preview's presence
+    // is itself the readable signal that confirming will work.
+    // Initialised because GetCurrentTargetTransform only writes them on success, and the && below
+    // short-circuits before it on the no-target paths.
+    FVector TargetLocation = FVector::ZeroVector;
+    FRotator TargetRotation = FRotator::ZeroRotator;
+    const bool bShouldShow = bIsInPlacementMode
+        && IsCurrentPlacementValid()
+        && GetCurrentTargetTransform(TargetLocation, TargetRotation);
+
+    if (!bShouldShow)
+    {
+        DestroyPreviewActor();
+        return;
+    }
+
+    if (AActor* Existing = ActivePreviewActor.Get())
+    {
+        // Move the one we have rather than respawning: a ghost that blinks every query tick reads as
+        // a bug, and this is what makes the preview "stable" as the player walks around.
+        Existing->SetActorLocationAndRotation(TargetLocation, TargetRotation);
+        return;
+    }
+
+    UClass* PreviewClass = ResolvePreviewClass();
+    if (!PreviewClass)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("RitualPlacementComponent: no preview class resolved; placement will have no ghost."));
+        return;
+    }
+
+    FActorSpawnParameters Params;
+    Params.Owner = GetOwner();
+    Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    Params.ObjectFlags |= RF_Transient; // never let a ghost be saved into the level
+
+    AActor* Spawned = World->SpawnActor<AActor>(PreviewClass, TargetLocation, TargetRotation, Params);
+    if (!Spawned)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("RitualPlacementComponent: preview actor failed to spawn at %s."), *TargetLocation.ToCompactString());
+        return;
+    }
+
+    Spawned->Tags.AddUnique(TEXT("Gloamstead.RitualPreview"));
+    ActivePreviewActor = Spawned;
+
+    UE_LOG(LogTemp, Log, TEXT("RitualPlacement: preview ghost spawned at %s (target point %d)."),
+        *TargetLocation.ToCompactString(), CurrentTargetPointIndex);
 }
 
 bool URitualPlacementComponent::ConfirmPlacement()
@@ -161,6 +254,9 @@ bool URitualPlacementComponent::ConfirmPlacement()
             FinalPointIndex, *EvidenceRequestId);
         return false;
     }
+
+    // The ghost has been replaced by the real thing; remove it before any listener can see both.
+    DestroyPreviewActor();
 
     // The Blueprint notifications fire AFTER the evidence is published, deliberately. They run arbitrary
     // Blueprint that is free to move, re-parent or destroy the actor that was just spawned, and the
@@ -416,6 +512,10 @@ void URitualPlacementComponent::UpdateTargetPoint()
         const bool bValid = IsCurrentPlacementValid();
         OnPreviewTargetChanged(CurrentTargetPointIndex, ResolvedType, bValid);
     }
+
+    // Outside the index-changed branch on purpose: walking in and out of RestorationRadius flips
+    // validity without changing the target index, and the ghost has to appear and vanish with it.
+    RefreshPreviewActor();
 }
 
 int32 URitualPlacementComponent::ResolveTargetForPlacement(int32 RawPointIndex)

@@ -200,7 +200,23 @@ void UNightConsequenceRuntime::HandlePressureStep()
 
 	UWorld* World = GetWorld();
 	UGloamsteadPCGSubsystem* PCG = World ? World->GetSubsystem<UGloamsteadPCGSubsystem>() : nullptr;
+
+	// A pressure step can resolve the objective on its own — the tutorial night's shelter check rides
+	// this cadence — so the early-dawn condition is evaluated here as well as on restoration. Without
+	// this the only mid-night resolution path was NotifyRestoration, and objectives the player completes
+	// by moving rather than by restoring could never end the night early.
+	const bool bWasResolved = ActiveStrategy->IsObjectiveResolved();
 	ActiveStrategy->ApplyPressureStep(PCG);
+
+	if (!bWasResolved && ActiveStrategy->IsObjectiveResolved())
+	{
+		if (World)
+		{
+			World->GetTimerManager().ClearTimer(PressureTimer);
+		}
+		UE_LOG(LogTemp, Log, TEXT("NightRuntime: objective resolved during pressure step — requesting early dawn."));
+		OnNightShouldEnd.Broadcast();
+	}
 }
 
 void UNightConsequenceRuntime::HandleRestorationDuringNight(const FRestorationEventPayload& Payload)

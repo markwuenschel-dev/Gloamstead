@@ -17,6 +17,7 @@ public:
 
 protected:
     virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
     virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 public:
@@ -155,10 +156,36 @@ public:
     void SpawnRestoredActor(int32 PointIndex, AActor*& OutSpawnedActor);
     virtual void SpawnRestoredActor_Implementation(int32 PointIndex, AActor*& OutSpawnedActor);
 
+    // === Ghost preview ===
+    //
+    // The preview is owned HERE rather than in a Blueprint child, because "exactly one preview" is a
+    // lifecycle invariant, not a presentation detail: cancel must remove it and re-entry must create
+    // one, and only the component knows every path that ends placement mode. OnPreviewTargetChanged
+    // still fires for Blueprints that want to add their own flourish on top.
+
+    /** Optional per-character override. When unset, the project-owned preview Blueprint is loaded. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ritual|Placement|Preview")
+    TSubclassOf<AActor> PreviewActorClass;
+
+    /** Keep enabled for the playable slice. Tests and specialized characters may disable the fallback. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ritual|Placement|Preview", meta=(AdvancedDisplay))
+    bool bUseProjectDefaultPreviewClass = true;
+
+    /** The live ghost, or null when placement mode is closed or no valid target is in range. */
+    UFUNCTION(BlueprintPure, Category="Ritual|Placement|Preview")
+    AActor* GetActivePreviewActor() const { return ActivePreviewActor.Get(); }
+
 protected:
     void UpdateTargetPoint();
     bool IsPointValidForPlacement(int32 PointIndex) const;
     int32 ResolveTargetForPlacement(int32 RawPointIndex);
+
+    /** Spawns, moves, or removes the ghost so it always matches the current valid target. */
+    void RefreshPreviewActor();
+    /** Idempotent teardown. Every path that leaves placement mode ends here. */
+    void DestroyPreviewActor();
+    /** Resolves PreviewActorClass, falling back to the project preview Blueprint. */
+    UClass* ResolvePreviewClass() const;
     /** Fill OutPayload for PointIndex. Returns false (leaving OutPayload at defaults) when the point
      *  cannot be resolved; a true return guarantees OutPayload.PointIndex == PointIndex, which is what
      *  ApplyRestoration checks. Callers must not proceed on a false return. */
@@ -202,6 +229,10 @@ private:
     int32 CurrentTargetPointIndex = -1;
     ERitualType CurrentMode = ERitualType::LanternPost;
     bool bIsInPlacementMode = false;
+
+    /** Weak: the ghost is a world actor and may be destroyed by level teardown out from under us. */
+    UPROPERTY()
+    TWeakObjectPtr<AActor> ActivePreviewActor;
 
     // Optimization
     FVector LastQueryLocation = FVector::ZeroVector;

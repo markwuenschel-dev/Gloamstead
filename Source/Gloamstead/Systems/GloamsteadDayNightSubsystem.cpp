@@ -44,13 +44,24 @@ bool UGloamsteadDayNightSubsystem::CanRestNow() const
 	{
 		return true;
 	}
-	// Day is rest-able only AFTER the scripted first night has completed (NightCount>0). During night one
-	// the FirstNightDirector owns Day->Dusk (gated on the lantern tutorial), so rest must not bypass it.
+	// Day is rest-able once the scripted first night has completed (NightCount>0), or on night one as soon
+	// as the FirstNightDirector reports its lantern gate satisfied (bFirstRestUnlocked). Rest still cannot
+	// bypass the tutorial: before the lantern is restored neither condition holds.
 	if (CurrentPhase == EGloamsteadDayPhase::Day)
 	{
-		return NightCount > 0;
+		return NightCount > 0 || bFirstRestUnlocked;
 	}
 	return false;
+}
+
+void UGloamsteadDayNightSubsystem::UnlockFirstRest()
+{
+	if (bFirstRestUnlocked)
+	{
+		return;
+	}
+	bFirstRestUnlocked = true;
+	UE_LOG(LogTemp, Log, TEXT("DayNight: first rest unlocked — the Heart will now accept the player's rest."));
 }
 
 bool UGloamsteadDayNightSubsystem::RequestRest()

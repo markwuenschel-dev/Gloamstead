@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "neostack": {
+      "command": "C:\\Users\\Nalakram\\.codex\\plugins\\cache\\neostack\\neostack-connect\\0.1.8\\bin\\win64\\neostack-mcp-proxy.exe",
+      "env": {
+        "NEOSTACK_PROJECT_DIR": "D:\\Unreal Projects\\Gloamstead5_8"
+      }
+    }
+  }
+}

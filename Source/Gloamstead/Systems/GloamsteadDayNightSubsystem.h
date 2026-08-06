@@ -59,6 +59,20 @@ public:
 	UFUNCTION(BlueprintPure, Category = "DayNight")
 	bool CanRestNow() const;
 
+	/**
+	 * Opens the very first Day->Dusk rest, which CanRestNow() otherwise refuses while NightCount==0.
+	 *
+	 * The first night's Day->Dusk transition is gated on the lantern tutorial. The gate itself still
+	 * belongs to the FirstNightDirector — this only tells the phase authority that the gate has been
+	 * satisfied, so the *player* performs the transition by resting at the Heart. Without this the
+	 * director had to advance the phase itself, which skipped the player's rest entirely.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "DayNight")
+	void UnlockFirstRest();
+
+	UFUNCTION(BlueprintPure, Category = "DayNight")
+	bool IsFirstRestUnlocked() const { return bFirstRestUnlocked; }
+
 	UPROPERTY(BlueprintAssignable, Category = "DayNight")
 	FOnGloamsteadDayPhaseChanged OnPhaseChanged;
 
@@ -76,4 +90,8 @@ private:
 
 	UPROPERTY()
 	bool bDawnAutosaveEnabled = true;
+
+	/** Set once by the first-night director when the lantern lesson is complete. */
+	UPROPERTY()
+	bool bFirstRestUnlocked = false;
 };

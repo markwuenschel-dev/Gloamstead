@@ -1,5 +1,8 @@
 #include "Systems/NightStrategy.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
+#include "Engine/World.h"
+#include "GameFramework/Pawn.h"
+#include "Kismet/GameplayStatics.h"
 
 // ===== UNightStrategy (base: benign quiet night) =====
 
@@ -159,19 +162,91 @@ void UNightTutorialStrategy::EnterNight_Implementation(const FNightRuntimeContex
 	Context = InContext;
 	StartAvgCorruption = SafeAvgCorruption(PCG);
 	bTeachingSpreadApplied = false;
+	bPlayerSheltered = false;
+	bHasShelter = false;
+	ShelterLocation = FVector::ZeroVector;
 
 	Objective = FNightObjective();
 	Objective.Kind = ENightObjectiveKind::TutorialTeach;
 	Objective.TargetPointIndex = (InContext.TargetPointIndex >= 0 || !PCG)
 		? InContext.TargetPointIndex
 		: PCG->FindMostCorruptedPointIndex(false);
-	Objective.bResolved = false; // resolves at dawn (always winnable)
+	Objective.bResolved = false; // resolved by reaching the restored lantern's light
 
-	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Tutorial]: teaching beat — night reacts to the sanctuary."));
+	// The shelter is the lantern the player restored, located by the tag the restoration stamps on it.
+	// Nearest-to-player is deliberate: with several restored lanterns the lesson points at the closest.
+	if (UWorld* World = GetWorld())
+	{
+		TArray<AActor*> Lanterns;
+		UGameplayStatics::GetAllActorsWithTag(World, RestoredLanternTag, Lanterns);
+
+		const APawn* Player = UGameplayStatics::GetPlayerPawn(World, 0);
+		const FVector From = Player ? Player->GetActorLocation() : FVector::ZeroVector;
+
+		float BestDistSq = TNumericLimits<float>::Max();
+		for (const AActor* Lantern : Lanterns)
+		{
+			if (!IsValid(Lantern))
+			{
+				continue;
+			}
+			const float DistSq = static_cast<float>(FVector::DistSquared(From, Lantern->GetActorLocation()));
+			if (DistSq < BestDistSq)
+			{
+				BestDistSq = DistSq;
+				ShelterLocation = Lantern->GetActorLocation();
+				bHasShelter = true;
+			}
+		}
+	}
+
+	if (bHasShelter)
+	{
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Tutorial]: shelter is the restored lantern at %s (radius %.0f)."),
+			*ShelterLocation.ToString(), ShelterRadius);
+	}
+	else
+	{
+		// Nothing was restored, so there is no light to reach. Do not strand the player against an
+		// impossible objective: the beat degrades to the original always-winnable teaching night.
+		Objective.bResolved = true;
+		UE_LOG(LogTemp, Warning, TEXT("NightStrategy[Tutorial]: no restored lantern found (tag %s) — teaching beat only."),
+			*RestoredLanternTag.ToString());
+	}
+}
+
+bool UNightTutorialStrategy::EvaluateShelter()
+{
+	if (bPlayerSheltered || !bHasShelter)
+	{
+		return bPlayerSheltered;
+	}
+
+	const UWorld* World = GetWorld();
+	const APawn* Player = World ? UGameplayStatics::GetPlayerPawn(World, 0) : nullptr;
+	if (!Player)
+	{
+		return false;
+	}
+
+	const float DistSq = static_cast<float>(FVector::DistSquared(Player->GetActorLocation(), ShelterLocation));
+	if (DistSq > ShelterRadius * ShelterRadius)
+	{
+		return false;
+	}
+
+	bPlayerSheltered = true;
+	Objective.bResolved = true;
+	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Tutorial]: player reached the lantern's light — lesson complete."));
+	return true;
 }
 
 void UNightTutorialStrategy::ApplyPressureStep_Implementation(UGloamsteadPCGSubsystem* PCG)
 {
+	// The shelter check rides the pressure cadence so the objective can resolve mid-night; the runtime
+	// notices Objective.bResolved flipping and calls dawn early.
+	EvaluateShelter();
+
 	if (!PCG || bTeachingSpreadApplied)
 	{
 		return; // bounded: teach once
@@ -183,14 +258,32 @@ void UNightTutorialStrategy::ApplyPressureStep_Implementation(UGloamsteadPCGSubs
 
 FNightRuntimeOutcome UNightTutorialStrategy::ResolveNight_Implementation(UGloamsteadPCGSubsystem* PCG)
 {
-	Objective.bResolved = true; // teaching beat always completes
-	FNightRuntimeOutcome Out = MakeBaseOutcome(PCG);
-	Out.bObjectiveResolved = true;
-	Out.Result = ENightOutcomeResult::Success;
-	Out.ResultTag = FName(TEXT("TutorialComplete"));
+	// One last look, so a player standing in the light as the clock runs out still gets the success.
+	EvaluateShelter();
 
-	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Tutorial]: outcome Success (sanctuary delta %.2f)."),
-		Out.SanctuaryCorruptionDelta);
+	FNightRuntimeOutcome Out = MakeBaseOutcome(PCG);
+	Out.bObjectiveResolved = Objective.bResolved;
+
+	if (!bHasShelter)
+	{
+		// Degraded beat: nothing to reach, so the teaching night completes as it always did.
+		Out.Result = ENightOutcomeResult::Success;
+		Out.ResultTag = FName(TEXT("TutorialComplete"));
+	}
+	else if (bPlayerSheltered)
+	{
+		Out.Result = ENightOutcomeResult::Success;
+		Out.ResultTag = FName(TEXT("TutorialSheltered"));
+	}
+	else
+	{
+		// Stayed out in the dark all night. Fail-forward: the lesson landed, the night was survived.
+		Out.Result = ENightOutcomeResult::Partial;
+		Out.ResultTag = FName(TEXT("TutorialExposed"));
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Tutorial]: outcome %s (tag %s, sanctuary delta %.2f)."),
+		*GetNightOutcomeResultDisplayName(Out.Result), *Out.ResultTag.ToString(), Out.SanctuaryCorruptionDelta);
 	return Out;
 }
 

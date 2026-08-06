@@ -4,12 +4,20 @@
 #include "GameFramework/Actor.h"
 #include "Data/RitualTypes.h"
 #include "Data/NightConsequenceTypes.h"
+#include "Data/NightRuntimeTypes.h"
+#include "Data/VeilHeartWarningTypes.h"
 #include "Systems/GloamsteadDayNightSubsystem.h"
 #include "GloamsteadFirstNightDirector.generated.h"
 
 class UGloamsteadPCGSubsystem;
 class UNightConsequenceRuntime;
 class AVeilHeart;
+class UDirectionalLightComponent;
+class UExponentialHeightFogComponent;
+class UMaterialInstanceDynamic;
+class UPointLightComponent;
+class USceneComponent;
+class USkyLightComponent;
 
 /** Ordered beats of the scripted first-night proof-of-loop. */
 UENUM(BlueprintType)
@@ -51,6 +59,7 @@ public:
 	AGloamsteadFirstNightDirector();
 
 	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaSeconds) override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	// === Designer config ===
@@ -65,11 +74,27 @@ public:
 
 	/** Seconds the dusk readability cue holds before night begins. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "First Night", meta = (ClampMin = "0.0"))
-	float DuskToNightDelaySeconds = 4.0f;
+	float DuskToNightDelaySeconds = 6.0f;
 
-	/** Seconds the scripted encroachment runs before the director calls dawn. */
+	/**
+	 * Seconds the scripted encroachment runs before the director calls dawn.
+	 *
+	 * This is the tutorial night's deadline, so it must be long enough for the player to actually cross
+	 * the plaza to the lantern they restored — the old 8s was a log-driven timing, not a walkable one.
+	 * Reaching the light resolves the objective and ends the night early, so this is an upper bound.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "First Night", meta = (ClampMin = "0.0"))
-	float NightDurationSeconds = 8.0f;
+	float NightDurationSeconds = 45.0f;
+
+	/** Seconds used to restore every captured sky value before the completion caption. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "First Night|Presentation", meta = (ClampMin = "0.0"))
+	float DawnTransitionSeconds = 2.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "First Night|Presentation")
+	FLinearColor DuskSunTint = FLinearColor(1.0f, 0.72f, 0.46f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "First Night|Presentation")
+	FLinearColor NightAmbientTint = FLinearColor(0.24f, 0.34f, 0.58f);
 
 	// === State queries ===
 
@@ -108,6 +133,24 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "First Night")
 	void OnDawnPayoff();
 
+	/**
+	 * Dusk: the Heart's actual warning text, ready to caption.
+	 *
+	 * The Heart chooses the words from its catalog but owns no UI; the director owns the caption widget
+	 * but not the words. This carries one to the other, so the dusk warning is finally readable on
+	 * screen instead of only in the log.
+	 */
+	UFUNCTION(BlueprintImplementableEvent, Category = "First Night")
+	void OnHeartWarning(const FText& WarningText);
+
+	/** Dawn: the reflection tying the warning, the restoration, and the night's outcome together. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "First Night")
+	void OnHeartReflection(const FText& ReflectionText);
+
+	/** The text OnHeartReflection is given; exposed so the wording is testable without a widget. */
+	UFUNCTION(BlueprintPure, Category = "First Night")
+	FText BuildDawnReflectionText(const FNightRuntimeOutcome& Outcome) const;
+
 	// === Beat advances (timer-driven in play; also callable by presentation BP) ===
 
 	/** Day -> Dusk. No-op unless the lantern has been restored (the dusk gate). */
@@ -137,6 +180,12 @@ public:
 	UFUNCTION()
 	void HandleNightShouldEnd();
 
+	UFUNCTION()
+	void HandleHeartWarning(const FVeilHeartWarningFragment& WarningFragment);
+
+	UFUNCTION()
+	void HandleHeartDawnReflection(const FNightRuntimeOutcome& Outcome);
+
 	// === Test seams (unconditional inline; unused in shipping → linker drops them) ===
 
 	/** Inject already-constructed subsystems and run the real binding path. */
@@ -164,6 +213,16 @@ protected:
 	void PresentDuskCue();
 	void PresentEncroachment();
 	void PresentDawnPayoff();
+	void CompleteDawn();
+
+	void CapturePresentationActors();
+	void RestoreCapturedPresentation();
+	void SetLanternMarkerVisible(bool bVisible);
+	void BeginDuskPresentation();
+	void ApplyNightPresentation();
+	bool BeginDawnPresentation();
+	void ApplyPresentationValues(float SunIntensity, float SkyIntensity, const FLinearColor& SunColor,
+		const FLinearColor& SkyColor, float FogDensity);
 
 	/** Read-only sanctuary light level used to scale the encroachment cue. */
 	float ComputeLanternInfluence() const;
@@ -181,11 +240,50 @@ private:
 	UPROPERTY(Transient)
 	TWeakObjectPtr<AVeilHeart> CachedHeart;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UDirectionalLightComponent> CachedSun;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USkyLightComponent> CachedSkyLight;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UExponentialHeightFogComponent> CachedFog;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> MarkerMaterials;
+
+	TArray<TWeakObjectPtr<USceneComponent>> MarkerComponents;
+	TArray<TWeakObjectPtr<UPointLightComponent>> MarkerLights;
+
 	EFirstNightBeat CurrentBeat = EFirstNightBeat::Intro;
 	bool bLanternRestored = false;
 	bool bIntroPresented = false;
 	bool bDelegatesBound = false;
+	bool bPresentationCaptured = false;
+	bool bMarkerVisible = false;
 	ENightConsequenceType ObservedNightType = ENightConsequenceType::Invalid;
+
+	float CapturedSunIntensity = 0.0f;
+	float CapturedSkyIntensity = 0.0f;
+	float CapturedFogDensity = 0.0f;
+	FLinearColor CapturedSunColor = FLinearColor::White;
+	FLinearColor CapturedSkyColor = FLinearColor::White;
+
+	float TransitionElapsed = 0.0f;
+	float TransitionDuration = 0.0f;
+	float TransitionStartSunIntensity = 0.0f;
+	float TransitionStartSkyIntensity = 0.0f;
+	float TransitionStartFogDensity = 0.0f;
+	float TransitionTargetSunIntensity = 0.0f;
+	float TransitionTargetSkyIntensity = 0.0f;
+	float TransitionTargetFogDensity = 0.0f;
+	FLinearColor TransitionStartSunColor = FLinearColor::White;
+	FLinearColor TransitionStartSkyColor = FLinearColor::White;
+	FLinearColor TransitionTargetSunColor = FLinearColor::White;
+	FLinearColor TransitionTargetSkyColor = FLinearColor::White;
+	bool bDawnTransitionActive = false;
+	bool bDuskTransitionActive = false;
+	float MarkerPulseElapsed = 0.0f;
 
 	FTimerHandle DuskToNightTimer;
 	FTimerHandle NightDurationTimer;

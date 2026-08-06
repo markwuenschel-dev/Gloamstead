@@ -12,6 +12,19 @@
 class USphereComponent;
 
 /**
+ * Broadcast when the Heart warns about the coming night, carrying the catalog fragment it chose.
+ *
+ * The BlueprintImplementableEvents below can only be answered by a Blueprint SUBCLASS of the Heart,
+ * which meant the warning text was unreachable by anything else — including the first-night director,
+ * which is the actor that actually owns the caption widget. These delegates let any listener present
+ * the Heart's voice without having to be the Heart.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVeilHeartWarning, const FVeilHeartWarningFragment&, WarningFragment);
+
+/** Broadcast at dawn with the night's real outcome, for the same reason as FOnVeilHeartWarning. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVeilHeartDawnReflection, const FNightRuntimeOutcome&, Outcome);
+
+/**
  * The Veil Heart - Central protected object and emotional core of Gloamstead.
  * Listens to restoration events to evaluate "I understood the warning".
  *
@@ -62,6 +75,14 @@ public:
     /** BP presentation hook for the dawn payoff (journal/feedback/VFX), fed the night's outcome. */
     UFUNCTION(BlueprintImplementableEvent, Category="Veil Heart")
     void OnDawnReflection(const FNightRuntimeOutcome& Outcome);
+
+    /** Fires alongside OnWarningEmitted, for listeners that are not Blueprint subclasses of the Heart. */
+    UPROPERTY(BlueprintAssignable, Category="Veil Heart")
+    FOnVeilHeartWarning OnWarningEmittedDelegate;
+
+    /** Fires alongside OnDawnReflection, for listeners that are not Blueprint subclasses of the Heart. */
+    UPROPERTY(BlueprintAssignable, Category="Veil Heart")
+    FOnVeilHeartDawnReflection OnDawnReflectionDelegate;
 
     /** Assign Content/Data/DA_VeilHeartWarningCatalog (auto-loaded at BeginPlay if left empty). */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil Heart")

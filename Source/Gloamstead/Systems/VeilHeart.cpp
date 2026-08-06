@@ -172,6 +172,7 @@ void AVeilHeart::EmitWarningForNight(ENightConsequenceType NightType)
 		UE_LOG(LogTemp, Log, TEXT("VeilHeart: Dusk warning [%s] for night %s"),
 			*Warning->WarningId.ToString(), *GetNightConsequenceTypeDisplayName(NightType));
 		OnWarningEmitted(*Warning);
+		OnWarningEmittedDelegate.Broadcast(*Warning);
 	}
 	else
 	{
@@ -215,6 +216,7 @@ void AVeilHeart::ProcessDawnReflectionWithOutcome(const FNightRuntimeOutcome& Ou
 	}
 
 	OnDawnReflection(Outcome);
+	OnDawnReflectionDelegate.Broadcast(Outcome);
 
 	SatisfiedWarningTags.Empty();
 }

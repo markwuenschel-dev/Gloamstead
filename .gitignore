@@ -96,4 +96,8 @@ Content/MSPresets/
 # NeoStackAI = local agent bridge (Fab marketplace); CoreTerrainMaterials = marketplace terrain plugin.
 # WorldForge (project-authored) is committed; its Binaries/Intermediate are covered by the global rules above.
 Plugins/NeoStackAI/
+# Same install, descriptor renamed aside so UnrealBuildTool sees only the engine copy: the
+# project-local v3.1.25 self-installed on 2026-08-06 shipping Source/ without its ThirdParty
+# Lua/sol2 headers, which fails UBT at makefile creation. Restore by renaming both back.
+Plugins/NeoStackAI.disabled/
 Plugins/CoreTerrainMaterials/
