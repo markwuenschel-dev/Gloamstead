@@ -186,6 +186,27 @@ void AGloamsteadCharacter::OnRestoreInput()
 	}
 }
 
+FText AGloamsteadCharacter::GetPlayerPromptText() const
+{
+	if (RitualPlacement && RitualPlacement->IsInPlacementMode())
+	{
+		return RitualPlacement->IsCurrentPlacementValid()
+			? NSLOCTEXT("Gloamstead", "PromptConfirmRitual", "[R]  Restore the lantern        [E]  Cancel")
+			: NSLOCTEXT("Gloamstead", "PromptNoRitualSite", "No ritual site within reach        [E]  Cancel");
+	}
+
+	if (Interaction)
+	{
+		const FText Focused = Interaction->GetCurrentPrompt();
+		if (!Focused.IsEmpty())
+		{
+			return FText::Format(NSLOCTEXT("Gloamstead", "PromptInteract", "[E]  {0}"), Focused);
+		}
+	}
+
+	return FText::GetEmpty();
+}
+
 void AGloamsteadCharacter::GloamTeleport(float X, float Y, float Z)
 {
 	const FVector Target(X, Y, Z);

@@ -124,6 +124,17 @@ public:
 	UFUNCTION(Exec)
 	void GloamTeleport(float X, float Y, float Z);
 
+	/**
+	 * The single most relevant on-screen prompt for what the player can do right now, or empty.
+	 *
+	 * Nothing previously surfaced GloamInteractionComponent::GetCurrentPrompt(), so the Heart's
+	 * "Rest at the Heart" and the ritual's confirm/cancel existed only as data. Resolution order is
+	 * placement first, then the focused interactable, because while a ritual is armed that IS the
+	 * thing the player is doing. The bracketed keys mirror IMC_Default (R = Restore, E = Interact).
+	 */
+	UFUNCTION(BlueprintPure, Category = "Gloamstead|UI")
+	FText GetPlayerPromptText() const;
+
 	/** Handles move inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoMove(float Right, float Forward);
