@@ -24,35 +24,38 @@ import urllib.parse
 VERSION_ROOT = Path("specs/worldforge_asset_forge/sanctuary-biome-kit-1.0.0")
 LOCK_PATH = Path("specs/worldforge_asset_forge/worldforge-plugin.lock.json")
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
+GIT_COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 REPO_PATH_RE = re.compile(r"^(?!\s*$)(?![A-Za-z]:)(?!.*(?:^|/)\.{1,2}(?:/|$))[^/\\\r\n]+(?:/[^/\\\r\n]+)*$")
 UNREAL_RE = re.compile(r"^/Game/(?!.*//)(?!.*(?:^|/)\.{1,2}(?:/|$))[^./\\\r\n]+(?:/[^./\\\r\n]+)*(?:\.[^./\\\r\n]+)?$")
 FORBIDDEN_PACKAGE_PARTS = {"binaries", "intermediate", "saved", "reports", "wfruntime"}
 HOST_MANIFEST_PATH = Path("Config/WorldForge/VerifiedReleaseManifest.json")
+RUNTIME_CONFIG_VERSION = "wf.asset_forge.runtime_config.v1"
 INTENT_SHA256 = "eda8daa675fbc0409646e804763e2cb5eee947d250a12ad9767f5d6f5af48992"
 ACCEPTANCE_SHA256 = "218f7d733cad0b6b2f60b5de1af7763198245252d63d51e6efc76c4cdadb7096"
 INVENTORY_SHA256 = "bf571186dc55117e3cc7cfc39074ff5da92b868f80f9b2163c2a19bc43fe7af4"
 
 
 class ForgeError(RuntimeError):
-    def __init__(self, code: str, message: str, stage: str = "contract"):
+    def __init__(self, code: str, message: str, stage: str = "contract", retry: str = "after_change"):
         super().__init__(message)
-        self.code, self.stage = code, stage
+        self.code, self.stage, self.retry = code, stage, retry
 
     def as_dict(self):
-        return {"code": self.code, "stage": self.stage, "retry": "after_change", "message": str(self)}
+        return {"code": self.code, "stage": self.stage, "retry": self.retry, "message": str(self)}
 
 
 class RecoveryRequiredError(ForgeError):
-    def __init__(self, message: str, backup_path: Path, journal_path: Path):
+    def __init__(self, message: str, backup_paths, journal_path: Path, phase: str = "cleanup_pending"):
         super().__init__("FAIL-ROLLBACK", message, "vendor")
-        self.backup_path = str(backup_path)
+        self.backup_paths = tuple(str(path) for path in backup_paths)
         self.journal_path = str(journal_path)
+        self.phase = phase
 
     def as_dict(self):
         result = super().as_dict()
-        result.update({"result_state": "RecoveryRequired", "preserved_backup_path": self.backup_path,
-                       "journal_path": self.journal_path})
+        result.update({"result_state": "RecoveryRequired", "recovery_phase": self.phase,
+                       "preserved_backup_paths": list(self.backup_paths), "journal_path": self.journal_path})
         return result
 
 
@@ -60,6 +63,9 @@ class SyncFileOps:
     """Narrow injectable filesystem surface used by rollback torture tests."""
     def replace(self, source: Path, target: Path): os.replace(source, target)
     def remove_tree(self, path: Path): shutil.rmtree(path)
+    def remove_file(self, path: Path): path.unlink()
+    def copy_tree(self, source: Path, target: Path): shutil.copytree(source, target)
+    def copy_file(self, source: Path, target: Path): shutil.copy2(source, target)
 
 
 def load_json(path: Path):
@@ -362,6 +368,68 @@ def _worktree_git_dir(root: Path) -> Path:
     return Path(result.stdout.strip()).resolve()
 
 
+def _operator_run_root(root: Path, request_sha256: str) -> Path:
+    """Return an exact, non-worktree run directory under this worktree's git-dir."""
+
+    if not SHA_RE.fullmatch(str(request_sha256)):
+        raise ForgeError("FAIL-EVIDENCE-INTEGRITY", "Operator request hash is invalid", "operator")
+    git_dir = _worktree_git_dir(root)
+    base = git_dir / "worldforge-operator-runs"
+    if base.is_symlink() or (base.exists() and not base.is_dir()):
+        raise ForgeError("FAIL-EVIDENCE-INTEGRITY", "Operator git run root is not a real directory", "operator")
+    base.mkdir(parents=True, exist_ok=True)
+    run_root = base / request_sha256
+    if run_root.is_symlink() or (run_root.exists() and not run_root.is_dir()):
+        raise ForgeError("FAIL-EVIDENCE-INTEGRITY", "Operator request run root is not a real directory", "operator")
+    run_root.mkdir(parents=True, exist_ok=True)
+    return run_root
+
+
+def _operator_git_path(root: Path, path: Path) -> str:
+    """Encode a path below the worktree git-dir for WorldForge's fenced CLI."""
+
+    git_dir = _worktree_git_dir(root)
+    absolute = path.absolute()
+    try:
+        relative = absolute.relative_to(git_dir)
+    except ValueError as exc:
+        raise ForgeError("FAIL-SCOPE-CREEP", "Operator input escapes the worktree git directory", "operator") from exc
+    if any(part in {".", ".."} for part in relative.parts) or any(
+        (git_dir / Path(*relative.parts[:index])).is_symlink()
+        for index in range(1, len(relative.parts) + 1)
+    ):
+        raise ForgeError("FAIL-EVIDENCE-INTEGRITY", "Operator input traverses a symbolic path", "operator")
+    try:
+        candidate = absolute.resolve(strict=False)
+    except OSError as exc:
+        raise ForgeError("FAIL-EVIDENCE-INTEGRITY", "Operator input cannot be resolved", "operator") from exc
+    if absolute.parts != candidate.parts:
+        raise ForgeError("FAIL-EVIDENCE-INTEGRITY", "Operator input is not an exact canonical path", "operator")
+    return PurePosixPath(".git", *relative.parts).as_posix()
+
+
+def _write_operator_json(path: Path, document) -> bytes:
+    """Write canonical JSON under a git run root, refusing replacement drift."""
+
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        raise ForgeError("FAIL-EVIDENCE-INTEGRITY", f"Operator evidence path is not a regular file: {path}", "operator")
+    if path.parent.is_symlink() or (path.parent.exists() and not path.parent.is_dir()):
+        raise ForgeError("FAIL-EVIDENCE-INTEGRITY", f"Operator evidence parent is not a real directory: {path.parent}", "operator")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = canonical_json_bytes(document)
+    if path.exists():
+        if path.read_bytes() != data:
+            raise ForgeError("FAIL-EVIDENCE-INTEGRITY", f"Operator evidence bytes drift: {path.name}", "operator")
+        return data
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        temporary.write_bytes(data)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return data
+
+
 def _journal_event(path: Path, operation_id: str, step: str, **details):
     path.parent.mkdir(parents=True, exist_ok=True)
     entry = {"schema_version": "gloamstead.worldforge.vendor-sync-journal.v1",
@@ -372,15 +440,59 @@ def _journal_event(path: Path, operation_id: str, step: str, **details):
         stream.flush(); os.fsync(stream.fileno())
 
 
+def _journal_entries(path: Path):
+    if not path.is_file(): return []
+    entries = []
+    for line in path.read_bytes().splitlines():
+        try: entry = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ForgeError("FAIL-EVIDENCE-INTEGRITY", f"Vendor journal is corrupt: {path}", "vendor") from exc
+        if not isinstance(entry, dict):
+            raise ForgeError("FAIL-EVIDENCE-INTEGRITY", f"Vendor journal entry is invalid: {path}", "vendor")
+        entries.append(entry)
+    return entries
+
+
+def _verified_vendor_state(root: Path, lock) -> bool:
+    host = root / HOST_MANIFEST_PATH
+    return verify_installed_plugin(root) == [] and host.is_file() and sha256_file(host) == lock["release_manifest_sha256"]
+
+
+def _cleanup_committed_vendor_sync(root: Path, lock, operation_id: str, journal: Path,
+                                   backup: Path, host_backup: Path, ops: SyncFileOps,
+                                   cleanup_order=("plugin", "host")):
+    if tuple(sorted(cleanup_order)) != ("host", "plugin"):
+        raise ForgeError("FAIL-CONTRACT-DRIFT", "Vendor cleanup order must cover plugin and host exactly once", "vendor")
+    if not _verified_vendor_state(root, lock):
+        preserved = [path for path in (backup, host_backup) if path.exists()]
+        raise RecoveryRequiredError("Committed vendor state no longer verifies; cleanup refused", preserved,
+                                    journal, "cleanup_pending")
+    targets = {"plugin": backup, "host": host_backup}
+    for name in cleanup_order:
+        path = targets[name]
+        if not path.exists():
+            _journal_event(journal, operation_id, "cleanup_already_absent", backup_kind=name,
+                           backup_path=str(path))
+            continue
+        try:
+            if path.is_dir(): ops.remove_tree(path)
+            else: ops.remove_file(path)
+        except BaseException as exc:
+            preserved = [candidate for candidate in (backup, host_backup) if candidate.exists()]
+            _journal_event(journal, operation_id, "cleanup_pending", backup_kind=name,
+                           preserved_backup_paths=[str(item) for item in preserved], error=type(exc).__name__)
+            raise RecoveryRequiredError("Vendor install is committed and verified, but backup cleanup is pending",
+                                        preserved, journal, "cleanup_pending") from exc
+        _journal_event(journal, operation_id, "backup_cleaned", backup_kind=name, backup_path=str(path))
+    _journal_event(journal, operation_id, "complete")
+
+
 def sync_plugin(root: Path, package: Path, manifest_path: Path, *, file_ops: SyncFileOps | None = None,
-                operation_id: str | None = None):
+                operation_id: str | None = None, cleanup_order=("plugin", "host")):
     root, package, manifest_path = root.resolve(), package.resolve(), manifest_path.resolve()
-    if not _git_clean(root):
-        raise ForgeError("FAIL-TARGET-DIRTY", "Gloamstead worktree must be clean before plugin sync", "vendor")
     lock = load_json(root / LOCK_PATH)
     lock_errors = validate_lock(lock)
     if lock_errors: raise ForgeError("FAIL-CONTRACT-DRIFT", "; ".join(lock_errors), "vendor")
-    _verify_release(package, manifest_path, lock)
     ops = file_ops or SyncFileOps()
     operation_id = operation_id or uuid.uuid4().hex
     journal = _worktree_git_dir(root) / "worldforge-sync-journal" / f"{operation_id}.jsonl"
@@ -394,7 +506,29 @@ def sync_plugin(root: Path, package: Path, manifest_path: Path, *, file_ops: Syn
     host_target.parent.mkdir(parents=True, exist_ok=True)
     host_stage = stage_root / "VerifiedReleaseManifest.json"
     host_backup = host_target.parent / f".VerifiedReleaseManifest.backup-{operation_id}.json"
+    prior_entries = _journal_entries(journal)
+    prior_steps = [entry.get("step") for entry in prior_entries]
+    if "complete" in prior_steps:
+        if not _verified_vendor_state(root, lock):
+            if stage_root.exists(): shutil.rmtree(stage_root)
+            raise RecoveryRequiredError("Completed vendor operation no longer verifies", [], journal,
+                                        "committed_state_invalid")
+        if stage_root.exists(): shutil.rmtree(stage_root)
+        return
+    if "committed" in prior_steps and "complete" not in prior_steps:
+        _cleanup_committed_vendor_sync(root, lock, operation_id, journal, backup, host_backup, ops,
+                                       cleanup_order)
+        if stage_root.exists(): shutil.rmtree(stage_root)
+        return
+    if prior_entries:
+        if stage_root.exists(): shutil.rmtree(stage_root)
+        raise ForgeError("FAIL-EVIDENCE-INTEGRITY", "Uncommitted vendor journal cannot be replayed implicitly", "vendor")
+    if not _git_clean(root):
+        if stage_root.exists(): shutil.rmtree(stage_root)
+        raise ForgeError("FAIL-TARGET-DIRTY", "Gloamstead worktree must be clean before plugin sync", "vendor")
+    _verify_release(package, manifest_path, lock)
     plugin_backed_up = host_backed_up = installed = host_installed = False
+    committed = False
     try:
         _journal_event(journal, operation_id, "prepared", package_sha256=lock["package_sha256"],
                        target=str(target), backup=str(backup), host_manifest=str(host_target),
@@ -418,31 +552,32 @@ def sync_plugin(root: Path, package: Path, manifest_path: Path, *, file_ops: Syn
         errors = verify_installed_plugin(root)
         if errors or sha256_file(host_target) != lock["release_manifest_sha256"]:
             raise ForgeError("FAIL-STALE-PLUGIN", "; ".join(errors) or "host manifest verification failed", "vendor")
-        _journal_event(journal, operation_id, "verified")
-        if backup.exists(): ops.remove_tree(backup)
-        if host_backup.exists(): host_backup.unlink()
-        _journal_event(journal, operation_id, "complete")
+        _journal_event(journal, operation_id, "committed", plugin_tree_sha256=lock["packaged_tree_sha256"],
+                       host_manifest_sha256=lock["release_manifest_sha256"])
+        committed = True
     except BaseException as exc:
+        if committed: raise
         _journal_event(journal, operation_id, "rollback_started", cause=type(exc).__name__)
         try:
-            if host_installed and host_target.exists(): host_target.unlink()
-            if host_backed_up and host_backup.exists(): ops.replace(host_backup, host_target)
+            if host_installed and host_target.exists(): ops.remove_file(host_target)
+            if host_backed_up and host_backup.exists(): ops.copy_file(host_backup, host_target)
             if installed and target.exists(): ops.remove_tree(target)
-            if plugin_backed_up and backup.exists(): ops.replace(backup, target)
-            _journal_event(journal, operation_id, "rollback_complete")
+            if plugin_backed_up and backup.exists(): ops.copy_tree(backup, target)
+            _journal_event(journal, operation_id, "rollback_complete",
+                           preserved_backup_paths=[str(path) for path in (backup, host_backup) if path.exists()])
         except BaseException as rollback_exc:
-            preserved = backup if backup.exists() else host_backup if host_backup.exists() else target
+            preserved = [path for path in (backup, host_backup) if path.exists()]
             _journal_event(journal, operation_id, "recovery_required",
-                           preserved_backup_path=str(preserved), rollback_error=type(rollback_exc).__name__)
+                           preserved_backup_paths=[str(path) for path in preserved], rollback_error=type(rollback_exc).__name__)
             raise RecoveryRequiredError(
-                f"Vendor sync rollback failed after {type(exc).__name__}; preserved recovery material at {preserved}",
-                preserved, journal) from rollback_exc
+                f"Vendor sync rollback failed after {type(exc).__name__}; recovery backups were preserved",
+                preserved, journal, "rollback_required") from rollback_exc
         if isinstance(exc, ForgeError): raise
-        raise ForgeError("FAIL-ROLLBACK", f"Vendor sync failed and prior state was restored: {type(exc).__name__}", "vendor") from exc
+        raise ForgeError("FAIL-ROLLBACK", f"Vendor sync failed; prior state restored and backups preserved: {type(exc).__name__}", "vendor") from exc
     finally:
-        if stage_root.exists():
-            try: ops.remove_tree(stage_root)
-            except OSError: _journal_event(journal, operation_id, "staging_cleanup_deferred", staging_path=str(stage_root))
+        if stage_root.exists(): shutil.rmtree(stage_root)
+    _cleanup_committed_vendor_sync(root, lock, operation_id, journal, backup, host_backup, ops,
+                                   cleanup_order)
 
 
 def verify_installed_plugin(root: Path):
@@ -662,6 +797,152 @@ def _strict_worldforge_contract(worldforge_python: Path, checkout: Path, class_n
                          f"WorldForge rejected {class_name}: {completed.stderr.strip()}", "verify")
 
 
+def _production_runtime_config(request, host_state_path: str, target_request_path: str) -> dict:
+    """Build the closed conservative runtime config for one immutable request."""
+
+    document = {
+        "schema_version": RUNTIME_CONFIG_VERSION,
+        "config_sha256": "0" * 64,
+        "mode": "production",
+        "state_root": host_state_path,
+        "request_path": target_request_path,
+        "trust": {
+            "request_sha256": request["request_sha256"],
+            "target_sha256": canonical_hash(request["target"]),
+            "creation_stacks_sha256": canonical_hash(request["creation_stacks"]),
+            "qualification_stack_sha256": canonical_hash(request["qualification_stack"]),
+        },
+        "adapters": {
+            "capability_probe": "conservative",
+            "generation_executor": "unavailable",
+            "independent_qualifier": "unavailable",
+            "target_transaction": "unavailable",
+        },
+        "conformance": None,
+        "conformance_authorization": None,
+    }
+    document["config_sha256"] = canonical_hash(document, "config_sha256")
+    return document
+
+
+def _raise_worldforge_failure(payload, fallback_code: str, fallback_stage: str, message: str):
+    """Translate a WorldForge typed failure without collapsing it to generic red."""
+
+    failure = payload.get("failure") if isinstance(payload, dict) else None
+    if isinstance(failure, dict):
+        code = failure.get("code")
+        failure_message = failure.get("message")
+        stage = failure.get("stage", fallback_stage)
+        retry = failure.get("retry_disposition", failure.get("retry", "after_change"))
+        if isinstance(code, str) and code and isinstance(failure_message, str) and failure_message:
+            raise ForgeError(code, failure_message, stage if isinstance(stage, str) else fallback_stage,
+                             retry if isinstance(retry, str) and retry else "after_change")
+    raise ForgeError(fallback_code, message, fallback_stage)
+
+
+def _git_value(root: Path, *args) -> str:
+    completed = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True)
+    if completed.returncode:
+        raise ForgeError("FAIL-STALE-PLUGIN", f"WorldForge Git identity probe failed: {' '.join(args)}", "preflight")
+    return completed.stdout.strip()
+
+
+def validate_worldforge_checkout(checkout: Path, lock, tooling_commit: str | None = None):
+    checkout = checkout.resolve()
+    if not (checkout / "tools/asset_forge/__main__.py").is_file() or not _git_clean(checkout):
+        raise ForgeError("FAIL-UNVERIFIED-RUNTIME", "Explicit WorldForge checkout is missing or dirty", "preflight")
+    if _git_value(checkout, "remote", "get-url", "origin") != lock["source_repository"]:
+        raise ForgeError("FAIL-STALE-PLUGIN", "WorldForge origin differs from the approved repository", "preflight")
+    source_commit = _git_value(checkout, "rev-parse", f"{lock['source_commit']}^{{commit}}")
+    if not source_commit.startswith(lock["source_commit"]):
+        raise ForgeError("FAIL-STALE-PLUGIN", "WorldForge package-source commit identity differs", "preflight")
+    release_commit = _git_value(checkout, "rev-parse", f"{lock['release_manifest_commit']}^{{commit}}")
+    if not release_commit.startswith(lock["release_manifest_commit"]):
+        raise ForgeError("FAIL-STALE-PLUGIN", "WorldForge release-manifest commit identity differs", "preflight")
+    ancestor = subprocess.run(["git", "merge-base", "--is-ancestor", source_commit, release_commit], cwd=checkout)
+    if ancestor.returncode:
+        raise ForgeError("FAIL-STALE-PLUGIN", "Approved package source is not ancestral to its release record", "preflight")
+    manifest_repo_path = "releases/worldforge-plugin/0.2.0/release-manifest.json"
+    manifest_blob = subprocess.run(["git", "show", f"{release_commit}:{manifest_repo_path}"], cwd=checkout,
+                                   capture_output=True)
+    if manifest_blob.returncode or sha256_bytes(manifest_blob.stdout) != lock["release_manifest_sha256"]:
+        raise ForgeError("FAIL-STALE-PLUGIN", "WorldForge release-record manifest differs from vendor lock", "preflight")
+    try: parsed = json.loads(manifest_blob.stdout)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ForgeError("FAIL-EVIDENCE-INTEGRITY", "WorldForge release-record manifest is invalid", "preflight") from exc
+    if parsed.get("source_commit") != source_commit or parsed.get("source_tree_sha256") != lock["source_tree_sha256"]:
+        raise ForgeError("FAIL-STALE-PLUGIN", "WorldForge release manifest package-source binding differs", "preflight")
+    if tooling_commit is None:
+        return {"repository": lock["source_repository"], "package_source_commit": source_commit,
+                "release_record_commit": release_commit, "release_manifest_sha256": lock["release_manifest_sha256"]}
+    resolved_tooling = _git_value(checkout, "rev-parse", f"{tooling_commit}^{{commit}}")
+    if not resolved_tooling.startswith(tooling_commit) or _git_value(checkout, "rev-parse", "HEAD") != resolved_tooling:
+        raise ForgeError("FAIL-STALE-PLUGIN", "WorldForge checkout is not at the exact approved tooling commit", "preflight")
+    tooling_ancestry = subprocess.run(["git", "merge-base", "--is-ancestor", release_commit, resolved_tooling],
+                                      cwd=checkout)
+    if tooling_ancestry.returncode:
+        raise ForgeError("FAIL-STALE-PLUGIN", "WorldForge release record is not ancestral to approved tooling", "preflight")
+    manifest = checkout / "releases/worldforge-plugin/0.2.0/release-manifest.json"
+    if not manifest.is_file() or sha256_file(manifest) != lock["release_manifest_sha256"]:
+        raise ForgeError("FAIL-STALE-PLUGIN", "WorldForge checkout release manifest differs from vendor lock", "preflight")
+    for schema in lock["schemas"]:
+        path = checkout / Path(*PurePosixPath(schema["path"]).parts)
+        if not path.is_file() or sha256_file(path) != schema["sha256"]:
+            raise ForgeError("FAIL-CONTRACT-DRIFT", f"Approved WorldForge schema differs: {schema['path']}", "preflight")
+    return {"repository": lock["source_repository"], "package_source_commit": source_commit,
+            "release_record_commit": release_commit, "tooling_commit": resolved_tooling,
+            "release_manifest_sha256": lock["release_manifest_sha256"]}
+
+
+def validate_worldforge_executor(worldforge_python: Path, checkout: Path, request, lock):
+    pins = {canonical_hash(stack["vendor_pins"]): stack["vendor_pins"]
+            for stack in request["creation_stacks"].values()}
+    if len(pins) != 1:
+        raise ForgeError("FAIL-CONTRACT-DRIFT", "WorldForge families do not share one approved executor pin", "preflight")
+    vendor_pin = next(iter(pins.values()))
+    python_pin = vendor_pin.get("python")
+    cli_pin = vendor_pin.get("worldforge_cli")
+    expected_cli = {"repository", "package_source_commit", "release_record_commit", "tooling_commit",
+                    "release_manifest_sha256", "schemas_sha256"}
+    if (not isinstance(cli_pin, dict) or set(cli_pin) != expected_cli or
+            cli_pin["repository"] != lock["source_repository"] or
+            not GIT_COMMIT_RE.fullmatch(str(cli_pin["package_source_commit"])) or
+            not GIT_COMMIT_RE.fullmatch(str(cli_pin["release_record_commit"])) or
+            cli_pin["release_manifest_sha256"] != lock["release_manifest_sha256"] or
+            cli_pin["schemas_sha256"] != canonical_hash(lock["schemas"]) or
+            not GIT_COMMIT_RE.fullmatch(str(cli_pin["tooling_commit"]))):
+        raise ForgeError("FAIL-STALE-PLUGIN", "Approved WorldForge CLI pin differs from vendor/release lock", "preflight")
+    checkout_identity = validate_worldforge_checkout(checkout, lock, cli_pin["tooling_commit"])
+    if (cli_pin["package_source_commit"] != checkout_identity["package_source_commit"] or
+            cli_pin["release_record_commit"] != checkout_identity["release_record_commit"] or
+            cli_pin["tooling_commit"] != checkout_identity["tooling_commit"]):
+        raise ForgeError("FAIL-STALE-PLUGIN", "Approved WorldForge CLI commit identities do not bind checkout history", "preflight")
+    expected = {"version", "executable", "executable_sha256"}
+    if not isinstance(python_pin, dict) or set(python_pin) != expected:
+        raise ForgeError("FAIL-UNVERIFIED-RUNTIME", "Approved WorldForge Python pin is incomplete", "preflight")
+    executable = worldforge_python.resolve()
+    if (not executable.is_file() or str(executable) != str(Path(python_pin["executable"]).resolve()) or
+            sha256_file(executable) != python_pin["executable_sha256"]):
+        raise ForgeError("FAIL-EVIDENCE-INTEGRITY", "WorldForge Python executable differs from approved bytes", "preflight")
+    try:
+        version = subprocess.run([str(executable), "--version"], capture_output=True, text=True)
+    except OSError as exc:
+        raise ForgeError("FAIL-UNVERIFIED-RUNTIME", "WorldForge Python version probe failed", "preflight") from exc
+    if version.returncode or python_pin["version"] not in (version.stdout + version.stderr):
+        raise ForgeError("FAIL-UNVERIFIED-RUNTIME", "WorldForge Python version differs from approval", "preflight")
+    try:
+        probe = subprocess.run([str(executable), "-c",
+            "import pathlib,tools.asset_forge; print(pathlib.Path(tools.asset_forge.__file__).resolve())"],
+            cwd=checkout, capture_output=True, text=True)
+    except OSError as exc:
+        raise ForgeError("FAIL-UNVERIFIED-RUNTIME", "WorldForge module provenance probe failed", "preflight") from exc
+    try: module = Path(probe.stdout.strip()).resolve()
+    except OSError as exc: raise ForgeError("FAIL-EVIDENCE-INTEGRITY", "WorldForge module probe was invalid", "preflight") from exc
+    if probe.returncode or checkout.resolve() not in module.parents:
+        raise ForgeError("FAIL-EVIDENCE-INTEGRITY", "WorldForge executor imported asset_forge outside approved checkout", "preflight")
+    return executable
+
+
 def validate_result_bindings(result, request):
     """Gloamstead authority check layered over WorldForge's exact frozen parser."""
     if not isinstance(result, dict) or result.get("state") not in {"NoChange", "Promoted"}:
@@ -722,13 +1003,7 @@ def validate_result_bindings(result, request):
 def observe_target_snapshot(root: Path, request, result, active_pointer_value: str):
     head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True,
                           capture_output=True, text=True).stdout.strip()
-    artifact_hashes = {}
-    for artifact_path, expected in result["artifacts"].items():
-        repo_path = _unreal_object_to_repo_path(artifact_path) if artifact_path.startswith("/Game/") else artifact_path
-        physical = root / Path(*PurePosixPath(repo_path).parts)
-        if not physical.is_file() or sha256_file(physical) != expected["sha256"]:
-            raise ForgeError("FAIL-EVIDENCE-INTEGRITY", f"Fresh target artifact mismatch: {artifact_path}", "verify")
-        artifact_hashes[artifact_path] = {"sha256": expected["sha256"]}
+    artifact_hashes = {path: {"sha256": item["sha256"]} for path, item in result["artifacts"].items()}
     snapshot = {**request["target"], "commit": head,
                 "active_pointer": {"path": request["desired_active_pointer"]["path"],
                                    "value": active_pointer_value},
@@ -750,7 +1025,37 @@ def inspect_active_catalog_with_unreal(root: Path, request, result):
     script_path = git_dir / f"inspect-generated-catalog-{nonce}.py"
     report_path = git_dir / f"inspect-generated-catalog-{nonce}.json"
     object_path = request["desired_active_pointer"]["path"]
-    script = f'''import json, unreal\n\ndef loaded_path(value):\n    loaded = value.load_synchronous()\n    if loaded is None:\n        raise RuntimeError("catalog soft reference did not load")\n    return loaded.get_path_name()\n\ncatalog = unreal.EditorAssetLibrary.load_asset({object_path!r})\nif catalog is None:\n    raise RuntimeError("catalog load failed")\nrefs = []\nentries = catalog.get_editor_property("entries")\nfor entry in entries:\n    refs.append(loaded_path(entry.get_editor_property("asset")))\n    refs.extend(loaded_path(value) for value in entry.get_editor_property("dependencies"))\nreport = {{\n    "class_name": catalog.get_class().get_name(),\n    "bundle_id": catalog.get_editor_property("bundle_id"),\n    "receipt_sha256": catalog.get_editor_property("receipt_sha256"),\n    "version_root": catalog.get_editor_property("version_root"),\n    "entry_count": len(entries),\n    "soft_object_paths": sorted(set(refs)),\n}}\nwith open({str(report_path)!r}, "w", encoding="utf-8", newline="\\n") as stream:\n    json.dump(report, stream, ensure_ascii=False, sort_keys=True, separators=(",", ":"))\n'''
+    deliverable_ids = {item["unreal_object_path"]: item_id for item_id, item in request["deliverables"].items()}
+    script = f'''import json, unreal\n\ndef loaded_path(value):\n    loaded = value.load_synchronous()\n    if loaded is None:\n        raise RuntimeError("catalog soft reference did not load")\n    return loaded.get_path_name()\n\ndef state_token(value):\n    token = str(value).rsplit(".", 1)[-1].lower()\n    aliases = {{"restorationinprogress": "restoration_in_progress", "restoration_in_progress": "restoration_in_progress"}}\n    token = aliases.get(token.replace(" ", "").replace("-", "_"), token)\n    return None if token == "unknown" else token\n\ndef field(value, name):\n    return value.get_editor_property(name)\n\ndeliverable_ids = {deliverable_ids!r}\ncatalog = unreal.EditorAssetLibrary.load_asset({object_path!r})\nif catalog is None:\n    raise RuntimeError("catalog load failed")\nentries = []\nfor entry in catalog.get_editor_property("entries"):\n    asset_path = loaded_path(field(entry, "asset"))\n    entries.append({{\n        "deliverable_id": deliverable_ids.get(asset_path),\n        "semantic_role": str(field(entry, "semantic_role")),\n        "restoration_state": state_token(field(entry, "restoration_state")),\n        "asset_path": asset_path,\n        "expected_class_path": loaded_path(field(entry, "expected_class")),\n        "object_sha256": field(entry, "object_sha256"),\n        "receipt_sha256": field(entry, "receipt_sha256"),\n        "direct_package_dependencies": sorted(field(entry, "direct_package_dependencies")),\n        "dependencies": sorted(loaded_path(value) for value in field(entry, "dependencies")),\n        "ownership_id": field(entry, "ownership_id"),\n        "license_id": field(entry, "license_id"),\n    }})\nexternal = []\nfor record in catalog.get_editor_property("external_package_records"):\n    external.append({{"package_name": field(record, "package_name"),\n        "provenance_object": loaded_path(field(record, "provenance_object"))}})\nreport = {{\n    "schema_version": "gloamstead.generated-catalog-inspection.v1",\n    "class_name": catalog.get_class().get_name(),\n    "bundle_id": catalog.get_editor_property("bundle_id"),\n    "receipt_sha256": catalog.get_editor_property("receipt_sha256"),\n    "version_root": catalog.get_editor_property("version_root"),\n    "entry_count": len(entries),\n    "entries": sorted(entries, key=lambda item: item["deliverable_id"] or ""),\n    "terminal_platform_package_roots": sorted(catalog.get_editor_property("terminal_platform_package_roots")),\n    "terminal_platform_packages": sorted(catalog.get_editor_property("terminal_platform_packages")),\n    "terminal_script_packages": sorted(str(field(value, "package_name")) for value in catalog.get_editor_property("terminal_script_package_authorities")),\n    "external_packages": sorted(external, key=lambda item: item["package_name"]),\n}}\nwith open({str(report_path)!r}, "w", encoding="utf-8", newline="\\n") as stream:\n    json.dump(report, stream, ensure_ascii=False, sort_keys=True, separators=(",", ":"))\n'''
+    script = script.replace(
+        'def field(value, name):\n    return value.get_editor_property(name)\n\ndeliverable_ids',
+        '''def field(value, name):
+    return value.get_editor_property(name)
+
+registry = unreal.AssetRegistryHelpers.get_asset_registry()
+dependency_options = unreal.AssetRegistryDependencyOptions(
+    include_soft_package_references=True,
+    include_hard_package_references=True,
+    include_searchable_names=False,
+    include_soft_management_references=False,
+    include_hard_management_references=False)
+
+def registry_dependencies(object_path):
+    package_name = object_path.split(".", 1)[0]
+    observed = registry.get_dependencies(unreal.Name(package_name), dependency_options) or []
+    return sorted(str(value) for value in observed)
+
+deliverable_ids''').replace(
+        '"direct_package_dependencies": sorted(field(entry, "direct_package_dependencies")),',
+        '"direct_package_dependencies": registry_dependencies(asset_path),\n'
+        '        "declared_direct_package_dependencies": sorted(field(entry, "direct_package_dependencies")),')
+    if ("registry.get_dependencies" not in script or
+            '"declared_direct_package_dependencies"' not in script):
+        raise ForgeError("FAIL-CONTRACT-DRIFT", "Catalog inspection script dependency probe was not injected", "catalog_reload")
+    try:
+        compile(script, str(script_path), "exec")
+    except SyntaxError as exc:
+        raise ForgeError("FAIL-CONTRACT-DRIFT", "Catalog inspection script is not syntactically valid", "catalog_reload") from exc
     script_path.write_text(script, encoding="utf-8", newline="\n")
     try:
         completed = subprocess.run([str(editor), str(root / request["target"]["project"]), "-unattended", "-nop4",
@@ -769,18 +1074,80 @@ def inspect_active_catalog_with_unreal(root: Path, request, result):
 
 
 def validate_catalog_inspection_report(report, request, result):
-    object_path = request["desired_active_pointer"]["path"]
-    expected_refs = set(request["output_allowlist"]["unreal_paths"])
-    expected_refs.discard(object_path)
-    observed_refs = {value for value in report.get("soft_object_paths", []) if isinstance(value, str) and value.startswith("/Game/")}
-    if (set(report) != {"class_name", "bundle_id", "receipt_sha256", "version_root", "entry_count", "soft_object_paths"} or
+    def closed_string_list(value):
+        return isinstance(value, list) and all(isinstance(item, str) for item in value) and value == sorted(set(value))
+
+    report_fields = {"schema_version", "class_name", "bundle_id", "receipt_sha256", "version_root",
+        "entry_count", "entries", "terminal_platform_package_roots", "terminal_platform_packages",
+        "terminal_script_packages", "external_packages"}
+    if (not isinstance(report, dict) or set(report) != report_fields or
+            report.get("schema_version") != "gloamstead.generated-catalog-inspection.v1" or
             report["class_name"] != "GloamsteadGeneratedAssetCatalog" or
             report["bundle_id"] != request["desired_active_pointer"]["value"] or
             (result["state"] == "Promoted" and report["receipt_sha256"] != result["promotion_receipt_sha256"]) or
             (result["state"] == "NoChange" and not SHA_RE.fullmatch(str(report["receipt_sha256"]))) or
-            report["version_root"] != request["version_roots"]["unreal_root"] or
-            observed_refs != expected_refs):
+            report["version_root"] != request["version_roots"]["unreal_root"]):
         raise ForgeError("FAIL-POINTER-CLOSURE", "Reloaded catalog class/bundle/receipt/version/soft-reference closure differs", "catalog_reload")
+    deliverables = request["deliverables"]
+    if len(deliverables) != 107 or report["entry_count"] != 107 or len(report["entries"]) != 107:
+        raise ForgeError("FAIL-BIOME-KIT-INCOMPLETE", "Reloaded catalog entry count is not exact", "catalog_reload")
+    class_paths = {"static_mesh": "/Script/Engine.StaticMesh", "material": "/Script/Engine.Material",
+        "material_instance": "/Script/Engine.MaterialInstanceConstant", "niagara_system": "/Script/Niagara.NiagaraSystem",
+        "placement_rules_data_asset": "/Script/Engine.PrimaryDataAsset", "primary_data_asset": "/Script/Engine.PrimaryDataAsset",
+        "data_asset": "/Script/Engine.DataAsset", "texture_2d": "/Script/Engine.Texture2D",
+        "subuv_animation": "/Script/Engine.SubUVAnimation"}
+    entry_fields = {"deliverable_id", "semantic_role", "restoration_state", "asset_path", "expected_class_path",
+        "object_sha256", "receipt_sha256", "direct_package_dependencies", "declared_direct_package_dependencies",
+        "dependencies", "ownership_id", "license_id"}
+    observed_ids = set()
+    terminal_roots = report["terminal_platform_package_roots"]
+    if (not all(isinstance(value, list) for value in (report["external_packages"], report["entries"])) or
+            not all(closed_string_list(value) for value in (terminal_roots, report["terminal_platform_packages"],
+                report["terminal_script_packages"])) or
+            any(root_value != "/Engine" for root_value in terminal_roots) or
+            any(not value.startswith("/Engine/") for value in report["terminal_platform_packages"]) or
+            any(not value.startswith("/Script/") for value in report["terminal_script_packages"])):
+        raise ForgeError("FAIL-POINTER-CLOSURE", "Catalog terminal package declarations are not exact", "catalog_reload")
+    terminal_packages = set(report["terminal_platform_packages"])
+    terminal_scripts = set(report["terminal_script_packages"])
+    external_packages = {item.get("package_name") for item in report["external_packages"]
+        if isinstance(item, dict) and set(item) == {"package_name", "provenance_object"} and
+        isinstance(item.get("package_name"), str) and item["package_name"].startswith("/") and
+        _safe_unreal_path(item.get("provenance_object")) and
+        item["provenance_object"].split(".", 1)[0] == item["package_name"]}
+    if len(external_packages) != len(report["external_packages"]):
+        raise ForgeError("FAIL-POINTER-CLOSURE", "Catalog external package declarations are invalid", "catalog_reload")
+    for entry in report["entries"]:
+        if not isinstance(entry, dict) or set(entry) != entry_fields:
+            raise ForgeError("FAIL-CONTRACT-DRIFT", "Catalog inspection entry shape is not closed", "catalog_reload")
+        item_id = entry["deliverable_id"]
+        asset_path = entry["asset_path"]
+        if not isinstance(item_id, str) or not isinstance(asset_path, str):
+            raise ForgeError("FAIL-BIOME-KIT-INCOMPLETE", "Catalog entry ID/path is not a string", "catalog_reload")
+        expected = deliverables.get(item_id)
+        artifact = result["artifacts"].get(asset_path)
+        if expected is None or item_id in observed_ids or artifact is None:
+            raise ForgeError("FAIL-BIOME-KIT-INCOMPLETE", "Catalog entry ID/path is absent or duplicated", "catalog_reload")
+        observed_ids.add(item_id)
+        expected_dependencies = sorted(deliverables[dependency]["unreal_object_path"] for dependency in expected["dependency_ids"])
+        expected_packages = {path.split(".", 1)[0] for path in expected_dependencies}
+        if (not closed_string_list(entry["direct_package_dependencies"]) or
+                not closed_string_list(entry["declared_direct_package_dependencies"]) or
+                entry["declared_direct_package_dependencies"] != entry["direct_package_dependencies"] or
+                not isinstance(entry["dependencies"], list) or
+                entry["semantic_role"] != expected["semantic_role"] or entry["restoration_state"] != expected["restoration_state"] or
+                entry["asset_path"] != expected["unreal_object_path"] or entry["expected_class_path"] != class_paths[expected["kind"]] or
+                entry["dependencies"] != expected_dependencies or entry["object_sha256"] != artifact["sha256"] or
+                entry["receipt_sha256"] != report["receipt_sha256"] or entry["ownership_id"] != artifact["owner"] or
+                entry["license_id"] != artifact["license_id"] or not expected_packages <= set(entry["direct_package_dependencies"])):
+            raise ForgeError("FAIL-POINTER-CLOSURE", f"Catalog entry does not exactly bind deliverable {item_id}", "catalog_reload")
+        for package in entry["direct_package_dependencies"]:
+            allowed = (package in expected_packages or package in external_packages or package in terminal_scripts or
+                package in terminal_packages or (package.startswith("/Engine/") and "/Engine" in terminal_roots))
+            if not allowed:
+                raise ForgeError("FAIL-POINTER-CLOSURE", f"Catalog carries undeclared package reference: {package}", "catalog_reload")
+    if observed_ids != set(deliverables):
+        raise ForgeError("FAIL-BIOME-KIT-INCOMPLETE", "Catalog does not map every deliverable exactly once", "catalog_reload")
     return report
 
 
@@ -788,6 +1155,16 @@ def verify_generated_commit_lfs_closure(root: Path, request, result):
     commit = result.get("generated_commit")
     if not commit:
         return
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True,
+                          capture_output=True, text=True).stdout.strip()
+    if commit != head or result.get("verified_target", {}).get("commit") != head:
+        raise ForgeError("FAIL-TARGET-DIRTY", "Generated commit is not the freshly observed target HEAD", "verify")
+    if not _git_clean(root):
+        raise ForgeError("FAIL-TARGET-DIRTY", "Generated target index/worktree is not clean", "verify")
+    parent = subprocess.run(["git", "rev-parse", f"{commit}^"], cwd=root, check=True,
+                            capture_output=True, text=True).stdout.strip()
+    if parent != request["target"]["base_commit"]:
+        raise ForgeError("FAIL-PARTIAL-PROMOTION", "Generated commit is not based directly on requested target", "verify")
     changed = subprocess.run(["git", "diff-tree", "--no-commit-id", "--name-only", "-r", f"{commit}^", commit],
                              cwd=root, check=True, capture_output=True, text=True).stdout.splitlines()
     artifact_paths = set(request["output_allowlist"]["source_paths"])
@@ -795,17 +1172,31 @@ def verify_generated_commit_lfs_closure(root: Path, request, result):
     pointer_asset = _unreal_object_to_repo_path(request["desired_active_pointer"]["path"])
     exact = set(artifact_paths)
     exact.add(pointer_asset)
-    exact.add((VERSION_ROOT / "active-kit-pointer.json").as_posix())
-    exact |= set(result.get("evidence_refs", []))
+    pointer_metadata = (VERSION_ROOT / "active-kit-pointer.json").as_posix()
+    exact.add(pointer_metadata)
+    evidence_refs = result.get("evidence_refs", [])
+    evidence_prefix = (VERSION_ROOT / "runs" / request["request_sha256"]).as_posix() + "/"
+    if (not isinstance(evidence_refs, list) or len(evidence_refs) != len(set(evidence_refs)) or
+            any(not _safe_repo_path(path) or not path.startswith(evidence_prefix) or
+                Path(path).suffix.casefold() != ".json" for path in evidence_refs)):
+        raise ForgeError("FAIL-SCOPE-CREEP", "Result evidence references escape the exact request evidence root", "verify")
+    exact |= set(evidence_refs)
     if set(changed) - exact:
         raise ForgeError("FAIL-PARTIAL-PROMOTION", f"Generated commit changed paths outside exact allowlist: {sorted(set(changed)-exact)}", "verify")
-    if not artifact_paths <= set(changed) or pointer_asset not in changed:
-        raise ForgeError("FAIL-PARTIAL-PROMOTION", "Generated commit does not contain the complete artifact set and active pointer", "verify")
+    if not artifact_paths <= set(changed) or pointer_asset not in changed or pointer_metadata not in changed:
+        raise ForgeError("FAIL-PARTIAL-PROMOTION", "Generated commit does not contain the complete artifact set and both active-pointer representations", "verify")
+    if not set(evidence_refs) <= set(changed):
+        raise ForgeError("FAIL-EVIDENCE-INTEGRITY", "Generated commit omits declared target evidence", "verify")
     common = subprocess.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], cwd=root,
                             check=True, capture_output=True, text=True).stdout.strip()
     lfs_root = Path(common) / "lfs" / "objects"
+    def committed_blob(repo_path: str) -> bytes:
+        completed = subprocess.run(["git", "show", f"{commit}:{repo_path}"], cwd=root, capture_output=True)
+        if completed.returncode:
+            raise ForgeError("FAIL-EVIDENCE-INTEGRITY", f"Generated commit omits {repo_path}", "verify")
+        return completed.stdout
     def verify_pointer(repo_path: str, expected=None):
-        shown = subprocess.run(["git", "show", f"{commit}:{repo_path}"], cwd=root, check=True, capture_output=True).stdout
+        shown = committed_blob(repo_path)
         match = re.fullmatch(rb"version https://git-lfs.github.com/spec/v1\noid sha256:([0-9a-f]{64})\nsize ([0-9]+)\n", shown)
         if match is None:
             raise ForgeError("FAIL-POINTER-CLOSURE", f"Non-canonical LFS pointer: {repo_path}", "verify")
@@ -816,17 +1207,67 @@ def verify_generated_commit_lfs_closure(root: Path, request, result):
             raise ForgeError("FAIL-POINTER-CLOSURE", f"LFS receipt mismatch: {repo_path}", "verify")
         if not local.is_file() or local.stat().st_size != size or sha256_file(local) != digest:
             raise ForgeError("FAIL-POINTER-CLOSURE", f"Local LFS object is absent or corrupt: {repo_path}", "verify")
+    binary_extensions = {".uasset", ".umap", ".sbs", ".sbsar", ".hda", ".hdalc", ".hdanc", ".png", ".tif", ".tiff", ".exr", ".fbx", ".obj", ".abc", ".vdb", ".usd", ".usda", ".usdc"}
+    artifact_by_repo_path = {}
     for artifact_path, artifact in result["artifacts"].items():
         repo_path = _unreal_object_to_repo_path(artifact_path) if artifact_path.startswith("/Game/") else artifact_path
-        if Path(repo_path).suffix.casefold() not in {".uasset", ".umap", ".sbs", ".sbsar", ".hda", ".hdalc", ".hdanc", ".png", ".tif", ".tiff", ".exr", ".fbx", ".obj", ".abc", ".vdb", ".usd", ".usda", ".usdc"}:
-            continue
-        verify_pointer(repo_path, artifact)
+        artifact_by_repo_path[repo_path] = artifact
+        if Path(repo_path).suffix.casefold() in binary_extensions:
+            verify_pointer(repo_path, artifact)
+        else:
+            blob = committed_blob(repo_path)
+            if (artifact.get("lfs_oid") is not None or sha256_bytes(blob) != artifact["sha256"] or
+                    len(blob) != artifact["size_bytes"]):
+                raise ForgeError("FAIL-EVIDENCE-INTEGRITY", f"Committed non-LFS artifact receipt mismatch: {repo_path}", "verify")
     verify_pointer(pointer_asset)
+    known_document_hashes = {value for value in (result.get("plan_sha256"), result.get("bundle_sha256"),
+        result.get("qualification_sha256"), result.get("promotion_receipt_sha256"), result.get("evidence_sha256")) if value}
+    matched_document_hashes = set()
+    for repo_path in changed:
+        if repo_path in artifact_by_repo_path or repo_path == pointer_asset:
+            continue
+        blob = committed_blob(repo_path)
+        if Path(repo_path).suffix.casefold() in binary_extensions:
+            verify_pointer(repo_path)
+            continue
+        try: document = json.loads(blob)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ForgeError("FAIL-EVIDENCE-INTEGRITY", f"Unbound non-LFS evidence blob: {repo_path}", "verify") from exc
+        if repo_path == pointer_metadata:
+            pointer_after = result.get("pointer_after")
+            if pointer_after != request["desired_active_pointer"]:
+                raise ForgeError("FAIL-POINTER-CLOSURE", "Result pointer_after differs from requested active pointer", "verify")
+            expected_pointer = {"schema_version": "gloamstead.sanctuary.active-pointer.v1",
+                "catalog_object_path": pointer_after["path"],
+                "active_bundle_id": pointer_after["value"], "expected_next_bundle_id": None}
+            expected_pointer_bytes = canonical_json_bytes(expected_pointer)
+            if document != expected_pointer or blob != expected_pointer_bytes or sha256_bytes(blob) != sha256_bytes(expected_pointer_bytes) or len(blob) != len(expected_pointer_bytes):
+                raise ForgeError("FAIL-POINTER-CLOSURE", "Committed active pointer metadata differs", "verify")
+            continue
+        self_bound = False
+        if isinstance(document, dict):
+            for field, value in document.items():
+                if field.endswith("_sha256") and value in known_document_hashes and value == canonical_hash(document, field):
+                    matched_document_hashes.add(value); self_bound = True
+        if not self_bound:
+            raise ForgeError("FAIL-EVIDENCE-INTEGRITY", f"Non-LFS evidence is not self-hash/receipt bound: {repo_path}", "verify")
+    required_documents = {value for value in (result.get("plan_sha256"), result.get("bundle_sha256"),
+        result.get("qualification_sha256"), result.get("promotion_receipt_sha256")) if value}
+    if not required_documents <= matched_document_hashes:
+        raise ForgeError("FAIL-EVIDENCE-INTEGRITY", "Generated commit lacks hash-bound plan/bundle/qualification/promotion receipts", "verify")
 
 
-def independently_verify_result(root: Path, checkout: Path, worldforge_python: Path, request, result):
+def independently_verify_result(root: Path, checkout: Path, worldforge_python: Path, request, result,
+                                *, run_root: Path, config_path: Path):
+    lock = load_json(root / LOCK_PATH)
+    validate_worldforge_checkout(checkout, lock)
+    worldforge_python = validate_worldforge_executor(worldforge_python, checkout, request, lock)
     _strict_worldforge_contract(worldforge_python, checkout, "BiomeKitResult", result)
     validate_result_bindings(result, request)
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True,
+                          capture_output=True, text=True).stdout.strip()
+    if not _git_clean(root) or result.get("verified_target", {}).get("commit") != head:
+        raise ForgeError("FAIL-TARGET-DIRTY", "Post-reconcile target is not the exact clean verified HEAD", "verify")
     catalog_report = inspect_active_catalog_with_unreal(root, request, result)
     snapshot = observe_target_snapshot(root, request, result, catalog_report["bundle_id"])
     _strict_worldforge_contract(worldforge_python, checkout, "TargetSnapshot", snapshot)
@@ -841,20 +1282,24 @@ def independently_verify_result(root: Path, checkout: Path, worldforge_python: P
            "evidence_ref": result["reverified_hashes"]["evidence_ref"],
            "schema_version": "wf.asset_forge.result_ref.v1"}
     _strict_worldforge_contract(worldforge_python, checkout, "ResultRef", ref)
-    suffix = uuid.uuid4().hex
-    ref_path, target_path = checkout / f".gloamstead-result-ref-{suffix}.json", checkout / f".gloamstead-target-{suffix}.json"
+    ref_path = run_root / "result-ref.json"
+    target_path = run_root / "target.json"
+    _write_operator_json(ref_path, ref)
+    _write_operator_json(target_path, snapshot)
+    completed = subprocess.run([str(worldforge_python), "-m", "tools.asset_forge", "verify",
+                                "--host-root", str(checkout), "--target-root", str(root),
+                                "--config", _operator_git_path(checkout, config_path),
+                                "--result", _operator_git_path(root, ref_path),
+                                "--target", _operator_git_path(root, target_path), "--json"],
+                               cwd=checkout, capture_output=True, text=True)
     try:
-        ref_path.write_bytes(canonical_json_bytes(ref)); target_path.write_bytes(canonical_json_bytes(snapshot))
-        completed = subprocess.run([str(worldforge_python), "-m", "tools.asset_forge", "verify",
-                                    "--result", ref_path.name, "--target", target_path.name, "--json"],
-                                   cwd=checkout, capture_output=True, text=True)
-        try: verdict = json.loads(completed.stdout)
-        except json.JSONDecodeError as exc: raise ForgeError("FAIL-EVIDENCE-INTEGRITY", "WorldForge verify returned non-JSON", "verify") from exc
-        _strict_worldforge_contract(worldforge_python, checkout, "VerificationVerdict", verdict)
-        if completed.returncode or verdict.get("verified") is not True or verdict.get("mismatches") or verdict.get("failure") is not None:
-            raise ForgeError("FAIL-UNVERIFIED-RUNTIME", "Independent WorldForge verification did not pass", "verify")
-    finally:
-        ref_path.unlink(missing_ok=True); target_path.unlink(missing_ok=True)
+        verdict = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        raise ForgeError("FAIL-EVIDENCE-INTEGRITY", "WorldForge verify returned non-JSON", "verify") from exc
+    _strict_worldforge_contract(worldforge_python, checkout, "VerificationVerdict", verdict)
+    if completed.returncode or verdict.get("verified") is not True or verdict.get("mismatches") or verdict.get("failure") is not None:
+        _raise_worldforge_failure(verdict, "FAIL-UNVERIFIED-RUNTIME", "verify",
+                                  "Independent WorldForge verification did not pass")
     return result
 
 
@@ -866,37 +1311,43 @@ def run_operator(root: Path, pins_path: Path, deadline: str, generation_ref: str
     if ancestor.returncode:
         raise ForgeError("FAIL-CONTRACT-DRIFT", "Generation branch is not derived from origin/main", "preflight")
     checkout = worldforge_checkout.resolve()
-    if not (checkout / "tools/asset_forge/__main__.py").is_file() or not _git_clean(checkout):
-        raise ForgeError("FAIL-UNVERIFIED-RUNTIME", "Explicit WorldForge checkout is missing or dirty", "preflight")
-    if not worldforge_python.is_file():
-        raise ForgeError("FAIL-UNVERIFIED-RUNTIME", "Explicit WorldForge Python executable is missing", "preflight")
+    lock = load_json(root / LOCK_PATH)
+    validate_worldforge_checkout(checkout, lock)
     pointer = load_json(root / VERSION_ROOT / "active-kit-pointer.json")
     request = build_request(root, pins_path, deadline, generation_ref, pointer["active_bundle_id"])
-    transient = checkout / f".gloamstead-request-{uuid.uuid4().hex}.json"
+    worldforge_python = validate_worldforge_executor(worldforge_python, checkout, request, lock)
+    target_run_root = _operator_run_root(root, request["request_sha256"])
+    host_run_root = _operator_run_root(checkout, request["request_sha256"])
+    request_path = target_run_root / "request.json"
+    config_path = host_run_root / "config.json"
+    _write_operator_json(request_path, request)
+    config = _production_runtime_config(
+        request,
+        _operator_git_path(checkout, host_run_root / "state"),
+        _operator_git_path(root, request_path),
+    )
+    _write_operator_json(config_path, config)
+    completed = subprocess.run([
+        str(worldforge_python), "-m", "tools.asset_forge", "reconcile",
+        "--host-root", str(checkout), "--target-root", str(root),
+        "--config", _operator_git_path(checkout, config_path),
+        "--request", _operator_git_path(root, request_path), "--json",
+    ], cwd=checkout, capture_output=True, text=True)
     try:
-        transient.write_bytes(json.dumps(request, ensure_ascii=False, sort_keys=True, indent=2).encode("utf-8") + b"\n")
-        completed = subprocess.run([str(worldforge_python), "-m", "tools.asset_forge", "reconcile", "--request", transient.name, "--json"], cwd=checkout, capture_output=True, text=True)
-        try: result = json.loads(completed.stdout)
-        except json.JSONDecodeError as exc:
-            raise ForgeError("FAIL-EVIDENCE-INTEGRITY", "WorldForge returned non-JSON output", "reconcile") from exc
-    finally:
-        transient.unlink(missing_ok=True)
+        result = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        raise ForgeError("FAIL-EVIDENCE-INTEGRITY", "WorldForge returned non-JSON output", "reconcile") from exc
     if completed.returncode:
-        raise ForgeError("FAIL-UNVERIFIED-RUNTIME", "WorldForge reconcile failed", "reconcile")
-    independently_verify_result(root, checkout, worldforge_python, request, result)
-    run_root = root / VERSION_ROOT / "runs" / request["request_sha256"]
-    run_root.mkdir(parents=True, exist_ok=True)
-    request_bytes = json.dumps(request, ensure_ascii=False, sort_keys=True, indent=2).encode("utf-8") + b"\n"
-    request_evidence = run_root / "request.json"
-    if request_evidence.exists() and request_evidence.read_bytes() != request_bytes:
-        raise ForgeError("FAIL-EVIDENCE-INTEGRITY", "Request hash directory contains different bytes", "evidence")
-    request_evidence.write_bytes(request_bytes)
+        _raise_worldforge_failure(result, "FAIL-UNVERIFIED-RUNTIME", "reconcile", "WorldForge reconcile failed")
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True,
+                          capture_output=True, text=True).stdout.strip()
+    if (not _git_clean(root) or result.get("verified_target", {}).get("commit") != head or
+            (result.get("state") == "Promoted" and result.get("generated_commit") != head)):
+        raise ForgeError("FAIL-TARGET-DIRTY", "WorldForge reconcile did not leave the exact clean verified HEAD", "reconcile")
+    independently_verify_result(root, checkout, worldforge_python, request, result,
+                                 run_root=target_run_root, config_path=config_path)
     result_digest = canonical_hash(result, "result_sha256") if isinstance(result, dict) else sha256_bytes(canonical_json_bytes(result))
-    result_evidence = run_root / f"result-{result_digest}.json"
-    result_bytes = json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2).encode("utf-8") + b"\n"
-    if result_evidence.exists() and result_evidence.read_bytes() != result_bytes:
-        raise ForgeError("FAIL-EVIDENCE-INTEGRITY", "Result hash filename contains different bytes", "evidence")
-    result_evidence.write_bytes(result_bytes)
+    _write_operator_json(target_run_root / f"result-{result_digest}.json", result)
     return result
 
 
