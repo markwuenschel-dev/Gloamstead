@@ -154,6 +154,13 @@ void AGloamsteadCharacter::DoJumpEnd()
 
 void AGloamsteadCharacter::OnRestoreInput()
 {
+	// Logged unconditionally: this verb reaches the player only through Enhanced Input, and every
+	// failure mode below (no component, mode toggled but no valid target) is otherwise silent. Without
+	// this line there is no way to tell "the key never arrived" from "the key arrived and was refused".
+	UE_LOG(LogTemp, Log, TEXT("GloamInput: Restore pressed (placement=%s, valid=%s)"),
+		RitualPlacement && RitualPlacement->IsInPlacementMode() ? TEXT("on") : TEXT("off"),
+		RitualPlacement && RitualPlacement->IsCurrentPlacementValid() ? TEXT("yes") : TEXT("no"));
+
 	if (!RitualPlacement)
 	{
 		return;
@@ -164,6 +171,8 @@ void AGloamsteadCharacter::OnRestoreInput()
 	if (!RitualPlacement->IsInPlacementMode())
 	{
 		RitualPlacement->EnterPlacementMode();
+		UE_LOG(LogTemp, Log, TEXT("GloamInput: entered placement mode (valid target=%s)"),
+			RitualPlacement->IsCurrentPlacementValid() ? TEXT("yes") : TEXT("no"));
 		return;
 	}
 
@@ -171,10 +180,45 @@ void AGloamsteadCharacter::OnRestoreInput()
 	{
 		RitualPlacement->ConfirmPlacement();
 	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("GloamInput: Restore ignored — no valid target in range."));
+	}
+}
+
+FText AGloamsteadCharacter::GetPlayerPromptText() const
+{
+	if (RitualPlacement && RitualPlacement->IsInPlacementMode())
+	{
+		return RitualPlacement->IsCurrentPlacementValid()
+			? NSLOCTEXT("Gloamstead", "PromptConfirmRitual", "[R]  Restore the lantern        [E]  Cancel")
+			: NSLOCTEXT("Gloamstead", "PromptNoRitualSite", "No ritual site within reach        [E]  Cancel");
+	}
+
+	if (Interaction)
+	{
+		const FText Focused = Interaction->GetCurrentPrompt();
+		if (!Focused.IsEmpty())
+		{
+			return FText::Format(NSLOCTEXT("Gloamstead", "PromptInteract", "[E]  {0}"), Focused);
+		}
+	}
+
+	return FText::GetEmpty();
+}
+
+void AGloamsteadCharacter::GloamTeleport(float X, float Y, float Z)
+{
+	const FVector Target(X, Y, Z);
+	SetActorLocation(Target, /*bSweep*/ false, nullptr, ETeleportType::TeleportPhysics);
+	UE_LOG(LogTemp, Log, TEXT("GloamInput: teleported to %s (playtest positioning)."), *Target.ToCompactString());
 }
 
 void AGloamsteadCharacter::OnInteractInput()
 {
+	UE_LOG(LogTemp, Log, TEXT("GloamInput: Interact pressed (placement=%s)"),
+		RitualPlacement && RitualPlacement->IsInPlacementMode() ? TEXT("on") : TEXT("off"));
+
 	// While arming a restoration, Interact doubles as cancel — the player can back out of placement
 	// (Restore itself is a place/confirm toggle with no other exit).
 	if (RitualPlacement && RitualPlacement->IsInPlacementMode())

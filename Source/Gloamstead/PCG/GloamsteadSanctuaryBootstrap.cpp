@@ -4,6 +4,7 @@
 #include "Components/SceneComponent.h"
 #include "Engine/World.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
+#include "Systems/GloamsteadDayNightSubsystem.h"
 #include "PCGComponent.h"
 #include "PCGData.h"
 
@@ -29,6 +30,7 @@ AGloamsteadSanctuaryBootstrap::AGloamsteadSanctuaryBootstrap()
 void AGloamsteadSanctuaryBootstrap::BeginPlay()
 {
 	Super::BeginPlay();
+	ApplyPersistencePolicy();
 
 	BindToPCGComponent();
 
@@ -38,6 +40,17 @@ void AGloamsteadSanctuaryBootstrap::BeginPlay()
 	}
 
 	TryInitializeSanctuary();
+}
+
+void AGloamsteadSanctuaryBootstrap::ApplyPersistencePolicy()
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (UGloamsteadDayNightSubsystem* DayNight = World->GetSubsystem<UGloamsteadDayNightSubsystem>())
+		{
+			DayNight->SetDawnAutosaveEnabled(bEnablePersistence);
+		}
+	}
 }
 
 void AGloamsteadSanctuaryBootstrap::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -74,8 +87,8 @@ bool AGloamsteadSanctuaryBootstrap::TryInitializeSanctuary()
 
 	PCGSubsystem->InitializeFromPCGComponent(PCGComponent, WorldSeed);
 
-	// Load-on-start: if a prior save exists, restore the persisted per-point state over the fresh baseline.
-	if (PCGSubsystem->LoadFromSlot(UGloamsteadPCGSubsystem::DefaultSaveSlot))
+	// Load-on-start: if enabled and a prior save exists, restore it over the fresh baseline.
+	if (bEnablePersistence && PCGSubsystem->LoadFromSlot(UGloamsteadPCGSubsystem::DefaultSaveSlot))
 	{
 		UE_LOG(LogTemp, Log, TEXT("GloamsteadSanctuaryBootstrap '%s': loaded saved sanctuary state (slot=%s)."),
 			*GetName(), *UGloamsteadPCGSubsystem::DefaultSaveSlot);

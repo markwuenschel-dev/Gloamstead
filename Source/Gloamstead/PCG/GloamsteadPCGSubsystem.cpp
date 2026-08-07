@@ -9,6 +9,66 @@
 #include "Kismet/GameplayStatics.h"
 
 const FString UGloamsteadPCGSubsystem::DefaultSaveSlot = TEXT("GloamsteadSanctuary");
+const FName UGloamsteadPCGSubsystem::FirstLanternAnchorTag(TEXT("Gloamstead.FirstLantern.Anchor"));
+
+void UGloamsteadPCGSubsystem::ApplyAuthoredAnchorOverride()
+{
+    UWorld* World = GetWorld();
+    if (!World || CachedPoints.Num() == 0)
+    {
+        return;
+    }
+
+    TArray<AActor*> Anchors;
+    UGameplayStatics::GetAllActorsWithTag(World, FirstLanternAnchorTag, Anchors);
+    if (Anchors.Num() == 0)
+    {
+        return; // No authored site in this map: leave the procedural placement exactly as generated.
+    }
+
+    const AActor* Anchor = Anchors[0];
+    const FVector AnchorLocation = Anchor->GetActorLocation();
+
+    // Nearest LanternPost to the anchor, so a map with several lanterns re-seats the intended one
+    // rather than whichever happens to be first in the array.
+    int32 BestIndex = INDEX_NONE;
+    double BestDistSq = TNumericLimits<double>::Max();
+    for (int32 i = 0; i < CachedPoints.Num(); ++i)
+    {
+        if (GetRitualTypeFromPoint(CachedPoints[i]) != ERitualType::LanternPost)
+        {
+            continue;
+        }
+        const double DistSq = FVector::DistSquared(CachedPoints[i].Transform.GetLocation(), AnchorLocation);
+        if (DistSq < BestDistSq)
+        {
+            BestDistSq = DistSq;
+            BestIndex = i;
+        }
+    }
+
+    if (BestIndex == INDEX_NONE)
+    {
+        UE_LOG(LogTemp, Warning,
+            TEXT("UGloamsteadPCGSubsystem: authored first-lantern anchor '%s' found, but the graph produced no LanternPost point to seat on it."),
+            *Anchor->GetName());
+        return;
+    }
+
+    const FVector OldLocation = CachedPoints[BestIndex].Transform.GetLocation();
+    if (OldLocation.Equals(AnchorLocation, 1.0))
+    {
+        return; // Already there; nothing to say.
+    }
+
+    // In-place: keep MetadataEntry (and therefore RitualType / RestorationRadius) intact.
+    CachedPoints[BestIndex].Transform.SetLocation(AnchorLocation);
+    CachedPoints[BestIndex].Transform.SetRotation(Anchor->GetActorQuat());
+
+    UE_LOG(LogTemp, Log,
+        TEXT("UGloamsteadPCGSubsystem: re-seated first lantern (point %d) from %s onto authored anchor '%s' at %s."),
+        BestIndex, *OldLocation.ToCompactString(), *Anchor->GetName(), *AnchorLocation.ToCompactString());
+}
 
 void UGloamsteadPCGSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -107,6 +167,10 @@ void UGloamsteadPCGSubsystem::InitializeFromPCGComponent(UPCGComponent* PCGCompo
     // GetRestoredCountByRitualType() / CaptureToSaveGame() answer from this set; a bare Empty()
     // leaves a graph that ships pre-restored points reporting a restored count of zero.
     RebuildRestoredIndicesFromPointStates();
+
+    // Re-seat the first lantern onto the level's authored anchor BEFORE the grid is built, so the grid
+    // is correct on its first and only construction rather than being invalidated a moment later.
+    ApplyAuthoredAnchorOverride();
 
     BuildSpatialGrid();
 
@@ -383,13 +447,26 @@ int32 UGloamsteadPCGSubsystem::FindMostCorruptedPointIndex(bool bOnlyUnrestored)
 
 void UGloamsteadPCGSubsystem::Test_SeedPoints(const TArray<FVector>& Locations)
 {
-    CachedPoints.Reset(Locations.Num());
+    MutablePointData = NewObject<UPCGPointData>(this);
+    check(MutablePointData && MutablePointData->Metadata);
+
+    FPCGMetadataAttribute<int32>* RitualTypeAttribute =
+        MutablePointData->Metadata->CreateAttribute<int32>(
+            TEXT("RitualType"), static_cast<int32>(ERitualType::LanternPost),
+            /*bAllowsInterpolation*/ false, /*bOverrideParent*/ false);
+
+    TArray<FPCGPoint>& Points = MutablePointData->GetMutablePoints();
+    Points.Reset(Locations.Num());
     for (const FVector& Loc : Locations)
     {
         FPCGPoint P;
         P.Transform = FTransform(Loc);
-        CachedPoints.Add(P);
+        P.MetadataEntry = MutablePointData->Metadata->AddEntry();
+        RitualTypeAttribute->SetValue(P.MetadataEntry, static_cast<int32>(ERitualType::LanternPost));
+        Points.Add(P);
     }
+    CachedPoints = Points;
+    BuildSpatialGrid();
 }
 
 int32 UGloamsteadPCGSubsystem::FindRestoredPointIndex(bool bMostLit) const

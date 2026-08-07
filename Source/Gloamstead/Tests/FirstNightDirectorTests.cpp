@@ -94,10 +94,18 @@ bool FGloamFirstNightDuskGateTest::RunTest(const FString& /*Parameters*/)
 	Director->HandleStructureRestored(MakeRestoration(ERitualType::GardenBed));
 	TestTrue(TEXT("garden bed does not unlock dusk"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
 
-	// Restoring the lantern opens the gate: the director advances the phase authority to Dusk.
+	// Restoring the lantern opens the gate. The director does NOT take the transition itself: it unlocks
+	// the first rest so the player brings the night by resting at the Heart.
+	TestFalse(TEXT("rest is locked before restoration"), DayNight->CanRestNow());
 	Director->HandleStructureRestored(MakeRestoration(ERitualType::LanternPost));
-	TestTrue(TEXT("lantern restoration advances to Dusk"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk);
 	TestTrue(TEXT("lantern recorded as restored"), Director->IsLanternRestored());
+	TestTrue(TEXT("lantern restoration unlocks the first rest"), DayNight->IsFirstRestUnlocked());
+	TestTrue(TEXT("the Heart will now accept a rest"), DayNight->CanRestNow());
+	TestTrue(TEXT("restoration alone does not advance the phase"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
+
+	// The player's rest is what brings dusk.
+	TestTrue(TEXT("rest succeeds"), DayNight->RequestRest());
+	TestTrue(TEXT("resting advances to Dusk"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk);
 
 	// The dusk readability cue is the director's reaction to the phase change.
 	Director->Test_DuskCueCount = 0;
@@ -136,10 +144,12 @@ bool FGloamFirstNightSequenceToDawnTest::RunTest(const FString& /*Parameters*/)
 	Director->RequestAdvanceToDusk();
 	TestTrue(TEXT("still Day before restoration"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
 
-	// Restore lantern -> the director opens the gate and advances to Dusk.
+	// Restore lantern -> the director opens the gate; the player's rest is what advances to Dusk.
 	Director->HandleStructureRestored(MakeRestoration(ERitualType::LanternPost));
-	TestTrue(TEXT("advanced to Dusk"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk);
 	TestEqual(TEXT("lantern restored beat fired"), Director->Test_LanternRestoredCount, 1);
+	TestTrue(TEXT("first rest unlocked"), DayNight->IsFirstRestUnlocked());
+	TestTrue(TEXT("player rests at the Heart"), DayNight->RequestRest());
+	TestTrue(TEXT("advanced to Dusk"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk);
 
 	// Dusk cue on the phase change.
 	Director->Test_DuskCueCount = 0;

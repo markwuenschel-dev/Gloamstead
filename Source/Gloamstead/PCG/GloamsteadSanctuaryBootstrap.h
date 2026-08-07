@@ -25,6 +25,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Gloamstead|PCG")
 	bool TryInitializeSanctuary();
 
+	/** Apply this actor's load/autosave policy to the owning world. Safe to call repeatedly. */
+	UFUNCTION(BlueprintCallable, Category = "Gloamstead|PCG|Persistence")
+	void ApplyPersistencePolicy();
+
 	UFUNCTION(BlueprintPure, Category = "Gloamstead|PCG")
 	bool HasInitializedSanctuary() const { return bInitializedSanctuary; }
 
@@ -45,6 +49,10 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gloamstead|PCG")
 	int32 WorldSeed = 42;
+
+	/** Demo maps disable both load-on-start and dawn autosave so every run starts fresh. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gloamstead|PCG|Persistence")
+	bool bEnablePersistence = true;
 
 private:
 	void BindToPCGComponent();

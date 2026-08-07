@@ -67,6 +67,10 @@ void URitualPlacementComponent::EnterPlacementMode()
 {
     if (!CachedSubsystem)
     {
+        CachedSubsystem = GetSubsystem();
+    }
+    if (!CachedSubsystem)
+    {
         UE_LOG(LogTemp, Warning, TEXT("RitualPlacementComponent: Cannot enter placement mode - Subsystem is missing."));
         return;
     }
@@ -89,7 +93,100 @@ void URitualPlacementComponent::ExitPlacementMode()
     bIsInPlacementMode = false;
     CurrentTargetPointIndex = -1;
 
+    // Cancel must leave nothing behind, or re-entry stacks a second ghost on the first.
+    DestroyPreviewActor();
+
     OnPlacementModeExited();
+}
+
+void URitualPlacementComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    // A ghost outliving PIE would be a visible leak in the next session.
+    DestroyPreviewActor();
+    Super::EndPlay(EndPlayReason);
+}
+
+UClass* URitualPlacementComponent::ResolvePreviewClass() const
+{
+    if (PreviewActorClass)
+    {
+        return PreviewActorClass;
+    }
+    if (!bUseProjectDefaultPreviewClass)
+    {
+        return nullptr;
+    }
+    // Mirrors SpawnRestoredActor_Implementation's fallback: the slice ships one project-owned preview.
+    static const TCHAR* PreviewPath = TEXT("/Game/Gloamstead/Placement/BP_RitualPreview.BP_RitualPreview_C");
+    return LoadClass<AActor>(nullptr, PreviewPath);
+}
+
+void URitualPlacementComponent::DestroyPreviewActor()
+{
+    if (AActor* Preview = ActivePreviewActor.Get())
+    {
+        Preview->Destroy();
+    }
+    ActivePreviewActor.Reset();
+}
+
+void URitualPlacementComponent::RefreshPreviewActor()
+{
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    // A ghost is shown only for a target the player could actually confirm. Anything else — out of
+    // placement mode, no target, or a target out of range — shows nothing, so the preview's presence
+    // is itself the readable signal that confirming will work.
+    // Initialised because GetCurrentTargetTransform only writes them on success, and the && below
+    // short-circuits before it on the no-target paths.
+    FVector TargetLocation = FVector::ZeroVector;
+    FRotator TargetRotation = FRotator::ZeroRotator;
+    const bool bShouldShow = bIsInPlacementMode
+        && IsCurrentPlacementValid()
+        && GetCurrentTargetTransform(TargetLocation, TargetRotation);
+
+    if (!bShouldShow)
+    {
+        DestroyPreviewActor();
+        return;
+    }
+
+    if (AActor* Existing = ActivePreviewActor.Get())
+    {
+        // Move the one we have rather than respawning: a ghost that blinks every query tick reads as
+        // a bug, and this is what makes the preview "stable" as the player walks around.
+        Existing->SetActorLocationAndRotation(TargetLocation, TargetRotation);
+        return;
+    }
+
+    UClass* PreviewClass = ResolvePreviewClass();
+    if (!PreviewClass)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("RitualPlacementComponent: no preview class resolved; placement will have no ghost."));
+        return;
+    }
+
+    FActorSpawnParameters Params;
+    Params.Owner = GetOwner();
+    Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    Params.ObjectFlags |= RF_Transient; // never let a ghost be saved into the level
+
+    AActor* Spawned = World->SpawnActor<AActor>(PreviewClass, TargetLocation, TargetRotation, Params);
+    if (!Spawned)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("RitualPlacementComponent: preview actor failed to spawn at %s."), *TargetLocation.ToCompactString());
+        return;
+    }
+
+    Spawned->Tags.AddUnique(TEXT("Gloamstead.RitualPreview"));
+    ActivePreviewActor = Spawned;
+
+    UE_LOG(LogTemp, Log, TEXT("RitualPlacement: preview ghost spawned at %s (target point %d)."),
+        *TargetLocation.ToCompactString(), CurrentTargetPointIndex);
 }
 
 bool URitualPlacementComponent::ConfirmPlacement()
@@ -119,8 +216,9 @@ bool URitualPlacementComponent::ConfirmPlacement()
     // === RULE: a confirmation that spawns NO actor still restores the point, and is reported as a
     // === degraded success. It is never refused, and never reported as clean.
     //
-    // SpawnRestoredActor is a BlueprintImplementableEvent with no C++ body, so until a Blueprint child of
-    // this component exists it returns null on EVERY confirmation. The three candidate rules:
+    // SpawnRestoredActor is a BlueprintNativeEvent. Its native implementation materialises the configured
+    // LanternPost class; a missing class still returns null and follows the degraded-success rule below.
+    // The three candidate rules:
     //
     //   REFUSE — return false here. Correct in the abstract, and wrong today: it would make the ritual
     //     loop unplayable for everyone until the presentation lane lands a Blueprint child.
@@ -156,6 +254,9 @@ bool URitualPlacementComponent::ConfirmPlacement()
             FinalPointIndex, *EvidenceRequestId);
         return false;
     }
+
+    // The ghost has been replaced by the real thing; remove it before any listener can see both.
+    DestroyPreviewActor();
 
     // The Blueprint notifications fire AFTER the evidence is published, deliberately. They run arbitrary
     // Blueprint that is free to move, re-parent or destroy the actor that was just spawned, and the
@@ -195,6 +296,56 @@ bool URitualPlacementComponent::CommitRestorationWithEvidence(
     return true;
 }
 
+void URitualPlacementComponent::SpawnRestoredActor_Implementation(int32 PointIndex, AActor*& OutSpawnedActor)
+{
+    OutSpawnedActor = nullptr;
+
+    UGloamsteadPCGSubsystem* Subsystem = GetSubsystem();
+    UWorld* World = GetWorld();
+    if (!Subsystem || !World || PointIndex < 0)
+    {
+        return;
+    }
+
+    FPCGPoint Point;
+    if (!Subsystem->GetPointByIndex(PointIndex, Point))
+    {
+        return;
+    }
+
+    const ERitualType RitualType = static_cast<ERitualType>(
+        Subsystem->GetIntAttribute(Point, TEXT("RitualType"), static_cast<int32>(ERitualType::LanternPost)));
+    if (RitualType != ERitualType::LanternPost)
+    {
+        return;
+    }
+
+    UClass* ClassToSpawn = LanternPostRestoredClass.Get();
+    if (!ClassToSpawn && bUseProjectDefaultLanternPostClass)
+    {
+        ClassToSpawn = StaticLoadClass(AActor::StaticClass(), nullptr,
+            TEXT("/Game/Gloamstead/Restoration/FirstLantern/BP_Restored_LanternPost.BP_Restored_LanternPost_C"));
+    }
+    if (!ClassToSpawn)
+    {
+        return;
+    }
+
+    const FVector TerrainNormal = Subsystem->GetVectorAttribute(Point, TEXT("TerrainNormal"), FVector::UpVector);
+    const FVector SpawnLocation = Point.Transform.GetLocation() + TerrainNormal * VerticalOffset;
+    const FRotator SpawnRotation = CalculateAlignedRotation(SpawnLocation, TerrainNormal);
+
+    FActorSpawnParameters Params;
+    Params.Owner = GetOwner();
+    Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    OutSpawnedActor = World->SpawnActor<AActor>(ClassToSpawn, SpawnLocation, SpawnRotation, Params);
+    if (OutSpawnedActor)
+    {
+        OutSpawnedActor->Tags.AddUnique(TEXT("Gloamstead.RestoredLantern"));
+        OutSpawnedActor->Tags.AddUnique(*FString::Printf(TEXT("Gloamstead.RitualPoint.%d"), PointIndex));
+    }
+}
+
 void URitualPlacementComponent::PublishRestorationEvidence(
     const FRestorationEventPayload& AppliedPayload, const FString& RequestId)
 {
@@ -217,8 +368,8 @@ void URitualPlacementComponent::PublishRestorationEvidence(
         // for the rest of the session — so the player has permanently lost it with nothing visible in
         // its place. Error is also the level the automation framework escalates on, which means no
         // harness can certify a green run of the ritual loop while the loop is producing invisible
-        // lanterns. That is the intended consequence: it is currently the normal case, and it should
-        // stay red until a Blueprint child implements SpawnRestoredActor.
+        // lanterns. That is the intended consequence: a missing class or failed spawn stays red even
+        // though the point mutation remains authoritative.
         //
         // Logged here rather than in ConfirmPlacement so it fires on every path that publishes evidence,
         // including the ones that bail out below before an artifact is ever written.
@@ -226,7 +377,7 @@ void URitualPlacementComponent::PublishRestorationEvidence(
         UE_LOG(LogGloamstead, Error,
             TEXT("[GSS016] Point %d was restored but NO restored actor exists (request %s). The point is ")
             TEXT("spent and cannot be restored again, and nothing is visible there. SpawnRestoredActor ")
-            TEXT("has no implementation on this component."),
+            TEXT("had no usable class or the configured actor failed to spawn."),
             AppliedPayload.PointIndex, RequestId.IsEmpty() ? TEXT("<unminted>") : *RequestId);
     }
 
@@ -361,6 +512,10 @@ void URitualPlacementComponent::UpdateTargetPoint()
         const bool bValid = IsCurrentPlacementValid();
         OnPreviewTargetChanged(CurrentTargetPointIndex, ResolvedType, bValid);
     }
+
+    // Outside the index-changed branch on purpose: walking in and out of RestorationRadius flips
+    // validity without changing the target index, and the ghost has to appear and vanish with it.
+    RefreshPreviewActor();
 }
 
 int32 URitualPlacementComponent::ResolveTargetForPlacement(int32 RawPointIndex)
@@ -572,5 +727,13 @@ const URitualDefinition* URitualPlacementComponent::GetRitualDefinitionForType(E
 
 class UGloamsteadPCGSubsystem* URitualPlacementComponent::GetSubsystem() const
 {
-    return CachedSubsystem;
+    if (CachedSubsystem)
+    {
+        return CachedSubsystem;
+    }
+    if (const UWorld* World = GetWorld())
+    {
+        return World->GetSubsystem<UGloamsteadPCGSubsystem>();
+    }
+    return nullptr;
 }

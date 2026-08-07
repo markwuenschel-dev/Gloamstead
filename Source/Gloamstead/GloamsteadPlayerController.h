@@ -40,6 +40,22 @@ protected:
 	UPROPERTY(EditAnywhere, Config, Category = "Input|Touch Controls")
 	bool bForceTouchControls = false;
 
+	/**
+	 * Contextual prompt HUD ("[E] Rest at the Heart", ritual confirm/cancel).
+	 *
+	 * Created here rather than by a Blueprint child so the affordance exists for any controller in
+	 * the slice: the interaction component has always produced prompt text and nothing displayed it.
+	 * Leave unset to use the project prompt widget; clear bUseProjectDefaultPromptWidget to opt out.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Gloamstead|UI")
+	TSubclassOf<UUserWidget> PromptWidgetClass;
+
+	UPROPERTY(EditAnywhere, Category = "Gloamstead|UI", meta = (AdvancedDisplay))
+	bool bUseProjectDefaultPromptWidget = true;
+
+	UPROPERTY()
+	TObjectPtr<UUserWidget> PromptWidget;
+
 	/** Gameplay initialization */
 	virtual void BeginPlay() override;
 
@@ -48,5 +64,8 @@ protected:
 
 	/** Returns true if the player should use UMG touch controls */
 	bool ShouldUseTouchControls() const;
+
+	/** Creates and screen-adds the contextual prompt HUD. Safe to call once per local controller. */
+	void CreatePromptWidget();
 
 };

@@ -98,8 +98,14 @@ public:
 };
 
 /**
- * Tutorial night: a bounded, always-winnable teaching beat proving that night reacts to the sanctuary.
- * Applies a single gentle spread and always resolves Success.
+ * Tutorial night: a bounded teaching beat proving that night reacts to the sanctuary — and that the
+ * lantern the player just restored is what makes the dark survivable.
+ *
+ * The lesson is a single readable objective: reach the restored lantern's light before dawn. The
+ * lantern the player themselves raised is the shelter, so the restoration has a mechanical payoff on
+ * the same night it happened rather than only a presentational one. Reaching it resolves the objective
+ * and ends the night early (via the runtime's existing OnNightShouldEnd path); running out the clock
+ * outside the light is a Partial, not a Failure — this is still a tutorial, and it stays winnable.
  */
 UCLASS(Blueprintable)
 class GLOAMSTEAD_API UNightTutorialStrategy : public UNightStrategy
@@ -117,8 +123,34 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night", meta = (ClampMin = "1"))
 	int32 TeachingSpreadPoints = 4;
 
+	/** How close to the restored lantern counts as "in its light". Matches the lantern's visible falloff. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night", meta = (ClampMin = "1"))
+	float ShelterRadius = 900.0f;
+
+	/** Actor tag the restoration stamps on the lantern it spawns (RitualPlacementComponent). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night")
+	FName RestoredLanternTag = FName(TEXT("Gloamstead.RestoredLantern"));
+
+	/** True once a restored lantern was found to shelter under; false means there is nothing to reach. */
+	UFUNCTION(BlueprintPure, Category = "Night")
+	bool HasShelter() const { return bHasShelter; }
+
+	/** World position of the shelter the player must reach (only meaningful when HasShelter()). */
+	UFUNCTION(BlueprintPure, Category = "Night")
+	FVector GetShelterLocation() const { return ShelterLocation; }
+
+	/** True once the player has stood in the restored lantern's light this night. */
+	UFUNCTION(BlueprintPure, Category = "Night")
+	bool IsPlayerSheltered() const { return bPlayerSheltered; }
+
+	/** Evaluates player-in-light once; exposed so tests can drive it without a pressure timer. */
+	bool EvaluateShelter();
+
 private:
 	bool bTeachingSpreadApplied = false;
+	bool bHasShelter = false;
+	bool bPlayerSheltered = false;
+	FVector ShelterLocation = FVector::ZeroVector;
 };
 
 /**

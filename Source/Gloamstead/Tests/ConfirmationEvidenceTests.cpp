@@ -556,12 +556,9 @@ bool FGloamEvidenceRequiresAMintedIdTest::RunTest(const FString& /*Parameters*/)
     return true;
 }
 
-// ===== Failure class: a restoration that materialised no actor is reported as a clean success =====
-// Not hypothetical: SpawnRestoredActor is a BlueprintImplementableEvent with no implementation anywhere
-// in the project, so a null restored actor is what EVERY confirmation produces today. The point is spent,
-// ApplyRestoration will refuse it for the rest of the session, and the player sees nothing there. The
-// rule is proceed-and-mark, so the two things this pins are: the restoration is NOT refused, and the
-// artifact does NOT come out clean.
+// ===== Failure class: a configured class is missing or fails to materialise an actor =====
+// The point is spent, ApplyRestoration will refuse it for the rest of the session, and the player sees
+// nothing there. The rule is proceed-and-mark: restoration is NOT refused and the artifact is NOT clean.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FGloamEvidenceMissingActorIsMarkedTest,
     "Gloamstead.ConfirmationEvidence.RestorationWithNoActorIsMarked",
@@ -593,8 +590,7 @@ bool FGloamEvidenceMissingActorIsMarkedTest::RunTest(const FString& /*Parameters
     const bool bRestored =
         Placement->Test_CommitRestorationWithEvidence(PCG, 0, MakeEvidencePayload(0, nullptr), RequestId);
 
-    // --- The rule is PROCEED, not refuse. A refusal here would make the ritual loop unplayable until a
-    //     Blueprint child of this component exists.
+    // --- The rule is PROCEED, not refuse. A false return would contradict the authoritative point state.
     TestTrue(TEXT("the restoration proceeds rather than being refused"), bRestored);
     TestTrue(TEXT("the point is restored"), PCG->IsPointRestored(0));
     TestEqual(TEXT("the light was applied"), PCG->GetLightLevel(0), 0.30f, KINDA_SMALL_NUMBER);
@@ -646,24 +642,8 @@ bool FGloamEvidenceMissingActorIsMarkedTest::RunTest(const FString& /*Parameters
 
 // ===== Not covered here, and why =====
 //
-// * "ConfirmPlacement end to end, from placement mode to a filed artifact" — blocked by exactly ONE
-//   thing, and it is not the one that looks obvious. ConfirmPlacement needs a preview target, which comes
-//   from UpdateTargetPoint -> FindNearestUnrestoredPointIndex, and that walks UGloamsteadPCGSubsystem's
-//   SpatialGrid (GloamsteadPCGSubsystem.cpp:152-186). The only public seam that installs points,
-//   Test_SeedPoints (GloamsteadPCGSubsystem.cpp:384-393), fills CachedPoints but never the grid, and
-//   BuildSpatialGrid is private — so no C++ test can produce a confirmable target.
-//
-//   CachedSubsystem is NOT a blocker, contrary to what the private-and-BeginPlay-only shape suggests
-//   (RitualPlacementComponent.cpp:36): a component created on an actor in a world that has already begun
-//   play, then RegisterComponent()'d, does have BeginPlay routed to it —
-//   AActor::HandleRegisterComponentWithWorld calls Component->BeginPlay() whenever the owner has begun
-//   play (Engine/Private/Actor.cpp:6443-6452). So the cached subsystem, EnterPlacementMode's real entry
-//   and ExitPlacementMode's real teardown are all reachable headlessly; only the targeting query is not.
-//   The tests above therefore enter at the tail ConfirmPlacement calls, which is the same function.
-//
-// * "the spawned actor is destroyed when the payload or the restoration is rejected" — SpawnRestoredActor
-//   is a BlueprintImplementableEvent with no C++ body (RitualPlacementComponent.h:117), so a C++ test
-//   cannot make it produce, or fail to produce, an actor. Needs PIE with a Blueprint child.
+// * "ConfirmPlacement end to end, from placement mode to a filed artifact" and single-spawn retry
+//   behavior are covered by Gloamstead.FirstNight.PlayableSlice.LanternConfirmationMaterializesOnce.
 //
 // * "the Blueprint notifications fire after the evidence is published" — OnPlacementConfirmed and
 //   OnRestoredActorSpawned are BlueprintImplementableEvents; observing their ordering requires a
