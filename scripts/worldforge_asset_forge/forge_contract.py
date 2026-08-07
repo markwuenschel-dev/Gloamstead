@@ -37,12 +37,18 @@ INVENTORY_SHA256 = "bf571186dc55117e3cc7cfc39074ff5da92b868f80f9b2163c2a19bc43fe
 
 
 class ForgeError(RuntimeError):
-    def __init__(self, code: str, message: str, stage: str = "contract", retry: str = "after_change"):
+    def __init__(self, code: str, message: str, stage: str = "contract", retry: str = "after_change",
+                 evidence_ref: str | None = None):
         super().__init__(message)
         self.code, self.stage, self.retry = code, stage, retry
+        self.retry_disposition = retry
+        self.evidence_ref = evidence_ref
 
     def as_dict(self):
-        return {"code": self.code, "stage": self.stage, "retry": self.retry, "message": str(self)}
+        result = {"code": self.code, "stage": self.stage, "retry": self.retry, "message": str(self)}
+        if self.evidence_ref:
+            result["evidence_ref"] = self.evidence_ref
+        return result
 
 
 class RecoveryRequiredError(ForgeError):
@@ -828,15 +834,29 @@ def _production_runtime_config(request, host_state_path: str, target_request_pat
 def _raise_worldforge_failure(payload, fallback_code: str, fallback_stage: str, message: str):
     """Translate a WorldForge typed failure without collapsing it to generic red."""
 
-    failure = payload.get("failure") if isinstance(payload, dict) else None
+    failure = None
+    if isinstance(payload, dict):
+        nested = payload.get("failure")
+        if isinstance(nested, dict):
+            failure = nested
+        elif isinstance(payload.get("code"), str) and isinstance(payload.get("stage"), str):
+            failure = payload
     if isinstance(failure, dict):
         code = failure.get("code")
-        failure_message = failure.get("message")
         stage = failure.get("stage", fallback_stage)
         retry = failure.get("retry_disposition", failure.get("retry", "after_change"))
-        if isinstance(code, str) and code and isinstance(failure_message, str) and failure_message:
-            raise ForgeError(code, failure_message, stage if isinstance(stage, str) else fallback_stage,
-                             retry if isinstance(retry, str) and retry else "after_change")
+        if isinstance(code, str) and code:
+            failure_message = failure.get("message")
+            if not isinstance(failure_message, str) or not failure_message:
+                failure_message = code
+            evidence_ref = failure.get("evidence_ref")
+            raise ForgeError(
+                code,
+                failure_message,
+                stage if isinstance(stage, str) else fallback_stage,
+                retry if isinstance(retry, str) and retry else "after_change",
+                evidence_ref if isinstance(evidence_ref, str) and evidence_ref else None,
+            )
     raise ForgeError(fallback_code, message, fallback_stage)
 
 
@@ -1296,6 +1316,9 @@ def independently_verify_result(root: Path, checkout: Path, worldforge_python: P
         verdict = json.loads(completed.stdout)
     except json.JSONDecodeError as exc:
         raise ForgeError("FAIL-EVIDENCE-INTEGRITY", "WorldForge verify returned non-JSON", "verify") from exc
+    if completed.returncode and isinstance(verdict, dict) and isinstance(verdict.get("code"), str):
+        _raise_worldforge_failure(verdict, "FAIL-UNVERIFIED-RUNTIME", "verify",
+                                  "Independent WorldForge verification did not pass")
     _strict_worldforge_contract(worldforge_python, checkout, "VerificationVerdict", verdict)
     if completed.returncode or verdict.get("verified") is not True or verdict.get("mismatches") or verdict.get("failure") is not None:
         _raise_worldforge_failure(verdict, "FAIL-UNVERIFIED-RUNTIME", "verify",

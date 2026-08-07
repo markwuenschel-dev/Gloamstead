@@ -546,7 +546,9 @@ class VendorTests(unittest.TestCase):
                 "qualification_stack": {},
             }
             failure = {"failure": {"code": "FAIL-CAPABILITY-UNAVAILABLE", "stage": "capability",
-                                    "retry_disposition": "never", "message": "licensed adapters unavailable"}}
+                                    "retry_disposition": "never",
+                                    "evidence_ref": "procedural/reports/asset_forge/capability-unavailable.json",
+                                    "schema_version": "wf.asset_forge.failure.v1"}}
 
             def fake_run(command, **kwargs):
                 if command[:3] == ["git", "merge-base", "--is-ancestor"]:
@@ -570,6 +572,9 @@ class VendorTests(unittest.TestCase):
             self.assertEqual("FAIL-CAPABILITY-UNAVAILABLE", caught.exception.code)
             self.assertEqual("capability", caught.exception.stage)
             self.assertEqual("never", caught.exception.retry)
+            self.assertEqual("FAIL-CAPABILITY-UNAVAILABLE", str(caught.exception))
+            self.assertEqual("procedural/reports/asset_forge/capability-unavailable.json", caught.exception.evidence_ref)
+            self.assertEqual(caught.exception.evidence_ref, caught.exception.as_dict()["evidence_ref"])
 
     def test_independent_verify_wires_explicit_roots_config_and_git_run_refs(self):
         with tempfile.TemporaryDirectory() as td:
