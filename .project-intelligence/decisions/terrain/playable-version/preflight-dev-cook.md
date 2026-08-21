@@ -22,6 +22,27 @@ Provenance (Q6) is tracked separately in T4 and is **not** a precondition for th
 Development build never leaves this machine. It remains a hard precondition for Q7's ZIP handoff.
 See the map's "Open" section for both live gates.
 
+## Attempt log
+
+**2026-08-21, authorized ("cook") and run.** Failed in 3.13s, before compilation — `RunUAT.bat
+BuildCookRun`, exit 6. UBT's own toolchain check: *"Visual Studio is installed, but is out of date or
+missing a valid C++ toolchain (minimum version 14.38.33130, preferred version 14.50.35717)... Visual
+Studio x64 must be installed in order to build this target."* Full output:
+`Saved/Packages/20260821-ed4885d-Win64Dev/Logs/cook.log`.
+
+Verified independently (not just trusting the error text): only Visual Studio Build Tools 2019
+(16.11.37530.7) is present on this machine — no VS2022 install found under either Program Files
+root. UE 5.8 requires VS2022 17.8+/MSVC 14.50. This is a real, verified environment gap.
+
+**Not resolved**: whether `gate.ps1`/`Build.bat` currently succeeds on this same machine. The VS
+version check lives in UBT, the same path both invocations hit, which is hard to reconcile with
+`ROADMAP.md`'s prior green-gate claims — but that wasn't re-verified live this session, so it's
+flagged as open, not asserted either way.
+
+**Blocked on**: a human decision to install/update the VS2022 C++ toolchain (system-level change,
+not something to run unattended), or an alternative explanation for the discrepancy above. No retry
+without one of those.
+
 ## The concrete authorization request
 
 > Do you authorize one Win64 Development cook of commit `fa87a66b50cef2798043c60ef458d1ebf0a483ec`,
