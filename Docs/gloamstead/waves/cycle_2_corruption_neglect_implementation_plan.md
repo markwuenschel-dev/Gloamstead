@@ -25,15 +25,16 @@
 - `Source/Gloamstead/Data/ExperienceCycleTypes.cpp`
 - `Source/Gloamstead/Save/GloamsteadSaveGame.h`
 - `Source/Gloamstead/Save/GloamsteadSaveGame.cpp`
+- `Source/Gloamstead/PCG/GloamsteadPCGSubsystem.cpp`
 - `Source/Gloamstead/Tests/ExperienceCyclePersistenceTests.cpp`
 
-**Implementation:** Add a `FExperienceCyclePersistentState` data contract with completed slot, armed and last plan IDs, last outcome/result tag, scars, first-rest state, saved phase ordinal, and an explicit legacy-reconciliation flag. Introduce save version 2 and a pure migration method. Version 1 inputs preserve PCG payload untouched, clear unprovable authored progression, set reconciliation required, and advance to version 2. Version 2 inputs remain semantically identical.
+**Implementation:** Add a `FExperienceCyclePersistentState` data contract with completed slot, armed and last plan IDs, last outcome/result tag, scars, first-rest state, saved phase ordinal, and an explicit legacy-reconciliation flag. Introduce save version 2 and a pure migration method. Version 1 inputs preserve PCG payload untouched, clear unprovable authored progression, set reconciliation required, and advance to version 2. Version 2 inputs remain semantically identical. The live PCG save/load boundary must retain the current version during capture and migrate before any restore consumer reads the save; unsupported versions must fail explicitly rather than being treated as current.
 
 **Acceptance:**
 
 1. `Gloamstead.Experience.Persistence.LegacyV1MigratesSafely` proves no plan/outcome/scar is invented by migration and reconciliation is required.
 2. `Gloamstead.Experience.Persistence.CurrentV2RoundTrips` proves every Cycle II progression field survives migration unchanged.
-3. Existing PCG save tests continue to prove their point-state payload remains unchanged.
+3. A production-adjacent PCG capture/load test proves a current v2 payload is not downgraded or cleared, while existing PCG save tests continue to prove their point-state payload remains unchanged.
 
 **Verification:** Build and run the new `Gloamstead.Experience.Persistence` AutomationTests; run the full `Gloamstead` filter before task review.
 
