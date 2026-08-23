@@ -10,6 +10,7 @@
 class UGloamsteadSaveGame;
 class AVeilHeart;
 class URitualPlacementComponent;
+class AGloamsteadSanctuaryBootstrap;
 struct FExperienceCyclePlan;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStructureRestored, const FRestorationEventPayload&, Payload);
@@ -54,10 +55,6 @@ public:
     // === Lifecycle ===
     virtual void Initialize(FSubsystemCollectionBase& Collection) override;
     virtual void Deinitialize() override;
-
-    // === Initialization ===
-    UFUNCTION(BlueprintCallable, Category="PCG|Ritual")
-    void InitializeFromPCGComponent(UPCGComponent* PCGComponent, int32 WorldSeed);
 
     // === Core Queries (use fast parallel state where possible) ===
     UFUNCTION(BlueprintCallable, Category="PCG|Ritual")
@@ -211,6 +208,11 @@ public:
         FName RestorationTag);
     /** Test-only seam: read current point state for assertions. */
     const TArray<FRitualPointState>& Test_PeekPointStates() const { return PointStates; }
+    /** Test-only null/re-init coverage; not reflected and absent from shipping. */
+    void Test_InitializeFromPCGComponent(UPCGComponent* PCGComponent, int32 WorldSeed)
+    {
+        InitializeFromPCGComponent(PCGComponent, WorldSeed);
+    }
 #endif
 
 public:
@@ -222,6 +224,12 @@ public:
     static const FName FirstLanternAnchorTag;
 
 private:
+    // PCG metadata is the root of Gloamstead semantic target authority. Only
+    // the placed bootstrap may duplicate generated output into this subsystem;
+    // a Blueprint or arbitrary runtime component cannot supply a forged graph.
+    friend class AGloamsteadSanctuaryBootstrap;
+    void InitializeFromPCGComponent(UPCGComponent* PCGComponent, int32 WorldSeed);
+
     friend class URitualPlacementComponent;
     friend class AVeilHeart;
 

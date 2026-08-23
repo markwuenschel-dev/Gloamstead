@@ -12,6 +12,7 @@
 class USphereComponent;
 class AGloamsteadEvidenceSource;
 class UGloamsteadPCGSubsystem;
+class UGloamsteadDayNightSubsystem;
 
 /**
  * Broadcast when the Heart warns about the coming night, carrying the catalog fragment it chose.
@@ -93,12 +94,8 @@ public:
 	/** True only when the stored receipt exactly proves this authored plan was interpreted. */
 	bool HasExactInterpretationForPlan(const FExperienceCyclePlan& Plan) const;
 
-	/** Capture/restore only durable interpretation facts; cadence/presenter state stays live-only. */
-	FVeilHeartInterpretationPersistentState CaptureInterpretationPersistentState() const;
 	/** Whether the authored warning catalog is available for a delayed restore attempt. */
 	bool IsInterpretationCatalogReady();
-	bool RestoreInterpretationPersistentState(const FVeilHeartInterpretationPersistentState& State);
-	void ResetInterpretationPersistentState();
 
     /** The outcome of the most recently reflected-upon night (session memory the next cycle can read). */
     UFUNCTION(BlueprintPure, Category="Veil Heart")
@@ -136,6 +133,20 @@ public:
 
 	/** Test-only controlled route for source/media validation without exposing a Blueprint write API. */
 	bool Test_RecordSupportEncounter(FName WarningId, FName SupportId, FName ChannelType);
+
+	/** Test-only wrappers for durable state assertions; production restore authority is DayNight-only. */
+	FVeilHeartInterpretationPersistentState Test_CaptureInterpretationPersistentState() const
+	{
+		return CaptureInterpretationPersistentState();
+	}
+	bool Test_RestoreInterpretationPersistentState(const FVeilHeartInterpretationPersistentState& State)
+	{
+		return RestoreInterpretationPersistentState(State);
+	}
+	void Test_ResetInterpretationPersistentState()
+	{
+		ResetInterpretationPersistentState();
+	}
 #endif
 
     UFUNCTION(BlueprintImplementableEvent, Category="Veil Heart")
@@ -172,6 +183,14 @@ protected:
     const FVeilHeartWarningFragment* FindWarningForNight(ENightConsequenceType NightType) const;
 
 private:
+	// Save/resume may restore these facts only as part of DayNight's validated
+	// progression transaction. Generic gameplay must never be able to compose
+	// a coherent literal state after a generic point mutation and mint a receipt.
+	friend class UGloamsteadDayNightSubsystem;
+	FVeilHeartInterpretationPersistentState CaptureInterpretationPersistentState() const;
+	bool RestoreInterpretationPersistentState(const FVeilHeartInterpretationPersistentState& State);
+	void ResetInterpretationPersistentState();
+
 	/** Lazily loads the assigned catalog for startup-order-safe exact emission. */
 	bool EnsureWarningCatalog();
 	const FVeilHeartWarningFragment* FindExactWarningById(FName WarningId, ENightConsequenceType ExpectedNightType) const;

@@ -3,7 +3,10 @@
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "PCG/GloamsteadSanctuaryBootstrap.h"
 #include "Systems/GloamsteadDayNightSubsystem.h"
+#include "Systems/GloamsteadExperienceCycleSubsystem.h"
+#include "Data/ExperienceCycleTypes.h"
 #include "Engine/Engine.h"
+#include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/SaveGame.h"
@@ -20,13 +23,18 @@ namespace GloamFirstNightPlayableSlice
 	struct FScopedWorld
 	{
 		UWorld* World = nullptr;
+		UGameInstance* GameInstance = nullptr;
 
 		FScopedWorld()
 		{
 			World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld*/ false);
-			if (World)
+			if (World && GEngine)
 			{
+				GameInstance = NewObject<UGameInstance>(GEngine);
+				GameInstance->Init();
+				World->SetGameInstance(GameInstance);
 				FWorldContext& Context = GEngine->CreateNewWorldContext(EWorldType::Game);
+				Context.OwningGameInstance = GameInstance;
 				Context.SetCurrentWorld(World);
 				FURL URL;
 				World->InitializeActorsForPlay(URL);
@@ -166,6 +174,27 @@ bool FGloamLanternConfirmationIsSingleShotTest::RunTest(const FString& /*Paramet
 		return false;
 	}
 	UGloamsteadPCGSubsystem* PCG = Scope.World->GetSubsystem<UGloamsteadPCGSubsystem>();
+	UGloamsteadDayNightSubsystem* DayNight = Scope.World->GetSubsystem<UGloamsteadDayNightSubsystem>();
+	UGloamsteadExperienceCycleSubsystem* Experience = Scope.GameInstance
+		? Scope.GameInstance->GetSubsystem<UGloamsteadExperienceCycleSubsystem>()
+		: nullptr;
+	if (!TestNotNull(TEXT("world PCG subsystem exists"), PCG)
+		|| !TestNotNull(TEXT("world DayNight plan authority exists"), DayNight)
+		|| !TestNotNull(TEXT("GameInstance experience authority exists"), Experience))
+	{
+		return false;
+	}
+	UExperienceCycleCatalog* CycleCatalog = NewObject<UExperienceCycleCatalog>(Scope.GameInstance);
+	PopulateDefaultExperienceCyclePlans(*CycleCatalog);
+	Experience->Test_SetCatalog(CycleCatalog);
+	TestFalse(TEXT("the locked Tutorial warning is not a rest bypass"), DayNight->PrepareUpcomingCycle());
+	const FExperienceCyclePlan* TutorialPlan = DayNight->GetUpcomingPlan();
+	if (!TestNotNull(TEXT("the exact authored Tutorial plan is armed for the lantern ritual"), TutorialPlan))
+	{
+		return false;
+	}
+	TestEqual(TEXT("the real entry fixture arms Cycle I rather than a generic fallback"),
+		TutorialPlan->PlanId, FName(TEXT("Cycle1_Tutorial")));
 	PCG->Test_SeedPoints({FVector(250.0f, 0.0f, 0.0f)});
 	PCG->Test_SeedPointStates({FRitualPointState()});
 
@@ -175,6 +204,8 @@ bool FGloamLanternConfirmationIsSingleShotTest::RunTest(const FString& /*Paramet
 	Placement->RegisterComponent();
 
 	Placement->EnterPlacementMode();
+	TestEqual(TEXT("the authored Tutorial contract resolves its lantern ritual explicitly"),
+		Placement->GetPlacementRitualType(), ERitualType::LanternPost);
 	TestTrue(TEXT("the seeded lantern point is a valid target"), Placement->IsCurrentPlacementValid());
 	TestTrue(TEXT("the first confirmation restores the lantern"), Placement->ConfirmPlacement());
 	TestTrue(TEXT("the point is restored"), PCG->IsPointRestored(0));

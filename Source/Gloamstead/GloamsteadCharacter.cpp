@@ -190,8 +190,22 @@ FText AGloamsteadCharacter::GetPlayerPromptText() const
 {
 	if (RitualPlacement && RitualPlacement->IsInPlacementMode())
 	{
-		return RitualPlacement->IsCurrentPlacementValid()
-			? NSLOCTEXT("Gloamstead", "PromptConfirmRitual", "[R]  Restore the lantern        [E]  Cancel")
+		const ERitualType RitualType = RitualPlacement->GetPlacementRitualType();
+		if (RitualPlacement->IsCurrentPlacementValid())
+		{
+			switch (RitualType)
+			{
+			case ERitualType::GardenBed:
+				return NSLOCTEXT("Gloamstead", "PromptConfirmGardenBed", "[R]  Tend the garden bed        [E]  Cancel");
+			case ERitualType::LanternPost:
+				return NSLOCTEXT("Gloamstead", "PromptConfirmLantern", "[R]  Restore the lantern        [E]  Cancel");
+			default:
+				return NSLOCTEXT("Gloamstead", "PromptConfirmRitual", "[R]  Complete the restoration        [E]  Cancel");
+			}
+		}
+
+		return RitualType == ERitualType::GardenBed
+			? NSLOCTEXT("Gloamstead", "PromptNoGardenBed", "No garden bed within reach        [E]  Cancel")
 			: NSLOCTEXT("Gloamstead", "PromptNoRitualSite", "No ritual site within reach        [E]  Cancel");
 	}
 

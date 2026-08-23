@@ -97,7 +97,7 @@ bool FGloamExperienceLegacyV1MigratesSafelyTest::RunTest(const FString& /*Parame
     LegacyAuthoredState.ScarTags = { TEXT("garden_spread") };
     LegacyAuthoredState.bFirstRestCompleted = true;
     LegacyAuthoredState.SavedPhaseOrdinal = 3;
-    SaveGame->SetExperienceCycleState(LegacyAuthoredState);
+    SaveGame->Test_SetExperienceCycleState(LegacyAuthoredState);
 
     TestTrue(TEXT("legacy migration succeeds"), SaveGame->MigrateToCurrentVersion());
 
@@ -143,7 +143,7 @@ bool FGloamExperienceCurrentV3RoundTripsTest::RunTest(const FString& /*Parameter
     ExpectedState.SavedPhaseOrdinal = 4;
     ExpectedState.bRequiresLegacyReconciliation = false;
 	ExpectedState.HeartInterpretationState = MakeGardenInterpretationState();
-    SaveGame->SetExperienceCycleState(ExpectedState);
+    SaveGame->Test_SetExperienceCycleState(ExpectedState);
 
     TestTrue(TEXT("current v3 migration succeeds"), SaveGame->MigrateToCurrentVersion());
 
@@ -184,7 +184,7 @@ bool FGloamExperienceV2MigrationClearsInterpretationOnlyTest::RunTest(const FStr
 	ExpectedState.bFirstRestCompleted = true;
 	ExpectedState.SavedPhaseOrdinal = 0;
 	ExpectedState.HeartInterpretationState = MakeGardenInterpretationState();
-	SaveGame->SetExperienceCycleState(ExpectedState);
+	SaveGame->Test_SetExperienceCycleState(ExpectedState);
 
 	TestTrue(TEXT("v2 migration succeeds"), SaveGame->MigrateToCurrentVersion());
 	TestEqual(TEXT("v2 migration advances to v3"), SaveGame->SaveVersion, UGloamsteadSaveGame::CurrentSaveVersion);
@@ -223,7 +223,7 @@ bool FGloamExperiencePCGCaptureRetainsCurrentV3PayloadTest::RunTest(const FStrin
     ExpectedState.SavedPhaseOrdinal = 5;
     ExpectedState.bRequiresLegacyReconciliation = true;
 	ExpectedState.HeartInterpretationState = MakeGardenInterpretationState();
-    SaveGame->SetExperienceCycleState(ExpectedState);
+    SaveGame->Test_SetExperienceCycleState(ExpectedState);
 
     SourceSubsystem->CaptureToSaveGame(SaveGame);
 

@@ -484,7 +484,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 						Heart->HasExactInterpretationForPlan(*CycleTwoAfterBlankRollback));
 					TestTrue(TEXT("valid Cycle II evidence and receipt snapshot saves"),
 						DayNight->SaveProgressionToSlot(InterpretationValidSlot));
-					Heart->ResetInterpretationPersistentState();
+					Heart->Test_ResetInterpretationPersistentState();
 					TestFalse(TEXT("test mutation clears the live receipt before reload"),
 						Heart->HasExactInterpretationForPlan(*CycleTwoAfterBlankRollback));
 					TestTrue(TEXT("fresh valid Cycle II reload succeeds"),
@@ -626,7 +626,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			LegacyState.ArmedPlanId = TEXT("Cycle2_Garden");
 			LegacyState.bFirstRestCompleted = true;
 			LegacyState.SavedPhaseOrdinal = static_cast<int32>(EGloamsteadDayPhase::Day);
-			LegacySave->SetExperienceCycleState(LegacyState);
+			LegacySave->Test_SetExperienceCycleState(LegacyState);
 			TestTrue(TEXT("legacy fixture writes to the isolated slot"), UGameplayStatics::SaveGameToSlot(LegacySave, Slot, 0));
 			TestTrue(TEXT("legacy restore is attempted from an in-progress Dusk phase"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk);
 			const int32 PresentationsBeforeLegacyRejection = SkyPresenter
@@ -658,7 +658,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			MalformedState.ArmedPlanId = TEXT("Cycle2_Garden");
 			MalformedState.bFirstRestCompleted = true;
 			MalformedState.SavedPhaseOrdinal = 99;
-			MalformedSave->SetExperienceCycleState(MalformedState);
+			MalformedSave->Test_SetExperienceCycleState(MalformedState);
 			TestTrue(TEXT("malformed v3 fixture writes to the isolated slot"), UGameplayStatics::SaveGameToSlot(MalformedSave, Slot, 0));
 			DayNight->SetPhase(EGloamsteadDayPhase::Night);
 			TestTrue(TEXT("malformed phase restore is attempted from an in-progress Night"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Night);
@@ -698,7 +698,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			DuskState.ArmedPlanId = TEXT("Cycle2_Garden");
 			DuskState.bFirstRestCompleted = true;
 			DuskState.SavedPhaseOrdinal = static_cast<int32>(EGloamsteadDayPhase::Dusk);
-			DuskSave->SetExperienceCycleState(DuskState);
+			DuskSave->Test_SetExperienceCycleState(DuskState);
 			DuskSave->SaveVersion = 2;
 			TestTrue(TEXT("Dusk fixture writes to the isolated slot"), UGameplayStatics::SaveGameToSlot(DuskSave, Slot, 0));
 			TestFalse(TEXT("test clears the selected runtime consequence before injected Dusk reconciliation"),
@@ -740,7 +740,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			PCG->CaptureToSaveGame(NightSave);
 			FExperienceCyclePersistentState NightState = DuskState;
 			NightState.SavedPhaseOrdinal = static_cast<int32>(EGloamsteadDayPhase::Night);
-			NightSave->SetExperienceCycleState(NightState);
+			NightSave->Test_SetExperienceCycleState(NightState);
 			NightSave->SaveVersion = 2;
 			TestTrue(TEXT("Night fixture writes to the isolated slot"), UGameplayStatics::SaveGameToSlot(NightSave, Slot, 0));
 			TestFalse(TEXT("test keeps the runtime consequence cleared before injected Night reconciliation"),
@@ -769,7 +769,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			DawnState.LastOutcomeResultTag = TEXT("TutorialSheltered");
 			DawnState.bFirstRestCompleted = true;
 			DawnState.SavedPhaseOrdinal = static_cast<int32>(EGloamsteadDayPhase::Dawn);
-			DawnSave->SetExperienceCycleState(DawnState);
+			DawnSave->Test_SetExperienceCycleState(DawnState);
 			TestTrue(TEXT("safe Dawn fixture writes to the isolated slot"), UGameplayStatics::SaveGameToSlot(DawnSave, Slot, 0));
 			DayNight->SetPhase(EGloamsteadDayPhase::Night);
 			const int32 PresentationsBeforeSafeDawnLoad = SkyPresenter
@@ -883,7 +883,7 @@ bool FGloamDelayedHeartInterpretationRestoreWorldTest::RunTest(const FString& /*
 		if (SaveGame)
 		{
 			PCG->CaptureToSaveGame(SaveGame);
-			SaveGame->SetExperienceCycleState(CycleState);
+			SaveGame->Test_SetExperienceCycleState(CycleState);
 			TestTrue(TEXT("v3 delayed-Heart fixture writes"), UGameplayStatics::SaveGameToSlot(SaveGame, Slot, 0));
 			TestTrue(TEXT("v3 fixture loads before any Heart actor exists"), DayNight->LoadProgressionFromSlot(Slot));
 			TestNotNull(TEXT("Cycle II plan is restored while Heart startup is delayed"), DayNight->GetUpcomingPlan());
@@ -1009,7 +1009,7 @@ bool FGloamPlayableCycleResumeQuiescenceWorldTest::RunTest(const FString& /*Para
 			SafeCycleState.LastOutcomeResultTag = FName(TEXT("TutorialSheltered"));
 			SafeCycleState.bFirstRestCompleted = true;
 			SafeCycleState.SavedPhaseOrdinal = static_cast<int32>(EGloamsteadDayPhase::Day);
-			SafeDaySave->SetExperienceCycleState(SafeCycleState);
+			SafeDaySave->Test_SetExperienceCycleState(SafeCycleState);
 			TestTrue(TEXT("safe authored Cycle II Day fixture writes"), UGameplayStatics::SaveGameToSlot(SafeDaySave, SafeDaySlot, 0));
 		}
 

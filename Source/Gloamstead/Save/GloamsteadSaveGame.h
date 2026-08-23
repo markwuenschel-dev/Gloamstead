@@ -6,6 +6,8 @@
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "GloamsteadSaveGame.generated.h"
 
+class UGloamsteadDayNightSubsystem;
+
 /**
  * Vertical-slice save payload for the ritual sanctuary.
  *
@@ -38,10 +40,6 @@ public:
     UPROPERTY()
     int32 SaveVersion = CurrentSaveVersion;
 
-    /** Authored progression facts persisted alongside the existing PCG payload. */
-    UPROPERTY()
-    FExperienceCyclePersistentState ExperienceCycleState;
-
     /**
      * Migrate this payload without consulting world state or selecting authored progression.
      * V1 retains PCG data but enters an explicit reconciliation state. V2 retains
@@ -53,5 +51,24 @@ public:
     bool MigrateToCurrentVersion();
 
     const FExperienceCyclePersistentState& GetExperienceCycleState() const { return ExperienceCycleState; }
+
+#if WITH_DEV_AUTOMATION_TESTS
+    /** Fixture-only writer for migration/load tests. Production writes are DayNight-only. */
+    void Test_SetExperienceCycleState(const FExperienceCyclePersistentState& InState)
+    {
+        SetExperienceCycleState(InState);
+    }
+#endif
+
+private:
+    // A raw cycle payload can include an interpretation receipt. It is never a
+    // generic SaveGame authoring surface: DayNight captures it atomically with
+    // validated PCG/cycle state, while automation gets the macro-gated writer.
+    friend class UGloamsteadDayNightSubsystem;
+
+    /** Authored progression facts persisted alongside the existing PCG payload. */
+    UPROPERTY()
+    FExperienceCyclePersistentState ExperienceCycleState;
+
     void SetExperienceCycleState(const FExperienceCyclePersistentState& InState) { ExperienceCycleState = InState; }
 };

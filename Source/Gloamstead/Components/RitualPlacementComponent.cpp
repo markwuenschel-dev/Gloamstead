@@ -1,4 +1,5 @@
 #include "Components/RitualPlacementComponent.h"
+#include "Actors/GloamsteadRestoredGardenBed.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Systems/GloamsteadDayNightSubsystem.h"
 #include "Systems/GloamsteadSurveySubjectRegistry.h"
@@ -75,8 +76,29 @@ void URitualPlacementComponent::EnterPlacementMode()
         return;
     }
 
+    UWorld* World = GetWorld();
+    UGloamsteadDayNightSubsystem* DayNight = World ? World->GetSubsystem<UGloamsteadDayNightSubsystem>() : nullptr;
+    if (!DayNight)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("RitualPlacementComponent: Cannot enter placement mode - DayNight plan authority is missing."));
+        return;
+    }
+
+    // This can arm an existing exact plan even if its warning presenter is not
+    // ready yet. It deliberately does not use the return value as a ritual
+    // fallback: the only admissible placement mode is the plan that remains
+    // armed afterwards.
+    DayNight->PrepareUpcomingCycle();
+    const FExperienceCyclePlan* Plan = DayNight->GetUpcomingPlan();
+    const ERitualType AuthoredRitualType = Plan ? ResolveAuthoredPlacementRitualType(*Plan) : ERitualType::Invalid;
+    if (AuthoredRitualType == ERitualType::Invalid)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("RitualPlacementComponent: Cannot enter placement mode - no playable authored ritual is armed."));
+        return;
+    }
+
     bIsInPlacementMode = true;
-    CurrentMode = ERitualType::LanternPost;
+    CurrentMode = AuthoredRitualType;
     CurrentTargetPointIndex = -1;
     bHasShownPathPointMessageThisSession = false;
 
@@ -325,17 +347,35 @@ void URitualPlacementComponent::SpawnRestoredActor_Implementation(int32 PointInd
 
     const ERitualType RitualType = static_cast<ERitualType>(
         Subsystem->GetIntAttribute(Point, TEXT("RitualType"), static_cast<int32>(ERitualType::LanternPost)));
-    if (RitualType != ERitualType::LanternPost)
+    UClass* ClassToSpawn = nullptr;
+    FName RestorationActorTag = NAME_None;
+    switch (RitualType)
     {
+    case ERitualType::LanternPost:
+        ClassToSpawn = LanternPostRestoredClass.Get();
+        if (!ClassToSpawn && bUseProjectDefaultLanternPostClass)
+        {
+            ClassToSpawn = StaticLoadClass(AActor::StaticClass(), nullptr,
+                TEXT("/Game/Gloamstead/Restoration/FirstLantern/BP_Restored_LanternPost.BP_Restored_LanternPost_C"));
+        }
+        RestorationActorTag = TEXT("Gloamstead.RestoredLantern");
+        break;
+
+    case ERitualType::GardenBed:
+        ClassToSpawn = GardenBedRestoredClass.Get();
+        if (!ClassToSpawn && bUseProjectDefaultGardenBedClass)
+        {
+            ClassToSpawn = AGloamsteadRestoredGardenBed::StaticClass();
+        }
+        RestorationActorTag = TEXT("Gloamstead.RestoredGarden");
+        break;
+
+    default:
+        UE_LOG(LogTemp, Warning, TEXT("RitualPlacementComponent: ritual type %d has no restored-actor contract."),
+            static_cast<int32>(RitualType));
         return;
     }
 
-    UClass* ClassToSpawn = LanternPostRestoredClass.Get();
-    if (!ClassToSpawn && bUseProjectDefaultLanternPostClass)
-    {
-        ClassToSpawn = StaticLoadClass(AActor::StaticClass(), nullptr,
-            TEXT("/Game/Gloamstead/Restoration/FirstLantern/BP_Restored_LanternPost.BP_Restored_LanternPost_C"));
-    }
     if (!ClassToSpawn)
     {
         return;
@@ -351,7 +391,7 @@ void URitualPlacementComponent::SpawnRestoredActor_Implementation(int32 PointInd
     OutSpawnedActor = World->SpawnActor<AActor>(ClassToSpawn, SpawnLocation, SpawnRotation, Params);
     if (OutSpawnedActor)
     {
-        OutSpawnedActor->Tags.AddUnique(TEXT("Gloamstead.RestoredLantern"));
+        OutSpawnedActor->Tags.AddUnique(RestorationActorTag);
         OutSpawnedActor->Tags.AddUnique(*FString::Printf(TEXT("Gloamstead.RitualPoint.%d"), PointIndex));
     }
 }
@@ -750,6 +790,34 @@ const URitualDefinition* URitualPlacementComponent::GetRitualDefinitionForType(E
         return Found->Get();
     }
     return nullptr;
+}
+
+ERitualType URitualPlacementComponent::ResolveAuthoredPlacementRitualType(const FExperienceCyclePlan& Plan) const
+{
+    if (!Plan.IsAuthoredPlan())
+    {
+        return ERitualType::Invalid;
+    }
+
+    if (Plan.RequiredRitualType != ERitualType::Invalid)
+    {
+        return Plan.RequiredRitualType;
+    }
+
+    // Cycle I's locked authored contract predates RequiredRitualType and
+    // represents its one lantern through the exact LanternPost restoration
+    // tag. This is a narrow interpretation of that canonical plan, not a
+    // generic default: any other authored plan without a ritual type refuses
+    // placement instead of quietly becoming a lantern.
+    if (Plan.Slot == 1
+        && Plan.PlanId == TEXT("Cycle1_Tutorial")
+        && Plan.RequiredRestorationTags.Num() == 1
+        && Plan.RequiredRestorationTags[0] == TEXT("LanternPost"))
+    {
+        return ERitualType::LanternPost;
+    }
+
+    return ERitualType::Invalid;
 }
 
 class UGloamsteadPCGSubsystem* URitualPlacementComponent::GetSubsystem() const

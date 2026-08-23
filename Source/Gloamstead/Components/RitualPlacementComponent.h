@@ -155,6 +155,14 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ritual|Placement", meta=(AdvancedDisplay))
     bool bUseProjectDefaultLanternPostClass = true;
 
+    /** Optional per-character override for the Cycle II garden restoration. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ritual|Placement")
+    TSubclassOf<AActor> GardenBedRestoredClass;
+
+    /** Keep enabled so an authored GardenBed never degrades into an invisible success by default. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ritual|Placement", meta=(AdvancedDisplay))
+    bool bUseProjectDefaultGardenBedClass = true;
+
     UFUNCTION(BlueprintNativeEvent, Category="Ritual|Placement")
     void SpawnRestoredActor(int32 PointIndex, AActor*& OutSpawnedActor);
     virtual void SpawnRestoredActor_Implementation(int32 PointIndex, AActor*& OutSpawnedActor);
@@ -177,6 +185,10 @@ public:
     /** The live ghost, or null when placement mode is closed or no valid target is in range. */
     UFUNCTION(BlueprintPure, Category="Ritual|Placement|Preview")
     AActor* GetActivePreviewActor() const { return ActivePreviewActor.Get(); }
+
+    /** Ritual currently armed from the active authored cycle plan, never a generic fallback. */
+    UFUNCTION(BlueprintPure, Category="Ritual|Placement")
+    ERitualType GetPlacementRitualType() const { return CurrentMode; }
 
 protected:
     void UpdateTargetPoint();
@@ -204,6 +216,9 @@ protected:
 
     const class URitualDefinition* GetRitualDefinitionForType(ERitualType Type) const;
 
+    /** Maps the exact active authored plan to a playable ritual without a generic Lantern fallback. */
+    ERitualType ResolveAuthoredPlacementRitualType(const struct FExperienceCyclePlan& Plan) const;
+
     /** Fill any unassigned RitualDefinitions slot from the DA_Ritual_* assets in /Game/Data.
      *  Editor-assigned entries win; types whose asset fails to load fall back to the RitualTypes.cpp
      *  defaults at payload-build time. */
@@ -227,7 +242,7 @@ private:
     TObjectPtr<class UGloamsteadPCGSubsystem> CachedSubsystem;
 
     int32 CurrentTargetPointIndex = -1;
-    ERitualType CurrentMode = ERitualType::LanternPost;
+    ERitualType CurrentMode = ERitualType::Invalid;
     bool bIsInPlacementMode = false;
 
     /** Weak: the ghost is a world actor and may be destroyed by level teardown out from under us. */
