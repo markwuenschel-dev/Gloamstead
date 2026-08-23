@@ -119,7 +119,10 @@ int32 UNightConsequenceRuntime::ResolveSemanticSubjectToPoint(FName SemanticSubj
 	return ResolvedIndex;
 }
 
-int32 UNightConsequenceRuntime::ResolvePlanTargetToPoint(const FExperienceCyclePlan& Plan, const UGloamsteadPCGSubsystem* PCG) const
+int32 UNightConsequenceRuntime::ResolvePlanTargetToPoint(
+	const FExperienceCyclePlan& Plan,
+	const UGloamsteadPCGSubsystem* PCG,
+	bool bRequireRestored) const
 {
 	if (!PCG || !Plan.IsAuthoredPlan())
 	{
@@ -129,14 +132,15 @@ int32 UNightConsequenceRuntime::ResolvePlanTargetToPoint(const FExperienceCycleP
 	int32 ResolvedIndex = INDEX_NONE;
 	for (int32 PointIndex = 0; PointIndex < PCG->GetRitualPointCount(); ++PointIndex)
 	{
-		if (!PCG->PointMatchesExperiencePlan(PointIndex, Plan))
+		if (!PCG->PointMatchesExperiencePlan(PointIndex, Plan)
+			|| (bRequireRestored && !PCG->IsPointRestored(PointIndex)))
 		{
 			continue;
 		}
 
 		if (ResolvedIndex != INDEX_NONE)
 		{
-			UE_LOG(LogTemp, Error, TEXT("NightRuntime: full authored target contract for %s maps to multiple PCG points; Corruption will remain quiet."),
+			UE_LOG(LogTemp, Error, TEXT("NightRuntime: full authored target contract for %s maps to multiple PCG points; the night will remain quiet."),
 				*Plan.PlanId.ToString());
 			return INDEX_NONE;
 		}
@@ -145,7 +149,7 @@ int32 UNightConsequenceRuntime::ResolvePlanTargetToPoint(const FExperienceCycleP
 
 	if (ResolvedIndex == INDEX_NONE)
 	{
-		UE_LOG(LogTemp, Error, TEXT("NightRuntime: no PCG point satisfies the full authored target contract for %s; Corruption will remain quiet."),
+		UE_LOG(LogTemp, Error, TEXT("NightRuntime: no PCG point satisfies the full authored target contract for %s; the night will remain quiet."),
 			*Plan.PlanId.ToString());
 	}
 	return ResolvedIndex;
@@ -161,10 +165,14 @@ FNightRuntimeContext UNightConsequenceRuntime::BuildContext(UGloamsteadPCGSubsys
 	{
 		Ctx.DuskSnapshot = PCG->BuildSanctuarySnapshot();
 
-		// An authored Corruption plan must name one real place. It may never fall
-		// back to a score-selected bloom: missing/multiple metadata is a visible
-		// fail-closed quiet threat, not a different garden being punished.
-		if (PlannedNightType == ENightConsequenceType::Corruption && ActivePlan)
+		// An authored Corruption or Retrieval plan must name one real place. It
+		// may never fall back to a score-selected target: missing/multiple
+		// metadata is a visible fail-closed quiet threat, not a different garden
+		// being punished. Retrieval additionally requires the place to still be
+		// restored at dusk, because that is what the night is testing.
+		if ((PlannedNightType == ENightConsequenceType::Corruption
+			|| PlannedNightType == ENightConsequenceType::Retrieval)
+			&& ActivePlan)
 		{
 			Ctx.bRequiresExactSemanticTarget = true;
 			Ctx.RequiredWarningId = ActivePlan->WarningId;
@@ -174,18 +182,22 @@ FNightRuntimeContext UNightConsequenceRuntime::BuildContext(UGloamsteadPCGSubsys
 				? ActivePlan->RequiredRestorationTags[0]
 				: NAME_None;
 
-			if (ActivePlan->NightType != ENightConsequenceType::Corruption
+			if (ActivePlan->NightType != PlannedNightType
 				|| Ctx.RequiredWarningId == NAME_None
 				|| Ctx.RequiredSemanticSubject == NAME_None
 				|| Ctx.RequiredRitualType == ERitualType::Invalid
 				|| Ctx.RequiredRestorationTag == NAME_None)
 			{
-				UE_LOG(LogTemp, Error, TEXT("NightRuntime: active authored plan is not a complete Corruption target contract; no substitute bloom will be selected."));
+				UE_LOG(LogTemp, Error, TEXT("NightRuntime: active authored plan is not a complete %s target contract; no substitute target will be selected."),
+					*GetNightConsequenceTypeDisplayName(PlannedNightType));
 				Ctx.TargetPointIndex = INDEX_NONE;
 			}
 			else
 			{
-				Ctx.TargetPointIndex = ResolvePlanTargetToPoint(*ActivePlan, PCG);
+				Ctx.TargetPointIndex = ResolvePlanTargetToPoint(
+					*ActivePlan,
+					PCG,
+					PlannedNightType == ENightConsequenceType::Retrieval);
 			}
 		}
 		else

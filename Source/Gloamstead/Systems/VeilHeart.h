@@ -64,9 +64,10 @@ public:
 	void EmitWarningForNight(ENightConsequenceType NightType);
 
 	/**
-	 * Emits one exact authored warning. The ID must appear exactly once in the
-	 * assigned catalog, its associated type must equal ExpectedNightType, and a
-	 * registered live player-facing presenter must be available.
+	 * Emits one exact authored warning. The (WarningId, night type) pair must
+	 * appear exactly once in the assigned catalog, and a registered live
+	 * player-facing presenter must be available. A warning identity may be
+	 * intentionally reused by another night type.
 	 */
 	UFUNCTION(BlueprintCallable, Category="Veil Heart")
 	bool EmitWarningById(FName WarningId, ENightConsequenceType ExpectedNightType);
@@ -220,6 +221,10 @@ private:
 
 	UPROPERTY()
 	FName LastEmittedWarningId = NAME_None;
+
+	/** In-memory presentation identity; warning IDs may be shared by different authored night types. */
+	FName LastEmittedPlanId = NAME_None;
+	ENightConsequenceType LastEmittedWarningNightType = ENightConsequenceType::Invalid;
 
 	/** Weak identity avoids keeping a torn-down presenter alive across world teardown. */
 	TWeakObjectPtr<UObject> RegisteredWarningPresenter;

@@ -156,6 +156,10 @@ struct GLOAMSTEAD_API FVeilHeartInterpretationPersistentState
 {
 	GENERATED_BODY()
 
+	/** Exact authored plan that presented this warning; warning IDs may be reused across night types. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Experience Cycle|Persistence")
+	FName PresentedPlanId = NAME_None;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Experience Cycle|Persistence")
 	FName PresentedWarningId = NAME_None;
 
@@ -167,13 +171,15 @@ struct GLOAMSTEAD_API FVeilHeartInterpretationPersistentState
 
 	bool HasAnyFacts() const
 	{
-		return PresentedWarningId != NAME_None
+		return PresentedPlanId != NAME_None
+			|| PresentedWarningId != NAME_None
 			|| !EncounteredSupportIds.IsEmpty()
 			|| InterpretationReceipt.HasAnyFacts();
 	}
 
 	void Reset()
 	{
+		PresentedPlanId = NAME_None;
 		PresentedWarningId = NAME_None;
 		EncounteredSupportIds.Reset();
 		InterpretationReceipt = FExperienceInterpretationReceipt();
@@ -192,7 +198,7 @@ public:
 	TArray<FExperienceCyclePlan> AuthoredPlans;
 };
 
-/** Fill the two currently authorized authored rows for development and tests when no asset is assigned. */
+/** Fill the currently authorized authored rows for development and tests when no asset is assigned. */
 GLOAMSTEAD_API void PopulateDefaultExperienceCyclePlans(UExperienceCycleCatalog& Catalog);
 
 /**

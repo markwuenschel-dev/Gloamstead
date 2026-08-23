@@ -56,6 +56,25 @@ void PopulateDefaultExperienceCyclePlans(UExperienceCycleCatalog& Catalog)
 	Garden.OutcomeSummaryKey = TEXT("Cycle2_Garden");
 	Garden.Resolution = EExperiencePlanResolution::Authored;
 	Catalog.AuthoredPlans.Add(Garden);
+
+	FExperienceCyclePlan Retrieval;
+	Retrieval.Slot = 3;
+	Retrieval.PlanId = TEXT("Cycle3_Retrieval");
+	Retrieval.WarningId = TEXT("GardenRot");
+	Retrieval.NightType = ENightConsequenceType::Retrieval;
+	// Retrieval is the second reading of the same place: the night tests what
+	// the player mended rather than inventing a new, unrelated target.
+	Retrieval.SemanticSubject = TEXT("Cycle2_Garden");
+	Retrieval.RequiredRestorationTags = { TEXT("GardenBed") };
+	Retrieval.RequiredRitualType = ERitualType::GardenBed;
+	Retrieval.RequiredSupportIds = Garden.RequiredSupportIds;
+	Retrieval.RequiredSupportChannelTypes = Garden.RequiredSupportChannelTypes;
+	Retrieval.MinimumDistinctSupportCount = 2;
+	Retrieval.InterpretationReceiptId = TEXT("GardenRot.Retrieved");
+	Retrieval.VisualStateKey = TEXT("restoration_level");
+	Retrieval.OutcomeSummaryKey = TEXT("Cycle3_Retrieval");
+	Retrieval.Resolution = EExperiencePlanResolution::Authored;
+	Catalog.AuthoredPlans.Add(Retrieval);
 }
 
 void FExperienceCyclePersistentState::ResetForLegacyReconciliation()

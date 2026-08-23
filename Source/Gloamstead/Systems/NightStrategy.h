@@ -211,4 +211,10 @@ public:
 private:
 	/** The player intervened on the retrieval target itself (restored it) at least once. */
 	bool bSawTargetIntervention = false;
+
+	/** Once pressure reaches this seam, the restoration is visibly reclaimed so the player can re-light it. */
+	UPROPERTY(EditDefaultsOnly, Category = "Night|Retrieval")
+	float RetrievalReclaimThreshold = 0.3f;
+
+	bool bTargetReclaimed = false;
 };

@@ -368,6 +368,43 @@ bool FGloamNightOmenIgnoredTest::RunTest(const FString& /*Parameters*/)
 
 // ===== Retrieval night (Night Types II) =====
 
+// An authored Retrieval plan owns one restored semantic target. The strategy
+// may not silently replace it with the brightest other point, nor start when
+// the named point is no longer restored.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamNightRetrievalHonorsExactAuthoredTargetTest,
+	"Gloamstead.NightRuntime.RetrievalHonorsExactAuthoredTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamNightRetrievalHonorsExactAuthoredTargetTest::RunTest(const FString& /*Parameters*/)
+{
+	UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
+	TArray<FRitualPointState> States = MakeRetrievalStates(/*TargetCorruption*/ 0.1f, /*TargetLight*/ 0.6f);
+	FRitualPointState BrighterRestored;
+	BrighterRestored.bIsRestored = true;
+	BrighterRestored.LightLevel = 0.95f;
+	BrighterRestored.CorruptionLevel = 0.2f;
+	States.Add(BrighterRestored);
+	PCG->Test_SeedPointStates(States);
+
+	FNightRuntimeContext ExactContext = MakeContext(ENightConsequenceType::Retrieval, PCG);
+	ExactContext.bRequiresExactSemanticTarget = true;
+	ExactContext.TargetPointIndex = 0;
+	ExactContext.TargetStartCorruption = PCG->GetCorruptionLevel(0);
+	UNightRetrievalStrategy* Strategy = NewObject<UNightRetrievalStrategy>();
+	Strategy->EnterNight(ExactContext, PCG);
+	TestFalse(TEXT("an exact restored target starts a Retrieval objective"), Strategy->bNoTargetFallback);
+	TestEqual(TEXT("Retrieval keeps the authored target instead of choosing the brighter point"), Strategy->GetObjective().TargetPointIndex, 0);
+
+	ExactContext.TargetPointIndex = 1; // an unrestored neighbor
+	ExactContext.TargetStartCorruption = PCG->GetCorruptionLevel(1);
+	UNightRetrievalStrategy* MissingTargetStrategy = NewObject<UNightRetrievalStrategy>();
+	MissingTargetStrategy->EnterNight(ExactContext, PCG);
+	TestTrue(TEXT("an exact target that is not restored fails closed to the quiet fallback"), MissingTargetStrategy->bNoTargetFallback);
+	TestEqual(TEXT("missing exact target does not substitute another point"), MissingTargetStrategy->GetObjective().TargetPointIndex, -1);
+	return true;
+}
+
 // Retrieval night, player re-stabilizes the reclaimed point -> Success, point stays restored.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FGloamNightRetrievalRepelledTest,
@@ -385,12 +422,11 @@ bool FGloamNightRetrievalRepelledTest::RunTest(const FString& /*Parameters*/)
 	TestEqual(TEXT("retrieval targets the restored point"), Strategy->GetObjective().TargetPointIndex, 0);
 
 	Strategy->ApplyPressureStep(PCG); // the night gnaws at the mended point
+	Strategy->ApplyPressureStep(PCG); // the seam tears open and makes re-lighting actionable
 
-	// Player defends: re-stabilizes the target, clearing the reclaim corruption.
-	// The night's grip takes the flag first (RevertRestoration), then the defender re-lights the point.
-	// ApplyRestoration refuses a point that is still flagged restored (GloamsteadPCGSubsystem.cpp:303-307)
-	// and explicitly allows reclaimed points to be mended again, so this is the shape the guard permits.
-	TestTrue(TEXT("the night's grip clears the restored flag"), PCG->RevertRestoration(0));
+	// Player defends: the night has already taken the flag, then the defender
+	// re-lights the exact point through the normal restoration authority.
+	TestFalse(TEXT("the night's grip clears the restored flag"), PCG->IsPointRestored(0));
 	FRestorationEventPayload Defend = MakeRestore(0, 1.0f);
 	TestTrue(TEXT("re-lighting the reclaimed point is accepted"), PCG->ApplyRestoration(0, Defend));
 	Strategy->NotifyRestoration(Defend, PCG);
@@ -420,9 +456,9 @@ bool FGloamNightRetrievalSeamTest::RunTest(const FString& /*Parameters*/)
 	Strategy->ApplyPressureStep(PCG);
 	Strategy->ApplyPressureStep(PCG); // corruption climbs to ~0.3
 
-	// Partial defense: reduces the reclaim but not below the hold threshold. Same reclaim-then-re-light
-	// shape as the repelled test — ApplyRestoration will not touch a point that is still flagged restored.
-	TestTrue(TEXT("the night's grip clears the restored flag"), PCG->RevertRestoration(0));
+	// Partial defense: the second pressure beat tears the restoration open, so
+	// the normal placement path can re-light the exact reclaimed point.
+	TestFalse(TEXT("the night's grip has already cleared the restored flag"), PCG->IsPointRestored(0));
 	FRestorationEventPayload Partial = MakeRestore(0, 0.15f);
 	TestTrue(TEXT("re-lighting the reclaimed point is accepted"), PCG->ApplyRestoration(0, Partial));
 	Strategy->NotifyRestoration(Partial, PCG);
@@ -453,7 +489,7 @@ bool FGloamNightRetrievalReclaimedTest::RunTest(const FString& /*Parameters*/)
 	Strategy->ApplyPressureStep(PCG);
 	Strategy->ApplyPressureStep(PCG); // no defense — the reclaim completes
 
-	TestTrue(TEXT("the point is restored before the reclaim"), PCG->IsPointRestored(0));
+	TestFalse(TEXT("the point is visibly reclaimed before dawn"), PCG->IsPointRestored(0));
 	const FNightRuntimeOutcome Outcome = Strategy->ResolveNight(PCG);
 	TestFalse(TEXT("reclaimed retrieval is unresolved"), Strategy->IsObjectiveResolved());
 	TestTrue(TEXT("unopposed retrieval is Failure"), Outcome.Result == ENightOutcomeResult::Failure);

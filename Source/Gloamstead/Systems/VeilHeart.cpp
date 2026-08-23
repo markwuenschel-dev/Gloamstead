@@ -182,7 +182,9 @@ bool AVeilHeart::IsExactWarningPresentedForPlan(const FExperienceCyclePlan& Plan
 {
 	return Plan.IsAuthoredPlan()
 		&& Plan.WarningId != NAME_None
+		&& LastEmittedPlanId == Plan.PlanId
 		&& LastEmittedWarningId == Plan.WarningId
+		&& LastEmittedWarningNightType == Plan.NightType
 		&& FindExactWarningById(Plan.WarningId, Plan.NightType) != nullptr;
 }
 
@@ -463,6 +465,7 @@ bool AVeilHeart::EvaluateRestorationAgainstActivePlan(const FRestorationEventPay
 FVeilHeartInterpretationPersistentState AVeilHeart::CaptureInterpretationPersistentState() const
 {
 	FVeilHeartInterpretationPersistentState State;
+	State.PresentedPlanId = LastEmittedPlanId;
 	State.PresentedWarningId = LastEmittedWarningId;
 	State.EncounteredSupportIds = EncounteredSupportIds.Array();
 	State.InterpretationReceipt = LastInterpretationReceipt;
@@ -490,7 +493,9 @@ void AVeilHeart::ResetInterpretationPersistentState()
 {
 	EncounteredSupportIds.Empty();
 	LastInterpretationReceipt = FExperienceInterpretationReceipt();
+	LastEmittedPlanId = NAME_None;
 	LastEmittedWarningId = NAME_None;
+	LastEmittedWarningNightType = ENightConsequenceType::Invalid;
 }
 
 bool AVeilHeart::RestoreInterpretationPersistentState(const FVeilHeartInterpretationPersistentState& State)
@@ -508,6 +513,7 @@ bool AVeilHeart::RestoreInterpretationPersistentState(const FVeilHeartInterpreta
 
 	const FExperienceCyclePlan* ActivePlan = ResolveActivePlan();
 	if (!ActivePlan || !ActivePlan->IsAuthoredPlan()
+		|| State.PresentedPlanId != ActivePlan->PlanId
 		|| State.PresentedWarningId != ActivePlan->WarningId)
 	{
 		return false;
@@ -547,7 +553,9 @@ bool AVeilHeart::RestoreInterpretationPersistentState(const FVeilHeartInterpreta
 		}
 	}
 
+	LastEmittedPlanId = State.PresentedPlanId;
 	LastEmittedWarningId = State.PresentedWarningId;
+	LastEmittedWarningNightType = ActivePlan->NightType;
 	EncounteredSupportIds = MoveTemp(RestoredSupportIds);
 	LastInterpretationReceipt = State.InterpretationReceipt;
 	return true;
@@ -589,13 +597,16 @@ const FVeilHeartWarningFragment* AVeilHeart::FindExactWarningById(FName WarningI
 	const FVeilHeartWarningFragment* ExactWarning = nullptr;
 	for (const FVeilHeartWarningFragment& Candidate : WarningCatalog->Warnings)
 	{
-		if (Candidate.WarningId != WarningId)
+		if (Candidate.WarningId != WarningId || Candidate.AssociatedNightType != ExpectedNightType)
 		{
 			continue;
 		}
 
-		if (ExactWarning || Candidate.AssociatedNightType != ExpectedNightType)
+		if (ExactWarning)
 		{
+			// The same warning identity may intentionally have a different
+			// authored fragment for another night type, but it may not have two
+			// competing fragments for this exact plan contract.
 			return nullptr;
 		}
 		ExactWarning = &Candidate;
@@ -623,15 +634,17 @@ bool AVeilHeart::CanPresentWarningForPlan(const FExperienceCyclePlan& Plan)
 	}
 
 	// The opening tutorial intentionally predates fair-crypticism evidence.
-	// GardenRot is different: its identity alone is not admission; every
-	// canonical subject, ritual, tag, support ID, and distinct medium must agree
+	// Every later authored warning is different: its identity alone is not
+	// admission; subject, ritual, tag, support IDs, and distinct media must agree
 	// with the active plan before the Day authority can make rest available.
-	if (Plan.WarningId == FName(TEXT("GardenRot")))
+	if (!(Plan.NightType == ENightConsequenceType::Tutorial
+		&& Plan.WarningId == FName(TEXT("TutorialLostPath"))))
 	{
 		FString ContractError;
 		if (!ExactWarning->MatchesExactPlanContract(Plan, &ContractError))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("VeilHeart: GardenRot presentation refused because its warning contract is invalid: %s."), *ContractError);
+			UE_LOG(LogTemp, Warning, TEXT("VeilHeart: authored warning %s presentation refused because its contract is invalid: %s."),
+				*Plan.WarningId.ToString(), *ContractError);
 			return false;
 		}
 	}
@@ -648,9 +661,20 @@ bool AVeilHeart::EmitWarningForPlan(const FExperienceCyclePlan& Plan)
 
 	const FVeilHeartWarningFragment* ExactWarning = FindExactWarningById(Plan.WarningId, Plan.NightType);
 	check(ExactWarning);
+	if (LastEmittedPlanId != Plan.PlanId
+		|| LastEmittedWarningId != Plan.WarningId
+		|| LastEmittedWarningNightType != Plan.NightType)
+	{
+		// A new authored plan starts a new interpretation ledger. This matters
+		// when a later night deliberately reuses a warning identity.
+		EncounteredSupportIds.Reset();
+		LastInterpretationReceipt = FExperienceInterpretationReceipt();
+	}
 	UE_LOG(LogTemp, Log, TEXT("VeilHeart: authored Day warning [%s] for night %s."),
 		*ExactWarning->WarningId.ToString(), *GetNightConsequenceTypeDisplayName(Plan.NightType));
+	LastEmittedPlanId = Plan.PlanId;
 	LastEmittedWarningId = ExactWarning->WarningId;
+	LastEmittedWarningNightType = Plan.NightType;
 	OnWarningEmitted(*ExactWarning);
 	OnWarningEmittedDelegate.Broadcast(*ExactWarning);
 	return true;
@@ -662,6 +686,11 @@ void AVeilHeart::EmitWarningForNight(ENightConsequenceType NightType)
 	{
 		UE_LOG(LogTemp, Log, TEXT("VeilHeart: Dusk warning [%s] for night %s"),
 			*Warning->WarningId.ToString(), *GetNightConsequenceTypeDisplayName(NightType));
+		EncounteredSupportIds.Reset();
+		LastInterpretationReceipt = FExperienceInterpretationReceipt();
+		LastEmittedPlanId = NAME_None;
+		LastEmittedWarningId = Warning->WarningId;
+		LastEmittedWarningNightType = NightType;
 		OnWarningEmitted(*Warning);
 		OnWarningEmittedDelegate.Broadcast(*Warning);
 	}
@@ -694,7 +723,11 @@ bool AVeilHeart::EmitWarningById(FName WarningId, ENightConsequenceType Expected
 
 	UE_LOG(LogTemp, Log, TEXT("VeilHeart: Authored Day warning [%s] for night %s."),
 		*ExactWarning->WarningId.ToString(), *GetNightConsequenceTypeDisplayName(ExpectedNightType));
+	EncounteredSupportIds.Reset();
+	LastInterpretationReceipt = FExperienceInterpretationReceipt();
+	LastEmittedPlanId = NAME_None;
 	LastEmittedWarningId = ExactWarning->WarningId;
+	LastEmittedWarningNightType = ExpectedNightType;
 	OnWarningEmitted(*ExactWarning);
 	OnWarningEmittedDelegate.Broadcast(*ExactWarning);
 	return true;

@@ -418,8 +418,25 @@ void UNightRetrievalStrategy::EnterNight_Implementation(const FNightRuntimeConte
 	StartAvgCorruption = SafeAvgCorruption(PCG);
 	bSawTargetIntervention = false;
 	bNoTargetFallback = false;
+	bTargetReclaimed = false;
 
-	const int32 TargetIndex = PCG ? PCG->FindRestoredPointIndex(/*bMostLit*/ true) : -1;
+	int32 TargetIndex = -1;
+	if (PCG)
+	{
+		if (InContext.bRequiresExactSemanticTarget)
+		{
+			// An authored Retrieval plan names the place being tested. A missing
+			// or no-longer-restored target is an honest quiet fallback, never an
+			// invitation to punish a different restored point.
+			TargetIndex = (InContext.TargetPointIndex >= 0 && PCG->IsPointRestored(InContext.TargetPointIndex))
+				? InContext.TargetPointIndex
+				: -1;
+		}
+		else
+		{
+			TargetIndex = PCG->FindRestoredPointIndex(/*bMostLit*/ true);
+		}
+	}
 
 	Objective = FNightObjective();
 	Objective.TargetPointIndex = TargetIndex;
@@ -454,6 +471,18 @@ void UNightRetrievalStrategy::ApplyPressureStep_Implementation(UGloamsteadPCGSub
 	const float NewLevel = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, RetrievalPressureDelta);
 	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Retrieval]: reclaim pressure — point %d now %.2f."),
 		Objective.TargetPointIndex, NewLevel);
+	if (!bTargetReclaimed && NewLevel >= RetrievalReclaimThreshold)
+	{
+		// Make the consequence legible and actionable: once the seam tears open,
+		// the normal placement authority can see the point as unrestored and the
+		// player can deliberately re-light this exact place.
+		bTargetReclaimed = PCG->RevertRestoration(Objective.TargetPointIndex);
+		if (bTargetReclaimed)
+		{
+			UE_LOG(LogTemp, Log, TEXT("NightStrategy[Retrieval]: restoration reclaimed at point %d; re-stabilization is now possible."),
+				Objective.TargetPointIndex);
+		}
+	}
 }
 
 void UNightRetrievalStrategy::NotifyRestoration_Implementation(const FRestorationEventPayload& Payload, UGloamsteadPCGSubsystem* PCG)
@@ -508,7 +537,7 @@ FNightRuntimeOutcome UNightRetrievalStrategy::ResolveNight_Implementation(UGloam
 	else
 	{
 		// Reclaimed: the night takes the point back (fail-forward, no hard game-over).
-		if (PCG && Objective.TargetPointIndex >= 0)
+		if (PCG && Objective.TargetPointIndex >= 0 && !bTargetReclaimed)
 		{
 			PCG->RevertRestoration(Objective.TargetPointIndex);
 		}
