@@ -126,6 +126,7 @@
 - `Source/Gloamstead/Data/RitualTypes.h`
 - `Source/Gloamstead/Systems/VeilHeart.h`
 - `Source/Gloamstead/Systems/VeilHeart.cpp`
+- `Source/Gloamstead/Systems/GloamsteadExperienceCycleSubsystem.cpp`
 - `Source/Gloamstead/Systems/NightConsequenceRuntime.h`
 - `Source/Gloamstead/Systems/NightConsequenceRuntime.cpp`
 - `Source/Gloamstead/Systems/NightStrategy.cpp`
