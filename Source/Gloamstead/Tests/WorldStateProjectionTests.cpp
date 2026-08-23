@@ -184,12 +184,13 @@ bool FGloamWorldStateProjectionMirrorsOnlyExactCycle2GardenTargetTest::RunTest(c
 		Fixture.PCG->RevertRestoration(0));
 	TestEqual(TEXT("a real reclamation immediately projects the exact Cycle II garden back to zero"),
 		Fixture.GetMirroredRestorationLevel(), ExpectedUntouchedRestorationLevel);
-	Fixture.WorldState->SetStateValue(EWorldForgeStateScope::Region, Cycle2GardenRegionId,
-		RestorationLevelKey, ExpectedRestoredRestorationLevel);
+	TestFalse(TEXT("an ordinary native write cannot override the projection's reserved mirror"),
+		Fixture.WorldState->SetStateValue(EWorldForgeStateScope::Region, Cycle2GardenRegionId,
+			RestorationLevelKey, ExpectedRestoredRestorationLevel));
 	TestFalse(TEXT("reclaiming an already-unrestored exact Cycle II garden makes no mutation"),
 		Fixture.PCG->RevertRestoration(0));
-	TestEqual(TEXT("a rejected reclamation does not broadcast a reconstruction or overwrite the generic mirror"),
-		Fixture.GetMirroredRestorationLevel(), ExpectedRestoredRestorationLevel);
+	TestEqual(TEXT("a rejected ordinary write and rejected reclamation preserve the reserved mirror"),
+		Fixture.GetMirroredRestorationLevel(), ExpectedUntouchedRestorationLevel);
 	Fixture.Projection->RebuildFromAuthoritativeState();
 	TestEqual(TEXT("the public projection rebuild still derives zero from the reclaimed authoritative target"),
 		Fixture.GetMirroredRestorationLevel(), ExpectedUntouchedRestorationLevel);
@@ -199,10 +200,11 @@ bool FGloamWorldStateProjectionMirrorsOnlyExactCycle2GardenTargetTest::RunTest(c
 		Fixture.GetMirroredRestorationLevel(), ExpectedRestoredRestorationLevel);
 	const TArray<FRitualPointState> AuthoritativeSnapshotBeforeRebuild = Fixture.PCG->Test_PeekPointStates();
 
-	Fixture.WorldState->SetStateValue(EWorldForgeStateScope::Region, Cycle2GardenRegionId,
-		RestorationLevelKey, ExpectedUntouchedRestorationLevel);
-	TestEqual(TEXT("the test can reset the real WorldForge mirror without changing gameplay"),
-		Fixture.GetMirroredRestorationLevel(), ExpectedUntouchedRestorationLevel);
+	TestFalse(TEXT("an ordinary native write cannot reset the reserved WorldForge mirror"),
+		Fixture.WorldState->SetStateValue(EWorldForgeStateScope::Region, Cycle2GardenRegionId,
+			RestorationLevelKey, ExpectedUntouchedRestorationLevel));
+	TestEqual(TEXT("the rejected ordinary write preserves the restored mirror"),
+		Fixture.GetMirroredRestorationLevel(), ExpectedRestoredRestorationLevel);
 	Fixture.Projection->RebuildFromAuthoritativeState();
 	TestEqual(TEXT("the public rebuild seam restores the mirror from authoritative PCG state"),
 		Fixture.GetMirroredRestorationLevel(), ExpectedRestoredRestorationLevel);
@@ -219,16 +221,27 @@ bool FGloamWorldStateProjectionMirrorsOnlyExactCycle2GardenTargetTest::RunTest(c
 
 	UGloamsteadSaveGame* SavedPCGState = NewObject<UGloamsteadSaveGame>();
 	Fixture.PCG->CaptureToSaveGame(SavedPCGState);
-	Fixture.WorldState->SetStateValue(EWorldForgeStateScope::Region, Cycle2GardenRegionId,
-		RestorationLevelKey, ExpectedUntouchedRestorationLevel);
+	const TSet<int32> RestoredIndicesBeforeReconstruction = Fixture.PCG->GetRestoredPointIndices();
+	TestTrue(TEXT("an authoritative reclamation establishes zero before the versioned load callback"),
+		Fixture.PCG->RevertRestoration(0));
+	TestEqual(TEXT("the authoritative reclamation projects zero before the versioned load callback"),
+		Fixture.GetMirroredRestorationLevel(), ExpectedUntouchedRestorationLevel);
+	TestFalse(TEXT("an ordinary native write remains rejected while load starts from zero"),
+		Fixture.WorldState->SetStateValue(EWorldForgeStateScope::Region, Cycle2GardenRegionId,
+			RestorationLevelKey, ExpectedRestoredRestorationLevel));
 	TestTrue(TEXT("a versioned authoritative PCG load succeeds"), Fixture.PCG->RestoreFromSaveGame(SavedPCGState));
-	TestEqual(TEXT("an authoritative PCG load also rebuilds a reset WorldForge mirror"),
+	TestEqual(TEXT("an authoritative PCG load projects one from the restored snapshot"),
 		Fixture.GetMirroredRestorationLevel(), ExpectedRestoredRestorationLevel);
 
-	Fixture.WorldState->SetStateValue(EWorldForgeStateScope::Region, Cycle2GardenRegionId,
-		RestorationLevelKey, ExpectedUntouchedRestorationLevel);
-	Fixture.PCG->ReapplyRestoredState(Fixture.PCG->GetRestoredPointIndices());
-	TestEqual(TEXT("an authoritative PCG reconstruction also restores a reset WorldForge mirror"),
+	TestTrue(TEXT("an authoritative reclamation establishes zero before the reconstruction callback"),
+		Fixture.PCG->RevertRestoration(0));
+	TestEqual(TEXT("the authoritative reclamation projects zero before the reconstruction callback"),
+		Fixture.GetMirroredRestorationLevel(), ExpectedUntouchedRestorationLevel);
+	TestFalse(TEXT("an ordinary native write remains rejected while reconstruction starts from zero"),
+		Fixture.WorldState->SetStateValue(EWorldForgeStateScope::Region, Cycle2GardenRegionId,
+			RestorationLevelKey, ExpectedRestoredRestorationLevel));
+	Fixture.PCG->ReapplyRestoredState(RestoredIndicesBeforeReconstruction);
+	TestEqual(TEXT("an authoritative PCG reconstruction projects one from the restored-index snapshot"),
 		Fixture.GetMirroredRestorationLevel(), ExpectedRestoredRestorationLevel);
 	TestTrue(TEXT("projection rebuilds never alter the active authored plan"),
 		Fixture.Experience->GetActivePlan().PlanId == ActivePlanBeforeProjection.PlanId
