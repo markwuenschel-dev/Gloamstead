@@ -17,6 +17,7 @@ MODULE = Path(__file__).with_name("compile_cycle2_world.py")
 INTENT = REPO_ROOT / "specs/world/cycle-2-corruption-neglect.world.json"
 SCHEMA = REPO_ROOT / "specs/world/gloamstead_world_spec.schema.json"
 COMPILER = Path(r"D:/Unreal Projects/.worktrees/worldforge-gloamstead-cycle2-factory/tools/pipeline/compile_authored_world.py")
+PARTIAL_COMPILER = Path(__file__).with_name("partial_failure_compiler.py")
 
 
 def run_bridge(intent: Path, schema: Path, compiler: Path | None, output: Path) -> subprocess.CompletedProcess[str]:
@@ -126,16 +127,10 @@ class Cycle2WorldForgeBridgeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             intent, schema, _, _ = self._inputs(root)
-            partial = root / "partial_compiler.py"
-            partial.write_text(
-                "import sys\n"
-                "from pathlib import Path\n"
-                "out = Path(sys.argv[sys.argv.index('--output-root') + 1])\n"
-                "(out / 'manifest.json').write_text('partial', encoding='utf-8')\n"
-                "raise SystemExit(7)\n", encoding="utf-8")
             staged_failure = root / "staged-failure"
-            result = run_bridge(intent, schema, partial, staged_failure)
+            result = run_bridge(intent, schema, PARTIAL_COMPILER, staged_failure)
             self.assertEqual(2, result.returncode, result.stderr)
+            self.assertIn("compiler failed with exit 7", result.stderr)
             self.assertFalse(staged_failure.exists(), "failed compile leaked a partial final output")
 
             first = root / "first"
