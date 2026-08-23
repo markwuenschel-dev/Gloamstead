@@ -243,7 +243,8 @@ bool UGloamsteadDayNightSubsystem::LoadProgressionFromSlot(const FString& SlotNa
 			static_cast<int32>(SavedPhase));
 		CurrentPhase = EGloamsteadDayPhase::Day;
 		NightCount = FMath::Max(0, ReconciledState.CompletedCycleSlot);
-		bFirstRestUnlocked = ReconciledState.bFirstRestCompleted;
+		// The lantern tutorial gate is live-session authority, never save authority.
+		bFirstRestUnlocked = false;
 		bInProgressSaveReconciliation = true;
 		bDuskPlanPrepared = false;
 		PresentedPlanId = NAME_None;
@@ -263,8 +264,10 @@ bool UGloamsteadDayNightSubsystem::LoadProgressionFromSlot(const FString& SlotNa
 		// completed dawn is durable, but that wrap has not happened yet.
 		--NightCount;
 	}
-	bFirstRestUnlocked = CycleState.bFirstRestCompleted
-		|| (CurrentPhase == EGloamsteadDayPhase::Day && CycleState.ArmedPlanId == FName(TEXT("Cycle1_Tutorial")));
+	// The first-rest gate is intentionally ephemeral: a durable armed plan or
+	// prior completed-cycle fact cannot establish that this live tutorial called
+	// UnlockFirstRest(). Later cycles remain restable through NightCount instead.
+	bFirstRestUnlocked = false;
 	bDuskPlanPrepared = false;
 	PresentedPlanId = NAME_None;
 	bWarningPresentationPending = false;

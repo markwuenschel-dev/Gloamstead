@@ -139,7 +139,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 {
 	const FString Slot = TEXT("GloamsteadPlayableCycleRemediation");
+	const FString LanternGateSlot = TEXT("GloamsteadLanternGateReloadRemediation");
 	UGameplayStatics::DeleteGameInSlot(Slot, 0);
+	UGameplayStatics::DeleteGameInSlot(LanternGateSlot, 0);
 
 	// A real game world so dynamic-multicast delegates actually dispatch.
 	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld*/ false);
@@ -207,11 +209,10 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			// The first day belongs to the scripted director; the Heart does not offer rest before its lantern gate.
 			TestFalse(TEXT("no rest on the first day (tutorial gate)"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));
 
-			// Bootstrap can arm this plan before the director's BeginPlay attaches the
-			// external caption listener. A Blueprint event on the Heart alone is not
-			// player-facing proof: Day must retain the exact plan and keep rest closed.
+			// A pre-lantern bootstrap may arm the tutorial plan, but its exact warning
+			// must remain silent. The armed ID is not proof that the lantern gate ran.
 			TestFalse(TEXT("a Heart without a registered warning presenter is not presentation-ready"), Heart->HasValidWarningPresenter());
-			DayNight->UnlockFirstRest();
+			TestFalse(TEXT("pre-lantern preparation keeps the Tutorial warning closed"), DayNight->PrepareUpcomingCycle());
 			const FExperienceCyclePlan* TutorialPlan = DayNight->GetUpcomingPlan();
 			TestNotNull(TEXT("first rest arms a canonical Tutorial plan"), TutorialPlan);
 			if (TutorialPlan)
@@ -219,26 +220,31 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 				TestEqual(TEXT("first rest arms the canonical Tutorial plan"), TutorialPlan->PlanId, FName(TEXT("Cycle1_Tutorial")));
 				TestEqual(TEXT("first rest arms the shipped TutorialLostPath warning"), TutorialPlan->WarningId, FName(TEXT("TutorialLostPath")));
 			}
-			TestTrue(TEXT("Tutorial presentation remains pending until the external presenter binds"), DayNight->IsWarningPresentationPending());
-			TestEqual(TEXT("an internal Heart event alone does not count as presented"), Heart->GetLastEmittedWarningId(), NAME_None);
-			TestFalse(TEXT("rest stays closed while the Tutorial warning is pending"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));
-			TestFalse(TEXT("RequestRest cannot bypass a pending Tutorial warning"), DayNight->RequestRest());
-			DayNight->AdvanceToNextPhase();
-			TestTrue(TEXT("direct Day advance cannot bypass a pending Tutorial warning"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
+			TestEqual(TEXT("pre-lantern preparation emits no Tutorial warning"), Heart->GetLastEmittedWarningId(), NAME_None);
+			TestTrue(TEXT("pre-lantern Day snapshot saves to its isolated slot"), DayNight->SaveProgressionToSlot(LanternGateSlot));
 
-			// This is the unchanged production binding path. The retry sees the
-			// newly bound director and emits the already-armed exact warning once.
+			// A ready production presenter before reload must not turn the saved armed
+			// plan into proof that the lantern tutorial completed.
 			AGloamsteadFirstNightDirector* FirstNightDirector = World->SpawnActor<AGloamsteadFirstNightDirector>();
-			TestNotNull(TEXT("the existing first-night director spawns after bootstrap"), FirstNightDirector);
+			TestNotNull(TEXT("the existing first-night director binds before reload"), FirstNightDirector);
 			TestTrue(TEXT("the first-night director binds as the registered warning presenter"), Heart->HasValidWarningPresenter());
-			World->Tick(LEVELTICK_All, 0.3f);
-			TestFalse(TEXT("listener-late Tutorial presentation clears pending state"), DayNight->IsWarningPresentationPending());
-			TestEqual(TEXT("the Heart emits the shipped TutorialLostPath warning after director binding"), Heart->GetLastEmittedWarningId(), FName(TEXT("TutorialLostPath")));
-			TestTrue(TEXT("the Heart offers rest only after the presented Tutorial warning"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));
+			FExperienceCyclePersistentState ClearedCycle;
+			TestTrue(TEXT("test clears the pre-lantern in-memory plan before isolated reload"), Experience->RestorePersistentState(ClearedCycle));
+			TestTrue(TEXT("v2 pre-lantern Day snapshot reloads from its isolated slot"), DayNight->LoadProgressionFromSlot(LanternGateSlot));
+			TestFalse(TEXT("saved Tutorial plan cannot infer the lantern gate"), DayNight->IsFirstRestUnlocked());
+			TestEqual(TEXT("reload stays in Day before the lantern tutorial event"), DayNight->GetCurrentPhase(), EGloamsteadDayPhase::Day);
+			TestEqual(TEXT("reload still emits no Tutorial warning before the lantern tutorial event"), Heart->GetLastEmittedWarningId(), NAME_None);
+			TestFalse(TEXT("RequestRest remains closed after pre-lantern reload"), DayNight->RequestRest());
+			TestEqual(TEXT("rejected pre-lantern rest leaves the phase in Day"), DayNight->GetCurrentPhase(), EGloamsteadDayPhase::Day);
+
+			DayNight->UnlockFirstRest();
+			TestTrue(TEXT("only the explicit lantern event opens the first-rest gate"), DayNight->IsFirstRestUnlocked());
+			TestEqual(TEXT("explicit lantern event presents the retained Tutorial warning"), Heart->GetLastEmittedWarningId(), FName(TEXT("TutorialLostPath")));
+			TestTrue(TEXT("the Heart offers rest after the explicit lantern event"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));
+			TestTrue(TEXT("RequestRest takes the normal guarded first-rest route"), DayNight->RequestRest());
+			TestTrue(TEXT("guarded first rest advances to Dusk"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk);
 
 			// Run the first night through the exact plan path. Dusk must broadcast Tutorial without score selection.
-			IGloamInteractable::Execute_Interact(Heart, nullptr);
-			TestTrue(TEXT("advanced to Dusk"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk);
 			TestEqual(TEXT("manager received the exact Tutorial plan type"), Manager->GetLastSelectedNightType(), ENightConsequenceType::Tutorial);
 			TestEqual(TEXT("runtime received the manager's exact delegate type"), Runtime->GetPlannedNightType(), ENightConsequenceType::Tutorial);
 			TestFalse(TEXT("the Heart is inert at Dusk"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));
@@ -478,6 +484,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 	GameInstance->Shutdown();
 
 	UGameplayStatics::DeleteGameInSlot(Slot, 0);
+	UGameplayStatics::DeleteGameInSlot(LanternGateSlot, 0);
 	return true;
 }
 
