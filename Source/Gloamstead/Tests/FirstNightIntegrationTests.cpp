@@ -175,22 +175,30 @@ bool FGloamFirstNightSeededLoopToDawnTest::RunTest(const FString& /*Parameters*/
 	TestTrue(TEXT("beat is Dusk"), Director->GetCurrentBeat() == EFirstNightBeat::Dusk);
 	TestEqual(TEXT("dusk cue presented once"), Director->Test_DuskCueCount, 1);
 
-	// Dusk -> Night is cadence-owned by DayNight.
-	DayNight->AdvanceToNextPhase();
+	// The seeded snapshot's generic Corruption selection above is deliberately
+	// not allowed to rewrite Cycle I: the first playable night remains the
+	// authored Tutorial plan. This worldless presentation test cannot supply the
+	// GameInstance-owned authored-plan authority that production Dusk cadence
+	// requires, so force only the phase event through DayNight's documented C++
+	// automation seam. World-backed PlayableCycle tests cover plan preparation
+	// and cadence; this test covers the authored tutorial presentation loop.
+	DayNight->SetPhase(EGloamsteadDayPhase::Night);
 	TestTrue(TEXT("advanced to Night"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Night);
 
-	// The night runtime announces the SELECTED night (the brain's snapshot-driven choice); the director
+	// The first-night director accepts only its authored Tutorial night and then
 	// begins the encroachment beat, scaled by the seeded sanctuary light.
-	Director->HandleNightStarted(SelectedNight);
-	TestTrue(TEXT("observed night type matches the seeded selection"), Director->GetObservedNightType() == SelectedNight);
+	Director->HandleNightStarted(ENightConsequenceType::Tutorial);
+	TestTrue(TEXT("observed night type remains the authored Tutorial plan"),
+		Director->GetObservedNightType() == ENightConsequenceType::Tutorial);
 	TestTrue(TEXT("beat is Night"), Director->GetCurrentBeat() == EFirstNightBeat::Night);
 	TestEqual(TEXT("encroachment presented once"), Director->Test_EncroachmentCount, 1);
 	// ComputeLanternInfluence reads the seeded sanctuary light off the same PCG state.
 	TestEqual(TEXT("lantern influence reflects the seeded sanctuary light"),
 		PCG->GetSanctuaryAverageLightLevel(), SeededLight, KINDA_SMALL_NUMBER);
 
-	// Night completion advances to Dawn and fires the payoff; the loop is complete.
-	DayNight->AdvanceToNextPhase();
+	// Night completion reaches Dawn through the same phase event seam and fires
+	// the payoff; the loop is complete.
+	DayNight->SetPhase(EGloamsteadDayPhase::Dawn);
 	TestTrue(TEXT("advanced to Dawn"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dawn);
 	Director->HandlePhaseChanged(EGloamsteadDayPhase::Night, EGloamsteadDayPhase::Dawn);
 	TestTrue(TEXT("beat is Complete"), Director->GetCurrentBeat() == EFirstNightBeat::Complete);
