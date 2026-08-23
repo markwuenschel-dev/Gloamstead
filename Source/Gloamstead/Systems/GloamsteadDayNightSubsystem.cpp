@@ -39,6 +39,14 @@ const FExperienceCyclePlan* UGloamsteadDayNightSubsystem::GetUpcomingPlan() cons
 
 bool UGloamsteadDayNightSubsystem::PrepareUpcomingCycle()
 {
+	if (bInProgressSaveReconciliation)
+	{
+		// An old in-progress payload has no resumable runtime/base snapshot. It
+		// keeps its PCG aftermath in Day, but this public preparation seam must
+		// not turn the same authored plan into a second pressure application.
+		return false;
+	}
+
 	UGloamsteadExperienceCycleSubsystem* Experience = GetExperienceCycleSubsystem();
 	if (!Experience || !Experience->EnsureUpcomingPlan())
 	{
@@ -107,11 +115,11 @@ bool UGloamsteadDayNightSubsystem::PrepareUpcomingCycle()
 	}
 
 	AVeilHeart* Heart = Cast<AVeilHeart>(Hearts[0]);
-	if (!Heart || !Heart->HasExternalWarningPresenter())
+	if (!Heart || !Heart->HasValidWarningPresenter() || !Heart->HasExactWarningById(Plan.WarningId, Plan.NightType))
 	{
 		if (!bWarningPresentationDeferralLogged)
 		{
-			UE_LOG(LogTemp, Log, TEXT("DayNight: authored plan %s remains armed while the canonical Heart has no external warning presenter."),
+			UE_LOG(LogTemp, Log, TEXT("DayNight: authored plan %s remains armed while the canonical Heart lacks its exact warning or registered live presenter."),
 				*Plan.PlanId.ToString());
 			bWarningPresentationDeferralLogged = true;
 		}
@@ -146,6 +154,16 @@ bool UGloamsteadDayNightSubsystem::SaveProgressionToSlot()
 
 bool UGloamsteadDayNightSubsystem::SaveProgressionToSlot(const FString& SlotName, int32 UserIndex) const
 {
+	// Dusk/Night runtime progress mutates PCG but is not resumable. Refuse the
+	// write before capturing anything so an in-progress pressure snapshot can
+	// never be replayed as a fresh authored consequence.
+	if (CurrentPhase == EGloamsteadDayPhase::Dusk || CurrentPhase == EGloamsteadDayPhase::Night || bInProgressSaveReconciliation)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("DayNight: refusing progression save during in-progress/reconciliation phase %d."),
+			static_cast<int32>(CurrentPhase));
+		return false;
+	}
+
 	UWorld* World = GetWorld();
 	UGloamsteadPCGSubsystem* PCG = World ? World->GetSubsystem<UGloamsteadPCGSubsystem>() : nullptr;
 	UGloamsteadExperienceCycleSubsystem* Experience = GetExperienceCycleSubsystem();
@@ -208,16 +226,36 @@ bool UGloamsteadDayNightSubsystem::LoadProgressionFromSlot(const FString& SlotNa
 	}
 
 	const EGloamsteadDayPhase SavedPhase = static_cast<EGloamsteadDayPhase>(CycleState.SavedPhaseOrdinal);
-	CurrentPhase = SavedPhase;
 	if (SavedPhase == EGloamsteadDayPhase::Dusk || SavedPhase == EGloamsteadDayPhase::Night)
 	{
 		// Runtime timers/objectives/outcome state are intentionally not persisted.
-		// Re-present the exact retained plan from Day rather than stranding a
-		// resumed player in an unprepared in-progress phase.
-		UE_LOG(LogTemp, Log, TEXT("DayNight: normalizing persisted in-progress phase %d to safe Day re-presentation."),
+		// Preserve the PCG snapshot already restored above, but clear the active
+		// consequence instead of replaying its pressure from a fabricated Day.
+		FExperienceCyclePersistentState ReconciledState = CycleState;
+		ReconciledState.ArmedPlanId = NAME_None;
+		if (!Experience->RestorePersistentState(ReconciledState))
+		{
+			ResetToSafeDayReconciliation();
+			return false;
+		}
+
+		UE_LOG(LogTemp, Log, TEXT("DayNight: normalizing persisted in-progress phase %d to Day without replaying its armed consequence."),
 			static_cast<int32>(SavedPhase));
 		CurrentPhase = EGloamsteadDayPhase::Day;
+		NightCount = FMath::Max(0, ReconciledState.CompletedCycleSlot);
+		bFirstRestUnlocked = ReconciledState.bFirstRestCompleted;
+		bInProgressSaveReconciliation = true;
+		bDuskPlanPrepared = false;
+		PresentedPlanId = NAME_None;
+		bWarningPresentationPending = false;
+		PendingPresentationPlanId = NAME_None;
+		bWarningPresentationDeferralLogged = false;
+		ClearWarningPresentationRetry();
+		return true;
 	}
+
+	bInProgressSaveReconciliation = false;
+	CurrentPhase = SavedPhase;
 	NightCount = FMath::Max(0, CycleState.CompletedCycleSlot);
 	if (SavedPhase == EGloamsteadDayPhase::Dawn && NightCount > 0)
 	{
@@ -257,6 +295,7 @@ void UGloamsteadDayNightSubsystem::ResetToSafeDayReconciliation()
 	CurrentPhase = EGloamsteadDayPhase::Day;
 	NightCount = 0;
 	bFirstRestUnlocked = false;
+	bInProgressSaveReconciliation = false;
 	bDuskPlanPrepared = false;
 	PresentedPlanId = NAME_None;
 	bWarningPresentationPending = false;
@@ -316,6 +355,7 @@ void UGloamsteadDayNightSubsystem::Deinitialize()
 {
 	ClearWarningPresentationRetry();
 	bWarningPresentationPending = false;
+	bInProgressSaveReconciliation = false;
 	PendingPresentationPlanId = NAME_None;
 	bWarningPresentationDeferralLogged = false;
 	Super::Deinitialize();
@@ -356,7 +396,7 @@ void UGloamsteadDayNightSubsystem::AdvanceToNextPhase()
 		Next = EGloamsteadDayPhase::Day;
 		break;
 	}
-	SetPhase(Next);
+	ApplyPhaseChange(Next);
 }
 
 bool UGloamsteadDayNightSubsystem::CanAdvanceFromDayToDusk()

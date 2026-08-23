@@ -329,6 +329,10 @@ void AGloamsteadFirstNightDirector::BindDelegates()
 		// The Heart speaks; the director captions. Without these the dusk warning and the dawn
 		// reflection existed only as log lines.
 		Heart->OnWarningEmittedDelegate.AddDynamic(this, &AGloamsteadFirstNightDirector::HandleHeartWarning);
+		if (!Heart->RegisterWarningPresenter(this, GET_FUNCTION_NAME_CHECKED(AGloamsteadFirstNightDirector, HandleHeartWarning)))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("FirstNightDirector '%s': Heart warning presenter registration failed; rest remains safely gated."), *GetName());
+		}
 		Heart->OnDawnReflectionDelegate.AddDynamic(this, &AGloamsteadFirstNightDirector::HandleHeartDawnReflection);
 	}
 
@@ -358,6 +362,7 @@ void AGloamsteadFirstNightDirector::UnbindDelegates()
 	if (AVeilHeart* Heart = CachedHeart.Get())
 	{
 		Heart->OnWarningEmittedDelegate.RemoveDynamic(this, &AGloamsteadFirstNightDirector::HandleHeartWarning);
+		Heart->UnregisterWarningPresenter(this);
 		Heart->OnDawnReflectionDelegate.RemoveDynamic(this, &AGloamsteadFirstNightDirector::HandleHeartDawnReflection);
 	}
 

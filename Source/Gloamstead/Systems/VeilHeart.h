@@ -56,7 +56,8 @@ public:
 
 	/**
 	 * Emits one exact authored warning. The ID must appear exactly once in the
-	 * assigned catalog and its associated type must equal ExpectedNightType.
+	 * assigned catalog, its associated type must equal ExpectedNightType, and a
+	 * registered live player-facing presenter must be available.
 	 */
 	UFUNCTION(BlueprintCallable, Category="Veil Heart")
 	bool EmitWarningById(FName WarningId, ENightConsequenceType ExpectedNightType);
@@ -81,11 +82,16 @@ public:
 	FName GetLastEmittedWarningId() const { return LastEmittedWarningId; }
 
 	/**
-	 * Presentation is player-facing only when a non-Heart consumer has attached
-	 * to the explicit warning delegate (the first-night director owns that role
-	 * in the current slice). Blueprint events on this actor are not readiness.
+	 * Registers the one player-facing warning presenter after it has bound its
+	 * exact dynamic-delegate handler. Blueprint events and incidental observers
+	 * do not satisfy this presentation authority.
 	 */
-	bool HasExternalWarningPresenter() const { return OnWarningEmittedDelegate.IsBound(); }
+	bool RegisterWarningPresenter(UObject* Presenter, FName WarningHandlerFunction);
+	void UnregisterWarningPresenter(UObject* Presenter);
+	bool HasValidWarningPresenter() const;
+
+	/** True only when this Heart owns exactly one matching catalog row. */
+	bool HasExactWarningById(FName WarningId, ENightConsequenceType ExpectedNightType);
 
     UFUNCTION(BlueprintImplementableEvent, Category="Veil Heart")
     void OnWarningEmitted(const FVeilHeartWarningFragment& WarningFragment);
@@ -123,6 +129,7 @@ protected:
 private:
 	/** Lazily loads the assigned catalog for startup-order-safe exact emission. */
 	bool EnsureWarningCatalog();
+	const FVeilHeartWarningFragment* FindExactWarningById(FName WarningId, ENightConsequenceType ExpectedNightType) const;
 
     TSet<FName> SatisfiedWarningTags;
 
@@ -131,4 +138,8 @@ private:
 
 	UPROPERTY()
 	FName LastEmittedWarningId = NAME_None;
+
+	/** Weak identity avoids keeping a torn-down presenter alive across world teardown. */
+	TWeakObjectPtr<UObject> RegisteredWarningPresenter;
+	FName RegisteredWarningPresenterFunction = NAME_None;
 };

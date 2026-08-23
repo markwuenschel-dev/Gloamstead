@@ -105,6 +105,42 @@ bool AVeilHeart::EnsureWarningCatalog()
 	return WarningCatalog != nullptr;
 }
 
+bool AVeilHeart::RegisterWarningPresenter(UObject* Presenter, FName WarningHandlerFunction)
+{
+	if (!IsValid(Presenter) || Presenter == this || WarningHandlerFunction == NAME_None
+		|| !OnWarningEmittedDelegate.Contains(Presenter, WarningHandlerFunction))
+	{
+		return false;
+	}
+
+	if (RegisteredWarningPresenter.IsValid()
+		&& (RegisteredWarningPresenter.Get() != Presenter || RegisteredWarningPresenterFunction != WarningHandlerFunction))
+	{
+		return false;
+	}
+
+	RegisteredWarningPresenter = Presenter;
+	RegisteredWarningPresenterFunction = WarningHandlerFunction;
+	return true;
+}
+
+void AVeilHeart::UnregisterWarningPresenter(UObject* Presenter)
+{
+	if (RegisteredWarningPresenter.Get() == Presenter)
+	{
+		RegisteredWarningPresenter.Reset();
+		RegisteredWarningPresenterFunction = NAME_None;
+	}
+}
+
+bool AVeilHeart::HasValidWarningPresenter() const
+{
+	UObject* Presenter = RegisteredWarningPresenter.Get();
+	return IsValid(Presenter)
+		&& RegisteredWarningPresenterFunction != NAME_None
+		&& OnWarningEmittedDelegate.Contains(Presenter, RegisteredWarningPresenterFunction);
+}
+
 void AVeilHeart::OnRestorationComplete(const FRestorationEventPayload& Payload)
 {
 	UE_LOG(LogTemp, Log, TEXT("VeilHeart: Restoration received - Ritual: %d, LightDelta: %.2f, CorruptionCleared: %.2f, WarningTag: %s"),
@@ -173,6 +209,36 @@ const FVeilHeartWarningFragment* AVeilHeart::FindWarningForNight(ENightConsequen
 	return Best;
 }
 
+const FVeilHeartWarningFragment* AVeilHeart::FindExactWarningById(FName WarningId, ENightConsequenceType ExpectedNightType) const
+{
+	if (!WarningCatalog || WarningId == NAME_None || ExpectedNightType == ENightConsequenceType::Invalid)
+	{
+		return nullptr;
+	}
+
+	const FVeilHeartWarningFragment* ExactWarning = nullptr;
+	for (const FVeilHeartWarningFragment& Candidate : WarningCatalog->Warnings)
+	{
+		if (Candidate.WarningId != WarningId)
+		{
+			continue;
+		}
+
+		if (ExactWarning || Candidate.AssociatedNightType != ExpectedNightType)
+		{
+			return nullptr;
+		}
+		ExactWarning = &Candidate;
+	}
+
+	return ExactWarning;
+}
+
+bool AVeilHeart::HasExactWarningById(FName WarningId, ENightConsequenceType ExpectedNightType)
+{
+	return EnsureWarningCatalog() && FindExactWarningById(WarningId, ExpectedNightType) != nullptr;
+}
+
 void AVeilHeart::EmitWarningForNight(ENightConsequenceType NightType)
 {
 	if (const FVeilHeartWarningFragment* Warning = FindWarningForNight(NightType))
@@ -192,26 +258,12 @@ void AVeilHeart::EmitWarningForNight(ENightConsequenceType NightType)
 
 bool AVeilHeart::EmitWarningById(FName WarningId, ENightConsequenceType ExpectedNightType)
 {
-	if (!EnsureWarningCatalog() || WarningId == NAME_None || ExpectedNightType == ENightConsequenceType::Invalid)
+	if (!HasValidWarningPresenter() || !HasExactWarningById(WarningId, ExpectedNightType))
 	{
 		return false;
 	}
 
-	const FVeilHeartWarningFragment* ExactWarning = nullptr;
-	for (const FVeilHeartWarningFragment& Candidate : WarningCatalog->Warnings)
-	{
-		if (Candidate.WarningId != WarningId)
-		{
-			continue;
-		}
-
-		if (ExactWarning || Candidate.AssociatedNightType != ExpectedNightType)
-		{
-			return false;
-		}
-		ExactWarning = &Candidate;
-	}
-
+	const FVeilHeartWarningFragment* ExactWarning = FindExactWarningById(WarningId, ExpectedNightType);
 	if (!ExactWarning)
 	{
 		return false;

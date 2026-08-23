@@ -3,6 +3,7 @@
 #include "Data/ExperienceCycleTypes.h"
 #include "Data/NightRuntimeTypes.h"
 #include "Data/VeilHeartWarningTypes.h"
+#include "Systems/GloamsteadFirstNightDirector.h"
 #include "Systems/GloamsteadExperienceCycleSubsystem.h"
 #include "Systems/NightConsequenceManager.h"
 #include "Systems/VeilHeart.h"
@@ -118,6 +119,13 @@ bool FGloamExperiencePlanExactWarningAndNightPrepTest::RunTest(const FString& /*
 	WarningCatalog->Warnings.Add(GardenWarning);
 	AVeilHeart* Heart = NewObject<AVeilHeart>();
 	Heart->WarningCatalog = WarningCatalog;
+	AGloamsteadFirstNightDirector* Presenter = NewObject<AGloamsteadFirstNightDirector>();
+	Heart->OnWarningEmittedDelegate.AddDynamic(Presenter, &AGloamsteadFirstNightDirector::HandleHeartWarning);
+	TestFalse(TEXT("an incidental warning observer is not a registered player-facing presenter"), Heart->HasValidWarningPresenter());
+	TestFalse(TEXT("an incidental warning observer cannot emit an exact player-facing warning"), Heart->EmitWarningById(Plan.WarningId, Plan.NightType));
+	TestTrue(TEXT("a live warning binding can register as the designated presenter"),
+		Heart->RegisterWarningPresenter(Presenter, GET_FUNCTION_NAME_CHECKED(AGloamsteadFirstNightDirector, HandleHeartWarning)));
+	TestTrue(TEXT("a registered presenter must retain its exact live warning binding"), Heart->HasValidWarningPresenter());
 	TestTrue(TEXT("the exact Cycle II warning emits"), Heart->EmitWarningById(Plan.WarningId, Plan.NightType));
 	TestEqual(TEXT("the exact Cycle II warning identity is emitted"), Heart->GetLastEmittedWarningId(), Plan.WarningId);
 	TestFalse(TEXT("an absent warning id emits no substitute"), Heart->EmitWarningById(TEXT("AbsentWarning"), Plan.NightType));
@@ -126,6 +134,10 @@ bool FGloamExperiencePlanExactWarningAndNightPrepTest::RunTest(const FString& /*
 
 	WarningCatalog->Warnings.Add(GardenWarning);
 	TestFalse(TEXT("a duplicate warning id emits no substitute"), Heart->EmitWarningById(Plan.WarningId, Plan.NightType));
+
+	Heart->OnWarningEmittedDelegate.RemoveDynamic(Presenter, &AGloamsteadFirstNightDirector::HandleHeartWarning);
+	TestFalse(TEXT("a registered presenter loses readiness when its warning binding is removed"), Heart->HasValidWarningPresenter());
+	Heart->UnregisterWarningPresenter(Presenter);
 
 	UNightConsequenceManager* Manager = NewObject<UNightConsequenceManager>();
 	TestTrue(TEXT("the manager accepts the exact armed authored plan"), Manager->PrepareNightConsequencesForPlan(Plan));

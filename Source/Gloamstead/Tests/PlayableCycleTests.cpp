@@ -210,7 +210,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			// Bootstrap can arm this plan before the director's BeginPlay attaches the
 			// external caption listener. A Blueprint event on the Heart alone is not
 			// player-facing proof: Day must retain the exact plan and keep rest closed.
-			TestFalse(TEXT("a Heart without an external warning presenter is not presentation-ready"), Heart->HasExternalWarningPresenter());
+			TestFalse(TEXT("a Heart without a registered warning presenter is not presentation-ready"), Heart->HasValidWarningPresenter());
 			DayNight->UnlockFirstRest();
 			const FExperienceCyclePlan* TutorialPlan = DayNight->GetUpcomingPlan();
 			TestNotNull(TEXT("first rest arms a canonical Tutorial plan"), TutorialPlan);
@@ -222,6 +222,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			TestTrue(TEXT("Tutorial presentation remains pending until the external presenter binds"), DayNight->IsWarningPresentationPending());
 			TestEqual(TEXT("an internal Heart event alone does not count as presented"), Heart->GetLastEmittedWarningId(), NAME_None);
 			TestFalse(TEXT("rest stays closed while the Tutorial warning is pending"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));
+			TestFalse(TEXT("RequestRest cannot bypass a pending Tutorial warning"), DayNight->RequestRest());
 			DayNight->AdvanceToNextPhase();
 			TestTrue(TEXT("direct Day advance cannot bypass a pending Tutorial warning"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
 
@@ -229,7 +230,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			// newly bound director and emits the already-armed exact warning once.
 			AGloamsteadFirstNightDirector* FirstNightDirector = World->SpawnActor<AGloamsteadFirstNightDirector>();
 			TestNotNull(TEXT("the existing first-night director spawns after bootstrap"), FirstNightDirector);
-			TestTrue(TEXT("the first-night director binds as the external warning presenter"), Heart->HasExternalWarningPresenter());
+			TestTrue(TEXT("the first-night director binds as the registered warning presenter"), Heart->HasValidWarningPresenter());
 			World->Tick(LEVELTICK_All, 0.3f);
 			TestFalse(TEXT("listener-late Tutorial presentation clears pending state"), DayNight->IsWarningPresentationPending());
 			TestEqual(TEXT("the Heart emits the shipped TutorialLostPath warning after director binding"), Heart->GetLastEmittedWarningId(), FName(TEXT("TutorialLostPath")));
@@ -281,6 +282,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 				DuplicateHeart->WarningCatalog = MakeCycleWarningCatalog();
 			}
 			DayNight->SetPhase(EGloamsteadDayPhase::Dusk);
+			TestFalse(TEXT("an in-progress Dusk cannot overwrite the prior safe Day progression snapshot"), DayNight->SaveProgressionToSlot(Slot));
 			FExperienceCyclePersistentState EmptyCycle;
 			TestTrue(TEXT("test can clear the in-memory cycle before reload"), Experience->RestorePersistentState(EmptyCycle));
 			TArray<FRitualPointState> MutatedPCGStates = SavedPCGStates;
@@ -324,8 +326,9 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			if (FirstNightDirector)
 			{
 				Heart->OnWarningEmittedDelegate.RemoveDynamic(FirstNightDirector, &AGloamsteadFirstNightDirector::HandleHeartWarning);
+				Heart->UnregisterWarningPresenter(FirstNightDirector);
 			}
-			TestFalse(TEXT("test detaches the external presenter before a singular resumed load"), Heart->HasExternalWarningPresenter());
+			TestFalse(TEXT("test detaches the registered presenter before a singular resumed load"), Heart->HasValidWarningPresenter());
 			DayNight->SetPhase(EGloamsteadDayPhase::Dusk);
 			TestTrue(TEXT("valid v2 load succeeds with one Heart but no presenter"), DayNight->LoadProgressionFromSlot(Slot));
 			TestTrue(TEXT("one canonical Heart without a presenter remains pending"), DayNight->IsWarningPresentationPending());
@@ -335,8 +338,10 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			if (FirstNightDirector)
 			{
 				Heart->OnWarningEmittedDelegate.AddDynamic(FirstNightDirector, &AGloamsteadFirstNightDirector::HandleHeartWarning);
+				TestTrue(TEXT("the rebound warning delegate re-registers as the player-facing presenter"),
+					Heart->RegisterWarningPresenter(FirstNightDirector, GET_FUNCTION_NAME_CHECKED(AGloamsteadFirstNightDirector, HandleHeartWarning)));
 			}
-			TestTrue(TEXT("the existing first-night director can rebind as the presenter"), Heart->HasExternalWarningPresenter());
+			TestTrue(TEXT("the existing first-night director can rebind as the presenter"), Heart->HasValidWarningPresenter());
 			World->Tick(LEVELTICK_All, 0.3f);
 			TestFalse(TEXT("listener-late Cycle II presentation clears pending state"), DayNight->IsWarningPresentationPending());
 			TestEqual(TEXT("the canonical Heart emits the retained exact GardenRot warning"), Heart->GetLastEmittedWarningId(), FName(TEXT("GardenRot")));
@@ -403,9 +408,17 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			TestFalse(TEXT("unsupported payload rejection clears pending warning presentation"), DayNight->IsWarningPresentationPending());
 			TestFalse(TEXT("unsupported payload rejection closes rest eligibility"), DayNight->CanRestNow());
 
-			// Runtime-resume state is not persisted yet. Dusk and Night snapshots
-			// must re-present the exact armed warning from safe Day rather than leave
-			// an unprepared runtime phase behind.
+			// Runtime-resume state is not persisted. Injected legacy-v2 in-progress
+			// snapshots keep their PCG aftermath but must clear the armed plan rather
+			// than re-present/replay the pressure from a fabricated Day.
+			TArray<FRitualPointState> InjectedPressureStates = PCG->Test_PeekPointStates();
+			if (InjectedPressureStates.IsValidIndex(0))
+			{
+				InjectedPressureStates[0].LightLevel = 0.16f;
+				InjectedPressureStates[0].CorruptionLevel = 0.84f;
+				InjectedPressureStates[0].bIsRestored = false;
+				PCG->Test_SeedPointStates(InjectedPressureStates);
+			}
 			UGloamsteadSaveGame* DuskSave = Cast<UGloamsteadSaveGame>(UGameplayStatics::CreateSaveGameObject(UGloamsteadSaveGame::StaticClass()));
 			PCG->CaptureToSaveGame(DuskSave);
 			FExperienceCyclePersistentState DuskState;
@@ -415,11 +428,26 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			DuskState.SavedPhaseOrdinal = static_cast<int32>(EGloamsteadDayPhase::Dusk);
 			DuskSave->SetExperienceCycleState(DuskState);
 			TestTrue(TEXT("Dusk fixture writes to the isolated slot"), UGameplayStatics::SaveGameToSlot(DuskSave, Slot, 0));
+			TestFalse(TEXT("test clears the selected runtime consequence before injected Dusk reconciliation"),
+				Manager->PrepareNightConsequencesForPlan(FExperienceCyclePlan::MakeInvalid(2)));
+			const FName WarningBeforeDuskLoad = Heart->GetLastEmittedWarningId();
 			DayNight->SetPhase(EGloamsteadDayPhase::Night);
-			TestTrue(TEXT("saved Dusk normalizes to Day re-presentation"), DayNight->LoadProgressionFromSlot(Slot));
+			TestTrue(TEXT("injected v2 Dusk restores PCG then reconciles to Day without replay"), DayNight->LoadProgressionFromSlot(Slot));
 			TestTrue(TEXT("saved Dusk resumes at safe Day"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
-			TestFalse(TEXT("normalized Dusk no longer leaves presentation pending"), DayNight->IsWarningPresentationPending());
-			TestTrue(TEXT("normalized Dusk re-opens rest only after exact Day warning presentation"), DayNight->CanRestNow());
+			TestFalse(TEXT("reconciled Dusk leaves no pending re-presentation"), DayNight->IsWarningPresentationPending());
+			TestTrue(TEXT("reconciled Dusk clears the active authored plan"), Experience->GetActivePlan().IsInvalid());
+			TestEqual(TEXT("reconciled Dusk clears the persisted armed plan"), Experience->CapturePersistentState().ArmedPlanId, NAME_None);
+			TestFalse(TEXT("reconciled Dusk closes rest instead of replaying the consequence"), DayNight->CanRestNow());
+			DayNight->AdvanceToNextPhase();
+			TestTrue(TEXT("reconciled Dusk cannot re-arm or advance into a second consequence"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
+			TestFalse(TEXT("reconciled Dusk cannot persist a fresh Day wrapper around prior pressure"), DayNight->SaveProgressionToSlot(Slot));
+			TestEqual(TEXT("reconciled Dusk does not select a new consequence"), Manager->GetLastSelectedNightType(), ENightConsequenceType::Invalid);
+			TestEqual(TEXT("reconciled Dusk does not re-emit the warning"), Heart->GetLastEmittedWarningId(), WarningBeforeDuskLoad);
+			const TArray<FRitualPointState>& DuskRestoredStates = PCG->Test_PeekPointStates();
+			if (DuskRestoredStates.IsValidIndex(0))
+			{
+				TestTrue(TEXT("reconciled Dusk preserves its already-applied PCG pressure"), FMath::IsNearlyEqual(DuskRestoredStates[0].CorruptionLevel, 0.84f));
+			}
 
 			UGloamsteadSaveGame* NightSave = Cast<UGloamsteadSaveGame>(UGameplayStatics::CreateSaveGameObject(UGloamsteadSaveGame::StaticClass()));
 			PCG->CaptureToSaveGame(NightSave);
@@ -427,11 +455,20 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			NightState.SavedPhaseOrdinal = static_cast<int32>(EGloamsteadDayPhase::Night);
 			NightSave->SetExperienceCycleState(NightState);
 			TestTrue(TEXT("Night fixture writes to the isolated slot"), UGameplayStatics::SaveGameToSlot(NightSave, Slot, 0));
+			TestFalse(TEXT("test keeps the runtime consequence cleared before injected Night reconciliation"),
+				Manager->PrepareNightConsequencesForPlan(FExperienceCyclePlan::MakeInvalid(2)));
+			const FName WarningBeforeNightLoad = Heart->GetLastEmittedWarningId();
 			DayNight->SetPhase(EGloamsteadDayPhase::Dusk);
-			TestTrue(TEXT("saved Night normalizes to Day re-presentation"), DayNight->LoadProgressionFromSlot(Slot));
+			TestTrue(TEXT("injected v2 Night restores PCG then reconciles to Day without replay"), DayNight->LoadProgressionFromSlot(Slot));
 			TestTrue(TEXT("saved Night resumes at safe Day"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
-			TestFalse(TEXT("normalized Night no longer leaves presentation pending"), DayNight->IsWarningPresentationPending());
-			TestTrue(TEXT("normalized Night re-opens rest only after exact Day warning presentation"), DayNight->CanRestNow());
+			TestFalse(TEXT("reconciled Night leaves no pending re-presentation"), DayNight->IsWarningPresentationPending());
+			TestTrue(TEXT("reconciled Night clears the active authored plan"), Experience->GetActivePlan().IsInvalid());
+			TestEqual(TEXT("reconciled Night clears the persisted armed plan"), Experience->CapturePersistentState().ArmedPlanId, NAME_None);
+			TestFalse(TEXT("reconciled Night closes rest instead of replaying the consequence"), DayNight->CanRestNow());
+			DayNight->AdvanceToNextPhase();
+			TestTrue(TEXT("reconciled Night cannot re-arm or advance into a second consequence"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
+			TestEqual(TEXT("reconciled Night does not select a new consequence"), Manager->GetLastSelectedNightType(), ENightConsequenceType::Invalid);
+			TestEqual(TEXT("reconciled Night does not re-emit the warning"), Heart->GetLastEmittedWarningId(), WarningBeforeNightLoad);
 		}
 	}
 

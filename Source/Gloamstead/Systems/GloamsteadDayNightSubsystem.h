@@ -39,10 +39,9 @@ public:
 	void AdvanceToNextPhase();
 
 	/**
-	 * Development/automation forcing seam. Gameplay must use RequestRest or
-	 * AdvanceToNextPhase so the Day warning authority cannot be bypassed.
+	 * C++ automation/internal forcing seam. It is deliberately not reflected to
+	 * Blueprint: gameplay Day->Dusk authority must use the guarded advance path.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "DayNight|Testing", meta = (DevelopmentOnly))
 	void SetPhase(EGloamsteadDayPhase NewPhase);
 
 	/**
@@ -140,6 +139,9 @@ private:
 
 	/** A valid authored plan can outlive Heart/catalog startup ordering. */
 	bool bWarningPresentationPending = false;
+
+	/** An injected legacy-v2 Dusk/Night snapshot may keep PCG aftermath but may never replay its plan. */
+	bool bInProgressSaveReconciliation = false;
 	FName PendingPresentationPlanId = NAME_None;
 	bool bWarningPresentationRetryQueued = false;
 	bool bWarningPresentationDeferralLogged = false;
