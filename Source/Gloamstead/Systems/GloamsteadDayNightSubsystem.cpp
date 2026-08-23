@@ -59,6 +59,68 @@ void UGloamsteadDayNightSubsystem::UnbindCadenceRuntime()
 	}
 }
 
+void UGloamsteadDayNightSubsystem::QueueNightRuntimeStart(UNightConsequenceRuntime* Runtime)
+{
+	ClearQueuedNightRuntimeStart();
+	if (!Runtime || CurrentPhase != EGloamsteadDayPhase::Night || !bDuskPlanPrepared)
+	{
+		return;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		// Night is already authoritative, but players and every phase presenter must
+		// observe that fact before its first pressure beat can ask for Dawn. A timer
+		// keeps the start out of both the Night handler and its phase delegate stack.
+		PendingNightRuntime = Runtime;
+		bNightRuntimeStartQueued = true;
+		World->GetTimerManager().SetTimer(
+			NightRuntimeStartTimer,
+			this,
+			&UGloamsteadDayNightSubsystem::StartNightRuntimeAfterPhasePresentation,
+			KINDA_SMALL_NUMBER,
+			false);
+	}
+}
+
+void UGloamsteadDayNightSubsystem::StartNightRuntimeAfterPhasePresentation()
+{
+	bNightRuntimeStartQueued = false;
+	UNightConsequenceRuntime* Runtime = PendingNightRuntime;
+	PendingNightRuntime = nullptr;
+
+	if (!Runtime || CurrentPhase != EGloamsteadDayPhase::Night || !bDuskPlanPrepared)
+	{
+		return;
+	}
+
+	// An objective may resolve in BeginNight's immediate pressure beat. Keep that
+	// callback queued until BeginNight has returned so its EndNight path cannot
+	// re-enter the runtime and leave a pressure timer behind.
+	bNightRuntimeStartupInProgress = true;
+	Runtime->BeginNight();
+	bNightRuntimeStartupInProgress = false;
+
+	if (CurrentPhase == EGloamsteadDayPhase::Night
+		&& Runtime->IsNightActive()
+		&& !Runtime->HasRequestedEarlyDawn())
+	{
+		ScheduleNightToDawnCadence();
+	}
+
+	DrainQueuedDawnTransition();
+}
+
+void UGloamsteadDayNightSubsystem::ClearQueuedNightRuntimeStart()
+{
+	bNightRuntimeStartQueued = false;
+	PendingNightRuntime = nullptr;
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(NightRuntimeStartTimer);
+	}
+}
+
 void UGloamsteadDayNightSubsystem::ClearDuskToNightCadence()
 {
 	bDuskToNightCadenceScheduled = false;
@@ -113,6 +175,12 @@ void UGloamsteadDayNightSubsystem::ScheduleNightToDawnCadence()
 	{
 		return;
 	}
+	// A live runtime owns the duration only once it has survived its initial
+	// pressure beat. The no-runtime fallback deliberately remains cadence-driven.
+	if (CadenceRuntime && (!CadenceRuntime->IsNightActive() || CadenceRuntime->HasRequestedEarlyDawn()))
+	{
+		return;
+	}
 
 	if (UWorld* World = GetWorld())
 	{
@@ -149,9 +217,39 @@ void UGloamsteadDayNightSubsystem::RequestDawnFromCadence()
 	}
 
 	bDawnTransitionRequested = true;
-	++CadenceDawnRequestCount;
 	ClearNightToDawnCadence();
+	if (PhaseTransitionDepth > 0 || bNightRuntimeStartupInProgress)
+	{
+		// Do not let a synchronous first-pressure completion make Dawn observable
+		// before the complete Dusk -> Night presentation has returned. The same
+		// queue also serializes an early objective raised by a phase listener.
+		bQueuedDawnTransition = true;
+		return;
+	}
+
+	CommitDawnFromCadence();
+}
+
+void UGloamsteadDayNightSubsystem::CommitDawnFromCadence()
+{
+	if (CurrentPhase != EGloamsteadDayPhase::Night || !bDawnTransitionRequested)
+	{
+		return;
+	}
+
+	++CadenceDawnRequestCount;
 	AdvanceToNextPhase();
+}
+
+void UGloamsteadDayNightSubsystem::DrainQueuedDawnTransition()
+{
+	if (!bQueuedDawnTransition || PhaseTransitionDepth > 0 || bNightRuntimeStartupInProgress)
+	{
+		return;
+	}
+
+	bQueuedDawnTransition = false;
+	CommitDawnFromCadence();
 }
 
 const FExperienceCyclePlan* UGloamsteadDayNightSubsystem::GetUpcomingPlan() const
@@ -499,9 +597,12 @@ void UGloamsteadDayNightSubsystem::QuiesceLiveWorldForProgressionRestore()
 	// being replaced: clear the phase authority first, then abort the runtime
 	// without resolving its old strategy or broadcasting an old outcome.
 	ClearCadenceTimers();
+	ClearQueuedNightRuntimeStart();
 	UnbindCadenceRuntime();
 	ClearWarningPresentationRetry();
 	bDawnTransitionRequested = false;
+	bQueuedDawnTransition = false;
+	bNightRuntimeStartupInProgress = false;
 	bDuskPlanPrepared = false;
 
 	if (UWorld* World = GetWorld())
@@ -673,6 +774,7 @@ void UGloamsteadDayNightSubsystem::SetPhase(EGloamsteadDayPhase NewPhase)
 
 void UGloamsteadDayNightSubsystem::ApplyPhaseChange(EGloamsteadDayPhase NewPhase)
 {
+	++PhaseTransitionDepth;
 	const EGloamsteadDayPhase OldPhase = CurrentPhase;
 	CurrentPhase = NewPhase;
 
@@ -696,6 +798,9 @@ void UGloamsteadDayNightSubsystem::ApplyPhaseChange(EGloamsteadDayPhase NewPhase
 	OnPhaseChanged.Broadcast(OldPhase, NewPhase);
 	UE_LOG(LogTemp, Log, TEXT("DayNight: phase %d -> %d (night count=%d)"),
 		static_cast<int32>(OldPhase), static_cast<int32>(NewPhase), NightCount);
+
+	--PhaseTransitionDepth;
+	DrainQueuedDawnTransition();
 }
 
 void UGloamsteadDayNightSubsystem::HandleEnterDay()
@@ -714,8 +819,10 @@ void UGloamsteadDayNightSubsystem::HandleEnterDusk()
 {
 	ClearDuskToNightCadence();
 	ClearNightToDawnCadence();
+	ClearQueuedNightRuntimeStart();
 	UnbindCadenceRuntime();
 	bDawnTransitionRequested = false;
+	bQueuedDawnTransition = false;
 	bDuskPlanPrepared = false;
 	UWorld* World = GetWorld();
 	if (!World)
@@ -756,6 +863,7 @@ void UGloamsteadDayNightSubsystem::HandleEnterNight()
 {
 	ClearDuskToNightCadence();
 	bDawnTransitionRequested = false;
+	bQueuedDawnTransition = false;
 	if (!bDuskPlanPrepared)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("DayNight: Night blocked because Dusk did not prepare an exact authored plan."));
@@ -766,12 +874,11 @@ void UGloamsteadDayNightSubsystem::HandleEnterNight()
 	{
 		if (UNightConsequenceRuntime* Runtime = World->GetSubsystem<UNightConsequenceRuntime>())
 		{
-			// Bind before BeginNight: the initial pressure beat can resolve an
-			// objective synchronously, and that early request must reach the
-			// same one-shot Dawn path as the duration deadline.
+			// Bind before the deferred BeginNight: its first pressure beat can
+			// resolve an objective synchronously, but it must do so only after the
+			// complete Night phase/presentation is observable.
 			BindCadenceRuntime(Runtime);
-			ScheduleNightToDawnCadence();
-			Runtime->BeginNight();
+			QueueNightRuntimeStart(Runtime);
 		}
 		else
 		{
@@ -781,13 +888,16 @@ void UGloamsteadDayNightSubsystem::HandleEnterNight()
 	}
 
 	// Keep a zero-duration authoring value asynchronous when a world exists;
-	// ScheduleNightToDawnCadence uses KINDA_SMALL_NUMBER for that case. Worldless
-	// automation still exercises the same early-objective handler directly.
+	// the deferred runtime start and ScheduleNightToDawnCadence both use
+	// KINDA_SMALL_NUMBER for that case. Worldless automation still exercises the
+	// same early-objective handler directly.
 }
 
 void UGloamsteadDayNightSubsystem::HandleEnterDawn()
 {
 	ClearCadenceTimers();
+	ClearQueuedNightRuntimeStart();
+	bQueuedDawnTransition = false;
 	if (UWorld* World = GetWorld())
 	{
 		// End the night first, then hand its real outcome to dawn reflection.

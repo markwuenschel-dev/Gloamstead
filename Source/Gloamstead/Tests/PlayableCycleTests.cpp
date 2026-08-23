@@ -272,10 +272,14 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			TestEqual(TEXT("manager received the exact Tutorial plan type"), Manager->GetLastSelectedNightType(), ENightConsequenceType::Tutorial);
 			TestEqual(TEXT("runtime received the manager's exact delegate type"), Runtime->GetPlannedNightType(), ENightConsequenceType::Tutorial);
 			TestFalse(TEXT("the Heart is inert at Dusk"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));
-			DayNight->AdvanceToNextPhase(); // Dusk -> Night (BeginNight)
+			DayNight->AdvanceToNextPhase(); // Dusk -> Night (presentation, then deferred BeginNight)
 			TestTrue(TEXT("advanced to Night"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Night);
 			TestFalse(TEXT("entering Night clears the completed Dusk cadence"), DayNight->Test_IsDuskToNightCadenceScheduled());
-			TestTrue(TEXT("DayNight schedules the Night-to-Dawn cadence"), DayNight->Test_IsNightToDawnCadenceScheduled());
+			TestTrue(TEXT("Night presentation queues the runtime start"), DayNight->Test_IsNightRuntimeStartScheduled());
+			TestFalse(TEXT("Night does not arm a duration before its runtime starts"), DayNight->Test_IsNightToDawnCadenceScheduled());
+			World->Tick(LEVELTICK_All, 0.05f);
+			TestTrue(TEXT("the post-presentation runtime start activates the night"), Runtime->IsNightActive());
+			TestTrue(TEXT("DayNight schedules the Night-to-Dawn cadence after runtime start"), DayNight->Test_IsNightToDawnCadenceScheduled());
 			DayNight->AdvanceToNextPhase(); // Night -> Dawn (EndNight + reflection + autosave)
 			TestTrue(TEXT("advanced to Dawn"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dawn);
 			TestFalse(TEXT("entering Dawn clears the Night cadence"), DayNight->Test_IsNightToDawnCadenceScheduled());
@@ -641,6 +645,8 @@ bool FGloamPlayableCycleResumeQuiescenceWorldTest::RunTest(const FString& /*Para
 		TestTrue(TEXT("Cycle II rest reached Dusk before live runtime abort proof"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk);
 		DayNight->AdvanceToNextPhase();
 		TestTrue(TEXT("Cycle II cadence enters Night before live runtime abort proof"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Night);
+		TestTrue(TEXT("Cycle II Night queues its runtime until presentation completes"), DayNight->Test_IsNightRuntimeStartScheduled());
+		World->Tick(LEVELTICK_All, 0.05f);
 		TestTrue(TEXT("old Corruption runtime is active before restore"), Runtime->IsNightActive());
 		TestNotNull(TEXT("old Corruption runtime owns an active strategy before restore"), Runtime->Test_GetActiveStrategy());
 		TestTrue(TEXT("old Corruption runtime scheduled pressure before restore"), Runtime->Test_IsPressureCadenceScheduled());
@@ -684,6 +690,154 @@ bool FGloamPlayableCycleResumeQuiescenceWorldTest::RunTest(const FString& /*Para
 	World->DestroyWorld(false);
 	GameInstance->Shutdown();
 	UGameplayStatics::DeleteGameInSlot(SafeDaySlot, 0);
+	return true;
+}
+
+// A real runtime can resolve during BeginNight's first pressure beat. That
+// synchronous signal must not let Dawn overtake the Night phase event or leave
+// pressure/cadence work behind after the runtime has ended.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamPlayableCycleSynchronousEarlyDawnPresentationTest,
+	"Gloamstead.PlayableCycle.SynchronousEarlyDawnWaitsForNightPresentation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamPlayableCycleSynchronousEarlyDawnPresentationTest::RunTest(const FString& /*Parameters*/)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld*/ false);
+	if (!TestNotNull(TEXT("synchronous-early-dawn live world created"), World))
+	{
+		return false;
+	}
+
+	UGameInstance* GameInstance = NewObject<UGameInstance>(GEngine);
+	GameInstance->Init();
+	World->SetGameInstance(GameInstance);
+	FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
+	WorldContext.OwningGameInstance = GameInstance;
+	WorldContext.SetCurrentWorld(World);
+	FURL URL;
+	World->InitializeActorsForPlay(URL);
+	World->BeginPlay();
+
+	UGloamsteadDayNightSubsystem* DayNight = World->GetSubsystem<UGloamsteadDayNightSubsystem>();
+	UGloamsteadExperienceCycleSubsystem* Experience = GameInstance->GetSubsystem<UGloamsteadExperienceCycleSubsystem>();
+	UGloamsteadPCGSubsystem* PCG = World->GetSubsystem<UGloamsteadPCGSubsystem>();
+	UNightConsequenceManager* Manager = World->GetSubsystem<UNightConsequenceManager>();
+	UNightConsequenceRuntime* Runtime = World->GetSubsystem<UNightConsequenceRuntime>();
+	const bool bSubsystems = DayNight && Experience && PCG && Manager && Runtime;
+	TestTrue(TEXT("synchronous-early-dawn subsystems present"), bSubsystems);
+
+	if (bSubsystems)
+	{
+		DayNight->SetDawnAutosaveEnabled(false);
+		DayNight->DuskToNightDelaySeconds = 60.0f;
+		DayNight->NightDurationSeconds = 60.0f;
+		Runtime->PressureStepSeconds = 0.05f;
+
+		TArray<FRitualPointState> States;
+		for (int32 Index = 0; Index < 3; ++Index)
+		{
+			FRitualPointState State;
+			State.LightLevel = 0.35f;
+			State.CorruptionLevel = (Index == 0) ? 0.60f : 0.10f;
+			State.bIsRestored = false;
+			States.Add(State);
+		}
+		PCG->Test_SeedPointStates(States);
+
+		AVeilHeart* Heart = World->SpawnActor<AVeilHeart>();
+		AGloamsteadSkyPresenter* SkyPresenter = World->SpawnActor<AGloamsteadSkyPresenter>();
+		TestNotNull(TEXT("synchronous-early-dawn Heart spawned"), Heart);
+		TestNotNull(TEXT("synchronous-early-dawn SkyPresenter spawned"), SkyPresenter);
+		if (Heart)
+		{
+			Heart->WarningCatalog = MakeCycleWarningCatalog();
+		}
+
+		AGloamsteadFirstNightDirector* FirstNightDirector = World->SpawnActor<AGloamsteadFirstNightDirector>();
+		TestNotNull(TEXT("synchronous-early-dawn first-night director spawned"), FirstNightDirector);
+		TestTrue(TEXT("the first-night director owns the tutorial presenter"), Heart && Heart->HasValidWarningPresenter());
+
+		FRestorationEventPayload LanternRestore;
+		LanternRestore.RitualType = ERitualType::LanternPost;
+		LanternRestore.WorldLocation = FVector(125.0f, 0.0f, 0.0f);
+		if (FirstNightDirector)
+		{
+			FirstNightDirector->HandleStructureRestored(LanternRestore);
+		}
+		TestTrue(TEXT("the lantern event opens the first guarded rest"), DayNight->IsFirstRestUnlocked());
+		TestTrue(TEXT("the real authored first rest enters Dusk"), DayNight->RequestRest());
+		TestEqual(TEXT("the authored path is in Dusk before forcing early completion"),
+			DayNight->GetCurrentPhase(), EGloamsteadDayPhase::Dusk);
+		TestEqual(TEXT("the manager prepared the exact Tutorial consequence"),
+			Manager->GetLastSelectedNightType(), ENightConsequenceType::Tutorial);
+
+		Runtime->Test_ForceEarlyDawnDuringInitialPressureBeat();
+		DayNight->AdvanceToNextPhase();
+		TestEqual(TEXT("Dusk transition announces Night before runtime startup"),
+			DayNight->GetCurrentPhase(), EGloamsteadDayPhase::Night);
+		TestFalse(TEXT("runtime has not started inside the Night phase callback"), Runtime->IsNightActive());
+		TestTrue(TEXT("runtime start waits for Night presentation"), DayNight->Test_IsNightRuntimeStartScheduled());
+		TestFalse(TEXT("night duration is not armed before the runtime survives its first beat"),
+			DayNight->Test_IsNightToDawnCadenceScheduled());
+
+		if (SkyPresenter)
+		{
+			const TArray<EGloamsteadDayPhase>& BeforeStartupPresentation = SkyPresenter->Test_GetPresentedPhaseHistory();
+			TestEqual(TEXT("the live presenter has seen Dusk then Night before runtime startup"), BeforeStartupPresentation.Num(), 2);
+			if (BeforeStartupPresentation.Num() == 2)
+			{
+				TestEqual(TEXT("presentation event 0 is Dusk"), BeforeStartupPresentation[0], EGloamsteadDayPhase::Dusk);
+				TestEqual(TEXT("presentation event 1 is Night"), BeforeStartupPresentation[1], EGloamsteadDayPhase::Night);
+			}
+		}
+
+		// This starts the real runtime. Its test-only initial-beat hook broadcasts
+		// OnNightShouldEnd synchronously from BeginNight, which DayNight must queue.
+		World->Tick(LEVELTICK_All, 0.05f);
+		TestEqual(TEXT("the queued synchronous completion reaches Dawn"),
+			DayNight->GetCurrentPhase(), EGloamsteadDayPhase::Dawn);
+		TestEqual(TEXT("the synchronous completion requests exactly one Dawn"),
+			DayNight->Test_GetCadenceDawnRequestCount(), 1);
+		TestFalse(TEXT("Dawn leaves no pending runtime startup"), DayNight->Test_IsNightRuntimeStartScheduled());
+		TestFalse(TEXT("Dawn ends the live runtime"), Runtime->IsNightActive());
+		TestFalse(TEXT("an early-completed runtime cannot arm pressure after BeginNight"),
+			Runtime->Test_IsPressureCadenceScheduled());
+		TestFalse(TEXT("an early-completed runtime leaves no pressure actor"), Runtime->Test_HasActivePressureActor());
+		TestFalse(TEXT("Dawn clears the Night-to-Dawn cadence"), DayNight->Test_IsNightToDawnCadenceScheduled());
+
+		if (SkyPresenter)
+		{
+			const TArray<EGloamsteadDayPhase>& PresentationHistory = SkyPresenter->Test_GetPresentedPhaseHistory();
+			TestEqual(TEXT("the sole global presenter received exactly three phase events"), PresentationHistory.Num(), 3);
+			if (PresentationHistory.Num() == 3)
+			{
+				TestEqual(TEXT("presentation event 0 remains Dusk"), PresentationHistory[0], EGloamsteadDayPhase::Dusk);
+				TestEqual(TEXT("presentation event 1 remains Night"), PresentationHistory[1], EGloamsteadDayPhase::Night);
+				TestEqual(TEXT("presentation event 2 is the one queued Dawn"), PresentationHistory[2], EGloamsteadDayPhase::Dawn);
+			}
+		}
+
+		// A later tick must not revive the deferred starter, pressure, duration, or a
+		// second Dawn transition.
+		World->Tick(LEVELTICK_All, 0.10f);
+		TestEqual(TEXT("a later tick remains at the already-reached Dawn"),
+			DayNight->GetCurrentPhase(), EGloamsteadDayPhase::Dawn);
+		TestEqual(TEXT("a later tick cannot request another Dawn"),
+			DayNight->Test_GetCadenceDawnRequestCount(), 1);
+		if (SkyPresenter)
+		{
+			TestEqual(TEXT("a later tick cannot add a stale phase presentation"),
+				SkyPresenter->Test_GetPresentedPhaseHistory().Num(), 3);
+		}
+		TestFalse(TEXT("a later tick cannot restart the runtime"), Runtime->IsNightActive());
+		TestFalse(TEXT("a later tick cannot arm pressure"), Runtime->Test_IsPressureCadenceScheduled());
+		TestFalse(TEXT("a later tick cannot arm a Night duration"), DayNight->Test_IsNightToDawnCadenceScheduled());
+	}
+
+	GEngine->DestroyWorldContext(World);
+	World->DestroyWorld(false);
+	GameInstance->Shutdown();
 	return true;
 }
 

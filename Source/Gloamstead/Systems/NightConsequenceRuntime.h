@@ -57,6 +57,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Night")
 	bool IsNightActive() const { return bNightActive; }
 
+	/** True after an objective has asked the phase authority for an early Dawn this run. */
+	bool HasRequestedEarlyDawn() const { return bEarlyDawnRequested; }
+
 	UFUNCTION(BlueprintPure, Category = "Night")
 	FNightRuntimeOutcome GetLastOutcome() const { return LastOutcome; }
 
@@ -100,6 +103,8 @@ public:
 	bool Test_IsPressureCadenceScheduled() const;
 	/** True when a cosmetic pressure actor from the active night still exists. */
 	bool Test_HasActivePressureActor() const { return !!ActivePressureActor; }
+	/** Forces the next real BeginNight initial pressure beat to request early Dawn synchronously. */
+	void Test_ForceEarlyDawnDuringInitialPressureBeat() { bTestForceEarlyDawnDuringInitialPressureBeat = true; }
 
 protected:
 	UFUNCTION()
@@ -136,6 +141,13 @@ private:
 
 	UPROPERTY()
 	bool bNightActive = false;
+
+	/** Suppresses pressure cadence after an objective already asked the phase authority for Dawn. */
+	bool bEarlyDawnRequested = false;
+	/** True only around BeginNight's synchronous first pressure beat. */
+	bool bInitialPressureBeatInProgress = false;
+	/** Narrow live-regression hook; consumed only during the initial beat above. */
+	bool bTestForceEarlyDawnDuringInitialPressureBeat = false;
 
 	UPROPERTY()
 	TObjectPtr<ANightPressureActor> ActivePressureActor = nullptr;

@@ -119,6 +119,8 @@ public:
 	int32 Test_GetCadenceDawnRequestCount() const { return CadenceDawnRequestCount; }
 	bool Test_IsDuskToNightCadenceScheduled() const { return bDuskToNightCadenceScheduled; }
 	bool Test_IsNightToDawnCadenceScheduled() const { return bNightToDawnCadenceScheduled; }
+	/** True while Night has been announced to presentation but its runtime has not started yet. */
+	bool Test_IsNightRuntimeStartScheduled() const { return bNightRuntimeStartQueued; }
 
 	UPROPERTY(BlueprintAssignable, Category = "DayNight")
 	FOnGloamsteadDayPhaseChanged OnPhaseChanged;
@@ -147,8 +149,14 @@ private:
 	void ClearNightToDawnCadence();
 	void AdvanceFromDuskCadence();
 	void RequestDawnFromCadence();
+	void CommitDawnFromCadence();
+	void DrainQueuedDawnTransition();
 	void BindCadenceRuntime(UNightConsequenceRuntime* InRuntime);
 	void UnbindCadenceRuntime();
+	/** Starts the prepared runtime only after the Night phase event/presentation has completed. */
+	void QueueNightRuntimeStart(UNightConsequenceRuntime* Runtime);
+	void StartNightRuntimeAfterPhasePresentation();
+	void ClearQueuedNightRuntimeStart();
 	class UGloamsteadExperienceCycleSubsystem* GetExperienceCycleSubsystem() const;
 
 	virtual void Deinitialize() override;
@@ -184,12 +192,24 @@ private:
 
 	/** Exactly-one guard shared by deadline and runtime objective completion. */
 	bool bDawnTransitionRequested = false;
+	/** An early-dawn request raised during a phase event/runtime startup waits for that work to settle. */
+	bool bQueuedDawnTransition = false;
+	/** Supports queuing a runtime early-dawn request until the complete phase event is observable. */
+	int32 PhaseTransitionDepth = 0;
+	/** Prevents an early objective raised by BeginNight from re-entering the runtime's own stack. */
+	bool bNightRuntimeStartupInProgress = false;
 	int32 CadenceDawnRequestCount = 0;
 	bool bDuskToNightCadenceScheduled = false;
 	bool bNightToDawnCadenceScheduled = false;
+	bool bNightRuntimeStartQueued = false;
 	FTimerHandle DuskToNightCadenceTimer;
 	FTimerHandle NightToDawnCadenceTimer;
+	FTimerHandle NightRuntimeStartTimer;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UNightConsequenceRuntime> CadenceRuntime;
+
+	/** Keeps the entered Night's runtime alive through its one-frame presentation deferral. */
+	UPROPERTY(Transient)
+	TObjectPtr<UNightConsequenceRuntime> PendingNightRuntime;
 };

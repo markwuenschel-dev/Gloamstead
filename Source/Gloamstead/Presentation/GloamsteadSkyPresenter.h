@@ -107,6 +107,8 @@ public:
 	/** Test seam: how far the blend has run, 0..1. */
 	float Test_GetBlendAlpha() const { return BlendAlpha; }
 	FName Test_GetLastPresentedWarningId() const { return LastPresentedWarningId; }
+	/** Ordered phase events received by this sole global presentation writer. */
+	const TArray<EGloamsteadDayPhase>& Test_GetPresentedPhaseHistory() const { return Test_PresentedPhaseHistory; }
 
 private:
 	void CacheTargets();
@@ -132,6 +134,7 @@ private:
 	TWeakObjectPtr<AVeilHeart> CachedHeart;
 	bool bPostTutorialWarningPresenterBound = false;
 	FName LastPresentedWarningId = NAME_None;
+	TArray<EGloamsteadDayPhase> Test_PresentedPhaseHistory;
 
 	FGloamSkyPreset FromPreset;
 	FGloamSkyPreset ToPreset;

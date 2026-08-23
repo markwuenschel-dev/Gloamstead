@@ -150,6 +150,7 @@ void UNightConsequenceRuntime::BeginNight()
 
 	ActiveNightType = PlannedNightType;
 	bNightActive = true;
+	bEarlyDawnRequested = false;
 	LastOutcome = FNightRuntimeOutcome();
 
 	ActiveContext = BuildContext(PCG);
@@ -168,8 +169,13 @@ void UNightConsequenceRuntime::BeginNight()
 	MaybeSpawnPressureActor(PCG);
 
 	// Immediate first pressure beat, then a repeating cadence for the rest of the night.
+	bInitialPressureBeatInProgress = true;
 	HandlePressureStep();
-	if (World && PressureStepSeconds > 0.f)
+	bInitialPressureBeatInProgress = false;
+	// A synchronous early-dawn callback may have already ended this run (or be
+	// queued by DayNight until this call returns). Never arm pressure after either
+	// state: duration/pressure are valid only for a still-active Night.
+	if (World && PressureStepSeconds > 0.f && bNightActive && !bEarlyDawnRequested)
 	{
 		World->GetTimerManager().SetTimer(PressureTimer, this, &UNightConsequenceRuntime::HandlePressureStep,
 			PressureStepSeconds, /*bLoop*/ true);
@@ -209,6 +215,19 @@ void UNightConsequenceRuntime::HandlePressureStep()
 	UWorld* World = GetWorld();
 	UGloamsteadPCGSubsystem* PCG = World ? World->GetSubsystem<UGloamsteadPCGSubsystem>() : nullptr;
 
+	if (bInitialPressureBeatInProgress && bTestForceEarlyDawnDuringInitialPressureBeat)
+	{
+		bTestForceEarlyDawnDuringInitialPressureBeat = false;
+		bEarlyDawnRequested = true;
+		if (World)
+		{
+			World->GetTimerManager().ClearTimer(PressureTimer);
+		}
+		UE_LOG(LogTemp, Log, TEXT("NightRuntime: test initial pressure beat requesting early dawn."));
+		OnNightShouldEnd.Broadcast();
+		return;
+	}
+
 	// A pressure step can resolve the objective on its own — the tutorial night's shelter check rides
 	// this cadence — so the early-dawn condition is evaluated here as well as on restoration. Without
 	// this the only mid-night resolution path was NotifyRestoration, and objectives the player completes
@@ -218,6 +237,7 @@ void UNightConsequenceRuntime::HandlePressureStep()
 
 	if (!bWasResolved && ActiveStrategy->IsObjectiveResolved())
 	{
+		bEarlyDawnRequested = true;
 		if (World)
 		{
 			World->GetTimerManager().ClearTimer(PressureTimer);
@@ -242,6 +262,7 @@ void UNightConsequenceRuntime::HandleRestorationDuringNight(const FRestorationEv
 
 	if (!bWasResolved && ActiveStrategy->IsObjectiveResolved())
 	{
+		bEarlyDawnRequested = true;
 		// Intentional end condition: the player resolved the objective before dawn.
 		if (World)
 		{
@@ -292,6 +313,9 @@ void UNightConsequenceRuntime::EndNight()
 	DestroyPressureActor();
 
 	bNightActive = false;
+	bEarlyDawnRequested = false;
+	bInitialPressureBeatInProgress = false;
+	bTestForceEarlyDawnDuringInitialPressureBeat = false;
 	ActiveNightType = ENightConsequenceType::Invalid;
 	ActiveStrategy = nullptr;
 }
@@ -312,6 +336,9 @@ void UNightConsequenceRuntime::AbortNightForRestore()
 	OnNightShouldEnd.Clear();
 	DestroyPressureActor();
 	bNightActive = false;
+	bEarlyDawnRequested = false;
+	bInitialPressureBeatInProgress = false;
+	bTestForceEarlyDawnDuringInitialPressureBeat = false;
 	PlannedNightType = ENightConsequenceType::Invalid;
 	ActiveNightType = ENightConsequenceType::Invalid;
 	ActiveStrategy = nullptr;

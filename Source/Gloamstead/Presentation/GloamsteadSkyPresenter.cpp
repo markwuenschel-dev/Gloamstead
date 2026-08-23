@@ -111,6 +111,7 @@ const FGloamSkyPreset& AGloamsteadSkyPresenter::PresetFor(EGloamsteadDayPhase Ph
 void AGloamsteadSkyPresenter::BeginPlay()
 {
 	Super::BeginPlay();
+	Test_PresentedPhaseHistory.Reset();
 	CacheTargets();
 
 	if (UWorld* World = GetWorld())
@@ -148,6 +149,7 @@ void AGloamsteadSkyPresenter::EndPlay(const EEndPlayReason::Type Reason)
 
 void AGloamsteadSkyPresenter::HandlePhaseChanged(EGloamsteadDayPhase /*OldPhase*/, EGloamsteadDayPhase NewPhase)
 {
+	Test_PresentedPhaseHistory.Add(NewPhase);
 	// Blend from where the sky actually is, not from the previous phase's preset: a phase
 	// change mid-blend would otherwise jump backwards before moving on.
 	FromPreset = LerpPreset(FromPreset, ToPreset, BlendAlpha);
