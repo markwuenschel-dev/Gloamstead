@@ -130,6 +130,19 @@ struct GLOAMSTEAD_API FExperienceInterpretationReceipt
 			&& RestorationPointIndex != INDEX_NONE
 			&& SupportIds.Num() > 0;
 	}
+
+	/** Any partially populated receipt is malformed persisted state, not an empty receipt. */
+	bool HasAnyFacts() const
+	{
+		return ReceiptId != NAME_None
+			|| PlanId != NAME_None
+			|| WarningId != NAME_None
+			|| SemanticSubject != NAME_None
+			|| RestorationTag != NAME_None
+			|| RestorationRitualType != ERitualType::Invalid
+			|| RestorationPointIndex != INDEX_NONE
+			|| !SupportIds.IsEmpty();
+	}
 };
 
 /**
@@ -156,7 +169,7 @@ struct GLOAMSTEAD_API FVeilHeartInterpretationPersistentState
 	{
 		return PresentedWarningId != NAME_None
 			|| !EncounteredSupportIds.IsEmpty()
-			|| InterpretationReceipt.IsValid();
+			|| InterpretationReceipt.HasAnyFacts();
 	}
 
 	void Reset()

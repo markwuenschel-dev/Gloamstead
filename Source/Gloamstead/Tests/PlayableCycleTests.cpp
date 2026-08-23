@@ -17,6 +17,8 @@
 #include "Systems/NightConsequenceRuntime.h"
 #include "Systems/VeilHeart.h"
 #include "Actors/GloamsteadEvidenceSource.h"
+#include "Components/RitualPlacementComponent.h"
+#include "Components/GloamsteadSurveySubjectComponent.h"
 #include "Presentation/GloamsteadSkyPresenter.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Save/GloamsteadSaveGame.h"
@@ -32,6 +34,7 @@
 #include "Engine/OverlapResult.h"
 #include "GameFramework/Actor.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/Guid.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -263,6 +266,36 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 		{
 			Heart->WarningCatalog = MakeCycleWarningCatalog();
 			EnsureAutomationActorBegunPlay(Heart);
+			// Cycle II receipt proof must use the same private placement-authority
+			// tail as ConfirmPlacement, rather than calling Blueprint-exposed PCG
+			// mutation directly. Its evidence publisher needs one declared subject.
+			UGloamsteadSurveySubjectComponent* ReceiptEvidenceSubject =
+				NewObject<UGloamsteadSurveySubjectComponent>(Heart);
+			if (ReceiptEvidenceSubject)
+			{
+				ReceiptEvidenceSubject->SubjectId = TEXT("courtyard.lantern.first");
+			}
+			TestTrue(TEXT("the live Heart declares the placement evidence subject"),
+				ReceiptEvidenceSubject && ReceiptEvidenceSubject->RegisterWithRegistry());
+			URitualPlacementComponent* ReceiptPlacement = NewObject<URitualPlacementComponent>(Heart);
+			TestNotNull(TEXT("a private placement authority exists for Cycle II receipt proof"), ReceiptPlacement);
+			auto CommitPlacementAuthorizedGardenRestoration = [World, PCG, ReceiptPlacement](int32 PointIndex, FRestorationEventPayload Payload)
+			{
+				if (!World || !PCG || !ReceiptPlacement)
+				{
+					return false;
+				}
+
+				AActor* RestoredActor = World->SpawnActor<AActor>();
+				if (!RestoredActor)
+				{
+					return false;
+				}
+				Payload.PointIndex = PointIndex;
+				Payload.RestoredActor = RestoredActor;
+				return ReceiptPlacement->Test_CommitRestorationWithEvidence(
+					PCG, PointIndex, Payload, FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphens));
+			};
 			// The sky owns global phase presentation and becomes the generic warning
 			// presenter only after the first-night director has detached at Dawn.
 			AGloamsteadSkyPresenter* SkyPresenter = World->SpawnActor<AGloamsteadSkyPresenter>();
@@ -395,7 +428,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 				if (bCycleTwoHasFullEvidenceContract)
 				{
 					// Save before the player learns the evidence, then create a real
-					// interpretation through the PCG delegate. Reloading the earlier
+					// interpretation through the private placement authority. Reloading the earlier
 					// snapshot must clear that future knowledge rather than leak it across
 					// the rollback.
 					TestTrue(TEXT("the live Cycle II point carries the full authored contract"),
@@ -428,9 +461,9 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 				GardenRestoration.SemanticSubject = CycleTwoBeforeSave->SemanticSubject;
 				GardenRestoration.RitualType = CycleTwoBeforeSave->RequiredRitualType;
 				GardenRestoration.WarningTagSatisfied = CycleTwoBeforeSave->RequiredRestorationTags[0];
-				TestTrue(TEXT("the authoritative Cycle II restoration broadcasts from PCG"),
-					PCG->ApplyRestoration(3, GardenRestoration));
-				TestTrue(TEXT("the live Heart mints the exact receipt only after PCG restoration"),
+				TestTrue(TEXT("the placement-authorized Cycle II restoration completes"),
+					CommitPlacementAuthorizedGardenRestoration(3, GardenRestoration));
+				TestTrue(TEXT("the live Heart mints the exact receipt only after placement-authorized restoration"),
 					Heart->HasExactInterpretationForPlan(*CycleTwoBeforeSave));
 
 				TestTrue(TEXT("loading the earlier blank snapshot succeeds"),
@@ -445,8 +478,8 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 						FirstEvidence && FirstEvidence->ReportEncounter(nullptr));
 					TestTrue(TEXT("second evidence may be learned again through its authored source after rollback"),
 						SecondEvidence && SecondEvidence->ReportEncounter(nullptr));
-					TestTrue(TEXT("the restored PCG target can be mended again after rollback"),
-						PCG->ApplyRestoration(3, GardenRestoration));
+					TestTrue(TEXT("the restored target can be mended again through placement after rollback"),
+						CommitPlacementAuthorizedGardenRestoration(3, GardenRestoration));
 					TestTrue(TEXT("the re-earned receipt is exact before the fresh reload"),
 						Heart->HasExactInterpretationForPlan(*CycleTwoAfterBlankRollback));
 					TestTrue(TEXT("valid Cycle II evidence and receipt snapshot saves"),

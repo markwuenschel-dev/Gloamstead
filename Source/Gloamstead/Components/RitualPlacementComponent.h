@@ -115,18 +115,21 @@ public:
      */
     static const FString GSSRestoredActorMissing;
 
-    // === Test seam (unconditional inline; unused in shipping → the linker emits nothing) ===
+#if WITH_DEV_AUTOMATION_TESTS
+    // === Automation-only test seam ===
     /**
      * Test seam: run the confirm path's restore-then-publish tail against explicit collaborators.
      * This is the SAME function ConfirmPlacement calls, not a parallel copy. Reaching it through
      * ConfirmPlacement needs a preview target, and that needs UGloamsteadPCGSubsystem's spatial grid,
-     * which no public test seam can populate — that, and only that, is why this exists.
+     * which automation-only synthetic metadata supplies. This declaration does
+     * not exist in shipping, so it cannot become a generic placement authority.
      */
     bool Test_CommitRestorationWithEvidence(class UGloamsteadPCGSubsystem* Subsystem, int32 PointIndex,
         const FRestorationEventPayload& Payload, const FString& RequestId)
     {
         return CommitRestorationWithEvidence(Subsystem, PointIndex, Payload, RequestId);
     }
+#endif
 
     // === Events for Blueprint Child ===
     UFUNCTION(BlueprintImplementableEvent, Category="Ritual|Placement")
@@ -193,17 +196,6 @@ protected:
     FRotator CalculateAlignedRotation(const FVector& Location, const FVector& TerrainNormal) const;
 
     /**
-     * The confirm path's tail: apply the restoration and, ONLY if it succeeded, publish request-bound
-     * survey evidence describing it.
-     *
-     * @return whether the RESTORATION succeeded — never whether the evidence was published. Restoration
-     *         is authoritative: a report that could not be written is loud (Error log + the
-     *         GetLastEvidence* getters) but must never roll back gameplay that already happened.
-     */
-    bool CommitRestorationWithEvidence(class UGloamsteadPCGSubsystem* Subsystem, int32 PointIndex,
-        const FRestorationEventPayload& Payload, const FString& RequestId);
-
-    /**
      * Publish one request-bound survey artifact for a restoration that has ALREADY been applied.
      * Reads world state only; it never touches UGloamsteadPCGSubsystem, so it cannot start a second
      * restoration. Records the outcome in the LastEvidence* fields either way.
@@ -223,6 +215,14 @@ protected:
     TMap<ERitualType, TObjectPtr<URitualDefinition>> RitualDefinitions;
 
 private:
+    /**
+     * The only runtime path that may emit PCG's native placement-authorized
+     * completion event. ConfirmPlacement reaches it only after target and
+     * ritual validation; the automation wrapper above disappears from shipping.
+     */
+    bool CommitRestorationWithEvidence(class UGloamsteadPCGSubsystem* Subsystem, int32 PointIndex,
+        const FRestorationEventPayload& Payload, const FString& RequestId);
+
     UPROPERTY()
     TObjectPtr<class UGloamsteadPCGSubsystem> CachedSubsystem;
 

@@ -8,9 +8,19 @@
 #include "GloamsteadPCGSubsystem.generated.h"
 
 class UGloamsteadSaveGame;
+class AVeilHeart;
+class URitualPlacementComponent;
 struct FExperienceCyclePlan;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStructureRestored, const FRestorationEventPayload&, Payload);
+
+/**
+ * Native-only completion notice for a restoration that came through the
+ * Gloamstead placement authority.  It deliberately has no UFUNCTION or
+ * BlueprintAssignable surface: generic PCG callers may restore ordinary
+ * points, but cannot assert that the player performed an authored ritual.
+ */
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnPlacementAuthorizedRestoration, const FRestorationEventPayload&);
 
 USTRUCT()
 struct FRitualPointState
@@ -183,7 +193,11 @@ public:
     UPROPERTY(BlueprintAssignable, Category="PCG|Ritual")
     FOnStructureRestored OnStructureRestored;
 
-    // === Test seam (unconditional inline; unused in shipping → linker emits nothing) ===
+#if WITH_DEV_AUTOMATION_TESTS
+    // === Automation-only synthetic-world seams ===
+    // These declarations intentionally disappear from non-automation builds.
+    // In particular, Test_SetPointContractMetadata is the sole semantic
+    // metadata WRITER and must never become a shipping/Blueprint authoring API.
     /** Test-only seam: install a known synthetic point-state set, bypassing PCG init. */
     void Test_SeedPointStates(const TArray<FRitualPointState>& InStates) { PointStates = InStates; }
     /** Test-only seam: install synthetic LanternPost points with metadata and rebuild the spatial grid. */
@@ -197,6 +211,7 @@ public:
         FName RestorationTag);
     /** Test-only seam: read current point state for assertions. */
     const TArray<FRitualPointState>& Test_PeekPointStates() const { return PointStates; }
+#endif
 
 public:
     /**
@@ -207,6 +222,23 @@ public:
     static const FName FirstLanternAnchorTag;
 
 private:
+    friend class URitualPlacementComponent;
+    friend class AVeilHeart;
+
+    /**
+     * The only issuer of the native interpretation-completion event.  It is
+     * private and callable solely by URitualPlacementComponent after its
+     * restore confirmation succeeds.  Applying a generic PCG mutation must
+     * never call this method.
+     */
+    void EmitPlacementAuthorizedRestoration(const FRestorationEventPayload& Payload)
+    {
+        PlacementAuthorizedRestoration.Broadcast(Payload);
+    }
+
+    /** Only AVeilHeart may subscribe to this private native event. */
+    FOnPlacementAuthorizedRestoration PlacementAuthorizedRestoration;
+
     ERitualType GetRitualTypeFromPoint(const FPCGPoint& Point) const;
 
     /**

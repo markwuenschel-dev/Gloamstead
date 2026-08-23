@@ -5,6 +5,8 @@
 #include "Data/ExperienceCycleTypes.h"
 #include "Data/VeilHeartWarningTypes.h"
 #include "Actors/GloamsteadEvidenceSource.h"
+#include "Components/RitualPlacementComponent.h"
+#include "Components/GloamsteadSurveySubjectComponent.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Systems/GloamsteadFirstNightDirector.h"
 #include "Systems/NightConsequenceRuntime.h"
@@ -13,18 +15,20 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "Misc/Guid.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
 namespace
 {
 	/**
-	 * The receipt route is intentionally a player-world route: PCG broadcasts to
-	 * the one spawned Heart after a point becomes restored. A NewObject'd actor
-	 * can appear bound without receiving that dynamic multicast, which would
-	 * turn the negative fixtures below into a false proof and make the positive
-	 * fixture impossible. Keep this small world scoped so every early test
-	 * return tears it down before the next automation case runs.
+	 * The receipt route is intentionally a player-world route: the ritual
+	 * placement authority emits its private native completion event to the one
+	 * spawned Heart only after the point becomes restored. A NewObject'd Heart
+	 * can appear configured without receiving that world-owned event, which
+	 * would turn the negative fixtures below into a false proof and make the
+	 * positive fixture impossible. Keep this small world scoped so every early
+	 * test return tears it down before the next automation case runs.
 	 */
 	struct FGloamFairCrypticismScopedWorld
 	{
@@ -120,12 +124,38 @@ namespace
 		TObjectPtr<UVeilHeartWarningCatalog> Catalog;
 		TObjectPtr<AVeilHeart> Heart;
 		TObjectPtr<AGloamsteadFirstNightDirector> Presenter;
+		TObjectPtr<URitualPlacementComponent> Placement;
+		TObjectPtr<UGloamsteadSurveySubjectComponent> PlacementEvidenceSubject;
 		TObjectPtr<UGloamsteadPCGSubsystem> PCG;
 		bool bReady = false;
 
 		bool ApplyRestorationAt(int32 PointIndex, const FRestorationEventPayload& Payload) const
 		{
 			return PCG && PCG->ApplyRestoration(PointIndex, Payload);
+		}
+
+		/**
+		 * Automation-only access to the same private confirmation tail that
+		 * ConfirmPlacement uses in a player world.  It is intentionally distinct
+		 * from ApplyRestorationAt: a generic PCG mutation may restore a point but
+		 * has no placement authority to notify the Heart.
+		 */
+		bool CommitPlacementAuthorizedRestorationAt(int32 PointIndex, FRestorationEventPayload Payload) const
+		{
+			if (!LiveWorld.IsValid() || !LiveWorld->World || !Placement || !PCG)
+			{
+				return false;
+			}
+
+			AActor* RestoredActor = LiveWorld->World->SpawnActor<AActor>();
+			if (!RestoredActor)
+			{
+				return false;
+			}
+			Payload.PointIndex = PointIndex;
+			Payload.RestoredActor = RestoredActor;
+			return Placement->Test_CommitRestorationWithEvidence(
+				PCG, PointIndex, Payload, FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphens));
 		}
 
 		bool ReportSupportEncounter(FName WarningId, FName SupportId, FName ChannelType) const
@@ -218,6 +248,23 @@ namespace
 		EnsureGloamFairCrypticismActorBegunPlay(Fixture.Heart);
 		Fixture.Heart->Test_SetActivePlan(Fixture.Plan);
 
+		// The component is owned by a real actor in the same player world so its
+		// evidence tail has the same world/registry context as ConfirmPlacement.
+		AActor* PlacementOwner = Fixture.LiveWorld->World->SpawnActor<AActor>();
+		Fixture.Placement = PlacementOwner ? NewObject<URitualPlacementComponent>(PlacementOwner) : nullptr;
+		Fixture.PlacementEvidenceSubject = PlacementOwner
+			? NewObject<UGloamsteadSurveySubjectComponent>(PlacementOwner)
+			: nullptr;
+		if (!Fixture.Placement || !Fixture.PlacementEvidenceSubject)
+		{
+			return Fixture;
+		}
+		Fixture.PlacementEvidenceSubject->SubjectId = TEXT("courtyard.lantern.first");
+		if (!Fixture.PlacementEvidenceSubject->RegisterWithRegistry())
+		{
+			return Fixture;
+		}
+
 		Fixture.Presenter = Fixture.LiveWorld->World->SpawnActorDeferred<AGloamsteadFirstNightDirector>(
 			AGloamsteadFirstNightDirector::StaticClass(), FTransform::Identity);
 		if (!Fixture.Presenter)
@@ -293,6 +340,10 @@ bool FGloamFairCrypticismRequiresDistinctKnownSupportsTest::RunTest(const FStrin
 		Fixture.Heart->FindFunction(TEXT("RecordSupportEncounter")));
 	TestNull(TEXT("the raw restoration receipt evaluator is not Blueprint-reflected"),
 		Fixture.Heart->FindFunction(TEXT("EvaluateRestorationAgainstActivePlan")));
+	TestNull(TEXT("automation-only PCG semantic metadata writer is never Blueprint-reflected"),
+		Fixture.PCG->FindFunction(TEXT("Test_SetPointContractMetadata")));
+	TestNull(TEXT("automation-only placement confirmation seam is never Blueprint-reflected"),
+		Fixture.Placement->FindFunction(TEXT("Test_CommitRestorationWithEvidence")));
 	return true;
 }
 
@@ -352,9 +403,23 @@ bool FGloamFairCrypticismExactWarningAndRestorationTest::RunTest(const FString& 
 		Fixture.Heart->HasExactInterpretationForPlan(Fixture.Plan));
 
 	const FRestorationEventPayload ExactRestoration = MakeExactGardenRestoration(Fixture.Plan);
-	TestTrue(TEXT("the authoritative matching garden PCG point restores"),
+	TestTrue(TEXT("a direct Blueprint-equivalent call can still restore the authoritative matching garden PCG point"),
 		Fixture.ApplyRestorationAt(0, ExactRestoration));
-	TestTrue(TEXT("two exact supports plus the exact GardenBed restoration earn a receipt"),
+	TestFalse(TEXT("a direct Blueprint PCG restoration never mints a Cycle II interpretation receipt"),
+		Fixture.Heart->HasExactInterpretationForPlan(Fixture.Plan));
+
+	if (!TestTrue(TEXT("fresh player-world fixture can reset after the hostile generic-PCG route"),
+		Fixture.ResetForAnotherSupportScenario()))
+	{
+		return false;
+	}
+	TestTrue(TEXT("first exact support is recorded for the placement-authorized route"),
+		Fixture.ReportSupportEncounter(Fixture.Plan.WarningId, Fixture.Plan.RequiredSupportIds[0], Fixture.Plan.RequiredSupportChannelTypes[0]));
+	TestTrue(TEXT("second exact support is recorded for the placement-authorized route"),
+		Fixture.ReportSupportEncounter(Fixture.Plan.WarningId, Fixture.Plan.RequiredSupportIds[1], Fixture.Plan.RequiredSupportChannelTypes[1]));
+	TestTrue(TEXT("the private placement confirmation route restores the exact GardenBed point"),
+		Fixture.CommitPlacementAuthorizedRestorationAt(0, ExactRestoration));
+	TestTrue(TEXT("two exact supports plus a placement-authorized GardenBed restoration earn a receipt"),
 		Fixture.Heart->HasExactInterpretationForPlan(Fixture.Plan));
 	const FExperienceInterpretationReceipt Receipt = Fixture.Heart->GetLastInterpretationReceipt();
 	TestTrue(TEXT("the exact receipt is concrete"), Receipt.IsValid());
@@ -363,6 +428,88 @@ bool FGloamFairCrypticismExactWarningAndRestorationTest::RunTest(const FString& 
 	TestEqual(TEXT("the receipt retains the stable garden subject"), Receipt.SemanticSubject, Fixture.Plan.SemanticSubject);
 	TestEqual(TEXT("the receipt retains GardenBed ritual semantics"), Receipt.RestorationRitualType, ERitualType::GardenBed);
 	TestTrue(TEXT("the Heart recognizes its exact active-plan receipt"), Fixture.Heart->HasExactInterpretationForPlan(Fixture.Plan));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamFairCrypticismV3ReceiptRestoreRequiresExactEncounterSetTest,
+	"Gloamstead.FairCrypticism.Persistence.V3ReceiptRequiresExactEncounterSet",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamFairCrypticismV3ReceiptRestoreRequiresExactEncounterSetTest::RunTest(const FString& /*Parameters*/)
+{
+	FHeartFixture Fixture = MakeHeartFixture();
+	if (!TestTrue(TEXT("fixture presents the exact GardenRot warning for persisted-state validation"), Fixture.bReady))
+	{
+		return false;
+	}
+
+	// The crafted v3 state is otherwise an exact GardenRot proof: the plan,
+	// warning, ritual, tag, and restored PCG target all agree. Only the receipt
+	// claims a second support the persisted encounter set never recorded.
+	TArray<FRitualPointState> States;
+	States.SetNum(5);
+	States[0].bIsRestored = true;
+	Fixture.PCG->Test_SeedPointStates(States);
+
+	FVeilHeartInterpretationPersistentState CraftedState;
+	CraftedState.PresentedWarningId = Fixture.Plan.WarningId;
+	CraftedState.EncounteredSupportIds = { Fixture.Plan.RequiredSupportIds[0] };
+	FExperienceInterpretationReceipt& CraftedReceipt = CraftedState.InterpretationReceipt;
+	CraftedReceipt.ReceiptId = Fixture.Plan.InterpretationReceiptId;
+	CraftedReceipt.PlanId = Fixture.Plan.PlanId;
+	CraftedReceipt.WarningId = Fixture.Plan.WarningId;
+	CraftedReceipt.SemanticSubject = Fixture.Plan.SemanticSubject;
+	CraftedReceipt.RestorationTag = Fixture.Plan.RequiredRestorationTags[0];
+	CraftedReceipt.RestorationRitualType = Fixture.Plan.RequiredRitualType;
+	CraftedReceipt.RestorationPointIndex = 0;
+	CraftedReceipt.SupportIds = { Fixture.Plan.RequiredSupportIds[0], Fixture.Plan.RequiredSupportIds[1] };
+
+	TestFalse(TEXT("a v3 receipt whose support set is a forged superset is rejected atomically"),
+		Fixture.Heart->RestoreInterpretationPersistentState(CraftedState));
+	TestEqual(TEXT("failed v3 restore leaves no presented warning resident"),
+		Fixture.Heart->GetLastEmittedWarningId(), NAME_None);
+	TestFalse(TEXT("failed v3 restore leaves no interpretation receipt resident"),
+		Fixture.Heart->GetLastInterpretationReceipt().HasAnyFacts());
+	TestFalse(TEXT("failed v3 restore leaves no encountered evidence resident"),
+		Fixture.Heart->CaptureInterpretationPersistentState().HasAnyFacts());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamFairCrypticismV3ReceiptCaptureRetainsExpandedEvidenceTest,
+	"Gloamstead.FairCrypticism.Persistence.V3ReceiptCaptureRetainsExpandedEvidence",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamFairCrypticismV3ReceiptCaptureRetainsExpandedEvidenceTest::RunTest(const FString& /*Parameters*/)
+{
+	FHeartFixture Fixture = MakeHeartFixture();
+	if (!TestTrue(TEXT("fixture presents GardenRot for expanded-evidence persistence validation"), Fixture.bReady)
+		|| !TestTrue(TEXT("GardenRot supplies a third authored support"), Fixture.Plan.RequiredSupportIds.Num() >= 3))
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("first support earns part of the exact interpretation proof"),
+		Fixture.ReportSupportEncounter(Fixture.Plan.WarningId, Fixture.Plan.RequiredSupportIds[0], Fixture.Plan.RequiredSupportChannelTypes[0]));
+	TestTrue(TEXT("second support earns the minimum exact interpretation proof"),
+		Fixture.ReportSupportEncounter(Fixture.Plan.WarningId, Fixture.Plan.RequiredSupportIds[1], Fixture.Plan.RequiredSupportChannelTypes[1]));
+	TestTrue(TEXT("placement authority earns the initial receipt"),
+		Fixture.CommitPlacementAuthorizedRestorationAt(0, MakeExactGardenRestoration(Fixture.Plan)));
+	TestEqual(TEXT("initial receipt records the two encountered supports"),
+		Fixture.Heart->GetLastInterpretationReceipt().SupportIds.Num(), 2);
+
+	TestTrue(TEXT("a later third authored support is accepted"),
+		Fixture.ReportSupportEncounter(Fixture.Plan.WarningId, Fixture.Plan.RequiredSupportIds[2], Fixture.Plan.RequiredSupportChannelTypes[2]));
+	TestTrue(TEXT("the expanded exact support set preserves the live receipt"),
+		Fixture.Heart->HasExactInterpretationForPlan(Fixture.Plan));
+
+	const FVeilHeartInterpretationPersistentState Captured = Fixture.Heart->CaptureInterpretationPersistentState();
+	TestEqual(TEXT("capture preserves all three encountered supports"), Captured.EncounteredSupportIds.Num(), 3);
+	TestEqual(TEXT("capture refreshes the receipt to the exact three-support set"), Captured.InterpretationReceipt.SupportIds.Num(), 3);
+	Fixture.Heart->ResetInterpretationPersistentState();
+	TestTrue(TEXT("a valid expanded v3 receipt restores"), Fixture.Heart->RestoreInterpretationPersistentState(Captured));
+	TestTrue(TEXT("the restored expanded receipt remains exact"), Fixture.Heart->HasExactInterpretationForPlan(Fixture.Plan));
 	return true;
 }
 

@@ -286,6 +286,16 @@ bool URitualPlacementComponent::CommitRestorationWithEvidence(
         return false;
     }
 
+    // Generic ApplyRestoration remains the authority for ordinary point state,
+    // but it cannot say *how* that state changed. Only this private confirmation
+    // tail may emit the native event the Heart treats as an interpretation-capable
+    // ritual completion. This happens immediately after the successful
+    // confirmation mutation, independent of later survey publication: reporting
+    // failures are loud but must never roll back authoritative gameplay. Direct
+    // Blueprint PCG calls only reach OnStructureRestored and can never mint a
+    // Cycle II receipt.
+    Subsystem->EmitPlacementAuthorizedRestoration(Payload);
+
     // Publish the evidence for the payload that was ACCEPTED — not a freshly rebuilt one. ApplyRestoration
     // has already proved Payload.PointIndex == PointIndex (GloamsteadPCGSubsystem.cpp:282-287), so the
     // point index the artifact is correlated with is the point the restoration actually mutated.

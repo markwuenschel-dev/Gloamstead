@@ -179,7 +179,15 @@ private:
 	UGloamsteadPCGSubsystem* ResolvePCGSubsystem() const;
 	bool IsExactWarningPresentedForPlan(const FExperienceCyclePlan& Plan) const;
 	bool HasRequiredSupportEvidence(const FExperienceCyclePlan& Plan) const;
+	bool HasValidEncounteredSupportSet(const FExperienceCyclePlan& Plan, const TSet<FName>& SupportIds) const;
+	bool ReceiptUsesExactlyEncounteredSupports(const FExperienceInterpretationReceipt& Receipt, const TSet<FName>& SupportIds) const;
+	bool DoesReceiptProveExactPlan(
+		const FExperienceInterpretationReceipt& Receipt,
+		const FExperienceCyclePlan& Plan,
+		const TSet<FName>& SupportIds) const;
 	bool RecordSupportEncounterInternal(FName WarningId, FName SupportId, FName ChannelType);
+	/** Native-only completion emitted by the placement authority, never by generic PCG mutation. */
+	void OnPlacementAuthorizedRestoration(const FRestorationEventPayload& Payload);
 	bool EvaluateRestorationAgainstActivePlan(const FRestorationEventPayload& Payload);
 
     TSet<FName> SatisfiedWarningTags;

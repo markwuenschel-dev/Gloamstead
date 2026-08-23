@@ -85,6 +85,11 @@ void AVeilHeart::BeginPlay()
 		if (UGloamsteadPCGSubsystem* PCGSub = World->GetSubsystem<UGloamsteadPCGSubsystem>())
 		{
 			PCGSub->OnStructureRestored.AddDynamic(this, &AVeilHeart::OnRestorationComplete);
+			// Generic restoration remains useful for legacy warning-tag feedback, but
+			// interpretation receipts require this private native placement signal.
+			// AVeilHeart is the sole subscriber granted access by the PCG subsystem;
+			// neither Blueprints nor generic WorldForge/runtime code can broadcast it.
+			PCGSub->PlacementAuthorizedRestoration.AddUObject(this, &AVeilHeart::OnPlacementAuthorizedRestoration);
 		}
 
 		// A progression load can complete before this actor exists. DayNight keeps
@@ -183,20 +188,79 @@ bool AVeilHeart::IsExactWarningPresentedForPlan(const FExperienceCyclePlan& Plan
 
 bool AVeilHeart::HasRequiredSupportEvidence(const FExperienceCyclePlan& Plan) const
 {
-	if (Plan.RequiredSupportIds.IsEmpty()
-		|| Plan.MinimumDistinctSupportCount < 2
-		|| EncounteredSupportIds.Num() < Plan.MinimumDistinctSupportCount)
+	return Plan.MinimumDistinctSupportCount >= 2
+		&& EncounteredSupportIds.Num() >= Plan.MinimumDistinctSupportCount
+		&& HasValidEncounteredSupportSet(Plan, EncounteredSupportIds);
+}
+
+bool AVeilHeart::HasValidEncounteredSupportSet(const FExperienceCyclePlan& Plan, const TSet<FName>& SupportIds) const
+{
+	if (Plan.RequiredSupportIds.IsEmpty())
 	{
 		return false;
 	}
 
-	for (const FName EncounteredId : EncounteredSupportIds)
+	for (const FName EncounteredId : SupportIds)
 	{
 		if (EncounteredId == NAME_None || !Plan.RequiredSupportIds.Contains(EncounteredId))
 		{
 			return false;
 		}
 	}
+	return true;
+}
+
+bool AVeilHeart::ReceiptUsesExactlyEncounteredSupports(
+	const FExperienceInterpretationReceipt& Receipt,
+	const TSet<FName>& SupportIds) const
+{
+	if (Receipt.SupportIds.Num() != SupportIds.Num())
+	{
+		return false;
+	}
+
+	TSet<FName> ReceiptSupportIds;
+	for (const FName SupportId : Receipt.SupportIds)
+	{
+		if (SupportId == NAME_None || ReceiptSupportIds.Contains(SupportId) || !SupportIds.Contains(SupportId))
+		{
+			return false;
+		}
+		ReceiptSupportIds.Add(SupportId);
+	}
+
+	return ReceiptSupportIds.Num() == SupportIds.Num();
+}
+
+bool AVeilHeart::DoesReceiptProveExactPlan(
+	const FExperienceInterpretationReceipt& Receipt,
+	const FExperienceCyclePlan& Plan,
+	const TSet<FName>& SupportIds) const
+{
+	const FVeilHeartWarningFragment* ExactWarning = FindExactWarningById(Plan.WarningId, Plan.NightType);
+	UGloamsteadPCGSubsystem* PCG = ResolvePCGSubsystem();
+	FString ContractError;
+	if (!Plan.IsAuthoredPlan()
+		|| !ExactWarning
+		|| !ExactWarning->MatchesExactPlanContract(Plan, &ContractError)
+		|| !PCG
+		|| !Receipt.IsValid()
+		|| !HasValidEncounteredSupportSet(Plan, SupportIds)
+		|| SupportIds.Num() < Plan.MinimumDistinctSupportCount
+		|| !ReceiptUsesExactlyEncounteredSupports(Receipt, SupportIds)
+		|| Receipt.ReceiptId != Plan.InterpretationReceiptId
+		|| Receipt.PlanId != Plan.PlanId
+		|| Receipt.WarningId != Plan.WarningId
+		|| Receipt.SemanticSubject != Plan.SemanticSubject
+		|| Receipt.RestorationRitualType != Plan.RequiredRitualType
+		|| Receipt.RestorationPointIndex == INDEX_NONE
+		|| !PCG->IsPointRestored(Receipt.RestorationPointIndex)
+		|| !PCG->PointMatchesExperiencePlan(Receipt.RestorationPointIndex, Plan, /*bRequireRestored*/ true)
+		|| !Plan.RequiredRestorationTags.Contains(Receipt.RestorationTag))
+	{
+		return false;
+	}
+
 	return true;
 }
 
@@ -207,6 +271,14 @@ void AVeilHeart::OnRestorationComplete(const FRestorationEventPayload& Payload)
 		*Payload.WarningId.ToString(), *Payload.WarningTagSatisfied.ToString(), *Payload.SemanticSubject.ToString());
 
 	EvaluateRestorationAgainstWarnings(Payload);
+	// OnStructureRestored is deliberately generic and Blueprint-observable.
+	// It may retain legacy tag feedback, but cannot assert a player-confirmed
+	// authored ritual or mint an interpretation receipt.
+}
+
+void AVeilHeart::OnPlacementAuthorizedRestoration(const FRestorationEventPayload& Payload)
+{
+	UE_LOG(LogTemp, Log, TEXT("VeilHeart: placement-authorized restoration received for point %d."), Payload.PointIndex);
 	EvaluateRestorationAgainstActivePlan(Payload);
 }
 
@@ -294,6 +366,27 @@ bool AVeilHeart::RecordSupportEncounterInternal(FName WarningId, FName SupportId
 	}
 
 	EncounteredSupportIds.Add(SupportId);
+
+	// A player can still find another authored clue after earning the receipt.
+	// Keep that legitimate knowledge restorable by expanding the receipt to the
+	// exact new encountered set, but only if the expanded receipt continues to
+	// prove this exact active plan. Anything else is stale/corrupt state and may
+	// not survive into a v3 snapshot.
+	if (LastInterpretationReceipt.HasAnyFacts())
+	{
+		FExperienceInterpretationReceipt ExpandedReceipt = LastInterpretationReceipt;
+		ExpandedReceipt.SupportIds = EncounteredSupportIds.Array();
+		if (DoesReceiptProveExactPlan(ExpandedReceipt, *ActivePlan, EncounteredSupportIds))
+		{
+			LastInterpretationReceipt = MoveTemp(ExpandedReceipt);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("VeilHeart: clearing a stale interpretation receipt after a new support encounter."));
+			LastInterpretationReceipt = FExperienceInterpretationReceipt();
+		}
+	}
+
 	UE_LOG(LogTemp, Log, TEXT("VeilHeart: recorded support %s for exact warning %s (%d/%d distinct)."),
 		*SupportId.ToString(), *ActivePlan->WarningId.ToString(), EncounteredSupportIds.Num(), ActivePlan->MinimumDistinctSupportCount);
 	return true;
@@ -373,6 +466,18 @@ FVeilHeartInterpretationPersistentState AVeilHeart::CaptureInterpretationPersist
 	State.PresentedWarningId = LastEmittedWarningId;
 	State.EncounteredSupportIds = EncounteredSupportIds.Array();
 	State.InterpretationReceipt = LastInterpretationReceipt;
+
+	// A receipt is created from this exact set in EvaluateRestorationAgainstActivePlan.
+	// If memory corruption or a future caller violates that invariant, do not
+	// persist a self-contradictory v3 snapshot for a later restore to interpret.
+	const FExperienceCyclePlan* ActivePlan = ResolveActivePlan();
+	if (LastInterpretationReceipt.HasAnyFacts()
+		&& (!ActivePlan
+			|| !DoesReceiptProveExactPlan(LastInterpretationReceipt, *ActivePlan, EncounteredSupportIds)))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("VeilHeart: refusing to capture a receipt whose support set does not exactly match encountered evidence."));
+		State.Reset();
+	}
 	return State;
 }
 
@@ -428,61 +533,29 @@ bool AVeilHeart::RestoreInterpretationPersistentState(const FVeilHeartInterpreta
 		RestoredSupportIds.Add(SupportId);
 	}
 
+	// Validate every persisted fact against local values before mutating the
+	// Heart. In particular, a receipt may not name a superset/subset of the
+	// encountered evidence: array order is irrelevant, exact set equality is
+	// required. This leaves the Heart fully reset on any failed v3 restore.
+	if (State.InterpretationReceipt.HasAnyFacts())
+	{
+		if (!State.InterpretationReceipt.IsValid()
+			|| !DoesReceiptProveExactPlan(State.InterpretationReceipt, *ActivePlan, RestoredSupportIds))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("VeilHeart: refusing persisted interpretation receipt because its facts are not an exact proof of the active plan."));
+			return false;
+		}
+	}
+
 	LastEmittedWarningId = State.PresentedWarningId;
 	EncounteredSupportIds = MoveTemp(RestoredSupportIds);
 	LastInterpretationReceipt = State.InterpretationReceipt;
-
-	if (!State.InterpretationReceipt.IsValid())
-	{
-		return true;
-	}
-
-	if (!HasExactInterpretationForPlan(*ActivePlan))
-	{
-		ResetInterpretationPersistentState();
-		return false;
-	}
-
 	return true;
 }
 
 bool AVeilHeart::HasExactInterpretationForPlan(const FExperienceCyclePlan& Plan) const
 {
-	const FVeilHeartWarningFragment* ExactWarning = FindExactWarningById(Plan.WarningId, Plan.NightType);
-	UGloamsteadPCGSubsystem* PCG = ResolvePCGSubsystem();
-	FString ContractError;
-	if (!Plan.IsAuthoredPlan()
-		|| !ExactWarning
-		|| !ExactWarning->MatchesExactPlanContract(Plan, &ContractError)
-		|| !PCG
-		|| !LastInterpretationReceipt.IsValid()
-		|| LastInterpretationReceipt.ReceiptId != Plan.InterpretationReceiptId
-		|| LastInterpretationReceipt.PlanId != Plan.PlanId
-		|| LastInterpretationReceipt.WarningId != Plan.WarningId
-		|| LastInterpretationReceipt.SemanticSubject != Plan.SemanticSubject
-		|| LastInterpretationReceipt.RestorationRitualType != Plan.RequiredRitualType
-		|| LastInterpretationReceipt.RestorationPointIndex == INDEX_NONE
-		|| !PCG->IsPointRestored(LastInterpretationReceipt.RestorationPointIndex)
-		|| !PCG->PointMatchesExperiencePlan(LastInterpretationReceipt.RestorationPointIndex, Plan, /*bRequireRestored*/ true)
-		|| !Plan.RequiredRestorationTags.Contains(LastInterpretationReceipt.RestorationTag)
-		|| LastInterpretationReceipt.SupportIds.Num() < Plan.MinimumDistinctSupportCount)
-	{
-		return false;
-	}
-
-	TSet<FName> ReceiptSupportIds;
-	for (const FName SupportId : LastInterpretationReceipt.SupportIds)
-	{
-		if (SupportId == NAME_None
-			|| ReceiptSupportIds.Contains(SupportId)
-			|| !Plan.RequiredSupportIds.Contains(SupportId))
-		{
-			return false;
-		}
-		ReceiptSupportIds.Add(SupportId);
-	}
-
-	return ReceiptSupportIds.Num() >= Plan.MinimumDistinctSupportCount;
+	return DoesReceiptProveExactPlan(LastInterpretationReceipt, Plan, EncounteredSupportIds);
 }
 
 const FVeilHeartWarningFragment* AVeilHeart::FindWarningForNight(ENightConsequenceType NightType) const

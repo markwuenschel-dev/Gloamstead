@@ -446,6 +446,7 @@ int32 UGloamsteadPCGSubsystem::FindMostCorruptedPointIndex(bool bOnlyUnrestored)
     return BestIndex;
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
 void UGloamsteadPCGSubsystem::Test_SeedPoints(const TArray<FVector>& Locations)
 {
     MutablePointData = NewObject<UPCGPointData>(this);
@@ -508,6 +509,7 @@ bool UGloamsteadPCGSubsystem::Test_SetPointContractMetadata(
     TagAttribute->SetValue(Entry, RestorationTag);
     return true;
 }
+#endif // WITH_DEV_AUTOMATION_TESTS
 
 int32 UGloamsteadPCGSubsystem::FindRestoredPointIndex(bool bMostLit) const
 {
