@@ -23,7 +23,10 @@ public class Gloamstead : ModuleRules
 			"PCG"
 		});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "Json", "AssetRegistry" });
+		// Gloamstead's Cycle II projection is the one-way gameplay-owned caller
+		// of WorldForgeCore's generic state mirror. Keep the dependency private:
+		// no public Gloamstead header exposes WorldForge types.
+		PrivateDependencyModuleNames.AddRange(new string[] { "Json", "AssetRegistry", "WorldForgeCore" });
 
 		PublicIncludePaths.AddRange(new string[] {
 			"Gloamstead",

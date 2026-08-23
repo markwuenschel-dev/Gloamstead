@@ -76,7 +76,54 @@
             "Fragment": "What grows in darkness must be tended before the bell tolls.",
             "AssociatedNightType": "Corruption",
             "SatisfiableTags": ["GardenBed"],
+			"SemanticSubject": "Cycle2_Garden",
+			"RequiredRitualType": "GardenBed",
+			"SupportChannels": [
+			  {
+				"SupportId": "GardenRot.WitheredVines",
+				"EvidenceText": "The vines curl inward toward the eastern bed, their leaves dusted grey.",
+				"ChannelType": "Environmental"
+			  },
+			  {
+				"SupportId": "GardenRot.ColdSoil",
+				"EvidenceText": "A root-chime answers only beside the cracked garden bed.",
+				"ChannelType": "ObjectReaction"
+			  },
+			  {
+				"SupportId": "GardenRot.BellMoths",
+				"EvidenceText": "Moths gather where the soil whispers beneath the bell.",
+				"ChannelType": "Audio"
+			  }
+			],
+			"InterpretationReceiptId": "GardenRot.Interpreted",
             "ClarityTier": 1
+          },
+          {
+            "WarningId": "GardenRot",
+            "Fragment": "The bell remembers what you mended; tend the same bed when its root-chime falters.",
+            "AssociatedNightType": "Retrieval",
+            "SatisfiableTags": ["GardenBed"],
+			"SemanticSubject": "Cycle2_Garden",
+			"RequiredRitualType": "GardenBed",
+			"SupportChannels": [
+			  {
+				"SupportId": "GardenRot.WitheredVines",
+				"EvidenceText": "The restored vines draw inward toward the eastern bed as the bell goes dark.",
+				"ChannelType": "Environmental"
+			  },
+			  {
+				"SupportId": "GardenRot.ColdSoil",
+				"EvidenceText": "The root-chime answers only beside the same cracked garden bed.",
+				"ChannelType": "ObjectReaction"
+			  },
+			  {
+				"SupportId": "GardenRot.BellMoths",
+				"EvidenceText": "Moths return beneath the bell when the mended soil begins to whisper.",
+				"ChannelType": "Audio"
+			  }
+			],
+			"InterpretationReceiptId": "GardenRot.Retrieved",
+            "ClarityTier": 2
           },
           {
             "WarningId": "HiddenReflection",
@@ -118,7 +165,7 @@
         "DefaultLightContribution": 0.25,
         "DefaultCorruptionClearance": 0.3,
         "RestorationRadius": 500,
-        "SatisfiableWarningTags": ["Garden", "Growth"]
+        "SatisfiableWarningTags": ["GardenBed"]
       }
     },
     {

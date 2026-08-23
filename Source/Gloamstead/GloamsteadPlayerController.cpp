@@ -31,6 +31,40 @@ void AGloamsteadPlayerController::BeginPlay()
 		}
 
 	}
+
+	CreatePromptWidget();
+}
+
+void AGloamsteadPlayerController::CreatePromptWidget()
+{
+	if (!IsLocalPlayerController() || PromptWidget)
+	{
+		return;
+	}
+
+	UClass* WidgetClass = PromptWidgetClass;
+	if (!WidgetClass && bUseProjectDefaultPromptWidget)
+	{
+		// Mirrors the lantern/preview fallback: the slice ships one project-owned prompt widget, so
+		// the affordance survives a controller Blueprint that never assigned the slot.
+		static const TCHAR* PromptPath = TEXT("/Game/Gloamstead/UI/WBP_GloamPrompt.WBP_GloamPrompt_C");
+		WidgetClass = LoadClass<UUserWidget>(nullptr, PromptPath);
+	}
+	if (!WidgetClass)
+	{
+		UE_LOG(LogGloamstead, Warning, TEXT("No prompt widget class resolved; interaction prompts will be invisible."));
+		return;
+	}
+
+	PromptWidget = CreateWidget<UUserWidget>(this, WidgetClass);
+	if (PromptWidget)
+	{
+		PromptWidget->AddToPlayerScreen(10);
+	}
+	else
+	{
+		UE_LOG(LogGloamstead, Warning, TEXT("Could not spawn the Gloamstead prompt widget."));
+	}
 }
 
 void AGloamsteadPlayerController::SetupInputComponent()

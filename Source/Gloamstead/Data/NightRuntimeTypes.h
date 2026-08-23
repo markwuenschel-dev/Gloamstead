@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Data/NightConsequenceTypes.h"
+#include "Data/RitualTypes.h"
 #include "NightRuntimeTypes.generated.h"
 
 /**
@@ -61,9 +62,28 @@ struct FNightRuntimeContext
 	UPROPERTY(BlueprintReadOnly, Category = "Night")
 	float TargetStartCorruption = 0.f;
 
-	/** True if the player heeded the dusk warning (satisfied a matching warning tag) before night. */
+	/** True only if an exact interpretation receipt proved the authored warning was heeded before night. */
 	UPROPERTY(BlueprintReadOnly, Category = "Night")
 	bool bWarningHeeded = false;
+
+	/** An authored plan owns this target; a missing/ambiguous subject must remain untargeted. */
+	UPROPERTY(BlueprintReadOnly, Category = "Night|Interpretation")
+	bool bRequiresExactSemanticTarget = false;
+
+	/** Exact warning identity whose restoration can affect an authored night objective. */
+	UPROPERTY(BlueprintReadOnly, Category = "Night|Interpretation")
+	FName RequiredWarningId = NAME_None;
+
+	/** Stable Gloamstead-owned subject that must map to exactly one PCG point. */
+	UPROPERTY(BlueprintReadOnly, Category = "Night|Interpretation")
+	FName RequiredSemanticSubject = NAME_None;
+
+	/** Exact ritual/tag pair that can resolve an authored Corruption objective. */
+	UPROPERTY(BlueprintReadOnly, Category = "Night|Interpretation")
+	ERitualType RequiredRitualType = ERitualType::Invalid;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Night|Interpretation")
+	FName RequiredRestorationTag = NAME_None;
 };
 
 /** Live objective state the strategy tracks through the night. */

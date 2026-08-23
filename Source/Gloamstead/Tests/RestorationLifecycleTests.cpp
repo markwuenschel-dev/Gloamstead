@@ -294,8 +294,8 @@ bool FGloamRestoreFailedReinitPreservesStateTest::RunTest(const FString& /*Param
     const int32 RestoredBefore = Sub->GetRestoredPointCount();
     const float LightBefore = Sub->GetLightLevel(2);
 
-    Sub->InitializeFromPCGComponent(nullptr, /*WorldSeed*/ 1234);
-    Sub->InitializeFromPCGComponent(nullptr, /*WorldSeed*/ 5678); // repeating it changes nothing either
+    Sub->Test_InitializeFromPCGComponent(nullptr, /*WorldSeed*/ 1234);
+    Sub->Test_InitializeFromPCGComponent(nullptr, /*WorldSeed*/ 5678); // repeating it changes nothing either
 
     TestEqual(TEXT("point count survives a failed re-init"), Sub->Test_PeekPointStates().Num(), PointsBefore);
     TestEqual(TEXT("restored count survives a failed re-init"), Sub->GetRestoredPointCount(), RestoredBefore);
@@ -382,13 +382,9 @@ bool FGloamRestorePlacementLeavesNoPreviewTest::RunTest(const FString& /*Paramet
 
 // ===== Not covered here, and why =====
 //
-// * "final actor spawn failure leaves no orphan actor" — the cleanup lives in
-//   URitualPlacementComponent::ConfirmPlacement (RitualPlacementComponent.cpp:91-107). Reaching it needs
-//   (a) CachedSubsystem, which is private and only assigned in BeginPlay from GetWorld()->GetSubsystem
-//   (RitualPlacementComponent.h:95, .cpp:23), (b) an owning actor with a location and PCG points in range,
-//   and (c) SpawnRestoredActor, which is a BlueprintImplementableEvent (RitualPlacementComponent.h:69) with
-//   no C++ body — a C++ test cannot make it produce, or fail to produce, an actor. This needs a live PIE
-//   world with a Blueprint child of the component.
+// * "final actor spawn failure leaves no orphan actor" — configured spawn and one-shot confirmation are
+//   covered by Gloamstead.FirstNight.PlayableSlice; rejection cleanup remains a separate failure-injection
+//   concern because ApplyRestoration must be made to reject after a successful spawn.
 //
 // * "restored-set divergence after the InitializeFromPCGComponent rebuild" — the rebuild at
 //   GloamsteadPCGSubsystem.cpp:105-116 only runs after a UPCGComponent yields point data
@@ -397,8 +393,7 @@ bool FGloamRestorePlacementLeavesNoPreviewTest::RunTest(const FString& /*Paramet
 //   Gloamstead.Restoration.FailedReinitializationPreservesState, and the invariant the rebuild exists to
 //   uphold is covered by Gloamstead.Restoration.RestoredViewsAgreeAfterMutation / ...AfterLoad.
 //
-// * "cancellation mid-placement" — ExitPlacementMode's real teardown path (RitualPlacementComponent.cpp:69-77)
-//   only executes once bIsInPlacementMode is true, which requires the cached subsystem above. The
-//   never-entered branch is covered; the mid-session branch needs PIE.
+// * "cancellation mid-placement" — the never-entered branch is covered here; the UI/preview teardown
+//   presentation still needs PIE.
 
 #endif // WITH_DEV_AUTOMATION_TESTS

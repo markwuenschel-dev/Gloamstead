@@ -100,6 +100,41 @@ protected:
 
 public:
 
+	// === Automated-playtest console hooks ===
+	//
+	// Restore/Interact/Examine bind to ETriggerEvent::Started, and simulated key events do NOT produce
+	// the press transition Enhanced Input needs for an edge trigger — verified empirically: with logging
+	// on the handlers, playtest_key produced no handler call at all. These exec commands call the SAME
+	// handler functions the input bindings call, so an automated run can exercise everything downstream
+	// of the input layer. They add no behaviour of their own and are not bound to any key.
+	//
+	// They do NOT prove the keyboard path; that is established by the asset wiring (IMC_Default maps
+	// R -> IA_Restore / E -> IA_Interact / Q -> IA_Examine, and the character's action slots are set).
+
+	UFUNCTION(Exec)
+	void GloamRestore() { OnRestoreInput(); }
+
+	UFUNCTION(Exec)
+	void GloamInteract() { OnInteractInput(); }
+
+	UFUNCTION(Exec)
+	void GloamExamine() { OnExamineInput(); }
+
+	/** Playtest positioning only: walking the plaza needs movement input the harness cannot simulate. */
+	UFUNCTION(Exec)
+	void GloamTeleport(float X, float Y, float Z);
+
+	/**
+	 * The single most relevant on-screen prompt for what the player can do right now, or empty.
+	 *
+	 * Nothing previously surfaced GloamInteractionComponent::GetCurrentPrompt(), so the Heart's
+	 * "Rest at the Heart" and the ritual's confirm/cancel existed only as data. Resolution order is
+	 * placement first, then the focused interactable, because while a ritual is armed that IS the
+	 * thing the player is doing. The bracketed keys mirror IMC_Default (R = Restore, E = Interact).
+	 */
+	UFUNCTION(BlueprintPure, Category = "Gloamstead|UI")
+	FText GetPlayerPromptText() const;
+
 	/** Handles move inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoMove(float Right, float Forward);

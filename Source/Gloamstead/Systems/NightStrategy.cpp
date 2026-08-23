@@ -1,5 +1,8 @@
 #include "Systems/NightStrategy.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
+#include "Engine/World.h"
+#include "GameFramework/Pawn.h"
+#include "Kismet/GameplayStatics.h"
 
 // ===== UNightStrategy (base: benign quiet night) =====
 
@@ -55,7 +58,7 @@ void UNightCorruptionStrategy::EnterNight_Implementation(const FNightRuntimeCont
 	StartAvgCorruption = SafeAvgCorruption(PCG);
 
 	int32 TargetIndex = InContext.TargetPointIndex;
-	if (TargetIndex < 0 && PCG)
+	if (TargetIndex < 0 && PCG && !InContext.bRequiresExactSemanticTarget)
 	{
 		TargetIndex = PCG->FindMostCorruptedPointIndex(/*bOnlyUnrestored*/ true);
 	}
@@ -95,10 +98,21 @@ void UNightCorruptionStrategy::ApplyPressureStep_Implementation(UGloamsteadPCGSu
 		Objective.TargetPointIndex, NewLevel, Spread);
 }
 
-void UNightCorruptionStrategy::NotifyRestoration_Implementation(const FRestorationEventPayload& /*Payload*/, UGloamsteadPCGSubsystem* PCG)
+void UNightCorruptionStrategy::NotifyRestoration_Implementation(const FRestorationEventPayload& Payload, UGloamsteadPCGSubsystem* PCG)
 {
 	if (Objective.bResolved || Objective.TargetPointIndex < 0 || !PCG)
 	{
+		return;
+	}
+
+	if (Context.bRequiresExactSemanticTarget
+		&& (Payload.PointIndex != Objective.TargetPointIndex
+			|| Payload.WarningId != Context.RequiredWarningId
+			|| Payload.SemanticSubject != Context.RequiredSemanticSubject
+			|| Payload.RitualType != Context.RequiredRitualType
+			|| Payload.WarningTagSatisfied != Context.RequiredRestorationTag))
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("NightStrategy[Corruption]: ignored restoration that did not exactly match the authored bloom subject."));
 		return;
 	}
 
@@ -159,19 +173,91 @@ void UNightTutorialStrategy::EnterNight_Implementation(const FNightRuntimeContex
 	Context = InContext;
 	StartAvgCorruption = SafeAvgCorruption(PCG);
 	bTeachingSpreadApplied = false;
+	bPlayerSheltered = false;
+	bHasShelter = false;
+	ShelterLocation = FVector::ZeroVector;
 
 	Objective = FNightObjective();
 	Objective.Kind = ENightObjectiveKind::TutorialTeach;
 	Objective.TargetPointIndex = (InContext.TargetPointIndex >= 0 || !PCG)
 		? InContext.TargetPointIndex
 		: PCG->FindMostCorruptedPointIndex(false);
-	Objective.bResolved = false; // resolves at dawn (always winnable)
+	Objective.bResolved = false; // resolved by reaching the restored lantern's light
 
-	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Tutorial]: teaching beat — night reacts to the sanctuary."));
+	// The shelter is the lantern the player restored, located by the tag the restoration stamps on it.
+	// Nearest-to-player is deliberate: with several restored lanterns the lesson points at the closest.
+	if (UWorld* World = GetWorld())
+	{
+		TArray<AActor*> Lanterns;
+		UGameplayStatics::GetAllActorsWithTag(World, RestoredLanternTag, Lanterns);
+
+		const APawn* Player = UGameplayStatics::GetPlayerPawn(World, 0);
+		const FVector From = Player ? Player->GetActorLocation() : FVector::ZeroVector;
+
+		float BestDistSq = TNumericLimits<float>::Max();
+		for (const AActor* Lantern : Lanterns)
+		{
+			if (!IsValid(Lantern))
+			{
+				continue;
+			}
+			const float DistSq = static_cast<float>(FVector::DistSquared(From, Lantern->GetActorLocation()));
+			if (DistSq < BestDistSq)
+			{
+				BestDistSq = DistSq;
+				ShelterLocation = Lantern->GetActorLocation();
+				bHasShelter = true;
+			}
+		}
+	}
+
+	if (bHasShelter)
+	{
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Tutorial]: shelter is the restored lantern at %s (radius %.0f)."),
+			*ShelterLocation.ToString(), ShelterRadius);
+	}
+	else
+	{
+		// Nothing was restored, so there is no light to reach. Do not strand the player against an
+		// impossible objective: the beat degrades to the original always-winnable teaching night.
+		Objective.bResolved = true;
+		UE_LOG(LogTemp, Warning, TEXT("NightStrategy[Tutorial]: no restored lantern found (tag %s) — teaching beat only."),
+			*RestoredLanternTag.ToString());
+	}
+}
+
+bool UNightTutorialStrategy::EvaluateShelter()
+{
+	if (bPlayerSheltered || !bHasShelter)
+	{
+		return bPlayerSheltered;
+	}
+
+	const UWorld* World = GetWorld();
+	const APawn* Player = World ? UGameplayStatics::GetPlayerPawn(World, 0) : nullptr;
+	if (!Player)
+	{
+		return false;
+	}
+
+	const float DistSq = static_cast<float>(FVector::DistSquared(Player->GetActorLocation(), ShelterLocation));
+	if (DistSq > ShelterRadius * ShelterRadius)
+	{
+		return false;
+	}
+
+	bPlayerSheltered = true;
+	Objective.bResolved = true;
+	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Tutorial]: player reached the lantern's light — lesson complete."));
+	return true;
 }
 
 void UNightTutorialStrategy::ApplyPressureStep_Implementation(UGloamsteadPCGSubsystem* PCG)
 {
+	// The shelter check rides the pressure cadence so the objective can resolve mid-night; the runtime
+	// notices Objective.bResolved flipping and calls dawn early.
+	EvaluateShelter();
+
 	if (!PCG || bTeachingSpreadApplied)
 	{
 		return; // bounded: teach once
@@ -183,14 +269,32 @@ void UNightTutorialStrategy::ApplyPressureStep_Implementation(UGloamsteadPCGSubs
 
 FNightRuntimeOutcome UNightTutorialStrategy::ResolveNight_Implementation(UGloamsteadPCGSubsystem* PCG)
 {
-	Objective.bResolved = true; // teaching beat always completes
-	FNightRuntimeOutcome Out = MakeBaseOutcome(PCG);
-	Out.bObjectiveResolved = true;
-	Out.Result = ENightOutcomeResult::Success;
-	Out.ResultTag = FName(TEXT("TutorialComplete"));
+	// One last look, so a player standing in the light as the clock runs out still gets the success.
+	EvaluateShelter();
 
-	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Tutorial]: outcome Success (sanctuary delta %.2f)."),
-		Out.SanctuaryCorruptionDelta);
+	FNightRuntimeOutcome Out = MakeBaseOutcome(PCG);
+	Out.bObjectiveResolved = Objective.bResolved;
+
+	if (!bHasShelter)
+	{
+		// Degraded beat: nothing to reach, so the teaching night completes as it always did.
+		Out.Result = ENightOutcomeResult::Success;
+		Out.ResultTag = FName(TEXT("TutorialComplete"));
+	}
+	else if (bPlayerSheltered)
+	{
+		Out.Result = ENightOutcomeResult::Success;
+		Out.ResultTag = FName(TEXT("TutorialSheltered"));
+	}
+	else
+	{
+		// Stayed out in the dark all night. Fail-forward: the lesson landed, the night was survived.
+		Out.Result = ENightOutcomeResult::Partial;
+		Out.ResultTag = FName(TEXT("TutorialExposed"));
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Tutorial]: outcome %s (tag %s, sanctuary delta %.2f)."),
+		*GetNightOutcomeResultDisplayName(Out.Result), *Out.ResultTag.ToString(), Out.SanctuaryCorruptionDelta);
 	return Out;
 }
 
@@ -314,8 +418,25 @@ void UNightRetrievalStrategy::EnterNight_Implementation(const FNightRuntimeConte
 	StartAvgCorruption = SafeAvgCorruption(PCG);
 	bSawTargetIntervention = false;
 	bNoTargetFallback = false;
+	bTargetReclaimed = false;
 
-	const int32 TargetIndex = PCG ? PCG->FindRestoredPointIndex(/*bMostLit*/ true) : -1;
+	int32 TargetIndex = -1;
+	if (PCG)
+	{
+		if (InContext.bRequiresExactSemanticTarget)
+		{
+			// An authored Retrieval plan names the place being tested. A missing
+			// or no-longer-restored target is an honest quiet fallback, never an
+			// invitation to punish a different restored point.
+			TargetIndex = (InContext.TargetPointIndex >= 0 && PCG->IsPointRestored(InContext.TargetPointIndex))
+				? InContext.TargetPointIndex
+				: -1;
+		}
+		else
+		{
+			TargetIndex = PCG->FindRestoredPointIndex(/*bMostLit*/ true);
+		}
+	}
 
 	Objective = FNightObjective();
 	Objective.TargetPointIndex = TargetIndex;
@@ -350,6 +471,18 @@ void UNightRetrievalStrategy::ApplyPressureStep_Implementation(UGloamsteadPCGSub
 	const float NewLevel = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, RetrievalPressureDelta);
 	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Retrieval]: reclaim pressure — point %d now %.2f."),
 		Objective.TargetPointIndex, NewLevel);
+	if (!bTargetReclaimed && NewLevel >= RetrievalReclaimThreshold)
+	{
+		// Make the consequence legible and actionable: once the seam tears open,
+		// the normal placement authority can see the point as unrestored and the
+		// player can deliberately re-light this exact place.
+		bTargetReclaimed = PCG->RevertRestoration(Objective.TargetPointIndex);
+		if (bTargetReclaimed)
+		{
+			UE_LOG(LogTemp, Log, TEXT("NightStrategy[Retrieval]: restoration reclaimed at point %d; re-stabilization is now possible."),
+				Objective.TargetPointIndex);
+		}
+	}
 }
 
 void UNightRetrievalStrategy::NotifyRestoration_Implementation(const FRestorationEventPayload& Payload, UGloamsteadPCGSubsystem* PCG)
@@ -404,7 +537,7 @@ FNightRuntimeOutcome UNightRetrievalStrategy::ResolveNight_Implementation(UGloam
 	else
 	{
 		// Reclaimed: the night takes the point back (fail-forward, no hard game-over).
-		if (PCG && Objective.TargetPointIndex >= 0)
+		if (PCG && Objective.TargetPointIndex >= 0 && !bTargetReclaimed)
 		{
 			PCG->RevertRestoration(Objective.TargetPointIndex);
 		}

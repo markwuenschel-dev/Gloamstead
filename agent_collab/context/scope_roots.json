@@ -6,14 +6,32 @@
   "factory_roots": ["specs/data/", "Source/GloamsteadEditor/"],
   "test_roots": [],
   "docs_roots": ["docs"],
-  "generated_content_roots": ["Content/Data/"],
+  "generated_content_roots": [
+    "Content/Data/",
+    "Content/Gloamstead/Materials/",
+    "Content/Gloamstead/Restoration/FirstLantern/",
+    "Content/Gloamstead/World/",
+    "Content/FirstNight/",
+    "Content/Maps/",
+    "Content/Materials/Terrain/",
+    "Content/Textures/Terrain/"
+  ],
   "vendor_content_roots": [
     "Content/ThirdPerson",
     "Content/Characters"
   ],
   "collab_roots": ["agent_collab"],
   "coder_edit_roots": ["Source/Gloamstead", "Source/GloamsteadEditor", "Config", "specs/data"],
-  "coder_generated_output_roots": ["Content/Data/"],
+  "coder_generated_output_roots": [
+    "Content/Data/",
+    "Content/Gloamstead/Materials/",
+    "Content/Gloamstead/Restoration/FirstLantern/",
+    "Content/Gloamstead/World/",
+    "Content/FirstNight/",
+    "Content/Maps/",
+    "Content/Materials/Terrain/",
+    "Content/Textures/Terrain/"
+  ],
 
   "documentor_edit_roots": ["docs"],
   "orchestrator_edit_roots": ["agent_collab", "specs", "Source/GloamsteadEditor", "Gloamstead5_8.uproject", "gate.ps1"],
@@ -35,5 +53,5 @@
     ".claude/worktrees",
     ".grok/worktrees"
   ],
-  "notes": "Factory roots added 2026-06-10 for VS-POLISH-FACTORY-DATA-01. coder_edit_roots includes Source/GloamsteadEditor and specs/data. Generated Content/Data/ for Data Asset import commandlet. 2026-07-10 rebaseline: project file renamed Gloamstead.uproject -> Gloamstead5_8.uproject (5.8 migration); added gate.ps1 (build+test oracle) to orchestrator_edit_roots."
+  "notes": "Factory roots added 2026-06-10 for VS-POLISH-FACTORY-DATA-01. coder_edit_roots includes Source/GloamsteadEditor and specs/data. Generated Content/Data/ for Data Asset import commandlet. 2026-07-10 rebaseline: project file renamed Gloamstead.uproject -> Gloamstead5_8.uproject (5.8 migration); added gate.ps1 (build+test oracle) to orchestrator_edit_roots. 2026-08-01: approved the project-owned first-night lantern, presentation, map, and vendored WorldForge generated terrain-material roots for the playable vertical slice; vendor roots remain read-only."
 }

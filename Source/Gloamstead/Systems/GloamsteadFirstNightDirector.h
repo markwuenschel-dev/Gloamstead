@@ -4,12 +4,17 @@
 #include "GameFramework/Actor.h"
 #include "Data/RitualTypes.h"
 #include "Data/NightConsequenceTypes.h"
+#include "Data/NightRuntimeTypes.h"
+#include "Data/VeilHeartWarningTypes.h"
 #include "Systems/GloamsteadDayNightSubsystem.h"
 #include "GloamsteadFirstNightDirector.generated.h"
 
 class UGloamsteadPCGSubsystem;
 class UNightConsequenceRuntime;
 class AVeilHeart;
+class UMaterialInstanceDynamic;
+class UPointLightComponent;
+class USceneComponent;
 
 /** Ordered beats of the scripted first-night proof-of-loop. */
 UENUM(BlueprintType)
@@ -30,15 +35,15 @@ enum class EFirstNightBeat : uint8
 };
 
 /**
- * Thin first-night sequencer for the proof-of-loop vertical slice.
+ * Thin Cycle I presentation sequencer for the proof-of-loop vertical slice.
  *
- * Owns ONLY first-night beat sequencing and presentation triggers. It listens to existing
- * systems (PCG restoration, day/night phase, night runtime) and drives the phase authority
- * forward via AdvanceToNextPhase. Dusk is gated behind lantern restoration: if the lantern
- * is never restored, night never begins.
+ * Owns ONLY the first night's local lantern lesson and presentation triggers. It listens to
+ * existing systems (PCG restoration, phase, night runtime), opens the first rest after the
+ * lantern restoration, then permanently detaches at Cycle I dawn. DayNight owns every
+ * Dusk->Night, Night->Dawn, and early-objective cadence transition.
  *
  * It does NOT replace UGloamsteadDayNightSubsystem / UNightConsequenceManager, does NOT mutate
- * PCG point state, and does NOT own generic night selection, combat, resources, or progression.
+ * PCG point state, and does NOT own generic night selection, cadence, combat, resources, or progression.
  * Presentation (caption, prompts, cues, VFX, dawn payoff) lives in the Blueprint child via the
  * On* implementable events below.
  */
@@ -51,6 +56,7 @@ public:
 	AGloamsteadFirstNightDirector();
 
 	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaSeconds) override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	// === Designer config ===
@@ -63,14 +69,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "First Night")
 	ENightConsequenceType FirstNightType = ENightConsequenceType::Tutorial;
 
-	/** Seconds the dusk readability cue holds before night begins. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "First Night", meta = (ClampMin = "0.0"))
-	float DuskToNightDelaySeconds = 4.0f;
-
-	/** Seconds the scripted encroachment runs before the director calls dawn. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "First Night", meta = (ClampMin = "0.0"))
-	float NightDurationSeconds = 8.0f;
-
 	// === State queries ===
 
 	UFUNCTION(BlueprintPure, Category = "First Night")
@@ -81,6 +79,16 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "First Night")
 	ENightConsequenceType GetObservedNightType() const { return ObservedNightType; }
+
+	/** True once Cycle I's dawn payoff has relinquished every tutorial-only binding and cue. */
+	UFUNCTION(BlueprintPure, Category = "First Night")
+	bool IsTutorialDetached() const { return bTutorialDetached; }
+
+	/**
+	 * Releases this Cycle I-only actor when a safe later-cycle progression payload
+	 * replaces the live world. Called by DayNight before it retries the new warning.
+	 */
+	void DetachForProgressionResume();
 
 	// === Presentation hooks (implemented in the Blueprint child) ===
 
@@ -108,17 +116,35 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "First Night")
 	void OnDawnPayoff();
 
-	// === Beat advances (timer-driven in play; also callable by presentation BP) ===
+	/**
+	 * Dusk: the Heart's actual warning text, ready to caption.
+	 *
+	 * The Heart chooses the words from its catalog but owns no UI; the director owns the caption widget
+	 * but not the words. This carries one to the other, so the dusk warning is finally readable on
+	 * screen instead of only in the log.
+	 */
+	UFUNCTION(BlueprintImplementableEvent, Category = "First Night")
+	void OnHeartWarning(const FText& WarningText);
+
+	/** Dawn: the reflection tying the warning, the restoration, and the night's outcome together. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "First Night")
+	void OnHeartReflection(const FText& ReflectionText);
+
+	/** The text OnHeartReflection is given; exposed so the wording is testable without a widget. */
+	UFUNCTION(BlueprintPure, Category = "First Night")
+	FText BuildDawnReflectionText(const FNightRuntimeOutcome& Outcome) const;
+
+	// === Compatibility advances (DayNight remains the phase/cadence authority) ===
 
 	/** Day -> Dusk. No-op unless the lantern has been restored (the dusk gate). */
 	UFUNCTION(BlueprintCallable, Category = "First Night")
 	void RequestAdvanceToDusk();
 
-	/** Dusk -> Night. */
+	/** Dusk -> Night Blueprint compatibility entry point; inert because DayNight owns cadence. */
 	UFUNCTION(BlueprintCallable, Category = "First Night")
 	void RequestAdvanceToNight();
 
-	/** Night -> Dawn. */
+	/** Night -> Dawn Blueprint compatibility entry point; inert because DayNight owns cadence. */
 	UFUNCTION(BlueprintCallable, Category = "First Night")
 	void RequestAdvanceToDawn();
 
@@ -133,9 +159,18 @@ public:
 	UFUNCTION()
 	void HandleNightStarted(ENightConsequenceType NightType);
 
-	/** The night objective resolved before the duration elapsed — advance to dawn now. */
+	/**
+	 * Legacy callback retained only as a safe no-op for serialized delegate references.
+	 * DayNight owns the runtime early-objective transition.
+	 */
 	UFUNCTION()
 	void HandleNightShouldEnd();
+
+	UFUNCTION()
+	void HandleHeartWarning(const FVeilHeartWarningFragment& WarningFragment);
+
+	UFUNCTION()
+	void HandleHeartDawnReflection(const FNightRuntimeOutcome& Outcome);
 
 	// === Test seams (unconditional inline; unused in shipping → linker drops them) ===
 
@@ -151,6 +186,9 @@ public:
 	int32 Test_DuskCueCount = 0;
 	int32 Test_EncroachmentCount = 0;
 	int32 Test_DawnPayoffCount = 0;
+	int32 Test_HeartReflectionCount = 0;
+	/** Receipt-only test telemetry for the legacy callback; it remains gameplay-inert. */
+	int32 Test_LegacyEarlyDawnCallbackCount = 0;
 
 protected:
 	void ResolveWorldSystems();
@@ -158,12 +196,17 @@ protected:
 	void UnbindDelegates();
 
 	void BeginIntro();
+	void DetachTutorial();
 
 	void PresentWarning();
 	void PresentLanternTarget();
 	void PresentDuskCue();
 	void PresentEncroachment();
 	void PresentDawnPayoff();
+	void CompleteDawn();
+
+	void CaptureLanternMarker();
+	void SetLanternMarkerVisible(bool bVisible);
 
 	/** Read-only sanctuary light level used to scale the encroachment cue. */
 	float ComputeLanternInfluence() const;
@@ -181,12 +224,18 @@ private:
 	UPROPERTY(Transient)
 	TWeakObjectPtr<AVeilHeart> CachedHeart;
 
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> MarkerMaterials;
+
+	TArray<TWeakObjectPtr<USceneComponent>> MarkerComponents;
+	TArray<TWeakObjectPtr<UPointLightComponent>> MarkerLights;
+
 	EFirstNightBeat CurrentBeat = EFirstNightBeat::Intro;
 	bool bLanternRestored = false;
 	bool bIntroPresented = false;
 	bool bDelegatesBound = false;
+	bool bTutorialDetached = false;
+	bool bMarkerVisible = false;
 	ENightConsequenceType ObservedNightType = ENightConsequenceType::Invalid;
-
-	FTimerHandle DuskToNightTimer;
-	FTimerHandle NightDurationTimer;
+	float MarkerPulseElapsed = 0.0f;
 };

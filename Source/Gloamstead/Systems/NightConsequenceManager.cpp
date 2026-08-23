@@ -165,3 +165,23 @@ void UNightConsequenceManager::PrepareNightConsequences()
 
 	OnNightPlanReady.Broadcast(LastSelectedNightType);
 }
+
+bool UNightConsequenceManager::PrepareNightConsequencesForPlan(const FExperienceCyclePlan& Plan)
+{
+	if (!Plan.IsAuthoredPlan()
+		|| Plan.PlanId == NAME_None
+		|| Plan.WarningId == NAME_None
+		|| Plan.NightType == ENightConsequenceType::Invalid)
+	{
+		LastSelectedNightType = ENightConsequenceType::Invalid;
+		UE_LOG(LogTemp, Warning, TEXT("NightConsequenceManager: rejected an invalid authored plan; no consequence was prepared."));
+		return false;
+	}
+
+	LastSelectedNightType = Plan.NightType;
+	++NightsPrepared;
+	UE_LOG(LogTemp, Log, TEXT("NightConsequenceManager: Prepared exact authored plan %s as %s."),
+		*Plan.PlanId.ToString(), *GetNightConsequenceTypeDisplayName(LastSelectedNightType));
+	OnNightPlanReady.Broadcast(LastSelectedNightType);
+	return true;
+}
