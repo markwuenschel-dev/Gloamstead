@@ -7,7 +7,9 @@
 //  3. LIVE world: the adapter spawns visible engine-primitive proxies (Heart + ritual points) bound to real
 //     sources, WITHOUT mutating gameplay state, and emits an honest report.
 #include "Misc/AutomationTest.h"
+#include "Data/GloamsteadGeneratedAssetCatalog.h"
 #include "Data/GloamsteadMeshForgeTypes.h"
+#include "Engine/StaticMesh.h"
 #include "Systems/GloamsteadMeshForgeProvider.h"
 #include "Systems/GloamsteadMeshForgeAdapterSubsystem.h"
 #include "Systems/GloamsteadDayNightSubsystem.h"
@@ -22,6 +24,76 @@
 
 namespace
 {
+	FGloamsteadGeneratedAssetRuntimeIdentity MakeAdapterObservedRuntimeIdentity()
+	{
+		FGloamsteadGeneratedAssetRuntimeIdentity Identity;
+		Identity.EngineVersion = TEXT("5.8.0-55116800+++UE5+Release-5.8");
+		Identity.CompatibleEngineVersion = Identity.EngineVersion;
+		Identity.EngineBuildVersion = TEXT("++UE5+Release-5.8-CL-55116800");
+		Identity.EngineChangelist = 55116800;
+		Identity.CompatibleEngineChangelist = 55116800;
+		Identity.GloamsteadCommit = TEXT("0123456789abcdef0123456789abcdef01234567");
+		Identity.PluginVersion = TEXT("0.2.0");
+		Identity.PluginEngineVersion = TEXT("5.8.0");
+		Identity.PluginDescriptorSha256 = FString::ChrN(64, TEXT('1'));
+		Identity.InstalledPluginTreeSha256 = FString::ChrN(64, TEXT('2'));
+		Identity.VendorLockSha256 = FString::ChrN(64, TEXT('3'));
+		Identity.DeclaredPluginPackageSha256 = FString::ChrN(64, TEXT('4'));
+		Identity.DeclaredPluginBuildIdentity = TEXT("wfplugin-5555555555555555555555555555555555555555555555555555555555555555");
+		Identity.EngineScriptPackages = { TEXT("/Script/Engine") };
+		Identity.GloamsteadScriptPackages = { TEXT("/Script/Gloamstead") };
+		FGloamsteadGeneratedEnabledPluginIdentity WorldForge;
+		WorldForge.PluginName = TEXT("WorldForge");
+		WorldForge.PluginVersion = Identity.PluginVersion;
+		WorldForge.DescriptorSha256 = Identity.PluginDescriptorSha256;
+		WorldForge.InstalledPluginTreeSha256 = Identity.InstalledPluginTreeSha256;
+		WorldForge.BuildIdentity = Identity.DeclaredPluginBuildIdentity;
+		WorldForge.ScriptPackages = { TEXT("/Script/WorldForgeCore") };
+		Identity.EnabledPlugins = { WorldForge };
+		Identity.EnabledPluginInventorySha256 = GACEnabledPluginInventorySha256(Identity.EnabledPlugins);
+		return Identity;
+	}
+
+	UGloamsteadGeneratedAssetCatalog* MakeAdapterCatalog(const FString& Version, const TCHAR ReceiptFill)
+	{
+		UGloamsteadGeneratedAssetCatalog* Catalog = NewObject<UGloamsteadGeneratedAssetCatalog>();
+		Catalog->BundleId = FString::Printf(TEXT("sanctuary-%s"), *Version);
+		Catalog->ReceiptSha256 = FString::ChrN(64, ReceiptFill);
+		Catalog->VersionRoot = FString::Printf(
+			TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/%s"), *Version);
+		Catalog->TargetBuildIdentitySha256 = GACRuntimeIdentitySha256(
+			MakeAdapterObservedRuntimeIdentity());
+		TArray<FString> AuthorityFailures;
+		GACDeriveTerminalScriptPackageAuthorities(MakeAdapterObservedRuntimeIdentity(),
+			Catalog->TerminalScriptPackageAuthorities, AuthorityFailures);
+		FGloamsteadGeneratedAssetEntry Entry;
+		Entry.SemanticRole = TEXT("sanctuary.heart");
+		Entry.RestorationState = EGloamsteadGeneratedAssetState::Restored;
+		Entry.Asset = TSoftObjectPtr<UObject>(FSoftObjectPath(FString::Printf(
+			TEXT("%s/SM_Heart.SM_Heart"), *Catalog->VersionRoot)));
+		Entry.ExpectedClass = UStaticMesh::StaticClass();
+		Entry.ObjectSha256 = FString::ChrN(64, TEXT('a'));
+		Entry.ReceiptSha256 = Catalog->ReceiptSha256;
+		Entry.OwnershipId = TEXT("gloamstead");
+		Entry.LicenseId = TEXT("LicenseRef-001");
+		Catalog->Entries.Add(Entry);
+		return Catalog;
+	}
+
+	UGloamsteadGeneratedAssetSettings* MakeAdapterSettings(
+		UGloamsteadGeneratedAssetCatalog* Catalog)
+	{
+		UGloamsteadGeneratedAssetSettings* Settings =
+			NewObject<UGloamsteadGeneratedAssetSettings>();
+		Settings->ProviderMode = EGloamsteadMeshForgeProviderMode::GeneratedCatalog;
+		Settings->Catalog = TSoftObjectPtr<UGloamsteadGeneratedAssetCatalog>(FSoftObjectPath(
+			Catalog->VersionRoot + TEXT("/DA_Catalog.DA_Catalog")));
+		Settings->ExpectedActiveBundleId = Catalog->BundleId;
+		Settings->ExpectedReceiptSha256 = Catalog->ReceiptSha256;
+		Settings->ExpectedTargetBuildIdentitySha256 = Catalog->TargetBuildIdentitySha256;
+		return Settings;
+	}
+
 	FGloamsteadMeshForgeProxyInstance MakeCleanRuntimeInstance()
 	{
 		FGloamsteadMeshForgeProxyInstance I;
@@ -445,6 +517,76 @@ bool FGloamMeshForgeProviderSelectionTest::RunTest(const FString& /*Parameters*/
 	UGloamsteadMeshForgeProvider* CatalogDrift =
 		Adapter->Test_EnsureProviderForSettings(Generated, false);
 	TestTrue(TEXT("same-mode catalog-path drift recreates the provider"), CatalogDrift != IdentityDrift);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamMeshForgeGenerationAwareCompletionTest,
+	"Gloamstead.MeshForge.StaleAcceptedCatalogNeverReentersBuild",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamMeshForgeGenerationAwareCompletionTest::RunTest(const FString& /*Parameters*/)
+{
+	enum class EAction : uint8 { Configure, Deactivate, AcceptCatalogB };
+	const EAction Actions[] = { EAction::Configure, EAction::Deactivate, EAction::AcceptCatalogB };
+	for (const EAction Action : Actions)
+	{
+		UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+		UGloamsteadMeshForgeAdapterSubsystem* Adapter =
+			NewObject<UGloamsteadMeshForgeAdapterSubsystem>();
+		UGloamsteadGeneratedAssetMeshForgeProvider* Provider =
+			NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>(Adapter);
+		UGloamsteadGeneratedAssetCatalog* CatalogA = MakeAdapterCatalog(TEXT("v1"), TEXT('b'));
+		UGloamsteadGeneratedAssetCatalog* CatalogB = MakeAdapterCatalog(TEXT("v2"), TEXT('c'));
+		UGloamsteadGeneratedAssetSettings* SettingsA = MakeAdapterSettings(CatalogA);
+		UGloamsteadGeneratedAssetSettings* SettingsB = MakeAdapterSettings(CatalogB);
+		Provider->Configure(*SettingsA);
+		Provider->Test_SetObservedRuntimeIdentity(MakeAdapterObservedRuntimeIdentity(),
+			FSimpleDelegate::CreateLambda([Provider, CatalogB, SettingsB, Action]()
+			{
+				if (Action == EAction::Configure)
+				{
+					Provider->Configure(*SettingsB);
+				}
+				else if (Action == EAction::Deactivate)
+				{
+					Provider->Deactivate();
+				}
+				else
+				{
+					Provider->Configure(*SettingsB);
+					Provider->Test_SetObservedRuntimeIdentity(MakeAdapterObservedRuntimeIdentity());
+					const uint64 GenerationB = Provider->Test_BeginPendingCatalogLoad();
+					Provider->Test_CompleteCatalogLoad(GenerationB,
+						SettingsB->Catalog.ToSoftObjectPath(), CatalogB);
+				}
+			}));
+		Provider->Test_DeferNextCatalogLoad();
+		Adapter->Test_UseProviderForSettings(Provider, SettingsA, false);
+		Adapter->Test_BuildForSettings(World, SettingsA, false);
+		const uint64 GenerationA = Provider->Test_GetLoadGeneration();
+		TestEqual(TEXT("initial adapter build begins exactly one load"),
+			Adapter->Test_GetBuildInvocationCount(), static_cast<uint64>(1));
+		Provider->Test_CompleteCatalogLoad(GenerationA,
+			SettingsA->Catalog.ToSoftObjectPath(), CatalogA);
+		TestEqual(TEXT("stale catalog A completion never reenters BuildFor"),
+			Adapter->Test_GetBuildInvocationCount(), static_cast<uint64>(1));
+		TestEqual(TEXT("stale terminal retires the adapter pending build"),
+			Adapter->Test_GetPendingLoadTerminalCount(), static_cast<uint64>(1));
+		TestEqual(TEXT("stale terminal is never accepted"),
+			Adapter->Test_GetAcceptedLoadTerminalCount(), static_cast<uint64>(0));
+		if (Action == EAction::AcceptCatalogB)
+		{
+			TestTrue(TEXT("nested catalog B remains the ready generation"),
+				Provider->IsReadyForBuild() && Provider->GetCatalog() == CatalogB);
+		}
+		else
+		{
+			TestTrue(TEXT("configure/deactivate leaves the new lifecycle generation uninitialized"),
+				Provider->GetState() == EGMFGeneratedProviderState::Uninitialized);
+		}
+		World->DestroyWorld(false);
+	}
 	return true;
 }
 

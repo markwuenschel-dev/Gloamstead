@@ -1,0 +1,281 @@
+{
+  "asset_forge_schemas": [
+    {
+      "path": "specs/asset_forge/biome_kit_request.schema.json",
+      "sha256": "3e5f4ccdb034d5fea4d1dfe08e6d49e9685ca3d932e744384e11ba3e4ea363af",
+      "size": 11802
+    },
+    {
+      "path": "specs/asset_forge/biome_kit_result.schema.json",
+      "sha256": "ad051ba817fcf7e97e56af130fc246f83f339a130257c05b623543a683ff34bf",
+      "size": 11836
+    },
+    {
+      "path": "specs/asset_forge/failure.schema.json",
+      "sha256": "7867184d62508e1670d7af5e87689f43065b53826784518ce3abc87713ff1566",
+      "size": 1277
+    },
+    {
+      "path": "specs/asset_forge/promotion_receipt.schema.json",
+      "sha256": "e8689f11e1ed8827efe60cb86beaa1896cf9723dc9e78dd244ccfcdbbb194c71",
+      "size": 1851
+    },
+    {
+      "path": "specs/asset_forge/qualification.schema.json",
+      "sha256": "3daad8b86f113019a27fdf56797b887f9d12e54fcf43549e88203de31b7c11a7",
+      "size": 851
+    },
+    {
+      "path": "specs/asset_forge/rollback_receipt.schema.json",
+      "sha256": "17d68f070e21b0606591a3e83c4e4c2c346b5a408c221170105cc6505e55f9a5",
+      "size": 1215
+    }
+  ],
+  "build_identity": "wfplugin-4a071a65a3fde8566ab6afb80703b2f451a841b3686f7585fb4e31d2a3fec095",
+  "capabilities": [
+    "asset_set.reconcile@1",
+    "scene_survey"
+  ],
+  "capability_contract": {
+    "contract_manifest": {
+      "git_blob_oid": "624278d73cacf02485dd784e590dd5c7eab194c9",
+      "path": "specs/asset_forge/contract_manifest.json",
+      "sha256": "1b88a42ef1d7632ef4ef778e2472d2105aa29fe40eca2adfa96e99ad682a55df",
+      "size": 3192
+    },
+    "entrypoint_source": {
+      "git_blob_oid": "925c510675ae1b188045c8b557f8c793de5f9b60",
+      "path": "tools/asset_forge/__main__.py",
+      "sha256": "ee451a9d930ab975eff20dacfee17126c590dd7098ba8c845eadc53a5f1656cd",
+      "size": 4010
+    },
+    "operation": "asset_set.reconcile@1",
+    "registration": {
+      "entrypoint": "tools/asset_forge/__main__.py",
+      "executor": "python -m tools.asset_forge reconcile",
+      "executor_kind": "repository_cli",
+      "far_side_script": null,
+      "operation": "asset_set.reconcile@1",
+      "request_contract": "wf.asset_forge.biome_kit_request.v1",
+      "result_contract": "wf.asset_forge.biome_kit_result.v1"
+    },
+    "schemas": [
+      {
+        "git_blob_oid": "7d0598b1b4f18ad61a03254762ae7a5188d2183e",
+        "path": "specs/asset_forge/biome_kit_request.schema.json",
+        "role": "request",
+        "schema_id": "https://worldforge.local/specs/asset_forge/biome_kit_request.schema.json",
+        "sha256": "3e5f4ccdb034d5fea4d1dfe08e6d49e9685ca3d932e744384e11ba3e4ea363af",
+        "size": 11802
+      },
+      {
+        "git_blob_oid": "522c689c01a9bed325ff7f90ae1e5fb2d708975c",
+        "path": "specs/asset_forge/biome_kit_result.schema.json",
+        "role": "result",
+        "schema_id": "https://worldforge.local/specs/asset_forge/biome_kit_result.schema.json",
+        "sha256": "ad051ba817fcf7e97e56af130fc246f83f339a130257c05b623543a683ff34bf",
+        "size": 11836
+      }
+    ]
+  },
+  "capability_registry": {
+    "git_blob_oid": "91e0235ebbf072c49eeb008e542f7cb795b64aca",
+    "path": "tools/bridge/capability_ops.py",
+    "sha256": "24dc649119da62b81980d69cbf3905d322499a9b8a40da88b91d78298aa9ba79",
+    "size": 21375
+  },
+  "descriptor_sha256": "0c9ae0453c01d7bdb9815cf79b46b2dd9ba78f7f3a733c0a466521f4e638c30b",
+  "diagnostic_dirty_override": false,
+  "files": [
+    {
+      "git_blob_oid": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "git_blob_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob_size": 0,
+      "lfs": null,
+      "packaged_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "packaged_size": 0,
+      "path": "Content/.gitkeep"
+    },
+    {
+      "git_blob_oid": "b48268001c4828c9e61b46e2196fb734c724f3bd",
+      "git_blob_sha256": "4e2e416bc226662a6d9ef099e54f790b4b54679119a07017d76861ed0dd36028",
+      "git_blob_size": 10901,
+      "lfs": null,
+      "packaged_sha256": "4e2e416bc226662a6d9ef099e54f790b4b54679119a07017d76861ed0dd36028",
+      "packaged_size": 10901,
+      "path": "Source/WorldForgeCore/Private/SceneSurvey.cpp"
+    },
+    {
+      "git_blob_oid": "5f8dbb172c64e1fe3c35e31e4258d4b1ea9f42c7",
+      "git_blob_sha256": "126786516656887c20361b27cbb1ef5698aab1992b72e90fbc1275b59dc6da69",
+      "git_blob_size": 138,
+      "lfs": null,
+      "packaged_sha256": "126786516656887c20361b27cbb1ef5698aab1992b72e90fbc1275b59dc6da69",
+      "packaged_size": 138,
+      "path": "Source/WorldForgeCore/Private/WorldForgeCore.cpp"
+    },
+    {
+      "git_blob_oid": "dfb13e58ab9f867780f8289faec845379bb462a0",
+      "git_blob_sha256": "38c1358f2e0ab72f2cefaf9e231f74e4294ba48e8d09ac00c6bb38a5a0300124",
+      "git_blob_size": 5266,
+      "lfs": null,
+      "packaged_sha256": "38c1358f2e0ab72f2cefaf9e231f74e4294ba48e8d09ac00c6bb38a5a0300124",
+      "packaged_size": 5266,
+      "path": "Source/WorldForgeCore/Private/WorldForgeRuntimeIdentity.cpp"
+    },
+    {
+      "git_blob_oid": "1e59fadf238194c6ed958203f4f13d485588d747",
+      "git_blob_sha256": "29ded161726c0c2a21201df69cbc6000765adfa7aaaeefddd05348c530a715e6",
+      "git_blob_size": 4820,
+      "lfs": null,
+      "packaged_sha256": "29ded161726c0c2a21201df69cbc6000765adfa7aaaeefddd05348c530a715e6",
+      "packaged_size": 4820,
+      "path": "Source/WorldForgeCore/Private/WorldStateSubsystem.cpp"
+    },
+    {
+      "git_blob_oid": "d9e85e93509f5231ab0be3a00fc71beb60e71275",
+      "git_blob_sha256": "8ec58a7f4c223d46add1831b132f42425cc77bc42177cebbbec2d495a617da20",
+      "git_blob_size": 3701,
+      "lfs": null,
+      "packaged_sha256": "8ec58a7f4c223d46add1831b132f42425cc77bc42177cebbbec2d495a617da20",
+      "packaged_size": 3701,
+      "path": "Source/WorldForgeCore/Public/MaterialRecipeDataAsset.h"
+    },
+    {
+      "git_blob_oid": "db4a45a942de45e4a96f5fe07d86a40dedbe9e6d",
+      "git_blob_sha256": "d847938e26c5ef30792004f130175d3eb1ced10c6544bcfe6faf5a2d1e4d1002",
+      "git_blob_size": 6386,
+      "lfs": null,
+      "packaged_sha256": "d847938e26c5ef30792004f130175d3eb1ced10c6544bcfe6faf5a2d1e4d1002",
+      "packaged_size": 6386,
+      "path": "Source/WorldForgeCore/Public/PlacementRulesDataAsset.h"
+    },
+    {
+      "git_blob_oid": "0c14b0bcb72952cf729ed626cf93ed20157dea86",
+      "git_blob_sha256": "9f081ad041f7c78b80b13f23bfaac0a4f9ac793410a53391afd9328ddf61b620",
+      "git_blob_size": 4054,
+      "lfs": null,
+      "packaged_sha256": "9f081ad041f7c78b80b13f23bfaac0a4f9ac793410a53391afd9328ddf61b620",
+      "packaged_size": 4054,
+      "path": "Source/WorldForgeCore/Public/SceneSurvey.h"
+    },
+    {
+      "git_blob_oid": "efc294d2bccab670026d1fe7fbaf3c536a1cbf28",
+      "git_blob_sha256": "76ce1fcb4c27cd49fa1a9552fe497f6a31d712206796cbc572e6ff75ff91d174",
+      "git_blob_size": 459,
+      "lfs": null,
+      "packaged_sha256": "76ce1fcb4c27cd49fa1a9552fe497f6a31d712206796cbc572e6ff75ff91d174",
+      "packaged_size": 459,
+      "path": "Source/WorldForgeCore/Public/WorldForgeCore.h"
+    },
+    {
+      "git_blob_oid": "73ccf206ef61b8e625a5748b781e635b7b47d57a",
+      "git_blob_sha256": "15a21c5f62c028a0dc2756d2783209aa1b9b138651cd2af683e18d406ad32936",
+      "git_blob_size": 6387,
+      "lfs": null,
+      "packaged_sha256": "15a21c5f62c028a0dc2756d2783209aa1b9b138651cd2af683e18d406ad32936",
+      "packaged_size": 6387,
+      "path": "Source/WorldForgeCore/Public/WorldForgeRuntimeIdentity.h"
+    },
+    {
+      "git_blob_oid": "3a502eda31e56571323c9e1e4e9790b86353a99c",
+      "git_blob_sha256": "0931e1b69002658414b4fa644488041f7af1210361da6b759937f5015eaefd8c",
+      "git_blob_size": 1647,
+      "lfs": null,
+      "packaged_sha256": "0931e1b69002658414b4fa644488041f7af1210361da6b759937f5015eaefd8c",
+      "packaged_size": 1647,
+      "path": "Source/WorldForgeCore/Public/WorldForgeStateTypes.h"
+    },
+    {
+      "git_blob_oid": "94488a5984367cdee2d098520f12671c997d4f83",
+      "git_blob_sha256": "a3cccb5accb86de110a6e0d2b3a3bda9e6c2beae68ec8dd78d9ab5b2ee0b499c",
+      "git_blob_size": 1105,
+      "lfs": null,
+      "packaged_sha256": "a3cccb5accb86de110a6e0d2b3a3bda9e6c2beae68ec8dd78d9ab5b2ee0b499c",
+      "packaged_size": 1105,
+      "path": "Source/WorldForgeCore/Public/WorldStateContract.h"
+    },
+    {
+      "git_blob_oid": "5ad600613249b3a64e634406ec9150bb541e7e16",
+      "git_blob_sha256": "aec7df35caa17a7c5d45055e18184e9dc38fe2b6725b8b5f79e819fbb4d20abb",
+      "git_blob_size": 2901,
+      "lfs": null,
+      "packaged_sha256": "aec7df35caa17a7c5d45055e18184e9dc38fe2b6725b8b5f79e819fbb4d20abb",
+      "packaged_size": 2901,
+      "path": "Source/WorldForgeCore/Public/WorldStateSubsystem.h"
+    },
+    {
+      "git_blob_oid": "2c1661ac8e12d1239d060c08beef6a4914114a73",
+      "git_blob_sha256": "635944721b28a76512a786ce92fb5b278e3a059c7dfd1f6b4d30647f08225d2a",
+      "git_blob_size": 7576,
+      "lfs": null,
+      "packaged_sha256": "635944721b28a76512a786ce92fb5b278e3a059c7dfd1f6b4d30647f08225d2a",
+      "packaged_size": 7576,
+      "path": "Source/WorldForgeCore/WorldForgeCore.Build.cs"
+    },
+    {
+      "git_blob_oid": "4e6a2e44659bd2a6b8e1b27af8068003d0214c7d",
+      "git_blob_sha256": "cc9369d3e60492a44f6027ca8688ca1f5f894ca2cda5929b10bcc04dff77ecd6",
+      "git_blob_size": 3863,
+      "lfs": null,
+      "packaged_sha256": "cc9369d3e60492a44f6027ca8688ca1f5f894ca2cda5929b10bcc04dff77ecd6",
+      "packaged_size": 3863,
+      "path": "Source/WorldForgeEd/Private/WorldForgeAssetSetInstaller.cpp"
+    },
+    {
+      "git_blob_oid": "4ea1ab0b8c50c7e4cf33422c536a275ca9b23af0",
+      "git_blob_sha256": "6a49e851a4747d094d59dd51cdb33bba4e154dbf77c6bc41ba15cec491f34f6f",
+      "git_blob_size": 465,
+      "lfs": null,
+      "packaged_sha256": "6a49e851a4747d094d59dd51cdb33bba4e154dbf77c6bc41ba15cec491f34f6f",
+      "packaged_size": 465,
+      "path": "Source/WorldForgeEd/Private/WorldForgeEd.cpp"
+    },
+    {
+      "git_blob_oid": "b0c3525ef3abc0dbaf98ca1aa08d5e708d00eaf5",
+      "git_blob_sha256": "6f0697d7e388eb46f0c0ff36a8d705112a4c4b07fdf8422e5b33b7f40af591bb",
+      "git_blob_size": 1562,
+      "lfs": null,
+      "packaged_sha256": "6f0697d7e388eb46f0c0ff36a8d705112a4c4b07fdf8422e5b33b7f40af591bb",
+      "packaged_size": 1562,
+      "path": "Source/WorldForgeEd/Public/WorldForgeAssetSetInstaller.h"
+    },
+    {
+      "git_blob_oid": "9eaff63a26975e060912262708c00d0de50a9179",
+      "git_blob_sha256": "638f721c22c486fabeb416a0482c8a689a7758a3feceb1d10b3ea1af508fa4ec",
+      "git_blob_size": 498,
+      "lfs": null,
+      "packaged_sha256": "638f721c22c486fabeb416a0482c8a689a7758a3feceb1d10b3ea1af508fa4ec",
+      "packaged_size": 498,
+      "path": "Source/WorldForgeEd/Public/WorldForgeEd.h"
+    },
+    {
+      "git_blob_oid": "35c8723d4cb599c57052d3fe0aa4899dff8a47ee",
+      "git_blob_sha256": "8ab94a6c74aa62709ef5981abac1e0c0b59d6bdd4c8212650d6b73ab267f0077",
+      "git_blob_size": 570,
+      "lfs": null,
+      "packaged_sha256": "8ab94a6c74aa62709ef5981abac1e0c0b59d6bdd4c8212650d6b73ab267f0077",
+      "packaged_size": 570,
+      "path": "Source/WorldForgeEd/WorldForgeEd.Build.cs"
+    },
+    {
+      "git_blob_oid": "9a3c4528c2993ff08109f7b98b6662a2712d4639",
+      "git_blob_sha256": "0c9ae0453c01d7bdb9815cf79b46b2dd9ba78f7f3a733c0a466521f4e638c30b",
+      "git_blob_size": 715,
+      "lfs": null,
+      "packaged_sha256": "0c9ae0453c01d7bdb9815cf79b46b2dd9ba78f7f3a733c0a466521f4e638c30b",
+      "packaged_size": 715,
+      "path": "WorldForge.uplugin"
+    }
+  ],
+  "package_sha256": "0d655110f1d815e660ff48d07ddd562311e82449a15d821f20a132b18748264f",
+  "plugin_id": "WorldForge",
+  "plugin_version": "0.2.0",
+  "schema_id": "worldforge.plugin.release",
+  "schema_version": 2,
+  "source_commit": "4f21f336bd90dd084492c7c0d4165b3564171636",
+  "source_dirty": false,
+  "source_repository": "https://github.com/markwuenschel-dev/WorldForge.git",
+  "source_tree_sha256": "b7e8119af2e64d901cd0f6a6b07f3685e139bb6f8052f8bbe8816e2c65925cb1",
+  "supported_engine": "5.8"
+}

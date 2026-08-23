@@ -6,6 +6,9 @@
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "Materials/MaterialInterface.h"
+#include "UObject/Package.h"
+#include "UObject/StrongObjectPtr.h"
+#include "UObject/UObjectGlobals.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -690,6 +693,58 @@ bool FGloamGeneratedAssetProviderLoadCompletionTest::RunTest(const FString& /*Pa
 	StaleProvider->Test_CompleteCatalogLoad(StaleGeneration, FSoftObjectPath(), MakeValidCatalog(),
 		CountCompletion(StaleCount));
 	TestEqual(TEXT("stale generation remains intentionally ignored"), StaleCount, 0);
+
+	UGloamsteadGeneratedAssetCatalog* TypedCatalog = MakeValidCatalog();
+	UGloamsteadGeneratedAssetSettings* TypedSettings =
+		NewObject<UGloamsteadGeneratedAssetSettings>();
+	TypedSettings->Catalog = TSoftObjectPtr<UGloamsteadGeneratedAssetCatalog>(FSoftObjectPath(
+		TypedCatalog->VersionRoot + TEXT("/DA_Catalog.DA_Catalog")));
+	TypedSettings->ExpectedActiveBundleId = TypedCatalog->BundleId;
+	TypedSettings->ExpectedReceiptSha256 = TypedCatalog->ReceiptSha256;
+	TypedSettings->ExpectedTargetBuildIdentitySha256 = TypedCatalog->TargetBuildIdentitySha256;
+	UGloamsteadGeneratedAssetMeshForgeProvider* TypedProvider =
+		NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>();
+	TypedProvider->Configure(*TypedSettings);
+	TypedProvider->Test_SetObservedRuntimeIdentity(MakeObservedRuntimeIdentity());
+	TypedProvider->Test_DeferNextCatalogLoad();
+	int32 TypedAcceptedCount = 0;
+	FGloamsteadGeneratedCatalogLoadResult AcceptedResult;
+	TypedProvider->PreloadCatalogAsyncWithResult(
+		FGloamsteadGeneratedCatalogLoadCompletion::CreateLambda(
+			[&](const FGloamsteadGeneratedCatalogLoadResult& Result)
+			{
+				++TypedAcceptedCount;
+				AcceptedResult = Result;
+			}));
+	const uint64 TypedAcceptedGeneration = TypedProvider->Test_GetLoadGeneration();
+	TypedProvider->Test_CompleteCatalogLoad(TypedAcceptedGeneration,
+		TypedSettings->Catalog.ToSoftObjectPath(), TypedCatalog);
+	TestEqual(TEXT("typed accepted request completes exactly once"), TypedAcceptedCount, 1);
+	TestTrue(TEXT("typed accepted result is bound to the exact current Ready generation"),
+		AcceptedResult.Terminal == EGMFGeneratedCatalogLoadTerminal::Accepted
+		&& TypedProvider->IsCatalogLoadResultCurrent(AcceptedResult));
+
+	TypedProvider->Configure(*TypedSettings);
+	TypedProvider->Test_DeferNextCatalogLoad();
+	int32 TypedCancelledCount = 0;
+	FGloamsteadGeneratedCatalogLoadResult CancelledResult;
+	TypedProvider->PreloadCatalogAsyncWithResult(
+		FGloamsteadGeneratedCatalogLoadCompletion::CreateLambda(
+			[&](const FGloamsteadGeneratedCatalogLoadResult& Result)
+			{
+				++TypedCancelledCount;
+				CancelledResult = Result;
+			}));
+	const uint64 TypedCancelledGeneration = TypedProvider->Test_GetLoadGeneration();
+	TypedProvider->Deactivate();
+	TestEqual(TEXT("typed cancelled request completes exactly once"), TypedCancelledCount, 1);
+	TestTrue(TEXT("typed cancellation is explicit and cannot be current"),
+		CancelledResult.Terminal == EGMFGeneratedCatalogLoadTerminal::Cancelled
+		&& !TypedProvider->IsCatalogLoadResultCurrent(CancelledResult));
+	TypedProvider->Test_CompleteCatalogLoad(TypedCancelledGeneration,
+		TypedSettings->Catalog.ToSoftObjectPath(), TypedCatalog);
+	TestEqual(TEXT("late platform callback cannot double-complete cancellation"),
+		TypedCancelledCount, 1);
 	return true;
 }
 
@@ -1374,6 +1429,226 @@ bool FGloamGeneratedAssetProviderReentrantGenerationTest::RunTest(const FString&
 		TestTrue(Label + TEXT(": provider epoch advances monotonically"),
 			Provider->Test_GetProviderEpoch() > EpochBefore);
 		AssertAndRecoverNewGeneration(Label, Provider, CatalogB, SettingsB, Action);
+	}
+	World->DestroyWorld(false);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamGeneratedAssetProviderRealLoadBoundaryTest,
+	"Gloamstead.GeneratedAssets.RealLoadBoundariesRetireStaleGenerations",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamGeneratedAssetProviderRealLoadBoundaryTest::RunTest(const FString& /*Parameters*/)
+{
+	enum class EAction : uint8 { Configure, Deactivate, AcceptCatalogB };
+	enum class EBoundary : uint8 { MainTryLoad, DependencyTryLoad, ExpectedClassLoad };
+	const EAction Actions[] = { EAction::Configure, EAction::Deactivate, EAction::AcceptCatalogB };
+	const EBoundary Boundaries[] = {
+		EBoundary::MainTryLoad, EBoundary::DependencyTryLoad, EBoundary::ExpectedClassLoad };
+	auto ActionName = [](EAction Action)
+	{
+		switch (Action)
+		{
+		case EAction::Configure: return FString(TEXT("Configure"));
+		case EAction::Deactivate: return FString(TEXT("Deactivate"));
+		case EAction::AcceptCatalogB: return FString(TEXT("AcceptCatalogB"));
+		}
+		return FString(TEXT("Unknown"));
+	};
+	auto BoundaryName = [](EBoundary Boundary)
+	{
+		switch (Boundary)
+		{
+		case EBoundary::MainTryLoad: return FString(TEXT("TryLoad"));
+		case EBoundary::DependencyTryLoad: return FString(TEXT("DependencyTryLoad"));
+		case EBoundary::ExpectedClassLoad: return FString(TEXT("ExpectedClassLoadSynchronous"));
+		}
+		return FString(TEXT("Unknown"));
+	};
+	auto MakeSettings = [](UGloamsteadGeneratedAssetCatalog* Catalog)
+	{
+		UGloamsteadGeneratedAssetSettings* Settings =
+			NewObject<UGloamsteadGeneratedAssetSettings>();
+		Settings->ProviderMode = EGloamsteadMeshForgeProviderMode::GeneratedCatalog;
+		Settings->Catalog = TSoftObjectPtr<UGloamsteadGeneratedAssetCatalog>(FSoftObjectPath(
+			Catalog->VersionRoot + TEXT("/DA_Catalog.DA_Catalog")));
+		Settings->ExpectedActiveBundleId = Catalog->BundleId;
+		Settings->ExpectedReceiptSha256 = Catalog->ReceiptSha256;
+		Settings->ExpectedTargetBuildIdentitySha256 = Catalog->TargetBuildIdentitySha256;
+		return Settings;
+	};
+	auto MakeCatalogB = []()
+	{
+		UGloamsteadGeneratedAssetCatalog* Catalog = MakeValidCatalog();
+		Catalog->BundleId = TEXT("sanctuary-v2");
+		Catalog->ReceiptSha256 =
+			TEXT("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc");
+		Catalog->VersionRoot = TEXT("/Game/Gloamstead/Generated/Biomes/Sanctuary/v2");
+		Catalog->Entries[0].Asset = TSoftObjectPtr<UObject>(FSoftObjectPath(
+			Catalog->VersionRoot + TEXT("/SM_Heart.SM_Heart")));
+		Catalog->Entries[0].ReceiptSha256 = Catalog->ReceiptSha256;
+		return Catalog;
+	};
+	auto Accept = [](UGloamsteadGeneratedAssetMeshForgeProvider* Provider,
+		UGloamsteadGeneratedAssetCatalog* Catalog,
+		UGloamsteadGeneratedAssetSettings* Settings)
+	{
+		Provider->Configure(*Settings);
+		Provider->Test_SetObservedRuntimeIdentity(MakeObservedRuntimeIdentity());
+		const uint64 Generation = Provider->Test_BeginPendingCatalogLoad();
+		Provider->Test_CompleteCatalogLoad(
+			Generation, Settings->Catalog.ToSoftObjectPath(), Catalog);
+	};
+
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+	if (!TestNotNull(TEXT("real-boundary test world created"), World))
+	{
+		return false;
+	}
+	FGloamsteadMeshForgeProxySpec Spec;
+	Spec.ProxyId = TEXT("heart");
+	Spec.GeneratedAssetRole = TEXT("sanctuary.heart");
+	Spec.GeneratedAssetState = EGloamsteadGeneratedAssetState::Restored;
+	FGloamsteadMeshForgeSourceBinding Binding;
+	Binding.SourceSystem = EGMFSourceSystem::VeilHeart;
+	Binding.bLocationResolved = true;
+
+	int32 CaseIndex = 0;
+	for (const EBoundary Boundary : Boundaries)
+	{
+		for (const EAction Action : Actions)
+		{
+			const FString Label = BoundaryName(Boundary) + TEXT("/") + ActionName(Action);
+			const FString MainName = FString::Printf(TEXT("SM_Heart_R12_%d"), CaseIndex);
+			const FString DependencyName = FString::Printf(TEXT("SM_Dependency_R12_%d"), CaseIndex);
+			++CaseIndex;
+			UGloamsteadGeneratedAssetCatalog* CatalogA = MakeValidCatalog();
+			const FSoftObjectPath MainPath(CatalogA->VersionRoot + TEXT("/")
+				+ MainName + TEXT(".") + MainName);
+			const FSoftObjectPath DependencyPath(CatalogA->VersionRoot + TEXT("/")
+				+ DependencyName + TEXT(".") + DependencyName);
+			CatalogA->Entries[0].Asset = TSoftObjectPtr<UObject>(MainPath);
+			FGloamsteadGeneratedAssetEntry DependencyEntry = MakeValidMeshEntry(
+				TEXT("sanctuary.heart_dependency"), EGloamsteadGeneratedAssetState::Before);
+			DependencyEntry.Asset = TSoftObjectPtr<UObject>(DependencyPath);
+			DependencyEntry.ObjectSha256 =
+				TEXT("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd");
+			CatalogA->Entries.Add(DependencyEntry);
+			CatalogA->Entries[0].Dependencies.Add(TSoftObjectPtr<UObject>(DependencyPath));
+			CatalogA->Entries[0].DirectPackageDependencies.Add(
+				DependencyPath.GetLongPackageName());
+
+			UPackage* MainPackage = CreatePackage(*MainPath.GetLongPackageName());
+			UPackage* DependencyPackage = CreatePackage(*DependencyPath.GetLongPackageName());
+			UStaticMesh* MainMesh = NewObject<UStaticMesh>(
+				MainPackage, FName(*MainName), RF_Public);
+			UStaticMesh* DependencyMesh = NewObject<UStaticMesh>(
+				DependencyPackage, FName(*DependencyName), RF_Public);
+			TestNotNull(Label + TEXT(": in-memory main asset resolves before production TryLoad"),
+				MainPath.ResolveObject());
+			TestNotNull(Label + TEXT(": in-memory dependency resolves before production TryLoad"),
+				DependencyPath.ResolveObject());
+
+			TStrongObjectPtr<UGloamsteadGeneratedAssetMeshForgeProvider> ProviderGuard(
+				NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>());
+			UGloamsteadGeneratedAssetMeshForgeProvider* Provider = ProviderGuard.Get();
+			TStrongObjectPtr<UGloamsteadGeneratedAssetCatalog> CatalogBGuard(MakeCatalogB());
+			TStrongObjectPtr<UGloamsteadGeneratedAssetSettings> SettingsBGuard(
+				MakeSettings(CatalogBGuard.Get()));
+			UGloamsteadGeneratedAssetSettings* SettingsA = MakeSettings(CatalogA);
+			Accept(Provider, CatalogA, SettingsA);
+			TestTrue(Label + TEXT(": catalog A begins Ready"), Provider->IsReadyForBuild());
+			Provider->Test_SetPackageDependencies(MainPath, {
+				FName(*DependencyPath.GetLongPackageName()) });
+			Provider->Test_SetPackageDependencies(DependencyPath, {});
+			Provider->Test_SetObservedProvenance(MainPath, {
+				CatalogA->Entries[0].ObjectSha256, CatalogA->ReceiptSha256, CatalogA->BundleId });
+			Provider->Test_SetObservedProvenance(DependencyPath, {
+				CatalogA->Entries[1].ObjectSha256, CatalogA->ReceiptSha256, CatalogA->BundleId });
+
+			auto PerformActionAndCollect = [Provider, CatalogB = CatalogBGuard.Get(),
+				SettingsB = SettingsBGuard.Get(), Action, &Accept]()
+			{
+				if (Action == EAction::Configure)
+				{
+					Provider->Configure(*SettingsB);
+				}
+				else if (Action == EAction::Deactivate)
+				{
+					Provider->Deactivate();
+				}
+				else
+				{
+					Accept(Provider, CatalogB, SettingsB);
+				}
+				CollectGarbage(RF_NoFlags);
+			};
+			bool bBoundaryObjectSurvivedGC = false;
+			if (Boundary == EBoundary::MainTryLoad)
+			{
+				const TWeakObjectPtr<UStaticMesh> Watched(MainMesh);
+				Provider->Test_SetObjectResolutionCallbackForPath(MainPath,
+					FSimpleDelegate::CreateLambda([&, Watched]()
+					{
+						PerformActionAndCollect();
+						bBoundaryObjectSurvivedGC = Watched.IsValid();
+					}));
+			}
+			else if (Boundary == EBoundary::DependencyTryLoad)
+			{
+				const TWeakObjectPtr<UStaticMesh> Watched(DependencyMesh);
+				Provider->Test_SetObjectResolutionCallbackForPath(DependencyPath,
+					FSimpleDelegate::CreateLambda([&, Watched]()
+					{
+						PerformActionAndCollect();
+						bBoundaryObjectSurvivedGC = Watched.IsValid();
+					}));
+			}
+			else
+			{
+				const TWeakObjectPtr<UClass> Watched(UStaticMesh::StaticClass());
+				Provider->Test_SetExpectedClassLoadCallback(FSimpleDelegate::CreateLambda([&, Watched]()
+				{
+					PerformActionAndCollect();
+					bBoundaryObjectSurvivedGC = Watched.IsValid();
+				}));
+			}
+
+			const uint64 TryLoadsBefore = Provider->Test_GetProductionTryLoadCount();
+			const uint64 ClassLoadsBefore = Provider->Test_GetExpectedClassLoadCount();
+			const FGloamsteadMeshForgeProxyInstance Outer =
+				Provider->CreateProxy(Spec, Binding, World);
+			TestFalse(Label + TEXT(": stale outer operation never spawns"), Outer.bSpawned);
+			TestTrue(Label + TEXT(": stale boundary reports GAC039"),
+				Outer.FailureCodes.Contains(TEXT("GAC039")));
+			TestTrue(Label + TEXT(": production boundary retained its object through hostile GC"),
+				bBoundaryObjectSurvivedGC);
+			const uint64 ExpectedTryLoads = Boundary == EBoundary::MainTryLoad ? 1 : 2;
+			TestEqual(Label + TEXT(": production TryLoad branch count"),
+				Provider->Test_GetProductionTryLoadCount() - TryLoadsBefore, ExpectedTryLoads);
+			TestEqual(Label + TEXT(": ExpectedClass.LoadSynchronous branch count"),
+				Provider->Test_GetExpectedClassLoadCount() - ClassLoadsBefore,
+				Boundary == EBoundary::ExpectedClassLoad ? static_cast<uint64>(1) : 0);
+
+			if (Action == EAction::AcceptCatalogB)
+			{
+				TestTrue(Label + TEXT(": nested B remains Ready and unpoisoned"),
+					Provider->IsReadyForBuild()
+					&& Provider->GetCatalog() == CatalogBGuard.Get()
+					&& !Provider->GetFailureCodes().Contains(TEXT("GAC039")));
+			}
+			else
+			{
+				TestTrue(Label + TEXT(": lifecycle generation remains Uninitialized"),
+					Provider->GetState() == EGMFGeneratedProviderState::Uninitialized);
+				Accept(Provider, CatalogBGuard.Get(), SettingsBGuard.Get());
+				TestTrue(Label + TEXT(": clean B recovery remains possible"),
+					Provider->IsReadyForBuild()
+					&& Provider->GetCatalog() == CatalogBGuard.Get()
+					&& !Provider->GetFailureCodes().Contains(TEXT("GAC039")));
+			}
+		}
 	}
 	World->DestroyWorld(false);
 	return true;

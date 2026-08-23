@@ -36,10 +36,10 @@
       "const": "https://github.com/markwuenschel-dev/WorldForge.git"
     },
     "source_commit": {
-      "const": "61009579821f280ad3a000da9262c9f6ff5d5398"
+      "const": "4f21f336bd90dd084492c7c0d4165b3564171636"
     },
     "release_manifest_commit": {
-      "const": "00d6c7ea"
+      "const": "e9afc2aa"
     },
     "source_tree_sha256": {
       "type": "string",

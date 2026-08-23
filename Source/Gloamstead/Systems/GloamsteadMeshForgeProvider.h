@@ -102,6 +102,33 @@ enum class EGMFGeneratedProviderState : uint8
 	Failed,
 };
 
+/** Internal terminal outcome for one catalog-load generation. */
+enum class EGMFGeneratedCatalogLoadTerminal : uint8
+{
+	Accepted = 0,
+	Rejected,
+	Cancelled,
+	Stale,
+};
+
+/**
+ * Immutable evidence captured when one catalog-load request terminates.  Consumers must validate the
+ * entire tuple before acting: the provider UObject can be reconfigured and become Ready for another
+ * catalog while an older completion frame is still unwinding.
+ */
+struct GLOAMSTEAD_API FGloamsteadGeneratedCatalogLoadResult
+{
+	EGMFGeneratedCatalogLoadTerminal Terminal = EGMFGeneratedCatalogLoadTerminal::Rejected;
+	uint64 ProviderEpoch = 0;
+	uint64 LoadGeneration = 0;
+	EGMFGeneratedProviderState ProviderState = EGMFGeneratedProviderState::Uninitialized;
+	TWeakObjectPtr<UGloamsteadGeneratedAssetCatalog> CatalogObjectGeneration;
+	FString AcceptedCatalogContractSha256;
+};
+
+DECLARE_DELEGATE_OneParam(FGloamsteadGeneratedCatalogLoadCompletion,
+	const FGloamsteadGeneratedCatalogLoadResult&);
+
 /** Receipt-closed generated catalog provider. It never falls back to engine primitives. */
 UCLASS()
 class GLOAMSTEAD_API UGloamsteadGeneratedAssetMeshForgeProvider : public UGloamsteadMeshForgeProvider
@@ -113,6 +140,10 @@ public:
 	/** Cancel async work and invalidate this provider before adapter replacement/shutdown. */
 	void Deactivate();
 	void PreloadCatalogAsync(FSimpleDelegate Completion = FSimpleDelegate());
+	/** Typed completion used by generation-aware consumers. Exactly one terminal is delivered per request. */
+	void PreloadCatalogAsyncWithResult(FGloamsteadGeneratedCatalogLoadCompletion Completion);
+	/** True only while an Accepted result still names this exact Ready provider/catalog generation. */
+	bool IsCatalogLoadResultCurrent(const FGloamsteadGeneratedCatalogLoadResult& Result) const;
 	/** Re-observe and bind the runtime identity; called on every adapter build/rebuild. */
 	bool RevalidateRuntimeIdentity();
 
@@ -145,6 +176,9 @@ public:
 		const TArray<FName>& DependencyPackages);
 	void Test_MarkPackageDependencyQueryUnavailable(const FString& PackageName);
 	void Test_SetObjectResolutionCallback(FSimpleDelegate Callback);
+	void Test_SetObjectResolutionCallbackForPath(const FSoftObjectPath& ObjectPath,
+		FSimpleDelegate Callback);
+	void Test_SetExpectedClassLoadCallback(FSimpleDelegate Callback);
 	void Test_SetActorSpawnCallback(
 		TFunction<void(AGloamsteadMeshForgeProxyActor*)> Callback);
 	TArray<FString> Test_ValidateDependencyClosure();
@@ -153,6 +187,11 @@ public:
 	void Test_CompleteCatalogLoad(uint64 LoadGeneration, const FSoftObjectPath& RequestedPath,
 		UGloamsteadGeneratedAssetCatalog* Catalog, FSimpleDelegate Completion = FSimpleDelegate());
 	uint64 Test_GetProviderEpoch() const { return ProviderEpoch; }
+	uint64 Test_GetLoadGeneration() const { return LoadGeneration; }
+	uint64 Test_GetProductionTryLoadCount() const { return TestProductionTryLoadCount; }
+	uint64 Test_GetExpectedClassLoadCount() const { return TestExpectedClassLoadCount; }
+	/** Defer the next production PreloadCatalogAsync request until Test_CompleteCatalogLoad. */
+	void Test_DeferNextCatalogLoad() { bTestDeferNextCatalogLoad = true; }
 #endif
 
 private:
@@ -170,9 +209,17 @@ private:
 	bool IsOperationSnapshotCurrent(const FProviderOperationSnapshot& Snapshot) const;
 	bool ValidateCurrentOperationAfterBoundary(const FProviderOperationSnapshot& Snapshot);
 	void CancelOutstandingPreload();
-	void FinishCatalogLoad(uint64 LoadGeneration, FSoftObjectPath RequestedPath, FSimpleDelegate Completion);
+	void FinishCatalogLoad(uint64 LoadGeneration, FSoftObjectPath RequestedPath);
 	void AcceptCatalogLoad(uint64 LoadGeneration, const FSoftObjectPath& RequestedPath,
-		UGloamsteadGeneratedAssetCatalog* Catalog, FSimpleDelegate Completion);
+		UGloamsteadGeneratedAssetCatalog* Catalog,
+		FGloamsteadGeneratedCatalogLoadCompletion CompletionOverride =
+			FGloamsteadGeneratedCatalogLoadCompletion());
+	FGloamsteadGeneratedCatalogLoadResult MakeCatalogLoadResult(
+		EGMFGeneratedCatalogLoadTerminal Terminal,
+		uint64 ResultProviderEpoch,
+		uint64 ResultLoadGeneration,
+		UGloamsteadGeneratedAssetCatalog* ResultCatalog) const;
+	void CompletePendingCatalogLoad(EGMFGeneratedCatalogLoadTerminal Terminal);
 	void ValidateLoadedCatalog();
 	/** Re-run structural validation and compare every canonical contract byte to the accepted digest. */
 	bool EnsureAcceptedCatalogContractCurrent();
@@ -208,13 +255,21 @@ private:
 	/** Monotonic token invalidating every outer frame when configuration or an operation is replaced. */
 	uint64 ProviderEpoch = 0;
 	uint64 LoadGeneration = 0;
+	uint64 PendingCompletionLoadGeneration = 0;
+	uint64 PendingCompletionProviderEpoch = 0;
+	FGloamsteadGeneratedCatalogLoadCompletion PendingCatalogLoadCompletion;
 #if WITH_DEV_AUTOMATION_TESTS
 	TMap<FSoftObjectPath, TWeakObjectPtr<UObject>> TestResolvedObjects;
 	TMap<FSoftObjectPath, FGloamsteadGeneratedAssetObservedProvenance> TestObservedProvenance;
 	TMap<FName, TArray<FName>> TestPackageDependencies;
 	TSet<FName> TestUnavailablePackageDependencyQueries;
 	FSimpleDelegate TestObjectResolutionCallback;
+	TMap<FSoftObjectPath, FSimpleDelegate> TestObjectResolutionCallbacksByPath;
+	FSimpleDelegate TestExpectedClassLoadCallback;
 	TFunction<void(AGloamsteadMeshForgeProxyActor*)> TestActorSpawnCallback;
 	bool bTestForceSpawnFailure = false;
+	bool bTestDeferNextCatalogLoad = false;
+	uint64 TestProductionTryLoadCount = 0;
+	uint64 TestExpectedClassLoadCount = 0;
 #endif
 };

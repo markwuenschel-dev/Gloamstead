@@ -16,14 +16,15 @@ The initial Task 4 contract landed in shared-index commit `b845f28` together wit
 
 ## Vendor result
 
-- Lock binds WorldForge source `61009579821f280ad3a000da9262c9f6ff5d5398`, release-manifest commit `00d6c7ea`, release-manifest SHA-256 `2daf2ad...`, package SHA-256 `da19fbd...`, descriptor/source/schema hashes, capabilities, UE 5.8, and build identity.
+- The prepared (not yet committed) lock binds the final WorldForge 0.2.0 source `4f21f336bd90dd084492c7c0d4165b3564171636`, release-record commit `e9afc2aa`, release-manifest SHA-256 `3d1436e180782b4eae6778f7bd3eb1bc1fb9f3c52207773f7eea0886c84e50c9`, package SHA-256 `0d655110f1d815e660ff48d07ddd562311e82449a15d821f20a132b18748264f`, descriptor/source/schema hashes, capabilities, UE 5.8, and build identity.
 - Sync verifies the lock-hash-bound release manifest and ZIP independently, rejects unsafe/colliding/unexpected/forbidden entries case-insensitively, validates every payload hash and exact file set, and installs both the plugin and the host convention `Config/WorldForge/VerifiedReleaseManifest.json`. Every replace/delete transition is append-journaled below the worktree Git directory. Failure restores the exact prior state; failed restoration returns typed `FAIL-ROLLBACK` / `RecoveryRequired` with the preserved backup and journal paths. No cryptographic signature is claimed.
 - Installed verification hashes the exact packaged source tree and rejects hand edits. Runtime identity remains an independently observed full installed/build tree per `gloamstead.worldforge.runtime-identity@1`; the package-tree lock is not substituted for runtime observation.
 - The live 0.1 plugin was intentionally not replaced while the shared worktree contained concurrent runtime-lane changes. All sync tests used disposable Git repositories.
 
 ## Verification
 
-- `pwsh -NoProfile -File scripts/Test-SanctuaryBiomeKit.ps1`: PASS, 18 tests.
+- `python -m scripts.worldforge_asset_forge.forge_contract --root . test-contract`: PASS, deliverable count 107.
+- With the final package/manifest supplied through `WF_TEST_PACKAGE`/`WF_TEST_MANIFEST`, 24/26 focused tests pass. Two operator negative tests are blocked by this worktree being behind the newly advanced `origin/main`; rebasing would import the explicitly excluded playable-first-night slice.
 - Real PowerShell JSON Schema validation: PASS for intent, acceptance, inventory, and vendor lock.
 - Frozen WorldForge `BiomeKitRequest.from_dict` interoperability: PASS.
 - Canonical hash mutation fuzz: 200/200 rejected.
@@ -45,7 +46,7 @@ The exact WorldForge 0.2.0 snapshot currently exposes a native compile-stamp ide
 - A promoted result must name the freshly observed clean target `HEAD`. Its single parent must be the requested base commit and its diff must be exactly the immutable source/object allowlist, active catalog asset, active-pointer metadata, and JSON evidence below the exact request-hash run root. Verification reads committed blobs with `git show`; working-tree bytes are never evidence. Binary products require canonical Git LFS pointers and present hash/size-matching local objects; non-LFS products and evidence require exact result/receipt hash bindings.
 - Vendor sync now has a durable `committed` point only after the plugin and host manifest both verify. Backups are never deleted pre-commit. Post-commit cleanup is independently journaled, idempotent, and replayable; an injected cleanup failure preserves the verified new canonical state and remaining exact backup paths in a typed `RecoveryRequired` response instead of rolling back accepted bytes.
 - Catalog reload validation requires exactly 107 closed semantic entries and independently queries on-disk Asset Registry hard/soft package edges. Observed and catalog-declared direct edges must match exactly. Every generated soft reference, role, state, expected class, object hash, receipt, owner, and license is bound to the request/result; every additional package edge, including `/Engine`, must have an explicit terminal or external declaration.
-- Focused verification is now 22/22 passing, including 200 canonical-hash fuzz mutations, hostile `run_operator` checkout/executor integration tests, both vendor-backup cleanup orders with replay, committed-vs-dirty-byte evidence, closed 107-entry catalog mutations, generated-script syntax/API assertions, `py_compile`, and `git diff --check`.
+- Historical focused verification at the operator commit was 26/26. Current source revalidation preserves the 24 passing contract/vendor/runtime tests; the two ancestry-gate cases correctly return `FAIL-CONTRACT-DRIFT` because `origin/main` advanced beyond this intentionally isolated branch.
 
 ## Round 4 identity and pointer closure
 

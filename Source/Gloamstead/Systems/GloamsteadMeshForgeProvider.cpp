@@ -12,7 +12,6 @@
 #include "Modules/ModuleManager.h"
 #include "Data/GloamsteadGeneratedAssetCatalog.h"
 #include "Settings/GloamsteadGeneratedAssetSettings.h"
-#include "Misc/ScopeExit.h"
 #include "UObject/StrongObjectPtr.h"
 
 namespace
@@ -327,7 +326,14 @@ bool UGloamsteadGeneratedAssetMeshForgeProvider::ValidateCurrentOperationAfterBo
 void UGloamsteadGeneratedAssetMeshForgeProvider::Configure(const UGloamsteadGeneratedAssetSettings& Settings)
 {
 	AdvanceProviderEpoch();
+	const uint64 ConfigurationEpoch = ProviderEpoch;
+	const uint64 PriorLoadGeneration = LoadGeneration;
 	CancelOutstandingPreload();
+	if (ProviderEpoch != ConfigurationEpoch || LoadGeneration != PriorLoadGeneration + 1)
+	{
+		// Cancellation is a user-code boundary for typed consumers. A nested lifecycle call owns the UObject.
+		return;
+	}
 	// Configuration is a production lifecycle boundary. A development automation observer is valid
 	// only for the explicit test operation that installed it and must never survive reuse of this UObject.
 	RuntimeIdentitySource = MakeShared<FUnavailableRuntimeIdentitySource>();
@@ -346,8 +352,14 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::Configure(const UGloamsteadGene
 void UGloamsteadGeneratedAssetMeshForgeProvider::Deactivate()
 {
 	AdvanceProviderEpoch();
+	const uint64 DeactivationEpoch = ProviderEpoch;
+	const uint64 PriorLoadGeneration = LoadGeneration;
 	const bool bPreserveMutationLatch = bRequiresFreshConfiguration;
 	CancelOutstandingPreload();
+	if (ProviderEpoch != DeactivationEpoch || LoadGeneration != PriorLoadGeneration + 1)
+	{
+		return;
+	}
 	RuntimeIdentitySource = MakeShared<FUnavailableRuntimeIdentitySource>();
 	VerifiedTerminalScriptPackages.Reset();
 	AcceptedCatalogContractSha256.Reset();
@@ -359,48 +371,144 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::Deactivate()
 
 void UGloamsteadGeneratedAssetMeshForgeProvider::PreloadCatalogAsync(FSimpleDelegate Completion)
 {
+	PreloadCatalogAsyncWithResult(FGloamsteadGeneratedCatalogLoadCompletion::CreateLambda(
+		[Completion = MoveTemp(Completion)](
+			const FGloamsteadGeneratedCatalogLoadResult& Result) mutable
+		{
+			// Preserve the legacy public contract: current terminal paths notify, superseded/cancelled
+			// requests remain silent. Generation-aware consumers use the typed overload below.
+			if (Result.Terminal == EGMFGeneratedCatalogLoadTerminal::Accepted
+				|| Result.Terminal == EGMFGeneratedCatalogLoadTerminal::Rejected)
+			{
+				Completion.ExecuteIfBound();
+			}
+		}));
+}
+
+void UGloamsteadGeneratedAssetMeshForgeProvider::PreloadCatalogAsyncWithResult(
+	FGloamsteadGeneratedCatalogLoadCompletion Completion)
+{
 	AdvanceProviderEpoch();
+	const uint64 RequestEpoch = ProviderEpoch;
+	const uint64 PriorLoadGeneration = LoadGeneration;
+	CancelOutstandingPreload();
+	const uint64 RequestLoadGeneration = PriorLoadGeneration + 1;
+	auto CompleteLocal = [this, &Completion, RequestEpoch, RequestLoadGeneration](
+		EGMFGeneratedCatalogLoadTerminal Terminal)
+	{
+		if (Completion.IsBound())
+		{
+			const FGloamsteadGeneratedCatalogLoadResult Result = MakeCatalogLoadResult(
+				Terminal, RequestEpoch, RequestLoadGeneration, nullptr);
+			Completion.Execute(Result);
+			Completion.Unbind();
+		}
+	};
+	if (ProviderEpoch != RequestEpoch || LoadGeneration != RequestLoadGeneration)
+	{
+		CompleteLocal(EGMFGeneratedCatalogLoadTerminal::Stale);
+		return;
+	}
 	if (bRequiresFreshConfiguration)
 	{
 		TArray<FString> Codes = FailureCodes;
 		Codes.AddUnique(TEXT("GAC039"));
 		Fail(Codes);
-		Completion.ExecuteIfBound();
+		CompleteLocal(EGMFGeneratedCatalogLoadTerminal::Rejected);
 		return;
 	}
 	if (!AcceptedCatalogContractSha256.IsEmpty() && !EnsureAcceptedCatalogContractCurrent())
 	{
-		Completion.ExecuteIfBound();
+		CompleteLocal(EGMFGeneratedCatalogLoadTerminal::Rejected);
 		return;
 	}
-	CancelOutstandingPreload();
 	FailureCodes.Reset();
 	if (CatalogPath.IsNull())
 	{
 		Fail({ TEXT("GAC017") });
-		Completion.ExecuteIfBound();
+		CompleteLocal(EGMFGeneratedCatalogLoadTerminal::Rejected);
 		return;
 	}
 
+	PendingCompletionLoadGeneration = LoadGeneration;
+	PendingCompletionProviderEpoch = ProviderEpoch;
+	PendingCatalogLoadCompletion = MoveTemp(Completion);
 	State = EGMFGeneratedProviderState::Loading;
 	const uint64 RequestGeneration = LoadGeneration;
 	const FSoftObjectPath RequestedPath = CatalogPath.ToSoftObjectPath();
+#if WITH_DEV_AUTOMATION_TESTS
+	if (bTestDeferNextCatalogLoad)
+	{
+		bTestDeferNextCatalogLoad = false;
+		return;
+	}
+#endif
 	PreloadHandle = UAssetManager::GetStreamableManager().RequestAsyncLoad(
 		RequestedPath,
 		FStreamableDelegate::CreateWeakLambda(this,
-			[this, RequestGeneration, RequestedPath, Completion]() mutable
+			[this, RequestGeneration, RequestedPath]()
 			{
-				FinishCatalogLoad(RequestGeneration, RequestedPath, MoveTemp(Completion));
+				FinishCatalogLoad(RequestGeneration, RequestedPath);
 			}));
 	if (!PreloadHandle.IsValid())
 	{
 		Fail({ TEXT("GAC017") });
-		Completion.ExecuteIfBound();
+		CompletePendingCatalogLoad(EGMFGeneratedCatalogLoadTerminal::Rejected);
+	}
+}
+
+bool UGloamsteadGeneratedAssetMeshForgeProvider::IsCatalogLoadResultCurrent(
+	const FGloamsteadGeneratedCatalogLoadResult& Result) const
+{
+	return Result.Terminal == EGMFGeneratedCatalogLoadTerminal::Accepted
+		&& Result.ProviderEpoch == ProviderEpoch
+		&& Result.LoadGeneration == LoadGeneration
+		&& Result.ProviderState == EGMFGeneratedProviderState::Ready
+		&& State == EGMFGeneratedProviderState::Ready
+		&& Result.CatalogObjectGeneration
+			== TWeakObjectPtr<UGloamsteadGeneratedAssetCatalog>(LoadedCatalog.Get())
+		&& !Result.AcceptedCatalogContractSha256.IsEmpty()
+		&& Result.AcceptedCatalogContractSha256.Equals(
+			AcceptedCatalogContractSha256, ESearchCase::CaseSensitive);
+}
+
+FGloamsteadGeneratedCatalogLoadResult
+UGloamsteadGeneratedAssetMeshForgeProvider::MakeCatalogLoadResult(
+	EGMFGeneratedCatalogLoadTerminal Terminal,
+	uint64 ResultProviderEpoch,
+	uint64 ResultLoadGeneration,
+	UGloamsteadGeneratedAssetCatalog* ResultCatalog) const
+{
+	FGloamsteadGeneratedCatalogLoadResult Result;
+	Result.Terminal = Terminal;
+	Result.ProviderEpoch = ResultProviderEpoch;
+	Result.LoadGeneration = ResultLoadGeneration;
+	Result.ProviderState = State;
+	Result.CatalogObjectGeneration = ResultCatalog;
+	Result.AcceptedCatalogContractSha256 = AcceptedCatalogContractSha256;
+	return Result;
+}
+
+void UGloamsteadGeneratedAssetMeshForgeProvider::CompletePendingCatalogLoad(
+	EGMFGeneratedCatalogLoadTerminal Terminal)
+{
+	FGloamsteadGeneratedCatalogLoadCompletion Completion = MoveTemp(PendingCatalogLoadCompletion);
+	PendingCatalogLoadCompletion.Unbind();
+	const uint64 ResultProviderEpoch = PendingCompletionProviderEpoch;
+	const uint64 ResultLoadGeneration = PendingCompletionLoadGeneration;
+	PendingCompletionProviderEpoch = 0;
+	PendingCompletionLoadGeneration = 0;
+	if (Completion.IsBound())
+	{
+		const FGloamsteadGeneratedCatalogLoadResult Result = MakeCatalogLoadResult(
+			Terminal, ResultProviderEpoch, ResultLoadGeneration, nullptr);
+		Completion.Execute(Result);
 	}
 }
 
 void UGloamsteadGeneratedAssetMeshForgeProvider::CancelOutstandingPreload()
 {
+	checkf(LoadGeneration != MAX_uint64, TEXT("Generated asset provider load generation exhausted"));
 	++LoadGeneration;
 	if (PreloadHandle.IsValid())
 	{
@@ -408,30 +516,57 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::CancelOutstandingPreload()
 		PreloadHandle->ReleaseHandle();
 		PreloadHandle.Reset();
 	}
+	CompletePendingCatalogLoad(EGMFGeneratedCatalogLoadTerminal::Cancelled);
 }
 
 void UGloamsteadGeneratedAssetMeshForgeProvider::FinishCatalogLoad(
-	uint64 InLoadGeneration, FSoftObjectPath RequestedPath, FSimpleDelegate Completion)
+	uint64 InLoadGeneration, FSoftObjectPath RequestedPath)
 {
 	UGloamsteadGeneratedAssetCatalog* Catalog = Cast<UGloamsteadGeneratedAssetCatalog>(RequestedPath.ResolveObject());
-	AcceptCatalogLoad(InLoadGeneration, RequestedPath, Catalog, MoveTemp(Completion));
+	AcceptCatalogLoad(InLoadGeneration, RequestedPath, Catalog);
 }
 
 void UGloamsteadGeneratedAssetMeshForgeProvider::AcceptCatalogLoad(
 	uint64 InLoadGeneration,
 	const FSoftObjectPath& RequestedPath,
 	UGloamsteadGeneratedAssetCatalog* Catalog,
-	FSimpleDelegate Completion)
+	FGloamsteadGeneratedCatalogLoadCompletion CompletionOverride)
 {
 	if (InLoadGeneration != LoadGeneration)
 	{
-		// Superseded operations are deliberately silent: their completion belongs to the newer generation.
+		// The generation was already retired by cancellation. A late platform callback owns no completion.
 		return;
 	}
-	AdvanceProviderEpoch();
-	ON_SCOPE_EXIT
+	FGloamsteadGeneratedCatalogLoadCompletion Completion;
+	uint64 CompletionProviderEpoch = ProviderEpoch;
+	if (CompletionOverride.IsBound())
 	{
-		Completion.ExecuteIfBound();
+		Completion = MoveTemp(CompletionOverride);
+	}
+	else if (PendingCompletionLoadGeneration == InLoadGeneration)
+	{
+		Completion = MoveTemp(PendingCatalogLoadCompletion);
+		PendingCatalogLoadCompletion.Unbind();
+		CompletionProviderEpoch = PendingCompletionProviderEpoch;
+		PendingCompletionProviderEpoch = 0;
+		PendingCompletionLoadGeneration = 0;
+	}
+	AdvanceProviderEpoch();
+	const uint64 AcceptanceEpoch = ProviderEpoch;
+	auto Complete = [this, &Completion, CompletionProviderEpoch, AcceptanceEpoch,
+		InLoadGeneration, Catalog](
+		EGMFGeneratedCatalogLoadTerminal Terminal)
+	{
+		if (Completion.IsBound())
+		{
+			const uint64 ResultEpoch = Terminal == EGMFGeneratedCatalogLoadTerminal::Accepted
+				? AcceptanceEpoch
+				: CompletionProviderEpoch;
+			const FGloamsteadGeneratedCatalogLoadResult Result = MakeCatalogLoadResult(
+				Terminal, ResultEpoch, InLoadGeneration, Catalog);
+			Completion.Execute(Result);
+			Completion.Unbind();
+		}
 	};
 	if (PreloadHandle.IsValid())
 	{
@@ -441,30 +576,46 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::AcceptCatalogLoad(
 	if (RequestedPath != CatalogPath.ToSoftObjectPath())
 	{
 		Fail({ TEXT("GAC017") });
+		Complete(EGMFGeneratedCatalogLoadTerminal::Rejected);
 		return;
 	}
 	if (IsCatalogObjectGenerationQuarantined(Catalog))
 	{
 		LoadedCatalog = Catalog;
 		InvalidateAcceptedCatalog({ TEXT("GAC039") });
+		Complete(EGMFGeneratedCatalogLoadTerminal::Rejected);
 		return;
 	}
 	if (!AcceptedCatalogContractSha256.IsEmpty())
 	{
 		if (!EnsureAcceptedCatalogContractCurrent())
 		{
+			Complete(EGMFGeneratedCatalogLoadTerminal::Rejected);
 			return;
 		}
 		if (!Catalog || !GACCatalogContractSha256(*Catalog).Equals(
 			AcceptedCatalogContractSha256, ESearchCase::CaseSensitive))
 		{
 			InvalidateAcceptedCatalog({ TEXT("GAC039") });
+			Complete(EGMFGeneratedCatalogLoadTerminal::Rejected);
 			return;
 		}
 	}
 	LoadedCatalog = Catalog;
 	if (!LoadedCatalog) { Fail({ TEXT("GAC017") }); }
 	else { ValidateLoadedCatalog(); }
+	const bool bGenerationStillOwned = ProviderEpoch == AcceptanceEpoch
+		&& LoadGeneration == InLoadGeneration
+		&& RequestedPath == CatalogPath.ToSoftObjectPath();
+	const bool bAccepted = bGenerationStillOwned
+		&& State == EGMFGeneratedProviderState::Ready
+		&& LoadedCatalog == Catalog
+		&& !AcceptedCatalogContractSha256.IsEmpty();
+	Complete(bAccepted
+		? EGMFGeneratedCatalogLoadTerminal::Accepted
+		: (bGenerationStillOwned
+			? EGMFGeneratedCatalogLoadTerminal::Rejected
+			: EGMFGeneratedCatalogLoadTerminal::Stale));
 }
 
 void UGloamsteadGeneratedAssetMeshForgeProvider::ValidateLoadedCatalog()
@@ -686,7 +837,13 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::InvalidateAcceptedCatalog(
 	{
 		QuarantineCatalogObjectGeneration(LoadedCatalog);
 	}
+	const uint64 InvalidationEpoch = ProviderEpoch;
+	const uint64 PriorLoadGeneration = LoadGeneration;
 	CancelOutstandingPreload();
+	if (ProviderEpoch != InvalidationEpoch || LoadGeneration != PriorLoadGeneration + 1)
+	{
+		return;
+	}
 	bRequiresFreshConfiguration = true;
 	AcceptedCatalogContractSha256.Reset();
 	VerifiedTerminalScriptPackages.Reset();
@@ -756,22 +913,34 @@ bool UGloamsteadGeneratedAssetMeshForgeProvider::CanSpawn(EGMFProxyType /*Type*/
 UObject* UGloamsteadGeneratedAssetMeshForgeProvider::ResolveEntryObject(const FSoftObjectPath& ObjectPath)
 {
 #if WITH_DEV_AUTOMATION_TESTS
+	auto ExecuteResolutionCallback = [this, &ObjectPath]()
+	{
+		if (FSimpleDelegate* Exact = TestObjectResolutionCallbacksByPath.Find(ObjectPath))
+		{
+			FSimpleDelegate Callback = MoveTemp(*Exact);
+			TestObjectResolutionCallbacksByPath.Remove(ObjectPath);
+			Callback.ExecuteIfBound();
+			return;
+		}
+		FSimpleDelegate Callback = MoveTemp(TestObjectResolutionCallback);
+		TestObjectResolutionCallback.Unbind();
+		Callback.ExecuteIfBound();
+	};
+#endif
+#if WITH_DEV_AUTOMATION_TESTS
 	if (const TWeakObjectPtr<UObject>* Override = TestResolvedObjects.Find(ObjectPath))
 	{
 		UObject* Resolved = Override->Get();
 		TStrongObjectPtr<UObject> ResolvedGuard(Resolved);
-		FSimpleDelegate Callback = MoveTemp(TestObjectResolutionCallback);
-		TestObjectResolutionCallback.Unbind();
-		Callback.ExecuteIfBound();
+		ExecuteResolutionCallback();
 		return ResolvedGuard.Get();
 	}
+	++TestProductionTryLoadCount;
 #endif
 	UObject* Resolved = ObjectPath.TryLoad();
 	TStrongObjectPtr<UObject> ResolvedGuard(Resolved);
 #if WITH_DEV_AUTOMATION_TESTS
-	FSimpleDelegate Callback = MoveTemp(TestObjectResolutionCallback);
-	TestObjectResolutionCallback.Unbind();
-	Callback.ExecuteIfBound();
+	ExecuteResolutionCallback();
 #endif
 	return ResolvedGuard.Get();
 }
@@ -1107,6 +1276,8 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadGeneratedAssetMeshForgeProvider::Cr
 			}
 		}
 		UObject* DependencyObject = ResolveEntryObject(Dependency.ToSoftObjectPath());
+		TStrongObjectPtr<UObject> DependencyObjectGuard(DependencyObject);
+		DependencyObject = DependencyObjectGuard.Get();
 		if (RejectStaleOperation())
 		{
 			return Instance;
@@ -1132,6 +1303,15 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadGeneratedAssetMeshForgeProvider::Cr
 		if (Instance.FailureCodes.Num() > 0) { return Instance; }
 	}
 	UClass* ExpectedClass = SelectedEntry.ExpectedClass.LoadSynchronous();
+	TStrongObjectPtr<UClass> ExpectedClassGuard(ExpectedClass);
+#if WITH_DEV_AUTOMATION_TESTS
+	++TestExpectedClassLoadCount;
+	{
+		FSimpleDelegate Callback = MoveTemp(TestExpectedClassLoadCallback);
+		TestExpectedClassLoadCallback.Unbind();
+		Callback.ExecuteIfBound();
+	}
+#endif
 	if (RejectStaleOperation())
 	{
 		return Instance;
@@ -1141,7 +1321,6 @@ FGloamsteadMeshForgeProxyInstance UGloamsteadGeneratedAssetMeshForgeProvider::Cr
 		Instance.FailureCodes.Add(TEXT("GAC017"));
 		return Instance;
 	}
-	TStrongObjectPtr<UClass> ExpectedClassGuard(ExpectedClass);
 	Instance.FailureCodes = GACValidateLoadedObject(SelectedEntry, LoadedObject,
 		/*bRequireStaticMeshForProvider*/ true);
 	if (Instance.FailureCodes.Num() > 0)
@@ -1274,6 +1453,19 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::Test_SetObjectResolutionCallbac
 	TestObjectResolutionCallback = MoveTemp(Callback);
 }
 
+void UGloamsteadGeneratedAssetMeshForgeProvider::Test_SetObjectResolutionCallbackForPath(
+	const FSoftObjectPath& ObjectPath,
+	FSimpleDelegate Callback)
+{
+	TestObjectResolutionCallbacksByPath.Add(ObjectPath, MoveTemp(Callback));
+}
+
+void UGloamsteadGeneratedAssetMeshForgeProvider::Test_SetExpectedClassLoadCallback(
+	FSimpleDelegate Callback)
+{
+	TestExpectedClassLoadCallback = MoveTemp(Callback);
+}
+
 void UGloamsteadGeneratedAssetMeshForgeProvider::Test_SetActorSpawnCallback(
 	TFunction<void(AGloamsteadMeshForgeProxyActor*)> Callback)
 {
@@ -1299,6 +1491,20 @@ void UGloamsteadGeneratedAssetMeshForgeProvider::Test_CompleteCatalogLoad(
 	UGloamsteadGeneratedAssetCatalog* Catalog,
 	FSimpleDelegate Completion)
 {
-	AcceptCatalogLoad(InLoadGeneration, RequestedPath, Catalog, MoveTemp(Completion));
+	FGloamsteadGeneratedCatalogLoadCompletion TypedCompletion;
+	if (Completion.IsBound())
+	{
+		TypedCompletion = FGloamsteadGeneratedCatalogLoadCompletion::CreateLambda(
+			[Completion = MoveTemp(Completion)](
+				const FGloamsteadGeneratedCatalogLoadResult& Result) mutable
+			{
+				if (Result.Terminal == EGMFGeneratedCatalogLoadTerminal::Accepted
+					|| Result.Terminal == EGMFGeneratedCatalogLoadTerminal::Rejected)
+				{
+					Completion.ExecuteIfBound();
+				}
+			});
+	}
+	AcceptCatalogLoad(InLoadGeneration, RequestedPath, Catalog, MoveTemp(TypedCompletion));
 }
 #endif

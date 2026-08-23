@@ -192,6 +192,9 @@ void UGloamsteadMeshForgeAdapterSubsystem::BuildFor(
 	const UGloamsteadGeneratedAssetSettings* Settings,
 	bool bPrimitiveFallbackGateOpen)
 {
+#if WITH_DEV_AUTOMATION_TESTS
+	++TestBuildInvocationCount;
+#endif
 	if (!World)
 	{
 		return;
@@ -209,11 +212,15 @@ void UGloamsteadMeshForgeAdapterSubsystem::BuildFor(
 		if (Generated->GetState() == EGMFGeneratedProviderState::Uninitialized)
 		{
 			const uint64 ExpectedGeneration = ProviderGeneration;
+			const uint64 ExpectedLoadRequestGeneration = ++ProviderLoadRequestGeneration;
 			const TWeakObjectPtr<UGloamsteadGeneratedAssetMeshForgeProvider> ExpectedProvider = Generated;
-			Generated->PreloadCatalogAsync(FSimpleDelegate::CreateWeakLambda(this,
-				[this, ExpectedGeneration, ExpectedProvider]()
+			Generated->PreloadCatalogAsyncWithResult(
+				FGloamsteadGeneratedCatalogLoadCompletion::CreateWeakLambda(this,
+				[this, ExpectedGeneration, ExpectedLoadRequestGeneration, ExpectedProvider](
+					const FGloamsteadGeneratedCatalogLoadResult& Result)
 				{
-					HandleGeneratedProviderPreloadComplete(ExpectedGeneration, ExpectedProvider);
+					HandleGeneratedProviderPreloadComplete(ExpectedGeneration,
+						ExpectedLoadRequestGeneration, ExpectedProvider, Result);
 				}));
 			if (Generated->HasFailed()) { AdapterFailureCodes = Generated->GetFailureCodes(); }
 			return;
@@ -301,6 +308,8 @@ bool UGloamsteadMeshForgeAdapterSubsystem::EnsureProvider(
 
 void UGloamsteadMeshForgeAdapterSubsystem::ReleaseProvider()
 {
+	// Retire the adapter request before Deactivate synchronously delivers provider cancellation.
+	++ProviderLoadRequestGeneration;
 	if (UGloamsteadGeneratedAssetMeshForgeProvider* Generated =
 		Cast<UGloamsteadGeneratedAssetMeshForgeProvider>(Provider))
 	{
@@ -376,6 +385,27 @@ UGloamsteadMeshForgeProvider* UGloamsteadMeshForgeAdapterSubsystem::Test_EnsureP
 	EnsureProvider(Settings, bPrimitiveFallbackGateOpen);
 	return Provider;
 }
+
+void UGloamsteadMeshForgeAdapterSubsystem::Test_UseProviderForSettings(
+	UGloamsteadMeshForgeProvider* InProvider,
+	const UGloamsteadGeneratedAssetSettings* Settings,
+	bool bPrimitiveFallbackGateOpen)
+{
+	ReleaseProvider();
+	Provider = InProvider;
+	ProviderConfigurationFingerprint = Settings
+		? BuildProviderConfigurationFingerprint(*Settings, bPrimitiveFallbackGateOpen)
+		: FString();
+	++ProviderGeneration;
+}
+
+void UGloamsteadMeshForgeAdapterSubsystem::Test_BuildForSettings(
+	UWorld* World,
+	const UGloamsteadGeneratedAssetSettings* Settings,
+	bool bPrimitiveFallbackGateOpen)
+{
+	BuildFor(World, Settings, bPrimitiveFallbackGateOpen);
+}
 #endif
 
 void UGloamsteadMeshForgeAdapterSubsystem::ClearProxies()
@@ -393,19 +423,32 @@ void UGloamsteadMeshForgeAdapterSubsystem::ClearProxies()
 
 void UGloamsteadMeshForgeAdapterSubsystem::HandleGeneratedProviderPreloadComplete(
 	uint64 ExpectedProviderGeneration,
-	TWeakObjectPtr<UGloamsteadGeneratedAssetMeshForgeProvider> ExpectedProvider)
+	uint64 ExpectedLoadRequestGeneration,
+	TWeakObjectPtr<UGloamsteadGeneratedAssetMeshForgeProvider> ExpectedProvider,
+	const FGloamsteadGeneratedCatalogLoadResult& Result)
 {
-	if (ExpectedProviderGeneration != ProviderGeneration || ExpectedProvider.Get() != Provider)
+	if (ExpectedProviderGeneration != ProviderGeneration
+		|| ExpectedLoadRequestGeneration != ProviderLoadRequestGeneration
+		|| ExpectedProvider.Get() != Provider)
 	{
 		return;
 	}
+#if WITH_DEV_AUTOMATION_TESTS
+	++TestPendingLoadTerminalCount;
+	if (Result.Terminal == EGMFGeneratedCatalogLoadTerminal::Accepted)
+	{
+		++TestAcceptedLoadTerminalCount;
+	}
+#endif
 	UGloamsteadGeneratedAssetMeshForgeProvider* Generated =
 		Cast<UGloamsteadGeneratedAssetMeshForgeProvider>(Provider);
 	if (!Generated)
 	{
 		return;
 	}
-	if (Generated->HasFailed())
+	UWorld* World = PendingBuildWorld.Get();
+	PendingBuildWorld.Reset();
+	if (Result.Terminal == EGMFGeneratedCatalogLoadTerminal::Rejected)
 	{
 		AdapterFailureCodes = Generated->GetFailureCodes();
 		UE_LOG(LogTemp, Error, TEXT("Generated MeshForge catalog failed closed: %s"),
@@ -414,7 +457,14 @@ void UGloamsteadMeshForgeAdapterSubsystem::HandleGeneratedProviderPreloadComplet
 		EmitReport(ReportPath);
 		return;
 	}
-	if (UWorld* World = PendingBuildWorld.Get())
+	if (Result.Terminal != EGMFGeneratedCatalogLoadTerminal::Accepted
+		|| !Generated->IsCatalogLoadResultCurrent(Result))
+	{
+		// Cancelled/stale terminals retire the pending adapter request without observing whatever
+		// generation the same provider UObject may own now.
+		return;
+	}
+	if (World)
 	{
 		BuildFor(World);
 		FString ReportPath;
