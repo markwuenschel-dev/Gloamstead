@@ -121,6 +121,7 @@
 **Declared paths:**
 
 - `Source/Gloamstead/Data/ExperienceCycleTypes.h`
+- `Source/Gloamstead/Data/ExperienceCycleTypes.cpp`
 - `Source/Gloamstead/Data/VeilHeartWarningTypes.h`
 - `Source/Gloamstead/Data/RitualTypes.h`
 - `Source/Gloamstead/Systems/VeilHeart.h`
