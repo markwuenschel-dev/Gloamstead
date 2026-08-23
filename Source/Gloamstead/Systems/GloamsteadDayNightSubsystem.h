@@ -135,6 +135,12 @@ private:
 	void HandleEnterDawn();
 	/** Rejects a progression payload as one coherent, rest-ineligible Day state. */
 	void ResetToSafeDayReconciliation();
+	/**
+	 * Reconciles visual listeners after a restore assigned CurrentPhase directly.
+	 * This deliberately broadcasts only: it must never re-enter cadence, phase
+	 * entry work, outcome recording, autosave, or authored-plan preparation.
+	 */
+	void SynchronizePhasePresentationAfterProgressionRestore(EGloamsteadDayPhase PreviousPhase);
 	void QueueWarningPresentationRetry();
 	void RetryPendingWarningPresentation();
 	void ClearWarningPresentationRetry();

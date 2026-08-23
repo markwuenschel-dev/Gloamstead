@@ -418,6 +418,7 @@ bool UGloamsteadDayNightSubsystem::LoadProgressionFromSlot()
 
 bool UGloamsteadDayNightSubsystem::LoadProgressionFromSlot(const FString& SlotName, int32 UserIndex)
 {
+	const EGloamsteadDayPhase PhaseBeforeRestore = CurrentPhase;
 	UWorld* World = GetWorld();
 	UGloamsteadPCGSubsystem* PCG = World ? World->GetSubsystem<UGloamsteadPCGSubsystem>() : nullptr;
 	UGloamsteadExperienceCycleSubsystem* Experience = GetExperienceCycleSubsystem();
@@ -486,6 +487,7 @@ bool UGloamsteadDayNightSubsystem::LoadProgressionFromSlot(const FString& SlotNa
 		PendingPresentationPlanId = NAME_None;
 		bWarningPresentationDeferralLogged = false;
 		ClearWarningPresentationRetry();
+		SynchronizePhasePresentationAfterProgressionRestore(PhaseBeforeRestore);
 		return true;
 	}
 
@@ -522,11 +524,13 @@ bool UGloamsteadDayNightSubsystem::LoadProgressionFromSlot(const FString& SlotNa
 		PrepareUpcomingCycle();
 	}
 
+	SynchronizePhasePresentationAfterProgressionRestore(PhaseBeforeRestore);
 	return true;
 }
 
 void UGloamsteadDayNightSubsystem::ResetToSafeDayReconciliation()
 {
+	const EGloamsteadDayPhase PhaseBeforeRestore = CurrentPhase;
 	// Rejected progression payloads leave PCG restored for a human-visible
 	// reconciliation, but never leave the phase machine or rest gate carrying
 	// authority from the pre-load world.
@@ -548,6 +552,20 @@ void UGloamsteadDayNightSubsystem::ResetToSafeDayReconciliation()
 		SafeState.ResetForLegacyReconciliation();
 		Experience->RestorePersistentState(SafeState);
 	}
+
+	SynchronizePhasePresentationAfterProgressionRestore(PhaseBeforeRestore);
+}
+
+void UGloamsteadDayNightSubsystem::SynchronizePhasePresentationAfterProgressionRestore(EGloamsteadDayPhase PreviousPhase)
+{
+	// Load/reconciliation assigns CurrentPhase directly to avoid replaying cadence,
+	// runtime pressure, reflection, autosave, or authored-plan work. Presentation
+	// subscribers still need one authoritative event after that semantic state is
+	// complete. Do not replace this with ApplyPhaseChange: a same-phase restore
+	// must also repair visual drift without replaying gameplay entry behavior.
+	OnPhaseChanged.Broadcast(PreviousPhase, CurrentPhase);
+	UE_LOG(LogTemp, Log, TEXT("DayNight: synchronized restore presentation %d -> %d (night count=%d)"),
+		static_cast<int32>(PreviousPhase), static_cast<int32>(CurrentPhase), NightCount);
 }
 
 void UGloamsteadDayNightSubsystem::QueueWarningPresentationRetry()

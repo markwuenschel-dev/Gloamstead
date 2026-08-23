@@ -336,8 +336,22 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			MutatedPCGStates[0].CorruptionLevel = 0.88f;
 			MutatedPCGStates[0].bIsRestored = false;
 			PCG->Test_SeedPointStates(MutatedPCGStates);
+			const int32 PresentationsBeforeSafeDayLoad = SkyPresenter
+				? SkyPresenter->Test_GetPresentedPhaseHistory().Num()
+				: 0;
 			TestTrue(TEXT("valid v2 load succeeds while warning presentation is pending"), DayNight->LoadProgressionFromSlot(Slot));
 			TestTrue(TEXT("load restores the saved Day phase"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
+			if (SkyPresenter)
+			{
+				const TArray<EGloamsteadDayPhase>& SafeDayPresentationHistory = SkyPresenter->Test_GetPresentedPhaseHistory();
+				TestEqual(TEXT("safe Day load synchronizes presentation exactly once"),
+					SafeDayPresentationHistory.Num(), PresentationsBeforeSafeDayLoad + 1);
+				if (!SafeDayPresentationHistory.IsEmpty())
+				{
+					TestEqual(TEXT("safe Day load presents the restored Day phase"),
+						SafeDayPresentationHistory.Last(), EGloamsteadDayPhase::Day);
+				}
+			}
 			TestTrue(TEXT("load retains a pending exact warning while multiple Hearts are ambiguous"), DayNight->IsWarningPresentationPending());
 			TestFalse(TEXT("rest stays gated while multiple Hearts are ambiguous"), DayNight->CanRestNow());
 			DayNight->AdvanceToNextPhase();
@@ -420,9 +434,23 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			LegacySave->SetExperienceCycleState(LegacyState);
 			TestTrue(TEXT("legacy fixture writes to the isolated slot"), UGameplayStatics::SaveGameToSlot(LegacySave, Slot, 0));
 			TestTrue(TEXT("legacy restore is attempted from an in-progress Dusk phase"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk);
+			const int32 PresentationsBeforeLegacyRejection = SkyPresenter
+				? SkyPresenter->Test_GetPresentedPhaseHistory().Num()
+				: 0;
 			TestFalse(TEXT("legacy load is explicitly rejected for authored progression"), DayNight->LoadProgressionFromSlot(Slot));
 			TestTrue(TEXT("legacy load remains invalid rather than replaying Cycle II"), Experience->GetActivePlan().IsInvalid());
 			TestTrue(TEXT("legacy rejection atomically reconciles phase to Day"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
+			if (SkyPresenter)
+			{
+				const TArray<EGloamsteadDayPhase>& RejectedPresentationHistory = SkyPresenter->Test_GetPresentedPhaseHistory();
+				TestEqual(TEXT("rejected progression load synchronizes safe Day exactly once"),
+					RejectedPresentationHistory.Num(), PresentationsBeforeLegacyRejection + 1);
+				if (!RejectedPresentationHistory.IsEmpty())
+				{
+					TestEqual(TEXT("rejected progression load presents reconciled Day"),
+						RejectedPresentationHistory.Last(), EGloamsteadDayPhase::Day);
+				}
+			}
 			TestEqual(TEXT("legacy rejection clears the prior night counter"), DayNight->GetNightCount(), 0);
 			TestFalse(TEXT("legacy rejection closes the first-rest eligibility gate"), DayNight->IsFirstRestUnlocked());
 			TestFalse(TEXT("legacy rejection clears pending warning presentation"), DayNight->IsWarningPresentationPending());
@@ -481,8 +509,22 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 				Manager->PrepareNightConsequencesForPlan(FExperienceCyclePlan::MakeInvalid(2)));
 			const FName WarningBeforeDuskLoad = Heart->GetLastEmittedWarningId();
 			DayNight->SetPhase(EGloamsteadDayPhase::Night);
+			const int32 PresentationsBeforeInProgressReconciliation = SkyPresenter
+				? SkyPresenter->Test_GetPresentedPhaseHistory().Num()
+				: 0;
 			TestTrue(TEXT("injected v2 Dusk restores PCG then reconciles to Day without replay"), DayNight->LoadProgressionFromSlot(Slot));
 			TestTrue(TEXT("saved Dusk resumes at safe Day"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
+			if (SkyPresenter)
+			{
+				const TArray<EGloamsteadDayPhase>& ReconciledPresentationHistory = SkyPresenter->Test_GetPresentedPhaseHistory();
+				TestEqual(TEXT("in-progress reconciliation synchronizes safe Day exactly once"),
+					ReconciledPresentationHistory.Num(), PresentationsBeforeInProgressReconciliation + 1);
+				if (!ReconciledPresentationHistory.IsEmpty())
+				{
+					TestEqual(TEXT("in-progress reconciliation presents safe Day without replay"),
+						ReconciledPresentationHistory.Last(), EGloamsteadDayPhase::Day);
+				}
+			}
 			TestFalse(TEXT("reconciled Dusk leaves no pending re-presentation"), DayNight->IsWarningPresentationPending());
 			TestTrue(TEXT("reconciled Dusk clears the active authored plan"), Experience->GetActivePlan().IsInvalid());
 			TestEqual(TEXT("reconciled Dusk clears the persisted armed plan"), Experience->CapturePersistentState().ArmedPlanId, NAME_None);
@@ -518,6 +560,39 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			TestTrue(TEXT("reconciled Night cannot re-arm or advance into a second consequence"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
 			TestEqual(TEXT("reconciled Night does not select a new consequence"), Manager->GetLastSelectedNightType(), ENightConsequenceType::Invalid);
 			TestEqual(TEXT("reconciled Night does not re-emit the warning"), Heart->GetLastEmittedWarningId(), WarningBeforeNightLoad);
+
+			// A valid Dawn save is also restored by direct assignment: it must
+			// synchronize visual listeners without replaying dawn reflection,
+			// autosave, or cadence entry behavior.
+			UGloamsteadSaveGame* DawnSave = Cast<UGloamsteadSaveGame>(UGameplayStatics::CreateSaveGameObject(UGloamsteadSaveGame::StaticClass()));
+			PCG->CaptureToSaveGame(DawnSave);
+			FExperienceCyclePersistentState DawnState;
+			DawnState.CompletedCycleSlot = 1;
+			DawnState.LastPlanId = TEXT("Cycle1_Tutorial");
+			DawnState.LastOutcomeResultTag = TEXT("TutorialSheltered");
+			DawnState.bFirstRestCompleted = true;
+			DawnState.SavedPhaseOrdinal = static_cast<int32>(EGloamsteadDayPhase::Dawn);
+			DawnSave->SetExperienceCycleState(DawnState);
+			TestTrue(TEXT("safe Dawn fixture writes to the isolated slot"), UGameplayStatics::SaveGameToSlot(DawnSave, Slot, 0));
+			DayNight->SetPhase(EGloamsteadDayPhase::Night);
+			const int32 PresentationsBeforeSafeDawnLoad = SkyPresenter
+				? SkyPresenter->Test_GetPresentedPhaseHistory().Num()
+				: 0;
+			TestTrue(TEXT("valid v2 Dawn load succeeds"), DayNight->LoadProgressionFromSlot(Slot));
+			TestTrue(TEXT("safe Dawn load restores the authored Dawn phase"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dawn);
+			TestFalse(TEXT("safe Dawn restore leaves no deferred night runtime"), DayNight->Test_IsNightRuntimeStartScheduled());
+			TestFalse(TEXT("safe Dawn restore leaves no Night duration"), DayNight->Test_IsNightToDawnCadenceScheduled());
+			if (SkyPresenter)
+			{
+				const TArray<EGloamsteadDayPhase>& DawnPresentationHistory = SkyPresenter->Test_GetPresentedPhaseHistory();
+				TestEqual(TEXT("safe Dawn load synchronizes presentation exactly once"),
+					DawnPresentationHistory.Num(), PresentationsBeforeSafeDawnLoad + 1);
+				if (!DawnPresentationHistory.IsEmpty())
+				{
+					TestEqual(TEXT("safe Dawn load presents the restored Dawn phase"),
+						DawnPresentationHistory.Last(), EGloamsteadDayPhase::Dawn);
+				}
+			}
 		}
 	}
 
@@ -617,7 +692,21 @@ bool FGloamPlayableCycleResumeQuiescenceWorldTest::RunTest(const FString& /*Para
 			TestTrue(TEXT("safe authored Cycle II Day fixture writes"), UGameplayStatics::SaveGameToSlot(SafeDaySave, SafeDaySlot, 0));
 		}
 
+		const int32 PresentationEventsBeforeEqualPhaseRestore = SkyPresenter
+			? SkyPresenter->Test_GetPresentedPhaseHistory().Num()
+			: 0;
 		TestTrue(TEXT("later-cycle Day load succeeds while Cycle I director is active"), DayNight->LoadProgressionFromSlot(SafeDaySlot));
+		if (SkyPresenter)
+		{
+			const TArray<EGloamsteadDayPhase>& EqualPhaseRestoreHistory = SkyPresenter->Test_GetPresentedPhaseHistory();
+			TestEqual(TEXT("same-phase Day restore still broadcasts one presentation synchronization"),
+				EqualPhaseRestoreHistory.Num(), PresentationEventsBeforeEqualPhaseRestore + 1);
+			if (!EqualPhaseRestoreHistory.IsEmpty())
+			{
+				TestEqual(TEXT("same-phase Day restore presents the authoritative Day"),
+					EqualPhaseRestoreHistory.Last(), EGloamsteadDayPhase::Day);
+			}
+		}
 		TestTrue(TEXT("later-cycle Day load detaches the stale tutorial director before warning retry"),
 			FirstNightDirector && FirstNightDirector->IsTutorialDetached());
 		TestFalse(TEXT("detached tutorial director releases the Heart presenter slot"), Heart && Heart->HasValidWarningPresenter());
@@ -646,6 +735,16 @@ bool FGloamPlayableCycleResumeQuiescenceWorldTest::RunTest(const FString& /*Para
 		DayNight->AdvanceToNextPhase();
 		TestTrue(TEXT("Cycle II cadence enters Night before live runtime abort proof"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Night);
 		TestTrue(TEXT("Cycle II Night queues its runtime until presentation completes"), DayNight->Test_IsNightRuntimeStartScheduled());
+		if (SkyPresenter)
+		{
+			const TArray<EGloamsteadDayPhase>& NightPresentationHistory = SkyPresenter->Test_GetPresentedPhaseHistory();
+			TestTrue(TEXT("the live presenter has a Night event before safe Day restore"), !NightPresentationHistory.IsEmpty());
+			if (!NightPresentationHistory.IsEmpty())
+			{
+				TestEqual(TEXT("the last pre-restore presentation is Night"),
+					NightPresentationHistory.Last(), EGloamsteadDayPhase::Night);
+			}
+		}
 		World->Tick(LEVELTICK_All, 0.05f);
 		TestTrue(TEXT("old Corruption runtime is active before restore"), Runtime->IsNightActive());
 		TestNotNull(TEXT("old Corruption runtime owns an active strategy before restore"), Runtime->Test_GetActiveStrategy());
@@ -658,9 +757,26 @@ bool FGloamPlayableCycleResumeQuiescenceWorldTest::RunTest(const FString& /*Para
 			Runtime->OnNightShouldEnd.IsAlreadyBound(FirstNightDirector, &AGloamsteadFirstNightDirector::HandleNightShouldEnd));
 		const int32 ExternalEarlyDawnCallbacksBeforeRestore = FirstNightDirector->Test_LegacyEarlyDawnCallbackCount;
 		const int32 DawnRequestsBeforeRestore = DayNight->Test_GetCadenceDawnRequestCount();
+		const int32 PresentationEventsBeforeRestore = SkyPresenter
+			? SkyPresenter->Test_GetPresentedPhaseHistory().Num()
+			: 0;
 
 		TestTrue(TEXT("safe Day reload aborts the active old runtime"), DayNight->LoadProgressionFromSlot(SafeDaySlot));
 		TestTrue(TEXT("safe reload returns the phase authority to Day"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
+		TestFalse(TEXT("safe Day restore leaves no Dusk cadence behind"), DayNight->Test_IsDuskToNightCadenceScheduled());
+		TestFalse(TEXT("safe Day restore leaves no deferred runtime start behind"), DayNight->Test_IsNightRuntimeStartScheduled());
+		TestFalse(TEXT("safe Day restore leaves no Night duration behind"), DayNight->Test_IsNightToDawnCadenceScheduled());
+		if (SkyPresenter)
+		{
+			const TArray<EGloamsteadDayPhase>& RestoredPresentationHistory = SkyPresenter->Test_GetPresentedPhaseHistory();
+			TestEqual(TEXT("safe Day restore broadcasts exactly one authoritative presentation sync"),
+				RestoredPresentationHistory.Num(), PresentationEventsBeforeRestore + 1);
+			if (!RestoredPresentationHistory.IsEmpty())
+			{
+				TestEqual(TEXT("safe Day restore presents Day after the old Night"),
+					RestoredPresentationHistory.Last(), EGloamsteadDayPhase::Day);
+			}
+		}
 		TestFalse(TEXT("old runtime is inactive after restore abort"), Runtime->IsNightActive());
 		TestNull(TEXT("old runtime strategy is cleared without ResolveNight"), Runtime->Test_GetActiveStrategy());
 		TestFalse(TEXT("old pressure cadence is cleared before restored PCG can tick"), Runtime->Test_IsPressureCadenceScheduled());
@@ -688,6 +804,17 @@ bool FGloamPlayableCycleResumeQuiescenceWorldTest::RunTest(const FString& /*Para
 		TestEqual(TEXT("a stale runtime tick cannot request a new Dawn"), DayNight->Test_GetCadenceDawnRequestCount(), DawnRequestsBeforeRestore);
 		TestEqual(TEXT("a stale runtime tick emits no old early-dawn event to the retained observer"),
 			FirstNightDirector->Test_LegacyEarlyDawnCallbackCount, ExternalEarlyDawnCallbacksBeforeRestore);
+		if (SkyPresenter)
+		{
+			const TArray<EGloamsteadDayPhase>& PostTickPresentationHistory = SkyPresenter->Test_GetPresentedPhaseHistory();
+			TestEqual(TEXT("a stale runtime tick cannot append a second restore presentation"),
+				PostTickPresentationHistory.Num(), PresentationEventsBeforeRestore + 1);
+			if (!PostTickPresentationHistory.IsEmpty())
+			{
+				TestEqual(TEXT("a stale runtime tick cannot re-present the old Night"),
+					PostTickPresentationHistory.Last(), EGloamsteadDayPhase::Day);
+			}
+		}
 		const TArray<FRitualPointState>& RestoredAfterTick = PCG->Test_PeekPointStates();
 		if (RestoredAfterTick.IsValidIndex(0) && SafeDayStates.IsValidIndex(0))
 		{
