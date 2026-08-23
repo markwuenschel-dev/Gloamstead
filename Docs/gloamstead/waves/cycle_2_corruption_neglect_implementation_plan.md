@@ -129,6 +129,7 @@
 - `Source/Gloamstead/Systems/GloamsteadExperienceCycleSubsystem.cpp`
 - `Source/Gloamstead/Systems/NightConsequenceRuntime.h`
 - `Source/Gloamstead/Systems/NightConsequenceRuntime.cpp`
+- `Source/Gloamstead/Data/NightRuntimeTypes.h`
 - `Source/Gloamstead/Systems/NightStrategy.cpp`
 - `Source/Gloamstead/Components/RitualPlacementComponent.cpp`
 - `Source/GloamsteadEditor/Commandlets/GloamsteadImportDataAssetsCommandlet.cpp`
