@@ -75,13 +75,14 @@
 - `Source/Gloamstead/Systems/NightConsequenceManager.cpp`
 - `Source/Gloamstead/Systems/VeilHeart.h`
 - `Source/Gloamstead/Systems/VeilHeart.cpp`
+- `Source/Gloamstead/Systems/GloamsteadFirstNightDirector.cpp`
 - `Source/Gloamstead/PCG/GloamsteadPCGSubsystem.h`
 - `Source/Gloamstead/PCG/GloamsteadPCGSubsystem.cpp`
 - `Source/Gloamstead/PCG/GloamsteadSanctuaryBootstrap.cpp`
 - `Source/Gloamstead/Tests/ExperienceCycleTests.cpp`
 - `Source/Gloamstead/Tests/PlayableCycleTests.cpp`
 
-**Implementation:** Replace the PCG-only dawn save with a single bounded save orchestration path that invokes PCG capture and experience/day capture. On load, restore PCG first, then cycle/day state, then arm/reconcile the upcoming plan before the Heart permits progression. Exact warning presentation may retry until its one canonical Heart has both a valid catalog and an attached presenter; ambiguous Heart ownership keeps rest closed. A valid payload is never rejected solely for that timing. In-progress Dusk/Night saves normalize to a safe Day re-presentation until runtime-resume state exists. The sanctuary bootstrap delegates its existing load-on-start route to that full progression loader after it initializes the PCG baseline; it may not retain a competing PCG-only restore. A legacy reconciliation never assumes a later-cycle warning and resets phase authority coherently. Dusk must reject a missing/mismatched armed plan rather than call generic selection.
+**Implementation:** Replace the PCG-only dawn save with a single bounded save orchestration path that invokes PCG capture and experience/day capture. On load, restore PCG first, then cycle/day state, then arm/reconcile the upcoming plan before the Heart permits progression. Exact warning presentation may retry until its one canonical Heart has both a valid catalog and an explicitly registered player-facing presenter; ambiguous Heart ownership keeps rest closed. A valid payload is never rejected solely for that timing. In-progress Dusk/Night state is not saveable until runtime-resume state exists; any existing such payload enters explicit Day reconciliation without replaying its already-persisted pressure. The sanctuary bootstrap delegates its existing load-on-start route to that full progression loader after it initializes the PCG baseline; it may not retain a competing PCG-only restore. A legacy reconciliation never assumes a later-cycle warning and resets phase authority coherently. Dusk must reject a missing/mismatched armed plan rather than call generic selection.
 
 **Acceptance:** the player can inspect the exact second-day warning before rest; rest does not alter the plan ID; Dusk/Night/Dawn use that same ID; v2 save/load resumes Cycle II without replaying Cycle I or changing the plan; legacy save remains safe and explicit.
 
