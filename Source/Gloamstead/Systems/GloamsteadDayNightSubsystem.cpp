@@ -94,20 +94,39 @@ bool UGloamsteadDayNightSubsystem::PrepareUpcomingCycle()
 
 	TArray<AActor*> Hearts;
 	UGameplayStatics::GetAllActorsOfClass(World, AVeilHeart::StaticClass(), Hearts);
-	for (AActor* Actor : Hearts)
+	if (Hearts.Num() != 1)
 	{
-		if (AVeilHeart* Heart = Cast<AVeilHeart>(Actor))
+		if (!bWarningPresentationDeferralLogged)
 		{
-			if (Heart->EmitWarningById(Plan.WarningId, Plan.NightType))
-			{
-				PresentedPlanId = Plan.PlanId;
-				bWarningPresentationPending = false;
-				PendingPresentationPlanId = NAME_None;
-				bWarningPresentationDeferralLogged = false;
-				ClearWarningPresentationRetry();
-				return true;
-			}
+			UE_LOG(LogTemp, Log, TEXT("DayNight: authored plan %s remains armed while canonical Heart ownership is ambiguous (%d Hearts)."),
+				*Plan.PlanId.ToString(), Hearts.Num());
+			bWarningPresentationDeferralLogged = true;
 		}
+		QueueWarningPresentationRetry();
+		return false;
+	}
+
+	AVeilHeart* Heart = Cast<AVeilHeart>(Hearts[0]);
+	if (!Heart || !Heart->HasExternalWarningPresenter())
+	{
+		if (!bWarningPresentationDeferralLogged)
+		{
+			UE_LOG(LogTemp, Log, TEXT("DayNight: authored plan %s remains armed while the canonical Heart has no external warning presenter."),
+				*Plan.PlanId.ToString());
+			bWarningPresentationDeferralLogged = true;
+		}
+		QueueWarningPresentationRetry();
+		return false;
+	}
+
+	if (Heart->EmitWarningById(Plan.WarningId, Plan.NightType))
+	{
+		PresentedPlanId = Plan.PlanId;
+		bWarningPresentationPending = false;
+		PendingPresentationPlanId = NAME_None;
+		bWarningPresentationDeferralLogged = false;
+		ClearWarningPresentationRetry();
+		return true;
 	}
 
 	if (!bWarningPresentationDeferralLogged)
@@ -188,9 +207,19 @@ bool UGloamsteadDayNightSubsystem::LoadProgressionFromSlot(const FString& SlotNa
 		return false;
 	}
 
-	CurrentPhase = static_cast<EGloamsteadDayPhase>(CycleState.SavedPhaseOrdinal);
+	const EGloamsteadDayPhase SavedPhase = static_cast<EGloamsteadDayPhase>(CycleState.SavedPhaseOrdinal);
+	CurrentPhase = SavedPhase;
+	if (SavedPhase == EGloamsteadDayPhase::Dusk || SavedPhase == EGloamsteadDayPhase::Night)
+	{
+		// Runtime timers/objectives/outcome state are intentionally not persisted.
+		// Re-present the exact retained plan from Day rather than stranding a
+		// resumed player in an unprepared in-progress phase.
+		UE_LOG(LogTemp, Log, TEXT("DayNight: normalizing persisted in-progress phase %d to safe Day re-presentation."),
+			static_cast<int32>(SavedPhase));
+		CurrentPhase = EGloamsteadDayPhase::Day;
+	}
 	NightCount = FMath::Max(0, CycleState.CompletedCycleSlot);
-	if (CurrentPhase == EGloamsteadDayPhase::Dawn && NightCount > 0)
+	if (SavedPhase == EGloamsteadDayPhase::Dawn && NightCount > 0)
 	{
 		// The phase counter advances only when the player wakes into Day; a
 		// completed dawn is durable, but that wrap has not happened yet.
@@ -309,7 +338,14 @@ void UGloamsteadDayNightSubsystem::AdvanceToNextPhase()
 	EGloamsteadDayPhase Next = CurrentPhase;
 	switch (CurrentPhase)
 	{
-	case EGloamsteadDayPhase::Day:   Next = EGloamsteadDayPhase::Dusk; break;
+	case EGloamsteadDayPhase::Day:
+		if (!CanAdvanceFromDayToDusk())
+		{
+			UE_LOG(LogTemp, Log, TEXT("DayNight: direct Day->Dusk advance refused until the exact authored warning is player-facing."));
+			return;
+		}
+		Next = EGloamsteadDayPhase::Dusk;
+		break;
 	case EGloamsteadDayPhase::Dusk:  Next = EGloamsteadDayPhase::Night; break;
 	case EGloamsteadDayPhase::Night: Next = EGloamsteadDayPhase::Dawn; break;
 	case EGloamsteadDayPhase::Dawn:
@@ -321,6 +357,22 @@ void UGloamsteadDayNightSubsystem::AdvanceToNextPhase()
 		break;
 	}
 	SetPhase(Next);
+}
+
+bool UGloamsteadDayNightSubsystem::CanAdvanceFromDayToDusk()
+{
+	if (CanRestNow())
+	{
+		return true;
+	}
+
+	// This is intentionally one immediate reconciliation attempt, not a loop.
+	// The bounded timer owns listener/catalog startup retries after this returns.
+	if (GetExperienceCycleSubsystem())
+	{
+		PrepareUpcomingCycle();
+	}
+	return CanRestNow();
 }
 
 bool UGloamsteadDayNightSubsystem::CanRestNow() const

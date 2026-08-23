@@ -38,7 +38,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DayNight")
 	void AdvanceToNextPhase();
 
-	UFUNCTION(BlueprintCallable, Category = "DayNight")
+	/**
+	 * Development/automation forcing seam. Gameplay must use RequestRest or
+	 * AdvanceToNextPhase so the Day warning authority cannot be bypassed.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "DayNight|Testing", meta = (DevelopmentOnly))
 	void SetPhase(EGloamsteadDayPhase NewPhase);
 
 	/**
@@ -100,6 +104,8 @@ public:
 
 private:
 	void ApplyPhaseChange(EGloamsteadDayPhase NewPhase);
+	/** Checks/retries the exact Day warning before any gameplay Day->Dusk advance. */
+	bool CanAdvanceFromDayToDusk();
 	void HandleEnterDay();
 	void HandleEnterDusk();
 	void HandleEnterNight();

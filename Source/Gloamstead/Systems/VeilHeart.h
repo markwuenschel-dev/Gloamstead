@@ -80,6 +80,13 @@ public:
 	UFUNCTION(BlueprintPure, Category="Veil Heart")
 	FName GetLastEmittedWarningId() const { return LastEmittedWarningId; }
 
+	/**
+	 * Presentation is player-facing only when a non-Heart consumer has attached
+	 * to the explicit warning delegate (the first-night director owns that role
+	 * in the current slice). Blueprint events on this actor are not readiness.
+	 */
+	bool HasExternalWarningPresenter() const { return OnWarningEmittedDelegate.IsBound(); }
+
     UFUNCTION(BlueprintImplementableEvent, Category="Veil Heart")
     void OnWarningEmitted(const FVeilHeartWarningFragment& WarningFragment);
 
