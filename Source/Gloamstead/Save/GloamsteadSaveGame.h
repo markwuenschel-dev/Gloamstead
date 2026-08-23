@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Data/ExperienceCycleTypes.h"
 #include "GameFramework/SaveGame.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "GloamsteadSaveGame.generated.h"
@@ -18,6 +19,9 @@ class GLOAMSTEAD_API UGloamsteadSaveGame : public USaveGame
     GENERATED_BODY()
 
 public:
+    /** Current save layout version. New save objects always begin at this version. */
+    static constexpr int32 CurrentSaveVersion = 2;
+
     /** Full per-point state, ordered by point index (mirrors the subsystem's PointStates). */
     UPROPERTY()
     TArray<FRitualPointState> PointStates;
@@ -32,5 +36,18 @@ public:
 
     /** Bumped when the payload layout changes, so loads can migrate or reject. */
     UPROPERTY()
-    int32 SaveVersion = 1;
+    int32 SaveVersion = CurrentSaveVersion;
+
+    /** Authored progression facts persisted alongside the existing PCG payload. */
+    UPROPERTY()
+    FExperienceCyclePersistentState ExperienceCycleState;
+
+    /**
+     * Migrate this payload without consulting world state or selecting authored progression.
+     * V1 retains PCG data but enters an explicit reconciliation state; v2 is unchanged.
+     */
+    void MigrateToCurrentVersion();
+
+    const FExperienceCyclePersistentState& GetExperienceCycleState() const { return ExperienceCycleState; }
+    void SetExperienceCycleState(const FExperienceCyclePersistentState& InState) { ExperienceCycleState = InState; }
 };
