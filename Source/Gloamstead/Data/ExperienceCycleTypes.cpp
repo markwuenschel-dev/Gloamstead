@@ -45,6 +45,11 @@ void PopulateDefaultExperienceCyclePlans(UExperienceCycleCatalog& Catalog)
 		TEXT("GardenRot.ColdSoil"),
 		TEXT("GardenRot.BellMoths")
 	};
+	Garden.RequiredSupportChannelTypes = {
+		TEXT("Environmental"),
+		TEXT("ObjectReaction"),
+		TEXT("Audio")
+	};
 	Garden.MinimumDistinctSupportCount = 2;
 	Garden.InterpretationReceiptId = TEXT("GardenRot.Interpreted");
 	Garden.VisualStateKey = TEXT("restoration_level");
@@ -63,4 +68,5 @@ void FExperienceCyclePersistentState::ResetForLegacyReconciliation()
     bFirstRestCompleted = false;
     SavedPhaseOrdinal = INDEX_NONE;
     bRequiresLegacyReconciliation = true;
+	HeartInterpretationState.Reset();
 }

@@ -53,6 +53,15 @@ struct GLOAMSTEAD_API FExperienceCyclePlan
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Experience Cycle")
 	TArray<FName> RequiredSupportIds;
 
+	/**
+	 * Required readable medium for each RequiredSupportIds entry at the same
+	 * array index.  The contract is deliberately authored here rather than
+	 * inferred from text: a GardenRot clue is fair only when the player can find
+	 * its environmental, object-reaction, and audio evidence as distinct modes.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Experience Cycle")
+	TArray<FName> RequiredSupportChannelTypes;
+
 	/** Number of distinct known supports the player must encounter before interpreting this plan. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Experience Cycle", meta = (ClampMin = "0"))
 	int32 MinimumDistinctSupportCount = 0;
@@ -123,6 +132,41 @@ struct GLOAMSTEAD_API FExperienceInterpretationReceipt
 	}
 };
 
+/**
+ * The durable, player-meaningful portion of the Heart's interpretation state.
+ * This deliberately excludes timers, presenters, and all runtime pressure;
+ * those have no safe resume contract.  DayNight restores this atomically with
+ * the authored plan, or clears it before a rollback can leak a future clue.
+ */
+USTRUCT(BlueprintType)
+struct GLOAMSTEAD_API FVeilHeartInterpretationPersistentState
+{
+	GENERATED_BODY()
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Experience Cycle|Persistence")
+	FName PresentedWarningId = NAME_None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Experience Cycle|Persistence")
+	TArray<FName> EncounteredSupportIds;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Experience Cycle|Persistence")
+	FExperienceInterpretationReceipt InterpretationReceipt;
+
+	bool HasAnyFacts() const
+	{
+		return PresentedWarningId != NAME_None
+			|| !EncounteredSupportIds.IsEmpty()
+			|| InterpretationReceipt.IsValid();
+	}
+
+	void Reset()
+	{
+		PresentedWarningId = NAME_None;
+		EncounteredSupportIds.Reset();
+		InterpretationReceipt = FExperienceInterpretationReceipt();
+	}
+};
+
 /** Designer-facing catalog for the explicitly authored opening sequence. */
 UCLASS(BlueprintType)
 class GLOAMSTEAD_API UExperienceCycleCatalog : public UPrimaryDataAsset
@@ -178,6 +222,10 @@ struct GLOAMSTEAD_API FExperienceCyclePersistentState
     /** True when a v1 payload needs explicit runtime reconciliation before authoring a new plan. */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Experience Cycle|Persistence")
     bool bRequiresLegacyReconciliation = false;
+
+	/** Presented warning, encountered evidence, and exact receipt for the armed plan. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Experience Cycle|Persistence")
+	FVeilHeartInterpretationPersistentState HeartInterpretationState;
 
     /** Clear data that a legacy payload cannot establish and require an explicit reconciliation. */
     void ResetForLegacyReconciliation();

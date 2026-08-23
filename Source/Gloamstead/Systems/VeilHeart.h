@@ -10,6 +10,8 @@
 #include "VeilHeart.generated.h"
 
 class USphereComponent;
+class AGloamsteadEvidenceSource;
+class UGloamsteadPCGSubsystem;
 
 /**
  * Broadcast when the Heart warns about the coming night, carrying the catalog fragment it chose.
@@ -48,19 +50,14 @@ public:
     virtual void Interact_Implementation(AActor* Interactor) override;
     virtual void Examine_Implementation(AActor* Interactor) override;
 
-    UFUNCTION(BlueprintCallable, Category="Veil Heart")
+    /** Legacy tag feedback. This raw evaluator is intentionally not Blueprint-callable. */
     void EvaluateRestorationAgainstWarnings(const FRestorationEventPayload& Payload);
 
-	/** Records one known evidence encounter for the exact currently armed warning. */
-	UFUNCTION(BlueprintCallable, Category="Veil Heart|Interpretation")
-	bool RecordSupportEncounter(FName WarningId, FName SupportId);
-
 	/**
-	 * Evaluates a restoration only against the exact active authored plan. This
-	 * never falls back by clarity tier, night type, tag, or a different subject.
+	 * Records a player encounter from one live, authored evidence actor. This is
+	 * deliberately a C++ authority seam rather than a Blueprint payload API.
 	 */
-	UFUNCTION(BlueprintCallable, Category="Veil Heart|Interpretation")
-	bool EvaluateRestorationAgainstActivePlan(const FRestorationEventPayload& Payload);
+	bool RecordSupportEncounterFromEvidenceSource(const AGloamsteadEvidenceSource* Source);
 
 	UFUNCTION(BlueprintCallable, Category="Veil Heart")
 	void EmitWarningForNight(ENightConsequenceType NightType);
@@ -72,6 +69,11 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category="Veil Heart")
 	bool EmitWarningById(FName WarningId, ENightConsequenceType ExpectedNightType);
+
+	/** Exact active-plan admission used by DayNight before it makes rest eligible. */
+	bool CanPresentWarningForPlan(const FExperienceCyclePlan& Plan);
+	/** Presents an already-admitted exact authored plan; no ID/type-only fallback. */
+	bool EmitWarningForPlan(const FExperienceCyclePlan& Plan);
 
     /** Legacy no-outcome dawn reflection (BP compat): reflects on an empty outcome. */
     UFUNCTION(BlueprintCallable, Category="Veil Heart")
@@ -90,6 +92,13 @@ public:
 
 	/** True only when the stored receipt exactly proves this authored plan was interpreted. */
 	bool HasExactInterpretationForPlan(const FExperienceCyclePlan& Plan) const;
+
+	/** Capture/restore only durable interpretation facts; cadence/presenter state stays live-only. */
+	FVeilHeartInterpretationPersistentState CaptureInterpretationPersistentState() const;
+	/** Whether the authored warning catalog is available for a delayed restore attempt. */
+	bool IsInterpretationCatalogReady();
+	bool RestoreInterpretationPersistentState(const FVeilHeartInterpretationPersistentState& State);
+	void ResetInterpretationPersistentState();
 
     /** The outcome of the most recently reflected-upon night (session memory the next cycle can read). */
     UFUNCTION(BlueprintPure, Category="Veil Heart")
@@ -112,7 +121,7 @@ public:
 	bool HasExactWarningById(FName WarningId, ENightConsequenceType ExpectedNightType);
 
 #if WITH_DEV_AUTOMATION_TESTS
-	/** Narrow headless seam for focused fair-crypticism fixtures. */
+	/** Narrow test seam for focused fair-crypticism catalog fixtures. */
 	void Test_SetActivePlan(const FExperienceCyclePlan& InPlan)
 	{
 		TestActivePlan = InPlan;
@@ -124,6 +133,9 @@ public:
 		TestActivePlan = FExperienceCyclePlan::MakeInvalid(0);
 		bHasTestActivePlan = false;
 	}
+
+	/** Test-only controlled route for source/media validation without exposing a Blueprint write API. */
+	bool Test_RecordSupportEncounter(FName WarningId, FName SupportId, FName ChannelType);
 #endif
 
     UFUNCTION(BlueprintImplementableEvent, Category="Veil Heart")
@@ -164,8 +176,11 @@ private:
 	bool EnsureWarningCatalog();
 	const FVeilHeartWarningFragment* FindExactWarningById(FName WarningId, ENightConsequenceType ExpectedNightType) const;
 	const FExperienceCyclePlan* ResolveActivePlan() const;
+	UGloamsteadPCGSubsystem* ResolvePCGSubsystem() const;
 	bool IsExactWarningPresentedForPlan(const FExperienceCyclePlan& Plan) const;
 	bool HasRequiredSupportEvidence(const FExperienceCyclePlan& Plan) const;
+	bool RecordSupportEncounterInternal(FName WarningId, FName SupportId, FName ChannelType);
+	bool EvaluateRestorationAgainstActivePlan(const FRestorationEventPayload& Payload);
 
     TSet<FName> SatisfiedWarningTags;
 	TSet<FName> EncounteredSupportIds;

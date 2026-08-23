@@ -582,6 +582,10 @@ bool URitualPlacementComponent::BuildRestorationPayload(int32 PointIndex, AActor
     // a point accidentally satisfy a different warning with the same night type.
     OutPayload.WarningId = CachedSubsystem->GetNameAttribute(Point, "RecommendedForWarning", NAME_None);
     OutPayload.SemanticSubject = CachedSubsystem->GetNameAttribute(Point, "SemanticSubject", NAME_None);
+    // An authored Cycle II point names the restoration tag itself. The Heart
+    // will independently read this metadata from PCG before minting a receipt;
+    // this copy is presentation/legacy compatibility only, not authority.
+    OutPayload.WarningTagSatisfied = CachedSubsystem->GetNameAttribute(Point, "RestorationTag", NAME_None);
 
     OutPayload.LightDelta = GetDefaultLightContribution(OutPayload.RitualType);
     OutPayload.CorruptionCleared = GetDefaultCorruptionClearance(OutPayload.RitualType);

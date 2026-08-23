@@ -3,6 +3,7 @@
 #include "Data/ExperienceCycleTypes.h"
 #include "Data/NightRuntimeTypes.h"
 #include "Data/VeilHeartWarningTypes.h"
+#include "Engine/GameInstance.h"
 #include "Systems/GloamsteadFirstNightDirector.h"
 #include "Systems/GloamsteadExperienceCycleSubsystem.h"
 #include "Systems/NightConsequenceManager.h"
@@ -21,7 +22,8 @@ namespace
 
 	UGloamsteadExperienceCycleSubsystem* MakeSubsystem(UExperienceCycleCatalog* Catalog)
 	{
-		UGloamsteadExperienceCycleSubsystem* Subsystem = NewObject<UGloamsteadExperienceCycleSubsystem>();
+		UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
+		UGloamsteadExperienceCycleSubsystem* Subsystem = NewObject<UGloamsteadExperienceCycleSubsystem>(GameInstance);
 		Subsystem->Test_SetCatalog(Catalog);
 		return Subsystem;
 	}
@@ -70,6 +72,10 @@ bool FGloamExperiencePlanSlotTwoIsExactCorruptionTest::RunTest(const FString& /*
 	TestEqual(TEXT("slot two requires two distinct readable supports"), Plan.MinimumDistinctSupportCount, 2);
 	TestEqual(TEXT("slot two has exactly three authored support ids"), Plan.RequiredSupportIds.Num(), 3);
 	TestTrue(TEXT("slot two names the withered-vines support"), Plan.RequiredSupportIds.Contains(FName(TEXT("GardenRot.WitheredVines"))));
+	TestEqual(TEXT("slot two names one medium for each authored support"), Plan.RequiredSupportChannelTypes.Num(), 3);
+	TestEqual(TEXT("the vines are readable in the environment"), Plan.RequiredSupportChannelTypes[0], FName(TEXT("Environmental")));
+	TestEqual(TEXT("the cold soil reacts as an object"), Plan.RequiredSupportChannelTypes[1], FName(TEXT("ObjectReaction")));
+	TestEqual(TEXT("the moths are an audio clue"), Plan.RequiredSupportChannelTypes[2], FName(TEXT("Audio")));
 	TestEqual(TEXT("slot two records the exact interpretation receipt id"), Plan.InterpretationReceiptId, FName(TEXT("GardenRot.Interpreted")));
 	return true;
 }
@@ -121,6 +127,18 @@ bool FGloamExperiencePlanExactWarningAndNightPrepTest::RunTest(const FString& /*
 	FVeilHeartWarningFragment GardenWarning;
 	GardenWarning.WarningId = TEXT("GardenRot");
 	GardenWarning.AssociatedNightType = ENightConsequenceType::Corruption;
+	GardenWarning.Fragment = FText::FromString(TEXT("What grows in darkness must be tended before the bell tolls."));
+	GardenWarning.SatisfiableTags = Plan.RequiredRestorationTags;
+	GardenWarning.SemanticSubject = Plan.SemanticSubject;
+	GardenWarning.RequiredRitualType = Plan.RequiredRitualType;
+	GardenWarning.InterpretationReceiptId = Plan.InterpretationReceiptId;
+	for (int32 Index = 0; Index < Plan.RequiredSupportIds.Num(); ++Index)
+	{
+		FVeilHeartWarningSupportChannel& Channel = GardenWarning.SupportChannels.AddDefaulted_GetRef();
+		Channel.SupportId = Plan.RequiredSupportIds[Index];
+		Channel.ChannelType = Plan.RequiredSupportChannelTypes[Index];
+		Channel.EvidenceText = FText::FromString(TEXT("Readable authored evidence."));
+	}
 	WarningCatalog->Warnings.Add(GardenWarning);
 	AVeilHeart* Heart = NewObject<AVeilHeart>();
 	Heart->WarningCatalog = WarningCatalog;
@@ -143,6 +161,19 @@ bool FGloamExperiencePlanExactWarningAndNightPrepTest::RunTest(const FString& /*
 	Heart->OnWarningEmittedDelegate.RemoveDynamic(Presenter, &AGloamsteadFirstNightDirector::HandleHeartWarning);
 	TestFalse(TEXT("a registered presenter loses readiness when its warning binding is removed"), Heart->HasValidWarningPresenter());
 	Heart->UnregisterWarningPresenter(Presenter);
+
+	UVeilHeartWarningCatalog* WrongMediumCatalog = NewObject<UVeilHeartWarningCatalog>();
+	FVeilHeartWarningFragment WrongMediumWarning = GardenWarning;
+	WrongMediumWarning.SupportChannels[2].ChannelType = TEXT("Environmental");
+	WrongMediumCatalog->Warnings.Add(WrongMediumWarning);
+	AVeilHeart* WrongMediumHeart = NewObject<AVeilHeart>();
+	WrongMediumHeart->WarningCatalog = WrongMediumCatalog;
+	WrongMediumHeart->Test_SetActivePlan(Plan);
+	WrongMediumHeart->OnWarningEmittedDelegate.AddDynamic(Presenter, &AGloamsteadFirstNightDirector::HandleHeartWarning);
+	TestTrue(TEXT("the presenter can register with the wrong-medium fixture"),
+		WrongMediumHeart->RegisterWarningPresenter(Presenter, GET_FUNCTION_NAME_CHECKED(AGloamsteadFirstNightDirector, HandleHeartWarning)));
+	TestFalse(TEXT("GardenRot refuses Day presentation when its media contract is incomplete"),
+		WrongMediumHeart->EmitWarningById(Plan.WarningId, Plan.NightType));
 
 	UNightConsequenceManager* Manager = NewObject<UNightConsequenceManager>();
 	TestTrue(TEXT("the manager accepts the exact armed authored plan"), Manager->PrepareNightConsequencesForPlan(Plan));
@@ -173,7 +204,8 @@ bool FGloamExperiencePlanRequiredSlotsFailClosedTest::RunTest(const FString& /*P
 	TestEqual(TEXT("failure does not substitute a warning"), Subsystem->GetActivePlan().WarningId, NAME_None);
 
 	Catalog = MakeAuthoredCatalog();
-	Catalog->AuthoredPlans.Add(Catalog->AuthoredPlans[1]);
+	const FExperienceCyclePlan DuplicateSlotTwoPlan = Catalog->AuthoredPlans[1];
+	Catalog->AuthoredPlans.Add(DuplicateSlotTwoPlan);
 	Subsystem = MakeSubsystem(Catalog);
 	TestTrue(TEXT("duplicate catalog state restores"), Subsystem->RestorePersistentState(State));
 	TestFalse(TEXT("duplicate required slot fails closed"), Subsystem->EnsureUpcomingPlan());
@@ -192,6 +224,13 @@ bool FGloamExperiencePlanRequiredSlotsFailClosedTest::RunTest(const FString& /*P
 	TestTrue(TEXT("sparse support catalog state restores"), Subsystem->RestorePersistentState(State));
 	TestFalse(TEXT("sparse authored support contract fails closed"), Subsystem->EnsureUpcomingPlan());
 	TestTrue(TEXT("sparse support failure is invalid"), Subsystem->GetActivePlan().IsInvalid());
+
+	Catalog = MakeAuthoredCatalog();
+	Catalog->AuthoredPlans[1].RequiredSupportChannelTypes[2] = TEXT("Environmental");
+	Subsystem = MakeSubsystem(Catalog);
+	TestTrue(TEXT("wrong-medium catalog state restores before admission"), Subsystem->RestorePersistentState(State));
+	TestFalse(TEXT("wrong-medium authored support contract fails closed"), Subsystem->EnsureUpcomingPlan());
+	TestTrue(TEXT("wrong-medium support failure is invalid"), Subsystem->GetActivePlan().IsInvalid());
 
 	Catalog = MakeAuthoredCatalog();
 	Catalog->AuthoredPlans[1].InterpretationReceiptId = TEXT("SubstitutedReceipt");

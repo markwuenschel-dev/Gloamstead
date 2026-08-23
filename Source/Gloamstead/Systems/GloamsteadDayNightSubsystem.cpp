@@ -340,7 +340,20 @@ bool UGloamsteadDayNightSubsystem::PrepareUpcomingCycle()
 	}
 
 	AVeilHeart* Heart = Cast<AVeilHeart>(Hearts[0]);
-	if (!Heart || !Heart->HasValidWarningPresenter() || !Heart->HasExactWarningById(Plan.WarningId, Plan.NightType))
+	if (Heart && bHasPendingHeartInterpretationState)
+	{
+		const bool bRestored = RestorePendingHeartInterpretation(Heart);
+		if (!bRestored && bHasPendingHeartInterpretationState)
+		{
+			QueueWarningPresentationRetry();
+			return false;
+		}
+		if (bRestored && PresentedPlanId == Plan.PlanId)
+		{
+			return true;
+		}
+	}
+	if (!Heart || !Heart->CanPresentWarningForPlan(Plan))
 	{
 		if (!bWarningPresentationDeferralLogged)
 		{
@@ -352,7 +365,7 @@ bool UGloamsteadDayNightSubsystem::PrepareUpcomingCycle()
 		return false;
 	}
 
-	if (Heart->EmitWarningById(Plan.WarningId, Plan.NightType))
+	if (Heart->EmitWarningForPlan(Plan))
 	{
 		PresentedPlanId = Plan.PlanId;
 		bWarningPresentationPending = false;
@@ -370,6 +383,103 @@ bool UGloamsteadDayNightSubsystem::PrepareUpcomingCycle()
 	}
 	QueueWarningPresentationRetry();
 	return false;
+}
+
+void UGloamsteadDayNightSubsystem::ResetHeartInterpretationForProgressionRestore()
+{
+	PendingHeartInterpretationState.Reset();
+	bHasPendingHeartInterpretationState = false;
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	TArray<AActor*> Hearts;
+	UGameplayStatics::GetAllActorsOfClass(World, AVeilHeart::StaticClass(), Hearts);
+	for (AActor* Actor : Hearts)
+	{
+		if (AVeilHeart* Heart = Cast<AVeilHeart>(Actor))
+		{
+			Heart->ResetInterpretationPersistentState();
+		}
+	}
+}
+
+bool UGloamsteadDayNightSubsystem::RestorePendingHeartInterpretation(AVeilHeart* Heart)
+{
+	if (!bHasPendingHeartInterpretationState)
+	{
+		return true;
+	}
+
+	UWorld* World = GetWorld();
+	TArray<AActor*> Hearts;
+	if (!World || !Heart)
+	{
+		return false;
+	}
+	UGameplayStatics::GetAllActorsOfClass(World, AVeilHeart::StaticClass(), Hearts);
+	// A deferred actor can call BeginPlay just before it becomes visible to the
+	// actor iterator. That is not ambiguous ownership: preserve the validated
+	// snapshot and let the normal one-shot presentation retry observe the actor
+	// once registration settles. Any actual second Heart still clears closed
+	// below rather than granting the receipt to an arbitrary actor.
+	if (Hearts.IsEmpty() && Heart->GetWorld() == World)
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("DayNight: waiting for the late-spawned Heart to enter the canonical actor set before restoring interpretation."));
+		return false;
+	}
+	if (Hearts.Num() != 1 || Hearts[0] != Heart)
+	{
+		UE_LOG(LogTemp, Error, TEXT("DayNight: cannot restore Heart interpretation because canonical Heart ownership is ambiguous (%d Hearts)."), Hearts.Num());
+		PendingHeartInterpretationState.Reset();
+		bHasPendingHeartInterpretationState = false;
+		return false;
+	}
+
+	if (!Heart->IsInterpretationCatalogReady())
+	{
+		// A fresh map may spawn the one real Heart before its data asset has
+		// finished becoming available. Keep the already-loaded v3 facts pending;
+		// PrepareUpcomingCycle will retry through the normal presentation cadence.
+		UE_LOG(LogTemp, Log, TEXT("DayNight: waiting for the canonical Heart warning catalog before restoring persisted interpretation."));
+		return false;
+	}
+
+	const FExperienceCyclePlan* Plan = GetUpcomingPlan();
+	const FVeilHeartInterpretationPersistentState State = PendingHeartInterpretationState;
+	if (!Plan || !Heart->RestoreInterpretationPersistentState(State))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("DayNight: persisted Heart interpretation did not match the restored authored plan; clearing it safely."));
+		Heart->ResetInterpretationPersistentState();
+		PendingHeartInterpretationState.Reset();
+		bHasPendingHeartInterpretationState = false;
+		PresentedPlanId = NAME_None;
+		return false;
+	}
+
+	if (Heart->GetLastEmittedWarningId() == Plan->WarningId)
+	{
+		PresentedPlanId = Plan->PlanId;
+		bWarningPresentationPending = false;
+		PendingPresentationPlanId = NAME_None;
+		bWarningPresentationDeferralLogged = false;
+		ClearWarningPresentationRetry();
+	}
+
+	PendingHeartInterpretationState.Reset();
+	bHasPendingHeartInterpretationState = false;
+	return true;
+}
+
+void UGloamsteadDayNightSubsystem::NotifyHeartReadyForProgressionRestore(AVeilHeart* Heart)
+{
+	if (!RestorePendingHeartInterpretation(Heart) && bHasPendingHeartInterpretationState)
+	{
+		QueueWarningPresentationRetry();
+	}
 }
 
 bool UGloamsteadDayNightSubsystem::SaveProgressionToSlot()
@@ -404,8 +514,35 @@ bool UGloamsteadDayNightSubsystem::SaveProgressionToSlot(const FString& SlotName
 		return false;
 	}
 
-	PCG->CaptureToSaveGame(SaveGame);
 	FExperienceCyclePersistentState CycleState = Experience->CapturePersistentState();
+	TArray<AActor*> Hearts;
+	UGameplayStatics::GetAllActorsOfClass(World, AVeilHeart::StaticClass(), Hearts);
+	if (Hearts.Num() > 1)
+	{
+		UE_LOG(LogTemp, Error, TEXT("DayNight: refusing progression save because Heart interpretation ownership is ambiguous (%d Hearts)."), Hearts.Num());
+		return false;
+	}
+	if (Hearts.Num() == 1)
+	{
+		AVeilHeart* Heart = Cast<AVeilHeart>(Hearts[0]);
+		if (!Heart)
+		{
+			return false;
+		}
+		CycleState.HeartInterpretationState = Heart->CaptureInterpretationPersistentState();
+	}
+	else if (bHasPendingHeartInterpretationState)
+	{
+		// A fresh map can save before the delayed Heart actor is spawned. Preserve
+		// the already-validated v3 snapshot rather than silently erasing it.
+		CycleState.HeartInterpretationState = PendingHeartInterpretationState;
+	}
+	else
+	{
+		CycleState.HeartInterpretationState.Reset();
+	}
+
+	PCG->CaptureToSaveGame(SaveGame);
 	CycleState.SavedPhaseOrdinal = static_cast<int32>(CurrentPhase);
 	SaveGame->SetExperienceCycleState(CycleState);
 	return UGameplayStatics::SaveGameToSlot(SaveGame, SlotName, UserIndex);
@@ -437,6 +574,9 @@ bool UGloamsteadDayNightSubsystem::LoadProgressionFromSlot(const FString& SlotNa
 	// Quiesce before the first PCG write. In particular, a live runtime must
 	// never resolve or pressure the newly restored Day on its old timer tick.
 	QuiesceLiveWorldForProgressionRestore();
+	// A rollback must not leave future warning/evidence/receipt facts resident
+	// in a live Heart while PCG/cycle state is being replaced below.
+	ResetHeartInterpretationForProgressionRestore();
 	if (!PCG->RestoreFromSaveGame(SaveGame))
 	{
 		ResetToSafeDayReconciliation();
@@ -512,13 +652,35 @@ bool UGloamsteadDayNightSubsystem::LoadProgressionFromSlot(const FString& SlotNa
 	ClearWarningPresentationRetry();
 	DetachStaleFirstNightDirectorsForLaterCycleResume();
 
+	// V3 persists interpretation only with the same validated cycle state. If
+	// the Heart is not spawned yet, retain it for BeginPlay; if the world has
+	// ambiguous Heart ownership, discard rather than grant a receipt to an
+	// arbitrary actor.
+	PendingHeartInterpretationState = CycleState.HeartInterpretationState;
+	bHasPendingHeartInterpretationState = PendingHeartInterpretationState.HasAnyFacts();
+	if (bHasPendingHeartInterpretationState)
+	{
+		TArray<AActor*> Hearts;
+		UGameplayStatics::GetAllActorsOfClass(World, AVeilHeart::StaticClass(), Hearts);
+		if (Hearts.Num() == 1)
+		{
+			RestorePendingHeartInterpretation(Cast<AVeilHeart>(Hearts[0]));
+		}
+		else if (Hearts.Num() > 1)
+		{
+			UE_LOG(LogTemp, Error, TEXT("DayNight: clearing persisted Heart interpretation because load found %d Hearts."), Hearts.Num());
+			PendingHeartInterpretationState.Reset();
+			bHasPendingHeartInterpretationState = false;
+		}
+	}
+
 	// A persisted armed plan is validated by RestorePersistentState. An unarmed
 	// later Day may now arm exactly one next plan; the first tutorial day stays
 	// silent until UnlockFirstRest() supplies its existing lantern gate.
 	if (CurrentPhase == EGloamsteadDayPhase::Day
 		&& (CycleState.bFirstRestCompleted || CycleState.ArmedPlanId != NAME_None))
 	{
-		// A valid v2 payload succeeds even if exact warning presentation must wait
+		// A valid v3 payload succeeds even if exact warning presentation must wait
 		// for a Heart/catalog created later in the bootstrap order. CanRestNow()
 		// continues to gate on PresentedPlanId until that exact presentation lands.
 		PrepareUpcomingCycle();
@@ -535,6 +697,7 @@ void UGloamsteadDayNightSubsystem::ResetToSafeDayReconciliation()
 	// reconciliation, but never leave the phase machine or rest gate carrying
 	// authority from the pre-load world.
 	QuiesceLiveWorldForProgressionRestore();
+	ResetHeartInterpretationForProgressionRestore();
 	CurrentPhase = EGloamsteadDayPhase::Day;
 	NightCount = 0;
 	bFirstRestUnlocked = false;
@@ -662,6 +825,8 @@ void UGloamsteadDayNightSubsystem::DetachStaleFirstNightDirectorsForLaterCycleRe
 void UGloamsteadDayNightSubsystem::Deinitialize()
 {
 	QuiesceLiveWorldForProgressionRestore();
+	PendingHeartInterpretationState.Reset();
+	bHasPendingHeartInterpretationState = false;
 	bWarningPresentationPending = false;
 	bInProgressSaveReconciliation = false;
 	PendingPresentationPlanId = NAME_None;

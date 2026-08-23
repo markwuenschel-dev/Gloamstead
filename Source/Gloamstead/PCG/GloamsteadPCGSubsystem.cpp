@@ -1,4 +1,5 @@
 #include "PCG/GloamsteadPCGSubsystem.h"
+#include "Data/ExperienceCycleTypes.h"
 #include "PCGComponent.h"
 #include "PCGData.h"
 #include "Data/PCGSpatialData.h"
@@ -454,6 +455,15 @@ void UGloamsteadPCGSubsystem::Test_SeedPoints(const TArray<FVector>& Locations)
         MutablePointData->Metadata->CreateAttribute<int32>(
             TEXT("RitualType"), static_cast<int32>(ERitualType::LanternPost),
             /*bAllowsInterpolation*/ false, /*bOverrideParent*/ false);
+    MutablePointData->Metadata->CreateAttribute<FName>(
+        TEXT("RecommendedForWarning"), NAME_None,
+        /*bAllowsInterpolation*/ false, /*bOverrideParent*/ false);
+    MutablePointData->Metadata->CreateAttribute<FName>(
+        TEXT("SemanticSubject"), NAME_None,
+        /*bAllowsInterpolation*/ false, /*bOverrideParent*/ false);
+    MutablePointData->Metadata->CreateAttribute<FName>(
+        TEXT("RestorationTag"), NAME_None,
+        /*bAllowsInterpolation*/ false, /*bOverrideParent*/ false);
 
     TArray<FPCGPoint>& Points = MutablePointData->GetMutablePoints();
     Points.Reset(Locations.Num());
@@ -467,6 +477,36 @@ void UGloamsteadPCGSubsystem::Test_SeedPoints(const TArray<FVector>& Locations)
     }
     CachedPoints = Points;
     BuildSpatialGrid();
+}
+
+bool UGloamsteadPCGSubsystem::Test_SetPointContractMetadata(
+    int32 PointIndex,
+    FName WarningId,
+    FName SemanticSubject,
+    ERitualType RitualType,
+    FName RestorationTag)
+{
+    if (!CachedPoints.IsValidIndex(PointIndex) || !MutablePointData || !MutablePointData->Metadata)
+    {
+        return false;
+    }
+
+    UPCGMetadata* Metadata = MutablePointData->Metadata;
+    FPCGMetadataAttribute<int32>* RitualAttribute = Metadata->GetMutableTypedAttribute<int32>(TEXT("RitualType"));
+    FPCGMetadataAttribute<FName>* WarningAttribute = Metadata->GetMutableTypedAttribute<FName>(TEXT("RecommendedForWarning"));
+    FPCGMetadataAttribute<FName>* SubjectAttribute = Metadata->GetMutableTypedAttribute<FName>(TEXT("SemanticSubject"));
+    FPCGMetadataAttribute<FName>* TagAttribute = Metadata->GetMutableTypedAttribute<FName>(TEXT("RestorationTag"));
+    if (!RitualAttribute || !WarningAttribute || !SubjectAttribute || !TagAttribute)
+    {
+        return false;
+    }
+
+    const int64 Entry = CachedPoints[PointIndex].MetadataEntry;
+    RitualAttribute->SetValue(Entry, static_cast<int32>(RitualType));
+    WarningAttribute->SetValue(Entry, WarningId);
+    SubjectAttribute->SetValue(Entry, SemanticSubject);
+    TagAttribute->SetValue(Entry, RestorationTag);
+    return true;
 }
 
 int32 UGloamsteadPCGSubsystem::FindRestoredPointIndex(bool bMostLit) const
@@ -808,6 +848,49 @@ FName UGloamsteadPCGSubsystem::GetNameAttribute(const FPCGPoint& Point, FName At
         }
     }
     return DefaultValue;
+}
+
+bool UGloamsteadPCGSubsystem::PointMatchesExperiencePlan(
+    int32 PointIndex,
+    const FExperienceCyclePlan& Plan,
+    bool bRequireRestored) const
+{
+    if (!Plan.IsAuthoredPlan()
+        || Plan.WarningId == NAME_None
+        || Plan.SemanticSubject == NAME_None
+        || Plan.RequiredRitualType == ERitualType::Invalid
+        || Plan.RequiredRestorationTags.Num() != 1
+        || Plan.RequiredRestorationTags[0] == NAME_None
+        || !CachedPoints.IsValidIndex(PointIndex)
+        || (bRequireRestored && !IsPointRestored(PointIndex)))
+    {
+        return false;
+    }
+
+    const FPCGPoint& Point = CachedPoints[PointIndex];
+    return GetNameAttribute(Point, TEXT("RecommendedForWarning"), NAME_None) == Plan.WarningId
+        && GetNameAttribute(Point, TEXT("SemanticSubject"), NAME_None) == Plan.SemanticSubject
+        && static_cast<ERitualType>(GetIntAttribute(Point, TEXT("RitualType"), static_cast<int32>(ERitualType::Invalid))) == Plan.RequiredRitualType
+        && GetNameAttribute(Point, TEXT("RestorationTag"), NAME_None) == Plan.RequiredRestorationTags[0];
+}
+
+bool UGloamsteadPCGSubsystem::PopulateAuthoritativeRestorationMetadata(
+    int32 PointIndex,
+    FRestorationEventPayload& InOutPayload) const
+{
+    if (!CachedPoints.IsValidIndex(PointIndex))
+    {
+        return false;
+    }
+
+    const FPCGPoint& Point = CachedPoints[PointIndex];
+    InOutPayload.PointIndex = PointIndex;
+    InOutPayload.RitualType = static_cast<ERitualType>(
+        GetIntAttribute(Point, TEXT("RitualType"), static_cast<int32>(ERitualType::Invalid)));
+    InOutPayload.WarningId = GetNameAttribute(Point, TEXT("RecommendedForWarning"), NAME_None);
+    InOutPayload.SemanticSubject = GetNameAttribute(Point, TEXT("SemanticSubject"), NAME_None);
+    InOutPayload.WarningTagSatisfied = GetNameAttribute(Point, TEXT("RestorationTag"), NAME_None);
+    return true;
 }
 
 FVector UGloamsteadPCGSubsystem::GetVectorAttribute(const FPCGPoint& Point, FName AttributeName, FVector DefaultValue) const

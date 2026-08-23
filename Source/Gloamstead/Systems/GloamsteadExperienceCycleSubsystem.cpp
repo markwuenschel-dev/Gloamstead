@@ -11,10 +11,32 @@ namespace
 
 	bool HasExactGardenSupports(const FExperienceCyclePlan& Plan)
 	{
-		return Plan.RequiredSupportIds.Num() == 3
-			&& Plan.RequiredSupportIds.Contains(FName(TEXT("GardenRot.WitheredVines")))
-			&& Plan.RequiredSupportIds.Contains(FName(TEXT("GardenRot.ColdSoil")))
-			&& Plan.RequiredSupportIds.Contains(FName(TEXT("GardenRot.BellMoths")));
+		static const FName CanonicalIds[] = {
+			TEXT("GardenRot.WitheredVines"),
+			TEXT("GardenRot.ColdSoil"),
+			TEXT("GardenRot.BellMoths")
+		};
+		static const FName CanonicalMedia[] = {
+			TEXT("Environmental"),
+			TEXT("ObjectReaction"),
+			TEXT("Audio")
+		};
+
+		if (Plan.RequiredSupportIds.Num() != UE_ARRAY_COUNT(CanonicalIds)
+			|| Plan.RequiredSupportChannelTypes.Num() != UE_ARRAY_COUNT(CanonicalMedia))
+		{
+			return false;
+		}
+
+		for (int32 Index = 0; Index < UE_ARRAY_COUNT(CanonicalIds); ++Index)
+		{
+			if (Plan.RequiredSupportIds[Index] != CanonicalIds[Index]
+				|| Plan.RequiredSupportChannelTypes[Index] != CanonicalMedia[Index])
+			{
+				return false;
+			}
+		}
+		return true;
 	}
 
 	bool MatchesRequiredContract(const FExperienceCyclePlan& Plan, int32 Slot)
@@ -35,6 +57,7 @@ namespace
 				&& HasOnlyTag(Plan, FName(TEXT("LanternPost")))
 				&& Plan.RequiredRitualType == ERitualType::Invalid
 				&& Plan.RequiredSupportIds.IsEmpty()
+				&& Plan.RequiredSupportChannelTypes.IsEmpty()
 				&& Plan.MinimumDistinctSupportCount == 0
 				&& Plan.InterpretationReceiptId == NAME_None
 				&& Plan.VisualStateKey == FName(TEXT("restoration_level"))

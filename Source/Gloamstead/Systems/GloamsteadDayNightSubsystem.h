@@ -1,11 +1,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Data/ExperienceCycleTypes.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "TimerManager.h"
 #include "GloamsteadDayNightSubsystem.generated.h"
 
 class UNightConsequenceRuntime;
+class AVeilHeart;
 
 UENUM(BlueprintType)
 enum class EGloamsteadDayPhase : uint8
@@ -86,6 +88,9 @@ public:
 	bool LoadProgressionFromSlot();
 	bool LoadProgressionFromSlot(const FString& SlotName, int32 UserIndex = 0);
 
+	/** Called by a late-spawned Heart to apply a validated v3 interpretation snapshot once. */
+	void NotifyHeartReadyForProgressionRestore(AVeilHeart* Heart);
+
 	/** True when the current phase is one the player may rest through (Day or Dawn). */
 	UFUNCTION(BlueprintPure, Category = "DayNight")
 	bool CanRestNow() const;
@@ -144,6 +149,10 @@ private:
 	void QueueWarningPresentationRetry();
 	void RetryPendingWarningPresentation();
 	void ClearWarningPresentationRetry();
+	/** Clears all live/pending interpretation state before a save payload replaces the world. */
+	void ResetHeartInterpretationForProgressionRestore();
+	/** Applies the loaded v3 state to one exact Heart, or clears it safely on mismatch. */
+	bool RestorePendingHeartInterpretation(AVeilHeart* Heart);
 	/** Quiesces timers, early-dawn callbacks, and a live runtime before any PCG restore. */
 	void QuiesceLiveWorldForProgressionRestore();
 	/** A safe later-cycle Day cannot retain a Cycle I tutorial presenter or callbacks. */
@@ -195,6 +204,10 @@ private:
 	bool bWarningPresentationRetryQueued = false;
 	bool bWarningPresentationDeferralLogged = false;
 	FTimerHandle WarningPresentationRetryTimer;
+
+	/** Holds a valid v3 Heart snapshot while the map/bootstrap has not yet spawned its Heart actor. */
+	FVeilHeartInterpretationPersistentState PendingHeartInterpretationState;
+	bool bHasPendingHeartInterpretationState = false;
 
 	/** Exactly-one guard shared by deadline and runtime objective completion. */
 	bool bDawnTransitionRequested = false;

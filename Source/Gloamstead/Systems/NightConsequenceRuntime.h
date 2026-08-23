@@ -114,6 +114,9 @@ public:
 	 */
 	int32 ResolveSemanticSubjectToPoint(FName SemanticSubject, const UGloamsteadPCGSubsystem* PCG) const;
 
+	/** Resolves a Cycle II target only when one PCG point matches the full authored contract. */
+	int32 ResolvePlanTargetToPoint(const FExperienceCyclePlan& Plan, const UGloamsteadPCGSubsystem* PCG) const;
+
 protected:
 	UFUNCTION()
 	void HandleNightPlanReady(ENightConsequenceType SelectedNightType);

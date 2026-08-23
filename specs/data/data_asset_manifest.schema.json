@@ -103,20 +103,29 @@
                                     "allOf": [
                                       {
                                         "contains": {
-                                          "properties": { "SupportId": { "const": "GardenRot.WitheredVines" } },
-                                          "required": ["SupportId"]
+                                          "properties": {
+                                            "SupportId": { "const": "GardenRot.WitheredVines" },
+                                            "ChannelType": { "const": "Environmental" }
+                                          },
+                                          "required": ["SupportId", "ChannelType"]
                                         }
                                       },
                                       {
                                         "contains": {
-                                          "properties": { "SupportId": { "const": "GardenRot.ColdSoil" } },
-                                          "required": ["SupportId"]
+                                          "properties": {
+                                            "SupportId": { "const": "GardenRot.ColdSoil" },
+                                            "ChannelType": { "const": "ObjectReaction" }
+                                          },
+                                          "required": ["SupportId", "ChannelType"]
                                         }
                                       },
                                       {
                                         "contains": {
-                                          "properties": { "SupportId": { "const": "GardenRot.BellMoths" } },
-                                          "required": ["SupportId"]
+                                          "properties": {
+                                            "SupportId": { "const": "GardenRot.BellMoths" },
+                                            "ChannelType": { "const": "Audio" }
+                                          },
+                                          "required": ["SupportId", "ChannelType"]
                                         }
                                       }
                                     ]

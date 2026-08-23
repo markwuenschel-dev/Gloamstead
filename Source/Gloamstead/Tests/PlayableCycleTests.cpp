@@ -16,6 +16,7 @@
 #include "Systems/NightConsequenceManager.h"
 #include "Systems/NightConsequenceRuntime.h"
 #include "Systems/VeilHeart.h"
+#include "Actors/GloamsteadEvidenceSource.h"
 #include "Presentation/GloamsteadSkyPresenter.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Save/GloamsteadSaveGame.h"
@@ -24,10 +25,12 @@
 #include "Data/NightConsequenceTypes.h"
 #include "Data/NightRuntimeTypes.h"
 #include "Data/VeilHeartWarningTypes.h"
+#include "CoreGlobals.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "Engine/OverlapResult.h"
+#include "GameFramework/Actor.h"
 #include "Kismet/GameplayStatics.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -44,11 +47,59 @@ namespace
 		Tutorial.AssociatedNightType = ENightConsequenceType::Tutorial;
 		Catalog->Warnings.Add(Tutorial);
 
+		UExperienceCycleCatalog* CycleCatalog = NewObject<UExperienceCycleCatalog>();
+		PopulateDefaultExperienceCyclePlans(*CycleCatalog);
+		const FExperienceCyclePlan& GardenPlan = CycleCatalog->AuthoredPlans[1];
 		FVeilHeartWarningFragment Garden;
-		Garden.WarningId = TEXT("GardenRot");
-		Garden.AssociatedNightType = ENightConsequenceType::Corruption;
+		Garden.WarningId = GardenPlan.WarningId;
+		Garden.Fragment = FText::FromString(TEXT("What grows in darkness must be tended before the bell tolls."));
+		Garden.AssociatedNightType = GardenPlan.NightType;
+		Garden.SatisfiableTags = GardenPlan.RequiredRestorationTags;
+		Garden.SemanticSubject = GardenPlan.SemanticSubject;
+		Garden.RequiredRitualType = GardenPlan.RequiredRitualType;
+		Garden.InterpretationReceiptId = GardenPlan.InterpretationReceiptId;
+		Garden.ClarityTier = 1;
+		for (int32 Index = 0; Index < GardenPlan.RequiredSupportIds.Num(); ++Index)
+		{
+			FVeilHeartWarningSupportChannel& Support = Garden.SupportChannels.AddDefaulted_GetRef();
+			Support.SupportId = GardenPlan.RequiredSupportIds[Index];
+			Support.ChannelType = GardenPlan.RequiredSupportChannelTypes[Index];
+			Support.EvidenceText = FText::FromString(TEXT("Readable authored garden evidence."));
+		}
 		Catalog->Warnings.Add(Garden);
 		return Catalog;
+	}
+
+	// UWorld::CreateWorld test worlds are brought up manually. Actors spawned
+	// after that setup do not automatically receive BeginPlay in every editor
+	// automation configuration, so drive the documented lifecycle dispatch once
+	// and only once. This keeps the proof on real actor bindings rather than
+	// manually invoking any gameplay callback.
+	void EnsureAutomationActorBegunPlay(AActor* Actor)
+	{
+		if (IsValid(Actor) && !Actor->HasActorBegunPlay())
+		{
+			Actor->DispatchBeginPlay();
+		}
+	}
+
+	void PumpAutomationWorld(UWorld* World, float DeltaSeconds)
+	{
+		if (!World)
+		{
+			return;
+		}
+
+		// FTimerManager intentionally permits one tick per GFrameCounter. Automation
+		// executes this whole test body within one editor frame, while a real game
+		// would advance that counter between UWorld ticks. Pump two synthetic frames:
+		// the first promotes a deferred timer and the second executes it. This stays
+		// on UWorld's normal timer/actor paths rather than invoking game callbacks.
+		for (int32 Frame = 0; Frame < 2; ++Frame)
+		{
+			++GFrameCounter;
+			World->Tick(LEVELTICK_All, DeltaSeconds);
+		}
 	}
 }
 
@@ -139,10 +190,21 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 {
+	// This proof intentionally exercises the three fail-closed boundaries below.
+	// Register their logs so Automation distinguishes expected rejection from an
+	// unexpected runtime error.
+	AddExpectedErrorPlain(TEXT("DayNight: clearing persisted Heart interpretation because load found 2 Hearts."), EAutomationExpectedErrorFlags::Contains, 1);
+	AddExpectedErrorPlain(TEXT("UGloamsteadSaveGame: rejected newer save version"), EAutomationExpectedErrorFlags::Contains, 1);
+	AddExpectedErrorPlain(TEXT("UGloamsteadPCGSubsystem: refusing to restore unsupported save version"), EAutomationExpectedErrorFlags::Contains, 1);
+
 	const FString Slot = TEXT("GloamsteadPlayableCycleRemediation");
 	const FString LanternGateSlot = TEXT("GloamsteadLanternGateReloadRemediation");
+	const FString InterpretationBlankSlot = TEXT("GloamsteadCycle2InterpretationBlank");
+	const FString InterpretationValidSlot = TEXT("GloamsteadCycle2InterpretationValid");
 	UGameplayStatics::DeleteGameInSlot(Slot, 0);
 	UGameplayStatics::DeleteGameInSlot(LanternGateSlot, 0);
+	UGameplayStatics::DeleteGameInSlot(InterpretationBlankSlot, 0);
+	UGameplayStatics::DeleteGameInSlot(InterpretationValidSlot, 0);
 
 	// A real game world so dynamic-multicast delegates actually dispatch.
 	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld*/ false);
@@ -171,7 +233,20 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 	if (bSubsystems)
 	{
 		DayNight->SetDawnAutosaveEnabled(false);
+		// Keep the live-world proof bound to the same full authored contract that
+		// production falls back to when no data asset has been materialized yet.
+		// The subsystem owns this catalog for the whole test, so the active Cycle
+		// II plan cannot be an old reflected fixture missing the new media array.
+		UExperienceCycleCatalog* CycleCatalog = NewObject<UExperienceCycleCatalog>(GameInstance);
+		PopulateDefaultExperienceCyclePlans(*CycleCatalog);
+		Experience->Test_SetCatalog(CycleCatalog);
 		// Seed a small sanctuary so snapshots/selection have real state.
+		PCG->Test_SeedPoints({
+			FVector::ZeroVector,
+			FVector(100.f, 0.f, 0.f),
+			FVector(200.f, 0.f, 0.f),
+			FVector(300.f, 0.f, 0.f)
+		});
 		TArray<FRitualPointState> States;
 		for (int32 i = 0; i < 4; ++i)
 		{
@@ -187,10 +262,12 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 		if (Heart)
 		{
 			Heart->WarningCatalog = MakeCycleWarningCatalog();
+			EnsureAutomationActorBegunPlay(Heart);
 			// The sky owns global phase presentation and becomes the generic warning
 			// presenter only after the first-night director has detached at Dawn.
 			AGloamsteadSkyPresenter* SkyPresenter = World->SpawnActor<AGloamsteadSkyPresenter>();
 			TestNotNull(TEXT("SkyPresenter spawned for the post-tutorial handoff"), SkyPresenter);
+			EnsureAutomationActorBegunPlay(SkyPresenter);
 			// Regression guard: the interaction system focuses its target via an object-type overlap
 			// (UGloamInteractionComponent::UpdateFocus), so the Heart MUST carry query collision to be
 			// reachable. The interface assertions below call Execute_CanInteract/Interact directly, which
@@ -232,10 +309,11 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			// plan into proof that the lantern tutorial completed.
 			AGloamsteadFirstNightDirector* FirstNightDirector = World->SpawnActor<AGloamsteadFirstNightDirector>();
 			TestNotNull(TEXT("the existing first-night director binds before reload"), FirstNightDirector);
+			EnsureAutomationActorBegunPlay(FirstNightDirector);
 			TestTrue(TEXT("the first-night director binds as the registered warning presenter"), Heart->HasValidWarningPresenter());
 			FExperienceCyclePersistentState ClearedCycle;
 			TestTrue(TEXT("test clears the pre-lantern in-memory plan before isolated reload"), Experience->RestorePersistentState(ClearedCycle));
-			TestTrue(TEXT("v2 pre-lantern Day snapshot reloads from its isolated slot"), DayNight->LoadProgressionFromSlot(LanternGateSlot));
+			TestTrue(TEXT("v3 pre-lantern Day snapshot reloads from its isolated slot"), DayNight->LoadProgressionFromSlot(LanternGateSlot));
 			TestFalse(TEXT("pre-lantern Cycle I reload keeps the live tutorial director attached"),
 				FirstNightDirector && FirstNightDirector->IsTutorialDetached());
 			TestTrue(TEXT("pre-lantern Cycle I reload retains the tutorial Heart presenter"), Heart->HasValidWarningPresenter());
@@ -277,7 +355,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			TestFalse(TEXT("entering Night clears the completed Dusk cadence"), DayNight->Test_IsDuskToNightCadenceScheduled());
 			TestTrue(TEXT("Night presentation queues the runtime start"), DayNight->Test_IsNightRuntimeStartScheduled());
 			TestFalse(TEXT("Night does not arm a duration before its runtime starts"), DayNight->Test_IsNightToDawnCadenceScheduled());
-			World->Tick(LEVELTICK_All, 0.05f);
+			PumpAutomationWorld(World, 0.05f);
 			TestTrue(TEXT("the post-presentation runtime start activates the night"), Runtime->IsNightActive());
 			TestTrue(TEXT("DayNight schedules the Night-to-Dawn cadence after runtime start"), DayNight->Test_IsNightToDawnCadenceScheduled());
 			DayNight->AdvanceToNextPhase(); // Night -> Dawn (EndNight + reflection + autosave)
@@ -285,7 +363,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			TestFalse(TEXT("entering Dawn clears the Night cadence"), DayNight->Test_IsNightToDawnCadenceScheduled());
 			TestTrue(TEXT("Cycle I dawn permanently detaches the tutorial director"),
 				FirstNightDirector && FirstNightDirector->IsTutorialDetached());
-			World->Tick(LEVELTICK_All, 0.05f);
+			PumpAutomationWorld(World, 0.05f);
 			TestTrue(TEXT("SkyPresenter takes the registered warning role after tutorial teardown"), Heart->HasValidWarningPresenter());
 
 			// The night resolved to a real outcome, and dawn reflection consumed it on the Heart.
@@ -309,6 +387,84 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			{
 				TestEqual(TEXT("the exact Cycle II id is armed"), CycleTwoBeforeSave->PlanId, FName(TEXT("Cycle2_Garden")));
 				TestEqual(TEXT("the exact Cycle II warning is armed"), CycleTwoBeforeSave->WarningId, FName(TEXT("GardenRot")));
+				const bool bCycleTwoHasFullEvidenceContract = CycleTwoBeforeSave->RequiredSupportIds.Num() == 3
+					&& CycleTwoBeforeSave->RequiredSupportChannelTypes.Num() == 3
+					&& CycleTwoBeforeSave->MinimumDistinctSupportCount == 2;
+				TestTrue(TEXT("the armed Cycle II plan retains the full support/media contract"), bCycleTwoHasFullEvidenceContract);
+
+				if (bCycleTwoHasFullEvidenceContract)
+				{
+					// Save before the player learns the evidence, then create a real
+					// interpretation through the PCG delegate. Reloading the earlier
+					// snapshot must clear that future knowledge rather than leak it across
+					// the rollback.
+					TestTrue(TEXT("the live Cycle II point carries the full authored contract"),
+						PCG->Test_SetPointContractMetadata(3, CycleTwoBeforeSave->WarningId,
+							CycleTwoBeforeSave->SemanticSubject, CycleTwoBeforeSave->RequiredRitualType,
+							CycleTwoBeforeSave->RequiredRestorationTags[0]));
+					TestTrue(TEXT("blank Cycle II interpretation snapshot saves before any evidence"),
+						DayNight->SaveProgressionToSlot(InterpretationBlankSlot));
+
+					AGloamsteadEvidenceSource* FirstEvidence = World->SpawnActor<AGloamsteadEvidenceSource>();
+					AGloamsteadEvidenceSource* SecondEvidence = World->SpawnActor<AGloamsteadEvidenceSource>();
+					TestNotNull(TEXT("first authored evidence source spawns in the live world"), FirstEvidence);
+					TestNotNull(TEXT("second authored evidence source spawns in the live world"), SecondEvidence);
+					if (FirstEvidence && SecondEvidence)
+					{
+						FirstEvidence->WarningId = CycleTwoBeforeSave->WarningId;
+						FirstEvidence->SupportId = CycleTwoBeforeSave->RequiredSupportIds[0];
+						FirstEvidence->ChannelType = CycleTwoBeforeSave->RequiredSupportChannelTypes[0];
+						SecondEvidence->WarningId = CycleTwoBeforeSave->WarningId;
+						SecondEvidence->SupportId = CycleTwoBeforeSave->RequiredSupportIds[1];
+						SecondEvidence->ChannelType = CycleTwoBeforeSave->RequiredSupportChannelTypes[1];
+						TestTrue(TEXT("first authored player-world evidence source records before rollback"),
+							FirstEvidence->ReportEncounter(nullptr));
+						TestTrue(TEXT("second authored player-world evidence source records before rollback"),
+							SecondEvidence->ReportEncounter(nullptr));
+					}
+				FRestorationEventPayload GardenRestoration;
+				GardenRestoration.PointIndex = 3;
+				GardenRestoration.WarningId = CycleTwoBeforeSave->WarningId;
+				GardenRestoration.SemanticSubject = CycleTwoBeforeSave->SemanticSubject;
+				GardenRestoration.RitualType = CycleTwoBeforeSave->RequiredRitualType;
+				GardenRestoration.WarningTagSatisfied = CycleTwoBeforeSave->RequiredRestorationTags[0];
+				TestTrue(TEXT("the authoritative Cycle II restoration broadcasts from PCG"),
+					PCG->ApplyRestoration(3, GardenRestoration));
+				TestTrue(TEXT("the live Heart mints the exact receipt only after PCG restoration"),
+					Heart->HasExactInterpretationForPlan(*CycleTwoBeforeSave));
+
+				TestTrue(TEXT("loading the earlier blank snapshot succeeds"),
+					DayNight->LoadProgressionFromSlot(InterpretationBlankSlot));
+				const FExperienceCyclePlan* CycleTwoAfterBlankRollback = DayNight->GetUpcomingPlan();
+				TestNotNull(TEXT("blank rollback retains the exact active Cycle II plan"), CycleTwoAfterBlankRollback);
+				if (CycleTwoAfterBlankRollback)
+				{
+					TestFalse(TEXT("rollback clears future evidence and receipt facts"),
+						Heart->HasExactInterpretationForPlan(*CycleTwoAfterBlankRollback));
+					TestTrue(TEXT("first evidence may be learned again through its authored source after rollback"),
+						FirstEvidence && FirstEvidence->ReportEncounter(nullptr));
+					TestTrue(TEXT("second evidence may be learned again through its authored source after rollback"),
+						SecondEvidence && SecondEvidence->ReportEncounter(nullptr));
+					TestTrue(TEXT("the restored PCG target can be mended again after rollback"),
+						PCG->ApplyRestoration(3, GardenRestoration));
+					TestTrue(TEXT("the re-earned receipt is exact before the fresh reload"),
+						Heart->HasExactInterpretationForPlan(*CycleTwoAfterBlankRollback));
+					TestTrue(TEXT("valid Cycle II evidence and receipt snapshot saves"),
+						DayNight->SaveProgressionToSlot(InterpretationValidSlot));
+					Heart->ResetInterpretationPersistentState();
+					TestFalse(TEXT("test mutation clears the live receipt before reload"),
+						Heart->HasExactInterpretationForPlan(*CycleTwoAfterBlankRollback));
+					TestTrue(TEXT("fresh valid Cycle II reload succeeds"),
+						DayNight->LoadProgressionFromSlot(InterpretationValidSlot));
+					const FExperienceCyclePlan* CycleTwoAfterValidReload = DayNight->GetUpcomingPlan();
+					TestNotNull(TEXT("valid reload retains Cycle II plan"), CycleTwoAfterValidReload);
+					if (CycleTwoAfterValidReload)
+					{
+						TestTrue(TEXT("fresh valid reload preserves authoritative evidence and receipt"),
+							Heart->HasExactInterpretationForPlan(*CycleTwoAfterValidReload));
+					}
+				}
+			}
 			}
 
 			// Save a non-default sanctuary snapshot in Day together with the exact Cycle II plan.
@@ -339,7 +495,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			const int32 PresentationsBeforeSafeDayLoad = SkyPresenter
 				? SkyPresenter->Test_GetPresentedPhaseHistory().Num()
 				: 0;
-			TestTrue(TEXT("valid v2 load succeeds while warning presentation is pending"), DayNight->LoadProgressionFromSlot(Slot));
+			TestTrue(TEXT("valid v3 load succeeds while warning presentation is pending"), DayNight->LoadProgressionFromSlot(Slot));
 			TestTrue(TEXT("load restores the saved Day phase"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
 			if (SkyPresenter)
 			{
@@ -376,13 +532,14 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			{
 				DuplicateHeart->Destroy();
 			}
-			World->Tick(LEVELTICK_All, 0.3f);
+			PumpAutomationWorld(World, 0.3f);
 			TestFalse(TEXT("removing the duplicate lets the single canonical Heart present"), DayNight->IsWarningPresentationPending());
 			TestTrue(TEXT("the single canonical Heart re-opens rest after exact presentation"), DayNight->CanRestNow());
 
 			// Bootstrap may instead load while the one canonical Heart exists but the
-			// generic post-tutorial presenter has not attached yet. That valid payload
-			// must stay pending until the same explicit production presenter attaches.
+			// generic post-tutorial presenter has not attached yet. V3 restores the
+			// already-presented warning/evidence atomically rather than replaying it,
+			// so the player does not lose a proved interpretation to presenter order.
 			if (SkyPresenter)
 			{
 				Heart->OnWarningEmittedDelegate.RemoveDynamic(SkyPresenter, &AGloamsteadSkyPresenter::HandleHeartWarning);
@@ -390,11 +547,16 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			}
 			TestFalse(TEXT("test detaches the registered presenter before a singular resumed load"), Heart->HasValidWarningPresenter());
 			DayNight->SetPhase(EGloamsteadDayPhase::Dusk);
-			TestTrue(TEXT("valid v2 load succeeds with one Heart but no presenter"), DayNight->LoadProgressionFromSlot(Slot));
-			TestTrue(TEXT("one canonical Heart without a presenter remains pending"), DayNight->IsWarningPresentationPending());
-			TestFalse(TEXT("one canonical Heart without a presenter still cannot offer rest"), DayNight->CanRestNow());
-			DayNight->AdvanceToNextPhase();
-			TestTrue(TEXT("direct Day advance stays blocked while the singular presenter is late"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
+			TestTrue(TEXT("valid v3 load succeeds with one Heart but no presenter"), DayNight->LoadProgressionFromSlot(Slot));
+			TestFalse(TEXT("v3 restores an already-presented warning without replay pending"), DayNight->IsWarningPresentationPending());
+			TestTrue(TEXT("v3 retains rest eligibility after atomically restoring the warning"), DayNight->CanRestNow());
+			const FExperienceCyclePlan* CycleTwoWithoutPresenter = DayNight->GetUpcomingPlan();
+			TestNotNull(TEXT("the no-presenter v3 reload retains Cycle II"), CycleTwoWithoutPresenter);
+			if (CycleTwoWithoutPresenter)
+			{
+				TestTrue(TEXT("the no-presenter v3 reload retains the proved receipt"),
+					Heart->HasExactInterpretationForPlan(*CycleTwoWithoutPresenter));
+			}
 			if (SkyPresenter)
 			{
 				Heart->OnWarningEmittedDelegate.AddDynamic(SkyPresenter, &AGloamsteadSkyPresenter::HandleHeartWarning);
@@ -402,10 +564,10 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 					Heart->RegisterWarningPresenter(SkyPresenter, GET_FUNCTION_NAME_CHECKED(AGloamsteadSkyPresenter, HandleHeartWarning)));
 			}
 			TestTrue(TEXT("the generic post-tutorial presenter can rebind"), Heart->HasValidWarningPresenter());
-			World->Tick(LEVELTICK_All, 0.3f);
-			TestFalse(TEXT("listener-late Cycle II presentation clears pending state"), DayNight->IsWarningPresentationPending());
-			TestEqual(TEXT("the canonical Heart emits the retained exact GardenRot warning"), Heart->GetLastEmittedWarningId(), FName(TEXT("GardenRot")));
-			TestTrue(TEXT("rest becomes eligible only after the exact pending warning presents"), DayNight->CanRestNow());
+			PumpAutomationWorld(World, 0.3f);
+			TestFalse(TEXT("listener-late presenter does not create a duplicate pending warning"), DayNight->IsWarningPresentationPending());
+			TestEqual(TEXT("the canonical Heart retains the restored exact GardenRot warning"), Heart->GetLastEmittedWarningId(), FName(TEXT("GardenRot")));
+			TestTrue(TEXT("rest remains eligible after the exact v3 warning restoration"), DayNight->CanRestNow());
 
 			// From day two, rest preserves the armed ID and broadcasts only the exact Corruption type.
 			TestTrue(TEXT("the Heart offers rest on the recurring day"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));
@@ -464,7 +626,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			MalformedState.bFirstRestCompleted = true;
 			MalformedState.SavedPhaseOrdinal = 99;
 			MalformedSave->SetExperienceCycleState(MalformedState);
-			TestTrue(TEXT("malformed v2 fixture writes to the isolated slot"), UGameplayStatics::SaveGameToSlot(MalformedSave, Slot, 0));
+			TestTrue(TEXT("malformed v3 fixture writes to the isolated slot"), UGameplayStatics::SaveGameToSlot(MalformedSave, Slot, 0));
 			DayNight->SetPhase(EGloamsteadDayPhase::Night);
 			TestTrue(TEXT("malformed phase restore is attempted from an in-progress Night"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Night);
 			TestFalse(TEXT("malformed saved phase is rejected"), DayNight->LoadProgressionFromSlot(Slot));
@@ -504,6 +666,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			DuskState.bFirstRestCompleted = true;
 			DuskState.SavedPhaseOrdinal = static_cast<int32>(EGloamsteadDayPhase::Dusk);
 			DuskSave->SetExperienceCycleState(DuskState);
+			DuskSave->SaveVersion = 2;
 			TestTrue(TEXT("Dusk fixture writes to the isolated slot"), UGameplayStatics::SaveGameToSlot(DuskSave, Slot, 0));
 			TestFalse(TEXT("test clears the selected runtime consequence before injected Dusk reconciliation"),
 				Manager->PrepareNightConsequencesForPlan(FExperienceCyclePlan::MakeInvalid(2)));
@@ -545,6 +708,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			FExperienceCyclePersistentState NightState = DuskState;
 			NightState.SavedPhaseOrdinal = static_cast<int32>(EGloamsteadDayPhase::Night);
 			NightSave->SetExperienceCycleState(NightState);
+			NightSave->SaveVersion = 2;
 			TestTrue(TEXT("Night fixture writes to the isolated slot"), UGameplayStatics::SaveGameToSlot(NightSave, Slot, 0));
 			TestFalse(TEXT("test keeps the runtime consequence cleared before injected Night reconciliation"),
 				Manager->PrepareNightConsequencesForPlan(FExperienceCyclePlan::MakeInvalid(2)));
@@ -578,7 +742,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			const int32 PresentationsBeforeSafeDawnLoad = SkyPresenter
 				? SkyPresenter->Test_GetPresentedPhaseHistory().Num()
 				: 0;
-			TestTrue(TEXT("valid v2 Dawn load succeeds"), DayNight->LoadProgressionFromSlot(Slot));
+			TestTrue(TEXT("valid v3 Dawn load succeeds"), DayNight->LoadProgressionFromSlot(Slot));
 			TestTrue(TEXT("safe Dawn load restores the authored Dawn phase"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dawn);
 			TestFalse(TEXT("safe Dawn restore leaves no deferred night runtime"), DayNight->Test_IsNightRuntimeStartScheduled());
 			TestFalse(TEXT("safe Dawn restore leaves no Night duration"), DayNight->Test_IsNightToDawnCadenceScheduled());
@@ -603,6 +767,115 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 
 	UGameplayStatics::DeleteGameInSlot(Slot, 0);
 	UGameplayStatics::DeleteGameInSlot(LanternGateSlot, 0);
+	UGameplayStatics::DeleteGameInSlot(InterpretationBlankSlot, 0);
+	UGameplayStatics::DeleteGameInSlot(InterpretationValidSlot, 0);
+	return true;
+}
+
+// A v3 snapshot can load before the map's Heart actor. The later-spawned
+// actor must receive the exact validated state once its authored catalog is
+// present; it may not invent a receipt or lose one merely because spawn order
+// differs from the save world.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamDelayedHeartInterpretationRestoreWorldTest,
+	"Gloamstead.PlayableCycle.DelayedHeartRestoresV3Interpretation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamDelayedHeartInterpretationRestoreWorldTest::RunTest(const FString& /*Parameters*/)
+{
+	const FString Slot = TEXT("GloamsteadDelayedHeartInterpretationRestore");
+	UGameplayStatics::DeleteGameInSlot(Slot, 0);
+
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld*/ false);
+	if (!TestNotNull(TEXT("delayed-Heart world created"), World))
+	{
+		return false;
+	}
+
+	UGameInstance* GameInstance = NewObject<UGameInstance>(GEngine);
+	GameInstance->Init();
+	World->SetGameInstance(GameInstance);
+	FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
+	WorldContext.OwningGameInstance = GameInstance;
+	WorldContext.SetCurrentWorld(World);
+	FURL URL;
+	World->InitializeActorsForPlay(URL);
+	World->BeginPlay();
+
+	UGloamsteadDayNightSubsystem* DayNight = World->GetSubsystem<UGloamsteadDayNightSubsystem>();
+	UGloamsteadExperienceCycleSubsystem* Experience = GameInstance->GetSubsystem<UGloamsteadExperienceCycleSubsystem>();
+	UGloamsteadPCGSubsystem* PCG = World->GetSubsystem<UGloamsteadPCGSubsystem>();
+	const bool bSubsystems = DayNight && Experience && PCG;
+	TestTrue(TEXT("delayed-Heart world subsystems present"), bSubsystems);
+
+	if (bSubsystems)
+	{
+		DayNight->SetDawnAutosaveEnabled(false);
+		UExperienceCycleCatalog* CycleCatalog = NewObject<UExperienceCycleCatalog>(GameInstance);
+		PopulateDefaultExperienceCyclePlans(*CycleCatalog);
+		Experience->Test_SetCatalog(CycleCatalog);
+		const FExperienceCyclePlan& GardenPlan = CycleCatalog->AuthoredPlans[1];
+
+		PCG->Test_SeedPoints({ FVector::ZeroVector });
+		TArray<FRitualPointState> PointStates;
+		PointStates.SetNum(1);
+		PointStates[0].bIsRestored = true;
+		PCG->Test_SeedPointStates(PointStates);
+		TestTrue(TEXT("saved target carries full Cycle II PCG metadata"),
+			PCG->Test_SetPointContractMetadata(0, GardenPlan.WarningId, GardenPlan.SemanticSubject,
+				GardenPlan.RequiredRitualType, GardenPlan.RequiredRestorationTags[0]));
+
+		FExperienceCyclePersistentState CycleState;
+		CycleState.CompletedCycleSlot = 1;
+		CycleState.ArmedPlanId = GardenPlan.PlanId;
+		CycleState.bFirstRestCompleted = true;
+		CycleState.SavedPhaseOrdinal = static_cast<int32>(EGloamsteadDayPhase::Day);
+		CycleState.HeartInterpretationState.PresentedWarningId = GardenPlan.WarningId;
+		CycleState.HeartInterpretationState.EncounteredSupportIds = {
+			GardenPlan.RequiredSupportIds[0], GardenPlan.RequiredSupportIds[1]
+		};
+		FExperienceInterpretationReceipt& Receipt = CycleState.HeartInterpretationState.InterpretationReceipt;
+		Receipt.ReceiptId = GardenPlan.InterpretationReceiptId;
+		Receipt.PlanId = GardenPlan.PlanId;
+		Receipt.WarningId = GardenPlan.WarningId;
+		Receipt.SemanticSubject = GardenPlan.SemanticSubject;
+		Receipt.RestorationTag = GardenPlan.RequiredRestorationTags[0];
+		Receipt.RestorationRitualType = GardenPlan.RequiredRitualType;
+		Receipt.RestorationPointIndex = 0;
+		Receipt.SupportIds = CycleState.HeartInterpretationState.EncounteredSupportIds;
+
+		UGloamsteadSaveGame* SaveGame = Cast<UGloamsteadSaveGame>(
+			UGameplayStatics::CreateSaveGameObject(UGloamsteadSaveGame::StaticClass()));
+		TestNotNull(TEXT("v3 delayed-Heart save object created"), SaveGame);
+		if (SaveGame)
+		{
+			PCG->CaptureToSaveGame(SaveGame);
+			SaveGame->SetExperienceCycleState(CycleState);
+			TestTrue(TEXT("v3 delayed-Heart fixture writes"), UGameplayStatics::SaveGameToSlot(SaveGame, Slot, 0));
+			TestTrue(TEXT("v3 fixture loads before any Heart actor exists"), DayNight->LoadProgressionFromSlot(Slot));
+			TestNotNull(TEXT("Cycle II plan is restored while Heart startup is delayed"), DayNight->GetUpcomingPlan());
+
+			AVeilHeart* LateHeart = World->SpawnActorDeferred<AVeilHeart>(AVeilHeart::StaticClass(), FTransform::Identity);
+			TestNotNull(TEXT("Heart spawn can be deferred until authored catalog assignment"), LateHeart);
+			if (LateHeart)
+			{
+				LateHeart->WarningCatalog = MakeCycleWarningCatalog();
+				LateHeart->FinishSpawning(FTransform::Identity);
+				EnsureAutomationActorBegunPlay(LateHeart);
+				// The late Heart's BeginPlay invokes DayNight's restore hook; allow the
+				// queued ownership retry to observe it after deferred registration.
+				PumpAutomationWorld(World, 0.30f);
+				TestEqual(TEXT("late Heart restores the exact presented warning"), LateHeart->GetLastEmittedWarningId(), GardenPlan.WarningId);
+				TestTrue(TEXT("late Heart restores only the PCG-proven v3 interpretation receipt"),
+					LateHeart->HasExactInterpretationForPlan(GardenPlan));
+			}
+		}
+	}
+
+	GEngine->DestroyWorldContext(World);
+	World->DestroyWorld(false);
+	GameInstance->Shutdown();
+	UGameplayStatics::DeleteGameInSlot(Slot, 0);
 	return true;
 }
 
@@ -648,6 +921,15 @@ bool FGloamPlayableCycleResumeQuiescenceWorldTest::RunTest(const FString& /*Para
 		DayNight->SetDawnAutosaveEnabled(false);
 		DayNight->NightDurationSeconds = 60.0f;
 		Runtime->PressureStepSeconds = 0.05f;
+		UExperienceCycleCatalog* CycleCatalog = NewObject<UExperienceCycleCatalog>(GameInstance);
+		PopulateDefaultExperienceCyclePlans(*CycleCatalog);
+		Experience->Test_SetCatalog(CycleCatalog);
+		const FExperienceCyclePlan& GardenPlan = CycleCatalog->AuthoredPlans[1];
+		PCG->Test_SeedPoints({
+			FVector::ZeroVector,
+			FVector(100.0f, 0.0f, 0.0f),
+			FVector(200.0f, 0.0f, 0.0f)
+		});
 
 		TArray<FRitualPointState> SafeDayStates;
 		for (int32 Index = 0; Index < 3; ++Index)
@@ -659,6 +941,9 @@ bool FGloamPlayableCycleResumeQuiescenceWorldTest::RunTest(const FString& /*Para
 			SafeDayStates.Add(State);
 		}
 		PCG->Test_SeedPointStates(SafeDayStates);
+		TestTrue(TEXT("resume target carries the full canonical Cycle II PCG contract"),
+			PCG->Test_SetPointContractMetadata(0, GardenPlan.WarningId, GardenPlan.SemanticSubject,
+				GardenPlan.RequiredRitualType, GardenPlan.RequiredRestorationTags[0]));
 
 		AVeilHeart* Heart = World->SpawnActor<AVeilHeart>();
 		AGloamsteadSkyPresenter* SkyPresenter = World->SpawnActor<AGloamsteadSkyPresenter>();
@@ -667,10 +952,13 @@ bool FGloamPlayableCycleResumeQuiescenceWorldTest::RunTest(const FString& /*Para
 		if (Heart)
 		{
 			Heart->WarningCatalog = MakeCycleWarningCatalog();
+			EnsureAutomationActorBegunPlay(Heart);
 		}
+		EnsureAutomationActorBegunPlay(SkyPresenter);
 
 		AGloamsteadFirstNightDirector* FirstNightDirector = World->SpawnActor<AGloamsteadFirstNightDirector>();
 		TestNotNull(TEXT("resume-quiescence director begins active"), FirstNightDirector);
+		EnsureAutomationActorBegunPlay(FirstNightDirector);
 		TestTrue(TEXT("opening director owns the tutorial presenter before the later save"), Heart && Heart->HasValidWarningPresenter());
 		TestFalse(TEXT("opening director is active before the later save"),
 			FirstNightDirector && FirstNightDirector->IsTutorialDetached());
@@ -717,8 +1005,8 @@ bool FGloamPlayableCycleResumeQuiescenceWorldTest::RunTest(const FString& /*Para
 
 		// The placed generic presenter observes the detached director on its next
 		// world tick, registers, and lets the queued exact warning land.
-		World->Tick(LEVELTICK_All, 0.30f);
-		World->Tick(LEVELTICK_All, 0.30f);
+		PumpAutomationWorld(World, 0.30f);
+		PumpAutomationWorld(World, 0.30f);
 		TestTrue(TEXT("SkyPresenter takes the released Heart presenter role"), Heart && Heart->HasValidWarningPresenter());
 		TestFalse(TEXT("generic presenter clears the retained Cycle II warning pending state"), DayNight->IsWarningPresentationPending());
 		TestEqual(TEXT("generic handoff exposes exactly GardenRot"), Heart ? Heart->GetLastEmittedWarningId() : NAME_None, FName(TEXT("GardenRot")));
@@ -745,7 +1033,7 @@ bool FGloamPlayableCycleResumeQuiescenceWorldTest::RunTest(const FString& /*Para
 					NightPresentationHistory.Last(), EGloamsteadDayPhase::Night);
 			}
 		}
-		World->Tick(LEVELTICK_All, 0.05f);
+		PumpAutomationWorld(World, 0.05f);
 		TestTrue(TEXT("old Corruption runtime is active before restore"), Runtime->IsNightActive());
 		TestNotNull(TEXT("old Corruption runtime owns an active strategy before restore"), Runtime->Test_GetActiveStrategy());
 		TestTrue(TEXT("old Corruption runtime scheduled pressure before restore"), Runtime->Test_IsPressureCadenceScheduled());
@@ -799,7 +1087,7 @@ bool FGloamPlayableCycleResumeQuiescenceWorldTest::RunTest(const FString& /*Para
 				FMath::IsNearlyEqual(RestoredBeforeTick[0].LightLevel, SafeDayStates[0].LightLevel));
 		}
 
-		World->Tick(LEVELTICK_All, 0.10f);
+		PumpAutomationWorld(World, 0.10f);
 		TestTrue(TEXT("a stale runtime tick cannot force restored Day into Dawn"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
 		TestEqual(TEXT("a stale runtime tick cannot request a new Dawn"), DayNight->Test_GetCadenceDawnRequestCount(), DawnRequestsBeforeRestore);
 		TestEqual(TEXT("a stale runtime tick emits no old early-dawn event to the retained observer"),
@@ -891,10 +1179,13 @@ bool FGloamPlayableCycleSynchronousEarlyDawnPresentationTest::RunTest(const FStr
 		if (Heart)
 		{
 			Heart->WarningCatalog = MakeCycleWarningCatalog();
+			EnsureAutomationActorBegunPlay(Heart);
 		}
+		EnsureAutomationActorBegunPlay(SkyPresenter);
 
 		AGloamsteadFirstNightDirector* FirstNightDirector = World->SpawnActor<AGloamsteadFirstNightDirector>();
 		TestNotNull(TEXT("synchronous-early-dawn first-night director spawned"), FirstNightDirector);
+		EnsureAutomationActorBegunPlay(FirstNightDirector);
 		TestTrue(TEXT("the first-night director owns the tutorial presenter"), Heart && Heart->HasValidWarningPresenter());
 
 		FRestorationEventPayload LanternRestore;
@@ -933,7 +1224,7 @@ bool FGloamPlayableCycleSynchronousEarlyDawnPresentationTest::RunTest(const FStr
 
 		// This starts the real runtime. Its test-only initial-beat hook broadcasts
 		// OnNightShouldEnd synchronously from BeginNight, which DayNight must queue.
-		World->Tick(LEVELTICK_All, 0.05f);
+		PumpAutomationWorld(World, 0.05f);
 		TestEqual(TEXT("the queued synchronous completion reaches Dawn"),
 			DayNight->GetCurrentPhase(), EGloamsteadDayPhase::Dawn);
 		TestEqual(TEXT("the synchronous completion requests exactly one Dawn"),
@@ -959,7 +1250,7 @@ bool FGloamPlayableCycleSynchronousEarlyDawnPresentationTest::RunTest(const FStr
 
 		// A later tick must not revive the deferred starter, pressure, duration, or a
 		// second Dawn transition.
-		World->Tick(LEVELTICK_All, 0.10f);
+		PumpAutomationWorld(World, 0.10f);
 		TestEqual(TEXT("a later tick remains at the already-reached Dawn"),
 			DayNight->GetCurrentPhase(), EGloamsteadDayPhase::Dawn);
 		TestEqual(TEXT("a later tick cannot request another Dawn"),

@@ -119,6 +119,38 @@ int32 UNightConsequenceRuntime::ResolveSemanticSubjectToPoint(FName SemanticSubj
 	return ResolvedIndex;
 }
 
+int32 UNightConsequenceRuntime::ResolvePlanTargetToPoint(const FExperienceCyclePlan& Plan, const UGloamsteadPCGSubsystem* PCG) const
+{
+	if (!PCG || !Plan.IsAuthoredPlan())
+	{
+		return INDEX_NONE;
+	}
+
+	int32 ResolvedIndex = INDEX_NONE;
+	for (int32 PointIndex = 0; PointIndex < PCG->GetRitualPointCount(); ++PointIndex)
+	{
+		if (!PCG->PointMatchesExperiencePlan(PointIndex, Plan))
+		{
+			continue;
+		}
+
+		if (ResolvedIndex != INDEX_NONE)
+		{
+			UE_LOG(LogTemp, Error, TEXT("NightRuntime: full authored target contract for %s maps to multiple PCG points; Corruption will remain quiet."),
+				*Plan.PlanId.ToString());
+			return INDEX_NONE;
+		}
+		ResolvedIndex = PointIndex;
+	}
+
+	if (ResolvedIndex == INDEX_NONE)
+	{
+		UE_LOG(LogTemp, Error, TEXT("NightRuntime: no PCG point satisfies the full authored target contract for %s; Corruption will remain quiet."),
+			*Plan.PlanId.ToString());
+	}
+	return ResolvedIndex;
+}
+
 FNightRuntimeContext UNightConsequenceRuntime::BuildContext(UGloamsteadPCGSubsystem* PCG) const
 {
 	FNightRuntimeContext Ctx;
@@ -153,7 +185,7 @@ FNightRuntimeContext UNightConsequenceRuntime::BuildContext(UGloamsteadPCGSubsys
 			}
 			else
 			{
-				Ctx.TargetPointIndex = ResolveSemanticSubjectToPoint(Ctx.RequiredSemanticSubject, PCG);
+				Ctx.TargetPointIndex = ResolvePlanTargetToPoint(*ActivePlan, PCG);
 			}
 		}
 		else
@@ -342,9 +374,23 @@ void UNightConsequenceRuntime::HandleRestorationDuringNight(const FRestorationEv
 
 	UWorld* World = GetWorld();
 	UGloamsteadPCGSubsystem* PCG = World ? World->GetSubsystem<UGloamsteadPCGSubsystem>() : nullptr;
+	FRestorationEventPayload AuthoritativePayload = Payload;
+	if (ActiveContext.bRequiresExactSemanticTarget)
+	{
+		const FExperienceCyclePlan* ActivePlan = ResolveActiveAuthoredPlan();
+		if (!ActivePlan
+			|| !PCG
+			|| !PCG->IsPointRestored(Payload.PointIndex)
+			|| !PCG->PointMatchesExperiencePlan(Payload.PointIndex, *ActivePlan, /*bRequireRestored*/ true)
+			|| !PCG->PopulateAuthoritativeRestorationMetadata(Payload.PointIndex, AuthoritativePayload))
+		{
+			UE_LOG(LogTemp, Verbose, TEXT("NightRuntime: ignored restoration whose PCG point does not satisfy the active authored target contract."));
+			return;
+		}
+	}
 
 	const bool bWasResolved = ActiveStrategy->IsObjectiveResolved();
-	ActiveStrategy->NotifyRestoration(Payload, PCG);
+	ActiveStrategy->NotifyRestoration(AuthoritativePayload, PCG);
 
 	if (!bWasResolved && ActiveStrategy->IsObjectiveResolved())
 	{

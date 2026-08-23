@@ -8,6 +8,7 @@
 #include "GloamsteadPCGSubsystem.generated.h"
 
 class UGloamsteadSaveGame;
+struct FExperienceCyclePlan;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStructureRestored, const FRestorationEventPayload&, Payload);
 
@@ -73,6 +74,16 @@ public:
     bool GetBoolAttribute(const FPCGPoint& Point, FName AttributeName, bool DefaultValue = false) const;
     FName GetNameAttribute(const FPCGPoint& Point, FName AttributeName, FName DefaultValue = NAME_None) const;
     FVector GetVectorAttribute(const FPCGPoint& Point, FName AttributeName, FVector DefaultValue = FVector::UpVector) const;
+
+    /**
+     * Checks the immutable authored metadata carried by one PCG point. This is
+     * the runtime authority for Cycle II target/receipt evaluation; callers
+     * must not trust matching literals supplied in a restoration payload.
+     */
+    bool PointMatchesExperiencePlan(int32 PointIndex, const FExperienceCyclePlan& Plan, bool bRequireRestored = false) const;
+
+    /** Fills only contract metadata from the PCG point, never caller-provided literals. */
+    bool PopulateAuthoritativeRestorationMetadata(int32 PointIndex, FRestorationEventPayload& InOutPayload) const;
 
     UFUNCTION(BlueprintPure, Category="PCG|Ritual")
     float GetCorruptionLevel(int32 PointIndex) const;
@@ -177,6 +188,13 @@ public:
     void Test_SeedPointStates(const TArray<FRitualPointState>& InStates) { PointStates = InStates; }
     /** Test-only seam: install synthetic LanternPost points with metadata and rebuild the spatial grid. */
     void Test_SeedPoints(const TArray<FVector>& Locations);
+    /** Test-only metadata injection for an existing synthetic point. */
+    bool Test_SetPointContractMetadata(
+        int32 PointIndex,
+        FName WarningId,
+        FName SemanticSubject,
+        ERitualType RitualType,
+        FName RestorationTag);
     /** Test-only seam: read current point state for assertions. */
     const TArray<FRitualPointState>& Test_PeekPointStates() const { return PointStates; }
 

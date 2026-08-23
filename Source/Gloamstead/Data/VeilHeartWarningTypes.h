@@ -105,6 +105,7 @@ struct FVeilHeartWarningFragment
 		}
 
 		if (Plan.RequiredSupportIds.Num() != SupportChannels.Num()
+			|| Plan.RequiredSupportIds.Num() != Plan.RequiredSupportChannelTypes.Num()
 			|| Plan.RequiredSupportIds.IsEmpty()
 			|| Plan.MinimumDistinctSupportCount < 2
 			|| Plan.MinimumDistinctSupportCount > Plan.RequiredSupportIds.Num())
@@ -112,14 +113,16 @@ struct FVeilHeartWarningFragment
 			return Fail(TEXT("warning support channels are sparse or do not match the authored plan"));
 		}
 
-		TSet<FName> RequiredIds;
-		for (const FName SupportId : Plan.RequiredSupportIds)
+		TMap<FName, FName> RequiredChannels;
+		for (int32 SupportIndex = 0; SupportIndex < Plan.RequiredSupportIds.Num(); ++SupportIndex)
 		{
-			if (SupportId == NAME_None || RequiredIds.Contains(SupportId))
+			const FName SupportId = Plan.RequiredSupportIds[SupportIndex];
+			const FName ChannelType = Plan.RequiredSupportChannelTypes[SupportIndex];
+			if (SupportId == NAME_None || ChannelType == NAME_None || RequiredChannels.Contains(SupportId))
 			{
-				return Fail(TEXT("authored plan declares duplicate or empty support identifiers"));
+				return Fail(TEXT("authored plan declares duplicate or empty support identifiers or media"));
 			}
-			RequiredIds.Add(SupportId);
+			RequiredChannels.Add(SupportId, ChannelType);
 		}
 
 		TSet<FName> EncounterableIds;
@@ -127,16 +130,17 @@ struct FVeilHeartWarningFragment
 		{
 			if (Channel.SupportId == NAME_None
 				|| EncounterableIds.Contains(Channel.SupportId)
-				|| !RequiredIds.Contains(Channel.SupportId)
+				|| !RequiredChannels.Contains(Channel.SupportId)
 				|| Channel.ChannelType == NAME_None
+				|| Channel.ChannelType != RequiredChannels.FindRef(Channel.SupportId)
 				|| Channel.EvidenceText.ToString().TrimStartAndEnd().IsEmpty())
 			{
-				return Fail(TEXT("warning declares duplicate, unknown, or unreadable support data"));
+				return Fail(TEXT("warning declares duplicate, unknown, wrong-medium, or unreadable support data"));
 			}
 			EncounterableIds.Add(Channel.SupportId);
 		}
 
-		if (EncounterableIds.Num() != RequiredIds.Num()
+		if (EncounterableIds.Num() != RequiredChannels.Num()
 			|| (WarningId == FName(TEXT("GardenRot")) && EncounterableIds.Num() != 3))
 		{
 			return Fail(TEXT("warning support channels do not provide the exact authored evidence set"));

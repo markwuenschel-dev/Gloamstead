@@ -11,6 +11,17 @@ bool UGloamsteadSaveGame::MigrateToCurrentVersion()
         return true;
     }
 
+    if (SaveVersion == 2)
+    {
+        // V2 has legitimate PCG and authored-cycle facts, but predates an
+        // auditable interpretation payload. Retaining an invented warning,
+        // support encounter, or receipt would let knowledge from a future
+        // timeline survive a rollback, so clear only those facts.
+        ExperienceCycleState.HeartInterpretationState.Reset();
+        SaveVersion = CurrentSaveVersion;
+        return true;
+    }
+
     if (SaveVersion == CurrentSaveVersion)
     {
         return true;

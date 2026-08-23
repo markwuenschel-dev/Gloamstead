@@ -126,12 +126,12 @@ bool FGloamsteadGardenRotValidatorRejectsDuplicateSupportTest::RunTest(const FSt
 	GardenWarning.SemanticSubject = GardenPlan.SemanticSubject;
 	GardenWarning.RequiredRitualType = GardenPlan.RequiredRitualType;
 	GardenWarning.InterpretationReceiptId = GardenPlan.InterpretationReceiptId;
-	for (const FName SupportId : GardenPlan.RequiredSupportIds)
+	for (int32 Index = 0; Index < GardenPlan.RequiredSupportIds.Num(); ++Index)
 	{
 		FVeilHeartWarningSupportChannel& Channel = GardenWarning.SupportChannels.AddDefaulted_GetRef();
-		Channel.SupportId = SupportId;
+		Channel.SupportId = GardenPlan.RequiredSupportIds[Index];
 		Channel.EvidenceText = FText::FromString(TEXT("Readable evidence."));
-		Channel.ChannelType = TEXT("Environmental");
+		Channel.ChannelType = GardenPlan.RequiredSupportChannelTypes[Index];
 	}
 	GardenWarning.SupportChannels[1].SupportId = GardenWarning.SupportChannels[0].SupportId;
 	Catalog->Warnings.Add(GardenWarning);
@@ -141,6 +141,46 @@ bool FGloamsteadGardenRotValidatorRejectsDuplicateSupportTest::RunTest(const FSt
 	const EDataValidationResult Result = Validator->ValidateLoadedAsset(FAssetData(Catalog), Catalog, Context);
 	TestEqual(TEXT("editor validator rejects duplicate GardenRot supports"), Result, EDataValidationResult::Invalid);
 	TestTrue(TEXT("editor validator reports the contract failure"), Context.GetNumErrors() > 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamsteadGardenRotValidatorRejectsWrongMediumTest,
+	"Gloamstead.Editor.Validation.GardenRotRejectsWrongMediumFixture",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamsteadGardenRotValidatorRejectsWrongMediumTest::RunTest(const FString& /*Parameters*/)
+{
+	FExperienceCyclePlan GardenPlan;
+	if (!TestTrue(TEXT("canonical GardenRot plan is available to the validator"), GetCanonicalGardenPlan(GardenPlan)))
+	{
+		return false;
+	}
+
+	UVeilHeartWarningCatalog* Catalog = NewObject<UVeilHeartWarningCatalog>();
+	FVeilHeartWarningFragment GardenWarning;
+	GardenWarning.WarningId = GardenPlan.WarningId;
+	GardenWarning.Fragment = FText::FromString(TEXT("What grows in darkness must be tended before the bell tolls."));
+	GardenWarning.AssociatedNightType = GardenPlan.NightType;
+	GardenWarning.SatisfiableTags = GardenPlan.RequiredRestorationTags;
+	GardenWarning.SemanticSubject = GardenPlan.SemanticSubject;
+	GardenWarning.RequiredRitualType = GardenPlan.RequiredRitualType;
+	GardenWarning.InterpretationReceiptId = GardenPlan.InterpretationReceiptId;
+	for (int32 Index = 0; Index < GardenPlan.RequiredSupportIds.Num(); ++Index)
+	{
+		FVeilHeartWarningSupportChannel& Channel = GardenWarning.SupportChannels.AddDefaulted_GetRef();
+		Channel.SupportId = GardenPlan.RequiredSupportIds[Index];
+		Channel.EvidenceText = FText::FromString(TEXT("Readable evidence."));
+		Channel.ChannelType = GardenPlan.RequiredSupportChannelTypes[Index];
+	}
+	GardenWarning.SupportChannels[2].ChannelType = TEXT("Environmental");
+	Catalog->Warnings.Add(GardenWarning);
+
+	UVeilHeartWarningCatalogValidator* Validator = NewObject<UVeilHeartWarningCatalogValidator>();
+	FDataValidationContext Context;
+	const EDataValidationResult Result = Validator->ValidateLoadedAsset(FAssetData(Catalog), Catalog, Context);
+	TestEqual(TEXT("editor validator rejects a wrong-medium GardenRot support"), Result, EDataValidationResult::Invalid);
+	TestTrue(TEXT("editor validator reports the wrong-medium contract failure"), Context.GetNumErrors() > 0);
 	return true;
 }
 
