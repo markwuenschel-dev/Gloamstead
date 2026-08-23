@@ -96,8 +96,16 @@ bool AGloamsteadSanctuaryBootstrap::TryInitializeSanctuary()
 		{
 			if (DayNight->LoadProgressionFromSlot())
 			{
-				UE_LOG(LogTemp, Log, TEXT("GloamsteadSanctuaryBootstrap '%s': loaded full sanctuary progression (slot=%s)."),
-					*GetName(), *UGloamsteadPCGSubsystem::DefaultSaveSlot);
+				if (DayNight->IsWarningPresentationPending())
+				{
+					UE_LOG(LogTemp, Log, TEXT("GloamsteadSanctuaryBootstrap '%s': loaded valid sanctuary progression; exact warning presentation is pending a ready Heart (slot=%s)."),
+						*GetName(), *UGloamsteadPCGSubsystem::DefaultSaveSlot);
+				}
+				else
+				{
+					UE_LOG(LogTemp, Log, TEXT("GloamsteadSanctuaryBootstrap '%s': loaded full sanctuary progression (slot=%s)."),
+						*GetName(), *UGloamsteadPCGSubsystem::DefaultSaveSlot);
+				}
 			}
 		}
 	}

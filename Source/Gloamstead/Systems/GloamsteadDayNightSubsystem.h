@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "TimerManager.h"
 #include "GloamsteadDayNightSubsystem.generated.h"
 
 UENUM(BlueprintType)
@@ -76,6 +77,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "DayNight")
 	bool CanRestNow() const;
 
+	/** True while an otherwise valid authored plan awaits exact Heart presentation. */
+	UFUNCTION(BlueprintPure, Category = "DayNight|Experience")
+	bool IsWarningPresentationPending() const { return bWarningPresentationPending; }
+
 	/**
 	 * Opens the very first Day->Dusk rest, which CanRestNow() otherwise refuses while NightCount==0.
 	 *
@@ -99,7 +104,14 @@ private:
 	void HandleEnterDusk();
 	void HandleEnterNight();
 	void HandleEnterDawn();
+	/** Rejects a progression payload as one coherent, rest-ineligible Day state. */
+	void ResetToSafeDayReconciliation();
+	void QueueWarningPresentationRetry();
+	void RetryPendingWarningPresentation();
+	void ClearWarningPresentationRetry();
 	class UGloamsteadExperienceCycleSubsystem* GetExperienceCycleSubsystem() const;
+
+	virtual void Deinitialize() override;
 
 	UPROPERTY()
 	EGloamsteadDayPhase CurrentPhase = EGloamsteadDayPhase::Day;
@@ -119,4 +131,11 @@ private:
 
 	/** The authored warning successfully exposed during the current Day. */
 	FName PresentedPlanId = NAME_None;
+
+	/** A valid authored plan can outlive Heart/catalog startup ordering. */
+	bool bWarningPresentationPending = false;
+	FName PendingPresentationPlanId = NAME_None;
+	bool bWarningPresentationRetryQueued = false;
+	bool bWarningPresentationDeferralLogged = false;
+	FTimerHandle WarningPresentationRetryTimer;
 };

@@ -41,6 +41,7 @@ bool FGloamExperiencePlanSlotOneIsTutorialTest::RunTest(const FString& /*Paramet
 	TestEqual(TEXT("slot one is selected"), Plan.Slot, 1);
 	TestEqual(TEXT("slot one uses the tutorial night"), Plan.NightType, ENightConsequenceType::Tutorial);
 	TestEqual(TEXT("slot one keeps its stable id"), Plan.PlanId, FName(TEXT("Cycle1_Tutorial")));
+	TestEqual(TEXT("slot one uses the shipped TutorialLostPath warning identity"), Plan.WarningId, FName(TEXT("TutorialLostPath")));
 	return true;
 }
 
@@ -118,6 +119,9 @@ bool FGloamExperiencePlanExactWarningAndNightPrepTest::RunTest(const FString& /*
 	AVeilHeart* Heart = NewObject<AVeilHeart>();
 	Heart->WarningCatalog = WarningCatalog;
 	TestTrue(TEXT("the exact Cycle II warning emits"), Heart->EmitWarningById(Plan.WarningId, Plan.NightType));
+	TestEqual(TEXT("the exact Cycle II warning identity is emitted"), Heart->GetLastEmittedWarningId(), Plan.WarningId);
+	TestFalse(TEXT("an absent warning id emits no substitute"), Heart->EmitWarningById(TEXT("AbsentWarning"), Plan.NightType));
+	TestEqual(TEXT("an absent warning id preserves the prior exact emission"), Heart->GetLastEmittedWarningId(), Plan.WarningId);
 	TestFalse(TEXT("a mismatched expected type emits no substitute"), Heart->EmitWarningById(Plan.WarningId, ENightConsequenceType::Tutorial));
 
 	WarningCatalog->Warnings.Add(GardenWarning);

@@ -7,7 +7,13 @@
 #include "Save/GloamsteadSaveGame.h"
 #include "Data/NightConsequenceTypes.h"
 #include "Engine/GameInstance.h"
+#include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
+
+namespace
+{
+	constexpr float WarningPresentationRetrySeconds = 0.25f;
+}
 
 UGloamsteadExperienceCycleSubsystem* UGloamsteadDayNightSubsystem::GetExperienceCycleSubsystem() const
 {
@@ -36,24 +42,49 @@ bool UGloamsteadDayNightSubsystem::PrepareUpcomingCycle()
 	UGloamsteadExperienceCycleSubsystem* Experience = GetExperienceCycleSubsystem();
 	if (!Experience || !Experience->EnsureUpcomingPlan())
 	{
+		bWarningPresentationPending = false;
+		PendingPresentationPlanId = NAME_None;
+		bWarningPresentationDeferralLogged = false;
+		ClearWarningPresentationRetry();
 		return false;
 	}
 
 	const FExperienceCyclePlan& Plan = Experience->GetActivePlan();
 	if (!Plan.IsAuthoredPlan())
 	{
+		bWarningPresentationPending = false;
+		PendingPresentationPlanId = NAME_None;
+		bWarningPresentationDeferralLogged = false;
+		ClearWarningPresentationRetry();
 		return false;
 	}
 	if (Plan.Slot == 1 && !bFirstRestUnlocked)
 	{
 		// Cycle I's warning remains behind the FirstNightDirector's existing
 		// lantern gate; only that route can open the first authored rest.
+		bWarningPresentationPending = false;
+		PendingPresentationPlanId = NAME_None;
+		bWarningPresentationDeferralLogged = false;
+		ClearWarningPresentationRetry();
 		return false;
 	}
 	if (PresentedPlanId == Plan.PlanId)
 	{
+		bWarningPresentationPending = false;
+		PendingPresentationPlanId = NAME_None;
+		bWarningPresentationDeferralLogged = false;
+		ClearWarningPresentationRetry();
 		return true;
 	}
+
+	// Presentation readiness is explicitly separate from plan validity. The
+	// Experience subsystem keeps this exact plan armed while the Heart comes up.
+	if (PendingPresentationPlanId != Plan.PlanId)
+	{
+		bWarningPresentationDeferralLogged = false;
+	}
+	bWarningPresentationPending = true;
+	PendingPresentationPlanId = Plan.PlanId;
 
 	UWorld* World = GetWorld();
 	if (!World)
@@ -67,17 +98,25 @@ bool UGloamsteadDayNightSubsystem::PrepareUpcomingCycle()
 	{
 		if (AVeilHeart* Heart = Cast<AVeilHeart>(Actor))
 		{
-			const bool bEmitted = Heart->EmitWarningById(Plan.WarningId, Plan.NightType);
-			if (bEmitted)
+			if (Heart->EmitWarningById(Plan.WarningId, Plan.NightType))
 			{
 				PresentedPlanId = Plan.PlanId;
+				bWarningPresentationPending = false;
+				PendingPresentationPlanId = NAME_None;
+				bWarningPresentationDeferralLogged = false;
+				ClearWarningPresentationRetry();
+				return true;
 			}
-			return bEmitted;
 		}
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("DayNight: authored plan %s armed but no VeilHeart was available to present warning %s."),
-		*Plan.PlanId.ToString(), *Plan.WarningId.ToString());
+	if (!bWarningPresentationDeferralLogged)
+	{
+		UE_LOG(LogTemp, Log, TEXT("DayNight: authored plan %s remains armed while warning %s awaits a ready VeilHeart."),
+			*Plan.PlanId.ToString(), *Plan.WarningId.ToString());
+		bWarningPresentationDeferralLogged = true;
+	}
+	QueueWarningPresentationRetry();
 	return false;
 }
 
@@ -128,6 +167,7 @@ bool UGloamsteadDayNightSubsystem::LoadProgressionFromSlot(const FString& SlotNa
 	UGloamsteadSaveGame* SaveGame = Cast<UGloamsteadSaveGame>(UGameplayStatics::LoadGameFromSlot(SlotName, UserIndex));
 	if (!SaveGame || !PCG->RestoreFromSaveGame(SaveGame))
 	{
+		ResetToSafeDayReconciliation();
 		return false;
 	}
 
@@ -136,10 +176,7 @@ bool UGloamsteadDayNightSubsystem::LoadProgressionFromSlot(const FString& SlotNa
 	{
 		// A legacy payload has already restored its PCG state above, but it remains
 		// deliberately ineligible for authored Cycle II progression.
-		NightCount = 0;
-		bFirstRestUnlocked = false;
-		bDuskPlanPrepared = false;
-		PresentedPlanId = NAME_None;
+		ResetToSafeDayReconciliation();
 		return false;
 	}
 
@@ -147,9 +184,7 @@ bool UGloamsteadDayNightSubsystem::LoadProgressionFromSlot(const FString& SlotNa
 		|| CycleState.SavedPhaseOrdinal > static_cast<int32>(EGloamsteadDayPhase::Dawn))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("DayNight: save has no safe day phase; authored rest remains unavailable."));
-		bFirstRestUnlocked = false;
-		bDuskPlanPrepared = false;
-		PresentedPlanId = NAME_None;
+		ResetToSafeDayReconciliation();
 		return false;
 	}
 
@@ -165,18 +200,96 @@ bool UGloamsteadDayNightSubsystem::LoadProgressionFromSlot(const FString& SlotNa
 		|| (CurrentPhase == EGloamsteadDayPhase::Day && CycleState.ArmedPlanId == FName(TEXT("Cycle1_Tutorial")));
 	bDuskPlanPrepared = false;
 	PresentedPlanId = NAME_None;
+	bWarningPresentationPending = false;
+	PendingPresentationPlanId = NAME_None;
+	bWarningPresentationDeferralLogged = false;
+	ClearWarningPresentationRetry();
 
 	// A persisted armed plan is validated by RestorePersistentState. An unarmed
 	// later Day may now arm exactly one next plan; the first tutorial day stays
 	// silent until UnlockFirstRest() supplies its existing lantern gate.
 	if (CurrentPhase == EGloamsteadDayPhase::Day
-		&& (CycleState.bFirstRestCompleted || CycleState.ArmedPlanId != NAME_None)
-		&& !PrepareUpcomingCycle())
+		&& (CycleState.bFirstRestCompleted || CycleState.ArmedPlanId != NAME_None))
 	{
-		return false;
+		// A valid v2 payload succeeds even if exact warning presentation must wait
+		// for a Heart/catalog created later in the bootstrap order. CanRestNow()
+		// continues to gate on PresentedPlanId until that exact presentation lands.
+		PrepareUpcomingCycle();
 	}
 
 	return true;
+}
+
+void UGloamsteadDayNightSubsystem::ResetToSafeDayReconciliation()
+{
+	// Rejected progression payloads leave PCG restored for a human-visible
+	// reconciliation, but never leave the phase machine or rest gate carrying
+	// authority from the pre-load world.
+	CurrentPhase = EGloamsteadDayPhase::Day;
+	NightCount = 0;
+	bFirstRestUnlocked = false;
+	bDuskPlanPrepared = false;
+	PresentedPlanId = NAME_None;
+	bWarningPresentationPending = false;
+	PendingPresentationPlanId = NAME_None;
+	bWarningPresentationDeferralLogged = false;
+	ClearWarningPresentationRetry();
+
+	if (UGloamsteadExperienceCycleSubsystem* Experience = GetExperienceCycleSubsystem())
+	{
+		FExperienceCyclePersistentState SafeState;
+		SafeState.ResetForLegacyReconciliation();
+		Experience->RestorePersistentState(SafeState);
+	}
+}
+
+void UGloamsteadDayNightSubsystem::QueueWarningPresentationRetry()
+{
+	if (!bWarningPresentationPending || bWarningPresentationRetryQueued)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	bWarningPresentationRetryQueued = true;
+	World->GetTimerManager().SetTimer(
+		WarningPresentationRetryTimer,
+		this,
+		&UGloamsteadDayNightSubsystem::RetryPendingWarningPresentation,
+		WarningPresentationRetrySeconds,
+		false);
+}
+
+void UGloamsteadDayNightSubsystem::RetryPendingWarningPresentation()
+{
+	bWarningPresentationRetryQueued = false;
+	if (bWarningPresentationPending)
+	{
+		PrepareUpcomingCycle();
+	}
+}
+
+void UGloamsteadDayNightSubsystem::ClearWarningPresentationRetry()
+{
+	bWarningPresentationRetryQueued = false;
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(WarningPresentationRetryTimer);
+	}
+}
+
+void UGloamsteadDayNightSubsystem::Deinitialize()
+{
+	ClearWarningPresentationRetry();
+	bWarningPresentationPending = false;
+	PendingPresentationPlanId = NAME_None;
+	bWarningPresentationDeferralLogged = false;
+	Super::Deinitialize();
 }
 
 float UGloamsteadDayNightSubsystem::GetNormalizedTimeOfDay() const
@@ -249,7 +362,7 @@ void UGloamsteadDayNightSubsystem::UnlockFirstRest()
 	bFirstRestUnlocked = true;
 	if (GetExperienceCycleSubsystem() && !PrepareUpcomingCycle())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("DayNight: first rest unlocked but Tutorial plan/warning could not be armed."));
+		UE_LOG(LogTemp, Log, TEXT("DayNight: first rest unlocked; the authored Tutorial plan remains armed while its warning is deferred."));
 	}
 	UE_LOG(LogTemp, Log, TEXT("DayNight: first rest unlocked — the Heart will now accept the player's rest."));
 }

@@ -76,6 +76,10 @@ public:
     UFUNCTION(BlueprintPure, Category="Veil Heart")
     FNightRuntimeOutcome GetLastNightOutcome() const { return LastNightOutcome; }
 
+	/** Exact authored warning most recently presented by this Heart. */
+	UFUNCTION(BlueprintPure, Category="Veil Heart")
+	FName GetLastEmittedWarningId() const { return LastEmittedWarningId; }
+
     UFUNCTION(BlueprintImplementableEvent, Category="Veil Heart")
     void OnWarningEmitted(const FVeilHeartWarningFragment& WarningFragment);
 
@@ -110,8 +114,14 @@ protected:
     const FVeilHeartWarningFragment* FindWarningForNight(ENightConsequenceType NightType) const;
 
 private:
+	/** Lazily loads the assigned catalog for startup-order-safe exact emission. */
+	bool EnsureWarningCatalog();
+
     TSet<FName> SatisfiedWarningTags;
 
     UPROPERTY()
     FNightRuntimeOutcome LastNightOutcome;
+
+	UPROPERTY()
+	FName LastEmittedWarningId = NAME_None;
 };

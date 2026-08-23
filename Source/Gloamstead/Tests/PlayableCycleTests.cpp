@@ -4,11 +4,10 @@
 //  1. Pure feedback formatters (headless) — the on-screen surface is legible and distinguishes outcomes.
 //  2. RequestRest phase logic (worldless) — the Heart's rest advances only the resting phases.
 //  3. A LIVE game world — the phase handlers, night runtime (BeginNight/EndNight), dawn reflection, the
-//     dawn autosave, and the Heart's rest/wake interaction all run through real dynamic-multicast dispatch
-//     (which does NOT fire on worldless NewObject'd actors), spawning a real AVeilHeart and exercising the
-//     interaction interface. The interior Dusk/Night transitions are pumped as the director's timers would
-//     drive them in-game. The player's real autosave slot is rooted, backed up, and restored so the test
-//     never clobbers a live save.
+//     and the Heart's rest/wake interaction all run through real dynamic-multicast dispatch (which does NOT
+//     fire on worldless NewObject'd actors), spawning a real AVeilHeart and exercising the interaction interface.
+//     The interior Dusk/Night transitions are pumped as the director's timers would drive them in-game. The test
+//     uses its own explicit slot and disables dawn autosave so it never touches a player's real save.
 #include "Misc/AutomationTest.h"
 #include "Systems/GloamsteadCycleFeedbackSubsystem.h"
 #include "Systems/GloamsteadDayNightSubsystem.h"
@@ -27,9 +26,7 @@
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "Engine/OverlapResult.h"
-#include "GameFramework/SaveGame.h"
 #include "Kismet/GameplayStatics.h"
-#include "UObject/StrongObjectPtr.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -39,7 +36,9 @@ namespace
 	{
 		UVeilHeartWarningCatalog* Catalog = NewObject<UVeilHeartWarningCatalog>();
 		FVeilHeartWarningFragment Tutorial;
-		Tutorial.WarningId = TEXT("Tutorial");
+		// Asset-faithful fixture: the shipped warning catalog's Tutorial fragment
+		// is TutorialLostPath, not a synthetic Tutorial row.
+		Tutorial.WarningId = TEXT("TutorialLostPath");
 		Tutorial.AssociatedNightType = ENightConsequenceType::Tutorial;
 		Catalog->Warnings.Add(Tutorial);
 
@@ -138,13 +137,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 {
-	const FString Slot = UGloamsteadPCGSubsystem::DefaultSaveSlot;
-
-	// Protect the player's real autosave: back it up (the dawn autosave below will overwrite this slot).
-	// TStrongObjectPtr roots the loaded object so a GC during world teardown can't collect it and leave the
-	// restore writing garbage into the real save slot.
-	TStrongObjectPtr<USaveGame> Backup(UGameplayStatics::DoesSaveGameExist(Slot, 0)
-		? UGameplayStatics::LoadGameFromSlot(Slot, 0) : nullptr);
+	const FString Slot = TEXT("GloamsteadPlayableCycleRemediation");
+	UGameplayStatics::DeleteGameInSlot(Slot, 0);
 
 	// A real game world so dynamic-multicast delegates actually dispatch.
 	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld*/ false);
@@ -172,6 +166,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 
 	if (bSubsystems)
 	{
+		DayNight->SetDawnAutosaveEnabled(false);
 		// Seed a small sanctuary so snapshots/selection have real state.
 		TArray<FRitualPointState> States;
 		for (int32 i = 0; i < 4; ++i)
@@ -219,7 +214,9 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			if (TutorialPlan)
 			{
 				TestEqual(TEXT("first rest arms the canonical Tutorial plan"), TutorialPlan->PlanId, FName(TEXT("Cycle1_Tutorial")));
+				TestEqual(TEXT("first rest arms the shipped TutorialLostPath warning"), TutorialPlan->WarningId, FName(TEXT("TutorialLostPath")));
 			}
+			TestEqual(TEXT("the Heart emits the shipped TutorialLostPath warning"), Heart->GetLastEmittedWarningId(), FName(TEXT("TutorialLostPath")));
 			TestTrue(TEXT("the Heart offers rest only after the lantern gate"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));
 
 			// Run the first night through the exact plan path. Dusk must broadcast Tutorial without score selection.
@@ -238,9 +235,6 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			TestTrue(TEXT("the night produced an outcome"), Outcome.Result != ENightOutcomeResult::None);
 			TestTrue(TEXT("the Heart recorded the dawn outcome"), Heart->GetLastNightOutcome().Result == Outcome.Result);
 
-			// The dawn autosave wrote the single sanctuary progression slot.
-			TestTrue(TEXT("dawn autosave wrote the slot"), UGameplayStatics::DoesSaveGameExist(Slot, 0));
-
 			// The player wakes at the Heart (first dawn) -> Day, and the night is counted — all via the interface.
 			TestTrue(TEXT("the Heart offers rest at Dawn"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));
 			IGloamInteractable::Execute_Interact(Heart, nullptr);
@@ -254,10 +248,38 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 				TestEqual(TEXT("the exact Cycle II warning is armed"), CycleTwoBeforeSave->WarningId, FName(TEXT("GardenRot")));
 			}
 
-			TestTrue(TEXT("full progression save retains the armed Cycle II plan"), DayNight->SaveProgressionToSlot());
+			// Save a non-default sanctuary snapshot in Day together with the exact Cycle II plan.
+			TArray<FRitualPointState> SavedPCGStates = PCG->Test_PeekPointStates();
+			SavedPCGStates[0].LightLevel = 0.93f;
+			SavedPCGStates[0].CorruptionLevel = 0.07f;
+			SavedPCGStates[0].bIsRestored = true;
+			PCG->Test_SeedPointStates(SavedPCGStates);
+			TestTrue(TEXT("full progression save retains non-default PCG and armed Cycle II plan"), DayNight->SaveProgressionToSlot(Slot));
+
+			// Reproduce bootstrap ordering: the v2 payload restores after the PCG baseline,
+			// but before a valid Heart/catalog is available. This is a live-world proxy for
+			// bootstrap because its PCG component output has no public test construction seam.
+			Heart->WarningCatalog = NewObject<UVeilHeartWarningCatalog>();
+			DayNight->SetPhase(EGloamsteadDayPhase::Dusk);
 			FExperienceCyclePersistentState EmptyCycle;
 			TestTrue(TEXT("test can clear the in-memory cycle before reload"), Experience->RestorePersistentState(EmptyCycle));
-			TestTrue(TEXT("full progression load restores Cycle II rather than replaying Tutorial"), DayNight->LoadProgressionFromSlot());
+			TArray<FRitualPointState> MutatedPCGStates = SavedPCGStates;
+			MutatedPCGStates[0].LightLevel = 0.11f;
+			MutatedPCGStates[0].CorruptionLevel = 0.88f;
+			MutatedPCGStates[0].bIsRestored = false;
+			PCG->Test_SeedPointStates(MutatedPCGStates);
+			TestTrue(TEXT("valid v2 load succeeds while warning presentation is pending"), DayNight->LoadProgressionFromSlot(Slot));
+			TestTrue(TEXT("load restores the saved Day phase"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
+			TestTrue(TEXT("load retains a pending exact warning presentation without a Heart"), DayNight->IsWarningPresentationPending());
+			TestFalse(TEXT("rest stays gated until the exact warning is actually presented"), DayNight->CanRestNow());
+			const TArray<FRitualPointState>& RestoredPCGStates = PCG->Test_PeekPointStates();
+			TestEqual(TEXT("load restores the saved PCG point count"), RestoredPCGStates.Num(), SavedPCGStates.Num());
+			if (RestoredPCGStates.IsValidIndex(0))
+			{
+				TestTrue(TEXT("load restores saved PCG light"), FMath::IsNearlyEqual(RestoredPCGStates[0].LightLevel, 0.93f));
+				TestTrue(TEXT("load restores saved PCG corruption"), FMath::IsNearlyEqual(RestoredPCGStates[0].CorruptionLevel, 0.07f));
+				TestTrue(TEXT("load restores saved PCG restoration flag"), RestoredPCGStates[0].bIsRestored);
+			}
 			const FExperienceCyclePlan* CycleTwoAfterLoad = DayNight->GetUpcomingPlan();
 			TestNotNull(TEXT("loaded Cycle II plan is available before rest"), CycleTwoAfterLoad);
 			if (CycleTwoAfterLoad)
@@ -265,6 +287,19 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 				TestEqual(TEXT("loaded plan keeps Cycle II id"), CycleTwoAfterLoad->PlanId, FName(TEXT("Cycle2_Garden")));
 				TestEqual(TEXT("loaded plan keeps GardenRot warning"), CycleTwoAfterLoad->WarningId, FName(TEXT("GardenRot")));
 			}
+
+			// A later, normally spawned Heart lazily loads its real warning catalog. The
+			// DayNight retry must expose the retained exact plan once that Heart is ready.
+			Heart = World->SpawnActor<AVeilHeart>();
+			TestNotNull(TEXT("a later Heart spawns for deferred presentation"), Heart);
+			World->Tick(LEVELTICK_All, 0.3f);
+			TestFalse(TEXT("deferred exact presentation clears its pending state"), DayNight->IsWarningPresentationPending());
+			if (Heart)
+			{
+				TestNotNull(TEXT("later Heart lazily loaded the real warning catalog"), Heart->WarningCatalog);
+				TestEqual(TEXT("later Heart emits the retained exact GardenRot warning"), Heart->GetLastEmittedWarningId(), FName(TEXT("GardenRot")));
+			}
+			TestTrue(TEXT("rest becomes eligible only after the exact pending warning presents"), DayNight->CanRestNow());
 
 			// From day two, rest preserves the armed ID and broadcasts only the exact Corruption type.
 			TestTrue(TEXT("the Heart offers rest on the recurring day"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));
@@ -289,8 +324,43 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			LegacyState.SavedPhaseOrdinal = static_cast<int32>(EGloamsteadDayPhase::Day);
 			LegacySave->SetExperienceCycleState(LegacyState);
 			TestTrue(TEXT("legacy fixture writes to the default slot"), UGameplayStatics::SaveGameToSlot(LegacySave, Slot, 0));
+			TestTrue(TEXT("legacy restore is attempted from an in-progress Dusk phase"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk);
 			TestFalse(TEXT("legacy load is explicitly rejected for authored progression"), DayNight->LoadProgressionFromSlot());
 			TestTrue(TEXT("legacy load remains invalid rather than replaying Cycle II"), Experience->GetActivePlan().IsInvalid());
+			TestTrue(TEXT("legacy rejection atomically reconciles phase to Day"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
+			TestEqual(TEXT("legacy rejection clears the prior night counter"), DayNight->GetNightCount(), 0);
+			TestFalse(TEXT("legacy rejection closes the first-rest eligibility gate"), DayNight->IsFirstRestUnlocked());
+			TestFalse(TEXT("legacy rejection clears pending warning presentation"), DayNight->IsWarningPresentationPending());
+			TestFalse(TEXT("legacy rejection cannot offer rest without a new safe plan"), DayNight->CanRestNow());
+
+			UGloamsteadSaveGame* MalformedSave = Cast<UGloamsteadSaveGame>(UGameplayStatics::CreateSaveGameObject(UGloamsteadSaveGame::StaticClass()));
+			PCG->CaptureToSaveGame(MalformedSave);
+			FExperienceCyclePersistentState MalformedState;
+			MalformedState.CompletedCycleSlot = 1;
+			MalformedState.ArmedPlanId = TEXT("Cycle2_Garden");
+			MalformedState.bFirstRestCompleted = true;
+			MalformedState.SavedPhaseOrdinal = 99;
+			MalformedSave->SetExperienceCycleState(MalformedState);
+			TestTrue(TEXT("malformed v2 fixture writes to the isolated slot"), UGameplayStatics::SaveGameToSlot(MalformedSave, Slot, 0));
+			DayNight->SetPhase(EGloamsteadDayPhase::Night);
+			TestTrue(TEXT("malformed phase restore is attempted from an in-progress Night"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Night);
+			TestFalse(TEXT("malformed saved phase is rejected"), DayNight->LoadProgressionFromSlot(Slot));
+			TestTrue(TEXT("malformed phase rejection atomically reconciles to Day"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
+			TestEqual(TEXT("malformed phase rejection clears the night counter"), DayNight->GetNightCount(), 0);
+			TestFalse(TEXT("malformed phase rejection clears pending warning presentation"), DayNight->IsWarningPresentationPending());
+			TestFalse(TEXT("malformed phase rejection closes rest eligibility"), DayNight->CanRestNow());
+			TestTrue(TEXT("malformed phase rejection clears the cycle plan"), Experience->GetActivePlan().IsInvalid());
+
+			UGloamsteadSaveGame* UnsupportedSave = Cast<UGloamsteadSaveGame>(UGameplayStatics::CreateSaveGameObject(UGloamsteadSaveGame::StaticClass()));
+			PCG->CaptureToSaveGame(UnsupportedSave);
+			UnsupportedSave->SaveVersion = UGloamsteadSaveGame::CurrentSaveVersion + 1;
+			TestTrue(TEXT("unsupported v3 fixture writes to the isolated slot"), UGameplayStatics::SaveGameToSlot(UnsupportedSave, Slot, 0));
+			DayNight->SetPhase(EGloamsteadDayPhase::Dusk);
+			TestFalse(TEXT("unsupported progression payload is rejected"), DayNight->LoadProgressionFromSlot(Slot));
+			TestTrue(TEXT("unsupported payload rejection atomically reconciles to Day"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
+			TestEqual(TEXT("unsupported payload rejection clears the night counter"), DayNight->GetNightCount(), 0);
+			TestFalse(TEXT("unsupported payload rejection clears pending warning presentation"), DayNight->IsWarningPresentationPending());
+			TestFalse(TEXT("unsupported payload rejection closes rest eligibility"), DayNight->CanRestNow());
 		}
 	}
 
@@ -299,15 +369,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 	World->DestroyWorld(false);
 	GameInstance->Shutdown();
 
-	// Restore the player's real save slot exactly as we found it.
-	if (Backup)
-	{
-		UGameplayStatics::SaveGameToSlot(Backup.Get(), Slot, 0);
-	}
-	else if (UGameplayStatics::DoesSaveGameExist(Slot, 0))
-	{
-		UGameplayStatics::DeleteGameInSlot(Slot, 0);
-	}
+	UGameplayStatics::DeleteGameInSlot(Slot, 0);
 	return true;
 }
 

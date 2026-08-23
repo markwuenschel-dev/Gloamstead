@@ -77,16 +77,7 @@ void AVeilHeart::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (!WarningCatalog)
-	{
-		WarningCatalog = Cast<UVeilHeartWarningCatalog>(
-			StaticLoadObject(UVeilHeartWarningCatalog::StaticClass(), nullptr,
-				TEXT("/Game/Data/DA_VeilHeartWarningCatalog.DA_VeilHeartWarningCatalog")));
-		if (WarningCatalog)
-		{
-			UE_LOG(LogTemp, Log, TEXT("VeilHeart: Loaded warning catalog from /Game/Data/DA_VeilHeartWarningCatalog."));
-		}
-	}
+	EnsureWarningCatalog();
 
 	if (UWorld* World = GetWorld())
 	{
@@ -95,6 +86,23 @@ void AVeilHeart::BeginPlay()
 			PCGSub->OnStructureRestored.AddDynamic(this, &AVeilHeart::OnRestorationComplete);
 		}
 	}
+}
+
+bool AVeilHeart::EnsureWarningCatalog()
+{
+	if (WarningCatalog)
+	{
+		return true;
+	}
+
+	WarningCatalog = Cast<UVeilHeartWarningCatalog>(
+		StaticLoadObject(UVeilHeartWarningCatalog::StaticClass(), nullptr,
+			TEXT("/Game/Data/DA_VeilHeartWarningCatalog.DA_VeilHeartWarningCatalog")));
+	if (WarningCatalog)
+	{
+		UE_LOG(LogTemp, Log, TEXT("VeilHeart: Loaded warning catalog from /Game/Data/DA_VeilHeartWarningCatalog."));
+	}
+	return WarningCatalog != nullptr;
 }
 
 void AVeilHeart::OnRestorationComplete(const FRestorationEventPayload& Payload)
@@ -184,7 +192,7 @@ void AVeilHeart::EmitWarningForNight(ENightConsequenceType NightType)
 
 bool AVeilHeart::EmitWarningById(FName WarningId, ENightConsequenceType ExpectedNightType)
 {
-	if (!WarningCatalog || WarningId == NAME_None || ExpectedNightType == ENightConsequenceType::Invalid)
+	if (!EnsureWarningCatalog() || WarningId == NAME_None || ExpectedNightType == ENightConsequenceType::Invalid)
 	{
 		return false;
 	}
@@ -211,6 +219,7 @@ bool AVeilHeart::EmitWarningById(FName WarningId, ENightConsequenceType Expected
 
 	UE_LOG(LogTemp, Log, TEXT("VeilHeart: Authored Day warning [%s] for night %s."),
 		*ExactWarning->WarningId.ToString(), *GetNightConsequenceTypeDisplayName(ExpectedNightType));
+	LastEmittedWarningId = ExactWarning->WarningId;
 	OnWarningEmitted(*ExactWarning);
 	OnWarningEmittedDelegate.Broadcast(*ExactWarning);
 	return true;

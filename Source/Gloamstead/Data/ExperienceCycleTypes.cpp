@@ -23,7 +23,7 @@ void PopulateDefaultExperienceCyclePlans(UExperienceCycleCatalog& Catalog)
 	FExperienceCyclePlan Tutorial;
 	Tutorial.Slot = 1;
 	Tutorial.PlanId = TEXT("Cycle1_Tutorial");
-	Tutorial.WarningId = TEXT("Tutorial");
+	Tutorial.WarningId = TEXT("TutorialLostPath");
 	Tutorial.NightType = ENightConsequenceType::Tutorial;
 	Tutorial.SemanticSubject = TEXT("courtyard.lantern.first");
 	Tutorial.RequiredRestorationTags = { TEXT("LanternPost") };

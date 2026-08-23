@@ -21,7 +21,7 @@ namespace
 		case 1:
 			return Plan.Slot == 1
 				&& Plan.PlanId == FName(TEXT("Cycle1_Tutorial"))
-				&& Plan.WarningId == FName(TEXT("Tutorial"))
+				&& Plan.WarningId == FName(TEXT("TutorialLostPath"))
 				&& Plan.NightType == ENightConsequenceType::Tutorial
 				&& Plan.SemanticSubject == FName(TEXT("courtyard.lantern.first"))
 				&& HasOnlyTag(Plan, FName(TEXT("LanternPost")))
