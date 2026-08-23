@@ -166,9 +166,12 @@ The simplest current failure state is:
 
 Because the game is now third-person, player death can be direct and embodied. Heart failure should still feel central: the player is not only losing health, but losing the last stable light in the place.
 
-## Implementation status (June 2026 — polish wave active)
+## Implementation status (August 2026 — authored cycles 1–4)
 
-Wave **night-consequence NC-1** (tasks NC-001–NC-003) adds data and dusk **selection** only. No night entities spawn yet; design sections above still describe the full target.
+The runtime now executes Tutorial, Corruption, Omen, Retrieval, and the authored Silence Possession
+slice. Possession is a bounded light-ward consequence on the exact restored authored target; it does
+not introduce a generic wave or horde loop. Mirror, Bargain, Fracture, and True Siege remain planned
+extensions, and the full presentation/human-playtest bar is still outstanding.
 
 ### NC-001 — Data types (`Source/Gloamstead/Data/NightConsequenceTypes.*`)
 

@@ -140,6 +140,33 @@ bool FGloamExperiencePlanSlotThreeIsExactRetrievalTest::RunTest(const FString& /
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamExperiencePlanSlotFourIsExactPossessionTest,
+	"Gloamstead.Experience.Plan.SlotFourIsExactPossession",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamExperiencePlanSlotFourIsExactPossessionTest::RunTest(const FString& /*Parameters*/)
+{
+	UGloamsteadExperienceCycleSubsystem* Subsystem = MakeSubsystem(MakeAuthoredCatalog());
+	FExperienceCyclePersistentState State;
+	State.CompletedCycleSlot = 3;
+	TestTrue(TEXT("completed Cycle III state restores"), Subsystem->RestorePersistentState(State));
+
+	TestTrue(TEXT("the fourth authored plan resolves"), Subsystem->EnsureUpcomingPlan());
+	const FExperienceCyclePlan& Plan = Subsystem->GetActivePlan();
+	TestTrue(TEXT("the fourth plan is authored"), Plan.IsAuthoredPlan());
+	TestEqual(TEXT("slot four is selected"), Plan.Slot, 4);
+	TestEqual(TEXT("slot four uses SilencePossession"), Plan.NightType, ENightConsequenceType::SilencePossession);
+	TestEqual(TEXT("slot four re-reads the garden warning"), Plan.WarningId, FName(TEXT("GardenRot")));
+	TestEqual(TEXT("slot four binds to the restored garden subject"), Plan.SemanticSubject, FName(TEXT("Cycle2_Garden")));
+	TestEqual(TEXT("slot four keeps its stable id"), Plan.PlanId, FName(TEXT("Cycle4_Possession")));
+	TestEqual(TEXT("slot four requires the canonical GardenBed ritual"), Plan.RequiredRitualType, ERitualType::GardenBed);
+	TestEqual(TEXT("slot four requires two readable supports"), Plan.MinimumDistinctSupportCount, 2);
+	TestEqual(TEXT("slot four records a possession-specific receipt"), Plan.InterpretationReceiptId, FName(TEXT("GardenRot.Possessed")));
+	TestEqual(TEXT("slot four keeps the garden support set"), Plan.RequiredSupportIds.Num(), 3);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FGloamExperiencePlanExactWarningAndNightPrepTest,
 	"Gloamstead.Experience.Plan.ExactWarningAndNightPrep",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -313,7 +340,7 @@ bool FGloamExperiencePlanGenericHandoffIsExplicitTest::RunTest(const FString& /*
 {
 	UGloamsteadExperienceCycleSubsystem* Subsystem = MakeSubsystem(MakeAuthoredCatalog());
 	FExperienceCyclePersistentState State;
-	State.CompletedCycleSlot = 3;
+	State.CompletedCycleSlot = 4;
 	TestTrue(TEXT("post-authored state restores"), Subsystem->RestorePersistentState(State));
 
 	TestFalse(TEXT("no later authored plan is claimed"), Subsystem->EnsureUpcomingPlan());

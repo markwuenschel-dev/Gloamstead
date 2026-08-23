@@ -66,6 +66,7 @@ namespace
 		case ENightObjectiveKind::TutorialTeach:          return TEXT("TutorialTeach");
 		case ENightObjectiveKind::HeedOmen:               return TEXT("HeedOmen");
 		case ENightObjectiveKind::HoldRestored:           return TEXT("HoldRestored");
+		case ENightObjectiveKind::PurifyPossessed:        return TEXT("PurifyPossessed");
 		default:                                          return TEXT("None");
 		}
 	}

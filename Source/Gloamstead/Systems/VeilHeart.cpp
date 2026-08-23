@@ -115,6 +115,50 @@ bool AVeilHeart::EnsureWarningCatalog()
 			TEXT("/Game/Data/DA_VeilHeartWarningCatalog.DA_VeilHeartWarningCatalog")));
 	if (WarningCatalog)
 	{
+		// The authored Cycle 4 slice re-reads GardenRot as a different consequence: the same
+		// restored place goes unnaturally still. Older shipped warning assets predate that row, so
+		// materialize the exact fallback contract in memory rather than silently making the night
+		// unwarned. A newer asset with its own authored entry remains authoritative.
+		bool bHasPossessionWarning = false;
+		for (const FVeilHeartWarningFragment& Warning : WarningCatalog->Warnings)
+		{
+			if (Warning.WarningId == FName(TEXT("GardenRot"))
+				&& Warning.AssociatedNightType == ENightConsequenceType::SilencePossession)
+			{
+				bHasPossessionWarning = true;
+				break;
+			}
+		}
+		if (!bHasPossessionWarning)
+		{
+			FVeilHeartWarningFragment PossessionWarning;
+			PossessionWarning.WarningId = TEXT("GardenRot");
+			PossessionWarning.Fragment = NSLOCTEXT(
+				"Gloamstead",
+				"WarningGardenPossession",
+				"The garden goes silent beneath borrowed light. Break the hold before it roots.");
+			PossessionWarning.AssociatedNightType = ENightConsequenceType::SilencePossession;
+			PossessionWarning.SatisfiableTags = { TEXT("GardenBed") };
+			PossessionWarning.SemanticSubject = TEXT("Cycle2_Garden");
+			PossessionWarning.RequiredRitualType = ERitualType::GardenBed;
+			PossessionWarning.InterpretationReceiptId = TEXT("GardenRot.Possessed");
+			PossessionWarning.ClarityTier = 2;
+
+			FVeilHeartWarningSupportChannel& Vines = PossessionWarning.SupportChannels.AddDefaulted_GetRef();
+			Vines.SupportId = TEXT("GardenRot.WitheredVines");
+			Vines.ChannelType = TEXT("Environmental");
+			Vines.EvidenceText = NSLOCTEXT("Gloamstead", "EvidenceGardenPossessionVines", "The restored vines stop moving when the light turns away.");
+			FVeilHeartWarningSupportChannel& Soil = PossessionWarning.SupportChannels.AddDefaulted_GetRef();
+			Soil.SupportId = TEXT("GardenRot.ColdSoil");
+			Soil.ChannelType = TEXT("ObjectReaction");
+			Soil.EvidenceText = NSLOCTEXT("Gloamstead", "EvidenceGardenPossessionSoil", "The soil stays cold beneath a bed that should be warm.");
+			FVeilHeartWarningSupportChannel& Moths = PossessionWarning.SupportChannels.AddDefaulted_GetRef();
+			Moths.SupportId = TEXT("GardenRot.BellMoths");
+			Moths.ChannelType = TEXT("Audio");
+			Moths.EvidenceText = NSLOCTEXT("Gloamstead", "EvidenceGardenPossessionMoths", "The bell moths fall silent when the garden is watched.");
+			WarningCatalog->Warnings.Add(MoveTemp(PossessionWarning));
+			UE_LOG(LogTemp, Log, TEXT("VeilHeart: Added the Cycle 4 possession warning fallback to the loaded catalog."));
+		}
 		UE_LOG(LogTemp, Log, TEXT("VeilHeart: Loaded warning catalog from /Game/Data/DA_VeilHeartWarningCatalog."));
 	}
 	return WarningCatalog != nullptr;

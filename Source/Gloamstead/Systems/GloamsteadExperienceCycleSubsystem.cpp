@@ -91,6 +91,20 @@ namespace
 				&& Plan.VisualStateKey == FName(TEXT("restoration_level"))
 				&& Plan.OutcomeSummaryKey == FName(TEXT("Cycle3_Retrieval"));
 
+		case 4:
+			return Plan.Slot == 4
+				&& Plan.PlanId == FName(TEXT("Cycle4_Possession"))
+				&& Plan.WarningId == FName(TEXT("GardenRot"))
+				&& Plan.NightType == ENightConsequenceType::SilencePossession
+				&& Plan.SemanticSubject == FName(TEXT("Cycle2_Garden"))
+				&& HasOnlyTag(Plan, FName(TEXT("GardenBed")))
+				&& Plan.RequiredRitualType == ERitualType::GardenBed
+				&& HasExactGardenSupports(Plan)
+				&& Plan.MinimumDistinctSupportCount == 2
+				&& Plan.InterpretationReceiptId == FName(TEXT("GardenRot.Possessed"))
+				&& Plan.VisualStateKey == FName(TEXT("restoration_level"))
+				&& Plan.OutcomeSummaryKey == FName(TEXT("Cycle4_Possession"));
+
 		default:
 			return false;
 		}
@@ -118,7 +132,7 @@ void UGloamsteadExperienceCycleSubsystem::EnsureCatalog()
 
 const FExperienceCyclePlan* UGloamsteadExperienceCycleSubsystem::FindCanonicalRequiredPlan(int32 Slot) const
 {
-	if (!ExperienceCatalog || Slot < 1 || Slot > 3)
+	if (!ExperienceCatalog || Slot < 1 || Slot > 4)
 	{
 		return nullptr;
 	}
@@ -173,7 +187,7 @@ bool UGloamsteadExperienceCycleSubsystem::EnsureUpcomingPlan()
 		return false;
 	}
 
-	if (UpcomingSlot > 3)
+	if (UpcomingSlot > 4)
 	{
 		SetGenericHandoff(UpcomingSlot);
 		return false;
@@ -194,7 +208,7 @@ bool UGloamsteadExperienceCycleSubsystem::EnsureUpcomingPlan()
 
 bool UGloamsteadExperienceCycleSubsystem::RestoreArmedPlan(FName ArmedPlanId, int32 ExpectedSlot)
 {
-	if (ExpectedSlot < 1 || ExpectedSlot > 3)
+	if (ExpectedSlot < 1 || ExpectedSlot > 4)
 	{
 		SetInvalidPlan(ExpectedSlot);
 		return false;

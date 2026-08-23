@@ -20,6 +20,7 @@ FString GetNightObjectiveKindDisplayName(ENightObjectiveKind Kind)
 	case ENightObjectiveKind::TutorialTeach:          return TEXT("Tutorial Teach");
 	case ENightObjectiveKind::HeedOmen:               return TEXT("Heed Omen");
 	case ENightObjectiveKind::HoldRestored:           return TEXT("Hold Restored");
+	case ENightObjectiveKind::PurifyPossessed:        return TEXT("Purify Possessed");
 	case ENightObjectiveKind::None:
 	default:                                          return TEXT("None");
 	}

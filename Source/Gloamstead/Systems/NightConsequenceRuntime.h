@@ -41,6 +41,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Night")
 	void EndNight();
 
+	/** Ward the strategy-owned active threat with light; returns false when this night has no ward action. */
+	UFUNCTION(BlueprintCallable, Category = "Night")
+	bool WardActiveThreat();
+
 	/**
 	 * Drops a live night before a save payload restores its own PCG baseline.
 	 *

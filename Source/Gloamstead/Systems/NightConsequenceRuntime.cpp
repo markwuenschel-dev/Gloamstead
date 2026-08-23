@@ -20,6 +20,7 @@ UNightConsequenceRuntime::UNightConsequenceRuntime()
 	StrategyClasses.Add(ENightConsequenceType::Corruption, UNightCorruptionStrategy::StaticClass());
 	StrategyClasses.Add(ENightConsequenceType::Omen, UNightOmenStrategy::StaticClass());
 	StrategyClasses.Add(ENightConsequenceType::Retrieval, UNightRetrievalStrategy::StaticClass());
+	StrategyClasses.Add(ENightConsequenceType::SilencePossession, UNightPossessionStrategy::StaticClass());
 }
 
 void UNightConsequenceRuntime::Initialize(FSubsystemCollectionBase& Collection)
@@ -165,13 +166,14 @@ FNightRuntimeContext UNightConsequenceRuntime::BuildContext(UGloamsteadPCGSubsys
 	{
 		Ctx.DuskSnapshot = PCG->BuildSanctuarySnapshot();
 
-		// An authored Corruption or Retrieval plan must name one real place. It
+		// An authored threat plan must name one real place. It
 		// may never fall back to a score-selected target: missing/multiple
 		// metadata is a visible fail-closed quiet threat, not a different garden
-		// being punished. Retrieval additionally requires the place to still be
-		// restored at dusk, because that is what the night is testing.
+		// being punished. Retrieval and possession additionally require the place
+		// to still be restored at dusk, because that is what the night is testing.
 		if ((PlannedNightType == ENightConsequenceType::Corruption
-			|| PlannedNightType == ENightConsequenceType::Retrieval)
+			|| PlannedNightType == ENightConsequenceType::Retrieval
+			|| PlannedNightType == ENightConsequenceType::SilencePossession)
 			&& ActivePlan)
 		{
 			Ctx.bRequiresExactSemanticTarget = true;
@@ -197,7 +199,8 @@ FNightRuntimeContext UNightConsequenceRuntime::BuildContext(UGloamsteadPCGSubsys
 				Ctx.TargetPointIndex = ResolvePlanTargetToPoint(
 					*ActivePlan,
 					PCG,
-					PlannedNightType == ENightConsequenceType::Retrieval);
+					(PlannedNightType == ENightConsequenceType::Retrieval
+						|| PlannedNightType == ENightConsequenceType::SilencePossession));
 			}
 		}
 		else
@@ -417,6 +420,34 @@ void UNightConsequenceRuntime::HandleRestorationDuringNight(const FRestorationEv
 	}
 }
 
+bool UNightConsequenceRuntime::WardActiveThreat()
+{
+	if (!bNightActive || !ActiveStrategy)
+	{
+		return false;
+	}
+
+	UWorld* World = GetWorld();
+	UGloamsteadPCGSubsystem* PCG = World ? World->GetSubsystem<UGloamsteadPCGSubsystem>() : nullptr;
+	const bool bWasResolved = ActiveStrategy->IsObjectiveResolved();
+	if (!ActiveStrategy->NotifyLightWard(PCG))
+	{
+		return false;
+	}
+
+	if (!bWasResolved && ActiveStrategy->IsObjectiveResolved())
+	{
+		bEarlyDawnRequested = true;
+		if (World)
+		{
+			World->GetTimerManager().ClearTimer(PressureTimer);
+		}
+		UE_LOG(LogTemp, Log, TEXT("NightRuntime: light ward resolved the objective — requesting early dawn."));
+		OnNightShouldEnd.Broadcast();
+	}
+	return true;
+}
+
 void UNightConsequenceRuntime::EndNight()
 {
 	if (!bNightActive)
@@ -504,8 +535,10 @@ void UNightConsequenceRuntime::MaybeSpawnPressureActor(UGloamsteadPCGSubsystem* 
 		return;
 	}
 
-	// Only threat nights get a pressure presence (Corruption bloom, Retrieval reclaim).
-	if (ActiveNightType != ENightConsequenceType::Corruption && ActiveNightType != ENightConsequenceType::Retrieval)
+	// Only threat nights get a pressure presence (Corruption bloom, Retrieval reclaim, or possession).
+	if (ActiveNightType != ENightConsequenceType::Corruption
+		&& ActiveNightType != ENightConsequenceType::Retrieval
+		&& ActiveNightType != ENightConsequenceType::SilencePossession)
 	{
 		return;
 	}

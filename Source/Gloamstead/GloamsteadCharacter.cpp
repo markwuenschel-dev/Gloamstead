@@ -10,8 +10,10 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
+#include "InputCoreTypes.h"
 #include "Components/RitualPlacementComponent.h"
 #include "Components/GloamInteractionComponent.h"
+#include "Systems/NightConsequenceRuntime.h"
 #include "Gloamstead.h"
 
 AGloamsteadCharacter::AGloamsteadCharacter()
@@ -85,6 +87,10 @@ void AGloamsteadCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 		{
 			EnhancedInputComponent->BindAction(ExamineAction, ETriggerEvent::Started, this, &AGloamsteadCharacter::OnExamineInput);
 		}
+
+		// The ward is intentionally a key-level fallback: early character Blueprints do not yet carry
+		// a dedicated IA asset, but the possession night must still be playable without editor wiring.
+		PlayerInputComponent->BindKey(EKeys::RightMouseButton, IE_Pressed, this, &AGloamsteadCharacter::OnWardInput);
 	}
 	else
 	{
@@ -228,6 +234,18 @@ FText AGloamsteadCharacter::GetPlayerPromptText() const
 		}
 	}
 
+	if (UWorld* World = GetWorld())
+	{
+		if (const UNightConsequenceRuntime* Night = World->GetSubsystem<UNightConsequenceRuntime>();
+			Night
+			&& Night->IsNightActive()
+			&& Night->GetActiveNightType() == ENightConsequenceType::SilencePossession
+			&& !Night->IsObjectiveResolved())
+		{
+			return NSLOCTEXT("Gloamstead", "PromptWardPossession", "[RMB]  Ward the possessed place with light");
+		}
+	}
+
 	return FText::GetEmpty();
 }
 
@@ -263,4 +281,19 @@ void AGloamsteadCharacter::OnExamineInput()
 	{
 		Interaction->TryExamine();
 	}
+}
+
+void AGloamsteadCharacter::OnWardInput()
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (UNightConsequenceRuntime* Night = World->GetSubsystem<UNightConsequenceRuntime>())
+		{
+			const bool bAccepted = Night->WardActiveThreat();
+			UE_LOG(LogTemp, Log, TEXT("GloamInput: Ward pressed (accepted=%s)."), bAccepted ? TEXT("yes") : TEXT("no"));
+			return;
+		}
+	}
+
+	UE_LOG(LogTemp, Verbose, TEXT("GloamInput: Ward pressed with no night runtime."));
 }
