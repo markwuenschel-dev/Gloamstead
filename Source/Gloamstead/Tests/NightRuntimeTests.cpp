@@ -220,16 +220,74 @@ bool FGloamNightRuntimeStrategyMappingTest::RunTest(const FString& /*Parameters*
 	UNightStrategy* Corruption = Runtime->Test_MakeStrategyFor(ENightConsequenceType::Corruption);
 	UNightStrategy* Omen = Runtime->Test_MakeStrategyFor(ENightConsequenceType::Omen);
 	UNightStrategy* Retrieval = Runtime->Test_MakeStrategyFor(ENightConsequenceType::Retrieval);
+	UNightStrategy* Possession = Runtime->Test_MakeStrategyFor(ENightConsequenceType::SilencePossession);
 	UNightStrategy* Mirror = Runtime->Test_MakeStrategyFor(ENightConsequenceType::Mirror);
 
 	TestTrue(TEXT("Tutorial -> UNightTutorialStrategy"), Tutorial && Tutorial->IsA(UNightTutorialStrategy::StaticClass()));
 	TestTrue(TEXT("Corruption -> UNightCorruptionStrategy"), Corruption && Corruption->IsA(UNightCorruptionStrategy::StaticClass()));
 	TestTrue(TEXT("Omen -> UNightOmenStrategy"), Omen && Omen->IsA(UNightOmenStrategy::StaticClass()));
 	TestTrue(TEXT("Retrieval -> UNightRetrievalStrategy"), Retrieval && Retrieval->IsA(UNightRetrievalStrategy::StaticClass()));
+	TestTrue(TEXT("SilencePossession -> UNightPossessionStrategy"), Possession && Possession->IsA(UNightPossessionStrategy::StaticClass()));
 	TestTrue(TEXT("still-unimplemented (Mirror) -> benign base UNightStrategy"), Mirror && Mirror->GetClass() == UNightStrategy::StaticClass());
 
 	TestTrue(TEXT("no outcome before any night runs"), Runtime->GetLastOutcome().Result == ENightOutcomeResult::None);
 	Runtime->EndNight(); // safe no-op when no night is active
+	return true;
+}
+
+// A possession night is a readable two-beat pressure: light first disrupts the hold, then purifies it.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamNightPossessionDisruptThenPurifyTest,
+	"Gloamstead.NightRuntime.PossessionDisruptThenPurify",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamNightPossessionDisruptThenPurifyTest::RunTest(const FString& /*Parameters*/)
+{
+	UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
+	PCG->Test_SeedPointStates(MakeRetrievalStates(0.1f, 0.6f));
+
+	UNightPossessionStrategy* Strategy = NewObject<UNightPossessionStrategy>();
+	Strategy->EnterNight(MakeContext(ENightConsequenceType::SilencePossession, PCG), PCG);
+	const FNightObjective Objective = Strategy->GetObjective();
+	TestTrue(TEXT("possession targets a restored point"), Objective.TargetPointIndex == 0);
+	TestTrue(TEXT("possession exposes a purify objective"), Objective.Kind == ENightObjectiveKind::PurifyPossessed);
+
+	Strategy->ApplyPressureStep(PCG);
+	TestTrue(TEXT("pressure makes the possession active"), Strategy->IsPossessionActive());
+	TestTrue(TEXT("first ward disrupts the possession"), Strategy->NotifyLightWard(PCG));
+	TestTrue(TEXT("disruption is visible before purification"), Strategy->IsPossessionDisrupted());
+	TestFalse(TEXT("one ward does not skip the second beat"), Strategy->IsObjectiveResolved());
+
+	TestTrue(TEXT("second ward purifies the possessed point"), Strategy->NotifyLightWard(PCG));
+	TestTrue(TEXT("purification resolves the objective"), Strategy->IsObjectiveResolved());
+	const FNightRuntimeOutcome Outcome = Strategy->ResolveNight(PCG);
+	TestTrue(TEXT("purified possession is Success"), Outcome.Result == ENightOutcomeResult::Success);
+	TestTrue(TEXT("success carries the possession tag"), Outcome.ResultTag == FName(TEXT("PossessionPurified")));
+	TestTrue(TEXT("purification lowers target corruption"), Outcome.TargetCorruptionDelta < 0.f);
+	return true;
+}
+
+// Ignoring a possession leaves the restored place scarred rather than spawning an arbitrary wave.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamNightPossessionUnopposedTest,
+	"Gloamstead.NightRuntime.PossessionUnopposedIsFailure",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamNightPossessionUnopposedTest::RunTest(const FString& /*Parameters*/)
+{
+	UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
+	PCG->Test_SeedPointStates(MakeRetrievalStates(0.1f, 0.6f));
+
+	UNightPossessionStrategy* Strategy = NewObject<UNightPossessionStrategy>();
+	Strategy->EnterNight(MakeContext(ENightConsequenceType::SilencePossession, PCG), PCG);
+	Strategy->ApplyPressureStep(PCG);
+	Strategy->ApplyPressureStep(PCG);
+
+	const FNightRuntimeOutcome Outcome = Strategy->ResolveNight(PCG);
+	TestFalse(TEXT("unopposed possession remains unresolved"), Strategy->IsObjectiveResolved());
+	TestTrue(TEXT("unopposed possession is Failure"), Outcome.Result == ENightOutcomeResult::Failure);
+	TestTrue(TEXT("failure carries the possession scar tag"), Outcome.ResultTag == FName(TEXT("PossessionScar")));
+	TestTrue(TEXT("unopposed pressure worsens the target"), Outcome.TargetCorruptionDelta > 0.f);
 	return true;
 }
 

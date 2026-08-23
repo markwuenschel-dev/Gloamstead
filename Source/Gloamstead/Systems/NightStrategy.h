@@ -38,6 +38,11 @@ public:
 	void NotifyRestoration(const FRestorationEventPayload& Payload, UGloamsteadPCGSubsystem* PCG);
 	virtual void NotifyRestoration_Implementation(const FRestorationEventPayload& Payload, UGloamsteadPCGSubsystem* PCG);
 
+	/** Called when the player deliberately wards the active threat with their light. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Night")
+	bool NotifyLightWard(UGloamsteadPCGSubsystem* PCG);
+	virtual bool NotifyLightWard_Implementation(UGloamsteadPCGSubsystem* PCG);
+
 	/** Called once at night end to compute the outcome from final state. */
 	UFUNCTION(BlueprintNativeEvent, Category = "Night")
 	FNightRuntimeOutcome ResolveNight(UGloamsteadPCGSubsystem* PCG);
@@ -217,4 +222,53 @@ private:
 	float RetrievalReclaimThreshold = 0.3f;
 
 	bool bTargetReclaimed = false;
+};
+
+/**
+ * Silence-possession night: a restored place becomes occupied instead of being attacked by a wave.
+ * The player reads the stillness, brings light to the place, and performs two deliberate wards:
+ * first to disrupt the hold, then to purify it. Ignoring it leaves a scar on the restored place.
+ */
+UCLASS(Blueprintable)
+class GLOAMSTEAD_API UNightPossessionStrategy : public UNightStrategy
+{
+	GENERATED_BODY()
+
+public:
+	virtual void EnterNight_Implementation(const FNightRuntimeContext& InContext, UGloamsteadPCGSubsystem* PCG) override;
+	virtual void ApplyPressureStep_Implementation(UGloamsteadPCGSubsystem* PCG) override;
+	virtual bool NotifyLightWard_Implementation(UGloamsteadPCGSubsystem* PCG) override;
+	virtual FNightRuntimeOutcome ResolveNight_Implementation(UGloamsteadPCGSubsystem* PCG) override;
+
+	/** Corruption added while the possessed place is still holding its silence. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night|Possession", meta = (ClampMin = "0", ClampMax = "1"))
+	float PossessionPressureDelta = 0.10f;
+
+	/** Corruption removed when the first ward breaks the hold. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night|Possession", meta = (ClampMin = "0", ClampMax = "1"))
+	float DisruptionCorruptionDelta = 0.08f;
+
+	/** Corruption removed by the second ward, which completes purification. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night|Possession", meta = (ClampMin = "0", ClampMax = "1"))
+	float PurificationCorruptionDelta = 0.18f;
+
+	/** Extra fail-forward scar when the player never brings light to the hold. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night|Possession", meta = (ClampMin = "0", ClampMax = "1"))
+	float PossessionScarDelta = 0.12f;
+
+	/** True after the night has begun pressing on a real restored target. */
+	UFUNCTION(BlueprintPure, Category = "Night|Possession")
+	bool IsPossessionActive() const { return bPossessionActive; }
+
+	/** True after the first light ward has disrupted the hold but before purification. */
+	UFUNCTION(BlueprintPure, Category = "Night|Possession")
+	bool IsPossessionDisrupted() const { return bPossessionDisrupted; }
+
+	/** True when the authored target was absent, so the night intentionally stayed quiet. */
+	UPROPERTY(BlueprintReadOnly, Category = "Night|Possession")
+	bool bNoTargetFallback = false;
+
+private:
+	bool bPossessionActive = false;
+	bool bPossessionDisrupted = false;
 };

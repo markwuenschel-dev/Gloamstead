@@ -2,8 +2,9 @@
 
 _Plan of record for turning the shipped C++ loop into a ~6-hour playable first experience._
 
-**Status: planned (2026-06-18).** This is a *map and a sequence*, like `ROADMAP.md` — each item carries a
-trigger and an acceptance check. It assumes the Phase 0–2 systems on `main` and does not re-spec them.
+**Status: active implementation (2026-08-23).** Cycles 1–4 now have authored runtime contracts; Cycles
+5–6, the full presentation pass, and human playtest approval remain planned. This is a *map and a
+sequence*, like `ROADMAP.md` — each item carries a trigger and an acceptance check.
 
 Two design decisions are **locked** for this phase (they change the build, not just the polish):
 

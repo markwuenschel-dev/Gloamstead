@@ -12,6 +12,7 @@ class UCameraComponent;
 class UInputAction;
 class URitualPlacementComponent;
 class UGloamInteractionComponent;
+class UNightConsequenceRuntime;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -98,6 +99,9 @@ protected:
 	/** Examine input: run the examine verb on the currently focused IGloamInteractable. */
 	void OnExamineInput();
 
+	/** Ward input: spend a deliberate light beat against a strategy-owned night threat. */
+	void OnWardInput();
+
 public:
 
 	// === Automated-playtest console hooks ===
@@ -119,6 +123,10 @@ public:
 
 	UFUNCTION(Exec)
 	void GloamExamine() { OnExamineInput(); }
+
+	/** Automated-playtest and accessibility hook for the light ward (also bound to Right Mouse). */
+	UFUNCTION(Exec)
+	void GloamWard() { OnWardInput(); }
 
 	/** Playtest positioning only: walking the plaza needs movement input the harness cannot simulate. */
 	UFUNCTION(Exec)
@@ -165,4 +173,3 @@ public:
 	/** Returns the Interaction subobject **/
 	FORCEINLINE UGloamInteractionComponent* GetInteraction() const { return Interaction; }
 };
-

@@ -25,6 +25,8 @@ enum class ENightObjectiveKind : uint8
 	HeedOmen                = 3,
 	/** Hold a restored point the night is trying to reclaim; re-stabilize it before dawn (Night Types II). */
 	HoldRestored            = 4,
+	/** Disrupt a possession's hold with light, then purify the restored place before dawn. */
+	PurifyPossessed         = 5,
 };
 
 /** How the night resolved, in ascending severity of failure. */

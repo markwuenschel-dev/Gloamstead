@@ -75,6 +75,26 @@ void PopulateDefaultExperienceCyclePlans(UExperienceCycleCatalog& Catalog)
 	Retrieval.OutcomeSummaryKey = TEXT("Cycle3_Retrieval");
 	Retrieval.Resolution = EExperiencePlanResolution::Authored;
 	Catalog.AuthoredPlans.Add(Retrieval);
+
+	FExperienceCyclePlan Possession;
+	Possession.Slot = 4;
+	Possession.PlanId = TEXT("Cycle4_Possession");
+	// The fourth night deliberately re-reads the garden's existing warning. The
+	// player already restored this place; the new evidence is its unnatural silence,
+	// so the consequence tests attention rather than introducing an unrelated POI.
+	Possession.WarningId = TEXT("GardenRot");
+	Possession.NightType = ENightConsequenceType::SilencePossession;
+	Possession.SemanticSubject = TEXT("Cycle2_Garden");
+	Possession.RequiredRestorationTags = { TEXT("GardenBed") };
+	Possession.RequiredRitualType = ERitualType::GardenBed;
+	Possession.RequiredSupportIds = Garden.RequiredSupportIds;
+	Possession.RequiredSupportChannelTypes = Garden.RequiredSupportChannelTypes;
+	Possession.MinimumDistinctSupportCount = 2;
+	Possession.InterpretationReceiptId = TEXT("GardenRot.Possessed");
+	Possession.VisualStateKey = TEXT("restoration_level");
+	Possession.OutcomeSummaryKey = TEXT("Cycle4_Possession");
+	Possession.Resolution = EExperiencePlanResolution::Authored;
+	Catalog.AuthoredPlans.Add(Possession);
 }
 
 void FExperienceCyclePersistentState::ResetForLegacyReconciliation()

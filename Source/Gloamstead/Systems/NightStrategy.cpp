@@ -42,6 +42,13 @@ void UNightStrategy::NotifyRestoration_Implementation(const FRestorationEventPay
 	// Benign night: restorations do not change the (already resolved) objective.
 }
 
+bool UNightStrategy::NotifyLightWard_Implementation(UGloamsteadPCGSubsystem* /*PCG*/)
+{
+	// Most nights are resolved by restoration or movement; a light ward only has meaning for a
+	// strategy that explicitly owns a present threat.
+	return false;
+}
+
 FNightRuntimeOutcome UNightStrategy::ResolveNight_Implementation(UGloamsteadPCGSubsystem* PCG)
 {
 	FNightRuntimeOutcome Out = MakeBaseOutcome(PCG);
@@ -546,6 +553,145 @@ FNightRuntimeOutcome UNightRetrievalStrategy::ResolveNight_Implementation(UGloam
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Retrieval]: outcome %s (target delta %.2f, sanctuary delta %.2f)."),
+		*GetNightOutcomeResultDisplayName(Out.Result), Out.TargetCorruptionDelta, Out.SanctuaryCorruptionDelta);
+	return Out;
+}
+
+// ===== UNightPossessionStrategy (Night Types III) =====
+
+void UNightPossessionStrategy::EnterNight_Implementation(const FNightRuntimeContext& InContext, UGloamsteadPCGSubsystem* PCG)
+{
+	Context = InContext;
+	StartAvgCorruption = SafeAvgCorruption(PCG);
+	bPossessionActive = false;
+	bPossessionDisrupted = false;
+	bNoTargetFallback = false;
+
+	int32 TargetIndex = -1;
+	if (PCG)
+	{
+		if (InContext.bRequiresExactSemanticTarget)
+		{
+			// An authored possession can only occupy the exact place the Heart taught the player to
+			// restore. If that place is gone, do not invent a different haunted target.
+			TargetIndex = (InContext.TargetPointIndex >= 0 && PCG->IsPointRestored(InContext.TargetPointIndex))
+				? InContext.TargetPointIndex
+				: -1;
+		}
+		else
+		{
+			TargetIndex = PCG->FindRestoredPointIndex(/*bMostLit*/ true);
+		}
+	}
+
+	Objective = FNightObjective();
+	Objective.TargetPointIndex = TargetIndex;
+
+	if (TargetIndex < 0 || !PCG)
+	{
+		bNoTargetFallback = true;
+		Objective.Kind = ENightObjectiveKind::None;
+		Objective.bResolved = true;
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Possession]: no restored authored target — quiet fallback."));
+		return;
+	}
+
+	Objective.Kind = ENightObjectiveKind::PurifyPossessed;
+	Objective.StartCorruption = PCG->GetCorruptionLevel(TargetIndex);
+	// Purification is deliberately a two-step read: the first ward can break the hold without
+	// completing the objective, while the second must drive the place below a legible floor.
+	Objective.ResolveAtOrBelow = FMath::Min(Objective.StartCorruption * 0.5f, 0.12f);
+	Objective.bResolved = false;
+
+	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Possession]: restored point %d is occupied (corruption %.2f, purify<=%.2f)."),
+		TargetIndex, Objective.StartCorruption, Objective.ResolveAtOrBelow);
+}
+
+void UNightPossessionStrategy::ApplyPressureStep_Implementation(UGloamsteadPCGSubsystem* PCG)
+{
+	if (!PCG || bNoTargetFallback || Objective.bResolved || Objective.TargetPointIndex < 0)
+	{
+		return;
+	}
+
+	bPossessionActive = true;
+	const float Delta = bPossessionDisrupted ? PossessionPressureDelta * 0.5f : PossessionPressureDelta;
+	const float NewLevel = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, Delta);
+	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Possession]: silent hold presses on point %d (corruption %.2f, disrupted=%s)."),
+		Objective.TargetPointIndex, NewLevel, bPossessionDisrupted ? TEXT("yes") : TEXT("no"));
+}
+
+bool UNightPossessionStrategy::NotifyLightWard_Implementation(UGloamsteadPCGSubsystem* PCG)
+{
+	if (!PCG || bNoTargetFallback || Objective.bResolved || Objective.TargetPointIndex < 0)
+	{
+		return false;
+	}
+
+	bPossessionActive = true;
+	if (!bPossessionDisrupted)
+	{
+		bPossessionDisrupted = true;
+		const float NewLevel = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, -DisruptionCorruptionDelta);
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Possession]: first light ward disrupted the hold at point %d (corruption %.2f)."),
+			Objective.TargetPointIndex, NewLevel);
+		return true;
+	}
+
+	const float NewLevel = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, -PurificationCorruptionDelta);
+	if (NewLevel <= Objective.ResolveAtOrBelow)
+	{
+		Objective.bResolved = true;
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Possession]: second light ward purified point %d (corruption %.2f)."),
+			Objective.TargetPointIndex, NewLevel);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Possession]: second ward weakened but did not purify point %d (corruption %.2f)."),
+			Objective.TargetPointIndex, NewLevel);
+	}
+	return true;
+}
+
+FNightRuntimeOutcome UNightPossessionStrategy::ResolveNight_Implementation(UGloamsteadPCGSubsystem* PCG)
+{
+	FNightRuntimeOutcome Out = MakeBaseOutcome(PCG);
+	Out.bObjectiveResolved = Objective.bResolved;
+
+	if (bNoTargetFallback || Objective.Kind == ENightObjectiveKind::None)
+	{
+		Out.Result = ENightOutcomeResult::Success;
+		Out.ResultTag = FName(TEXT("PossessionNoTarget"));
+		return Out;
+	}
+
+	float FinalCorruption = (PCG && Objective.TargetPointIndex >= 0)
+		? PCG->GetCorruptionLevel(Objective.TargetPointIndex)
+		: Objective.StartCorruption;
+
+	if (Objective.bResolved)
+	{
+		Out.Result = ENightOutcomeResult::Success;
+		Out.ResultTag = FName(TEXT("PossessionPurified"));
+	}
+	else if (bPossessionDisrupted)
+	{
+		Out.Result = ENightOutcomeResult::Partial;
+		Out.ResultTag = FName(TEXT("PossessionDisrupted"));
+	}
+	else
+	{
+		// Fail forward: the place remains restored, but the unopposed hold leaves a durable scar.
+		if (PCG && Objective.TargetPointIndex >= 0 && FinalCorruption <= Objective.StartCorruption + KINDA_SMALL_NUMBER)
+		{
+			FinalCorruption = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, PossessionScarDelta);
+		}
+		Out.Result = ENightOutcomeResult::Failure;
+		Out.ResultTag = FName(TEXT("PossessionScar"));
+	}
+
+	Out.TargetCorruptionDelta = FinalCorruption - Objective.StartCorruption;
+	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Possession]: outcome %s (target delta %.2f, sanctuary delta %.2f)."),
 		*GetNightOutcomeResultDisplayName(Out.Result), Out.TargetCorruptionDelta, Out.SanctuaryCorruptionDelta);
 	return Out;
 }
