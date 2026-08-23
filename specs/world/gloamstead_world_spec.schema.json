@@ -1,0 +1,480 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gloamstead.local/specs/world/gloamstead_world_spec.schema.json",
+  "title": "Gloamstead semantic WorldForge input",
+  "description": "Game-owned semantic intent. WorldForge may execute it but may not infer narrative, select gameplay targets, or write results back to Gloamstead.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "specVersion",
+    "worldId",
+    "map",
+    "output",
+    "anchors",
+    "poi",
+    "generationInput",
+    "subjects",
+    "evidence",
+    "reactiveCategories",
+    "worldState"
+  ],
+  "properties": {
+    "specVersion": {
+      "const": 1
+    },
+    "worldId": {
+      "const": "Cycle2_Garden"
+    },
+    "map": {
+      "$ref": "#/$defs/map"
+    },
+    "output": {
+      "$ref": "#/$defs/output"
+    },
+    "anchors": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/anchor"
+      }
+    },
+    "poi": {
+      "$ref": "#/$defs/poi"
+    },
+    "generationInput": {
+      "$ref": "#/$defs/generationInput"
+    },
+    "subjects": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/subject"
+      }
+    },
+    "evidence": {
+      "$ref": "#/$defs/evidence"
+    },
+    "reactiveCategories": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/reactiveCategory"
+      },
+      "allOf": [
+        {
+          "contains": {
+            "properties": {
+              "category": {
+                "const": "foliage"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "properties": {
+              "category": {
+                "const": "ruins"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "properties": {
+              "category": {
+                "const": "paths"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "properties": {
+              "category": {
+                "const": "lighting_materials"
+              }
+            }
+          }
+        }
+      ],
+      "$comment": "The deterministic Gloamstead validator rejects unknown, duplicate, or missing required categories."
+    },
+    "worldState": {
+      "$ref": "#/$defs/worldState"
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1
+    },
+    "map": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "asset",
+        "anchorId"
+      ],
+      "properties": {
+        "asset": {
+          "const": "/Game/Maps/Lvl_Gloamstead"
+        },
+        "anchorId": {
+          "const": "Cycle2_Garden.Anchor"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root"
+      ],
+      "properties": {
+        "root": {
+          "const": "/Game/Generated/WorldForge/Cycle2/"
+        }
+      }
+    },
+    "anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "anchorId",
+        "mapAsset",
+        "surveyId"
+      ],
+      "properties": {
+        "anchorId": {
+          "const": "Cycle2_Garden.Anchor"
+        },
+        "mapAsset": {
+          "const": "/Game/Maps/Lvl_Gloamstead"
+        },
+        "surveyId": {
+          "const": "cycle2-garden-anchor"
+        }
+      }
+    },
+    "poi": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "poiId",
+        "anchorId",
+        "anchorTransform",
+        "bounds"
+      ],
+      "properties": {
+        "poiId": {
+          "const": "Cycle2_Garden"
+        },
+        "anchorId": {
+          "const": "Cycle2_Garden.Anchor"
+        },
+        "anchorTransform": {
+          "$ref": "#/$defs/anchorTransform"
+        },
+        "bounds": {
+          "$ref": "#/$defs/poiBounds"
+        }
+      }
+    },
+    "anchorTransform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coordinateSpace",
+        "translation"
+      ],
+      "properties": {
+        "coordinateSpace": {
+          "const": "sanctuary_bootstrap_local"
+        },
+        "translation": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [
+            { "type": "number" },
+            { "type": "number" },
+            { "type": "number" }
+          ],
+          "items": false,
+          "const": [480.0, 160.0, 0.0]
+        }
+      }
+    },
+    "poiBounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shape",
+        "halfExtents"
+      ],
+      "properties": {
+        "shape": {
+          "const": "box"
+        },
+        "halfExtents": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [
+            { "type": "number", "exclusiveMinimum": 0 },
+            { "type": "number", "exclusiveMinimum": 0 },
+            { "type": "number", "exclusiveMinimum": 0 }
+          ],
+          "items": false,
+          "const": [240.0, 280.0, 160.0]
+        }
+      }
+    },
+    "generationInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "seed",
+        "inputVersion"
+      ],
+      "properties": {
+        "seed": {
+          "type": "integer",
+          "const": 42
+        },
+        "inputVersion": {
+          "const": "gloamstead-cycle2-corruption-neglect.v1"
+        }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subjectId",
+        "warningId",
+        "ritualType",
+        "restorationTag",
+        "surveyId"
+      ],
+      "properties": {
+        "subjectId": {
+          "const": "Cycle2_Garden"
+        },
+        "warningId": {
+          "const": "GardenRot"
+        },
+        "ritualType": {
+          "const": "GardenBed"
+        },
+        "restorationTag": {
+          "const": "GardenBed"
+        },
+        "surveyId": {
+          "const": "cycle2-garden-subject"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "supportBindings",
+        "dawnReport"
+      ],
+      "properties": {
+        "supportBindings": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/supportBinding"
+          },
+          "allOf": [
+            {
+              "contains": {
+                "properties": {
+                  "supportId": { "const": "GardenRot.WitheredVines" }
+                }
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "properties": {
+                  "supportId": { "const": "GardenRot.ColdSoil" }
+                }
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "properties": {
+                  "supportId": { "const": "GardenRot.BellMoths" }
+                }
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ]
+        },
+        "dawnReport": {
+          "$ref": "#/$defs/dawnReport"
+        }
+      }
+    },
+    "supportBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "supportId",
+        "surface",
+        "surfaceId"
+      ],
+      "properties": {
+        "supportId": {
+          "enum": [
+            "GardenRot.WitheredVines",
+            "GardenRot.ColdSoil",
+            "GardenRot.BellMoths"
+          ]
+        },
+        "surface": {
+          "enum": [
+            "environmental",
+            "object_reaction",
+            "audio"
+          ]
+        },
+        "surfaceId": {
+          "$ref": "#/$defs/identifier"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "supportId": { "const": "GardenRot.WitheredVines" },
+            "surface": { "const": "environmental" }
+          }
+        },
+        {
+          "properties": {
+            "supportId": { "const": "GardenRot.ColdSoil" },
+            "surface": { "const": "object_reaction" }
+          }
+        },
+        {
+          "properties": {
+            "supportId": { "const": "GardenRot.BellMoths" },
+            "surface": { "const": "audio" }
+          }
+        }
+      ]
+    },
+    "dawnReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "surface",
+        "surfaceId",
+        "supportIds"
+      ],
+      "properties": {
+        "surface": {
+          "const": "dawn_report"
+        },
+        "surfaceId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "supportIds": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "GardenRot.WitheredVines",
+              "GardenRot.ColdSoil",
+              "GardenRot.BellMoths"
+            ]
+          }
+        }
+      }
+    },
+    "reactiveCategory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "category",
+        "stateKey"
+      ],
+      "properties": {
+        "category": {
+          "enum": [
+            "foliage",
+            "ruins",
+            "paths",
+            "lighting_materials"
+          ]
+        },
+        "stateKey": {
+          "const": "restoration_level"
+        }
+      }
+    },
+    "worldState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "contextId",
+        "key",
+        "scenarios"
+      ],
+      "properties": {
+        "scope": {
+          "const": "Region"
+        },
+        "contextId": {
+          "const": "Cycle2_Garden"
+        },
+        "key": {
+          "const": "restoration_level"
+        },
+        "scenarios": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "allOf": [
+            {
+              "contains": {
+                "const": 0.0
+              }
+            },
+            {
+              "contains": {
+                "const": 1.0
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

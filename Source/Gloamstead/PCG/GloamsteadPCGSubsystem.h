@@ -8,8 +8,20 @@
 #include "GloamsteadPCGSubsystem.generated.h"
 
 class UGloamsteadSaveGame;
+class AVeilHeart;
+class URitualPlacementComponent;
+class AGloamsteadSanctuaryBootstrap;
+struct FExperienceCyclePlan;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStructureRestored, const FRestorationEventPayload&, Payload);
+
+/**
+ * Native-only completion notice for a restoration that came through the
+ * Gloamstead placement authority.  It deliberately has no UFUNCTION or
+ * BlueprintAssignable surface: generic PCG callers may restore ordinary
+ * points, but cannot assert that the player performed an authored ritual.
+ */
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnPlacementAuthorizedRestoration, const FRestorationEventPayload&);
 
 USTRUCT()
 struct FRitualPointState
@@ -44,10 +56,6 @@ public:
     virtual void Initialize(FSubsystemCollectionBase& Collection) override;
     virtual void Deinitialize() override;
 
-    // === Initialization ===
-    UFUNCTION(BlueprintCallable, Category="PCG|Ritual")
-    void InitializeFromPCGComponent(UPCGComponent* PCGComponent, int32 WorldSeed);
-
     // === Core Queries (use fast parallel state where possible) ===
     UFUNCTION(BlueprintCallable, Category="PCG|Ritual")
     bool GetPointByIndex(int32 PointIndex, FPCGPoint& OutPoint) const;
@@ -74,6 +82,24 @@ public:
     FName GetNameAttribute(const FPCGPoint& Point, FName AttributeName, FName DefaultValue = NAME_None) const;
     FVector GetVectorAttribute(const FPCGPoint& Point, FName AttributeName, FVector DefaultValue = FVector::UpVector) const;
 
+    /**
+     * Checks the immutable authored metadata carried by one PCG point. This is
+     * the runtime authority for Cycle II target/receipt evaluation; callers
+     * must not trust matching literals supplied in a restoration payload.
+     */
+    bool PointMatchesExperiencePlan(int32 PointIndex, const FExperienceCyclePlan& Plan, bool bRequireRestored = false) const;
+
+    /**
+     * Finds the nearest unrestored point carrying the complete immutable
+     * warning/subject/ritual/tag contract for Plan. This is a query only: it
+     * never grants restoration or interpretation authority to its caller.
+     */
+    int32 FindNearestUnrestoredPointMatchingExperiencePlan(
+        const FVector& Location, const FExperienceCyclePlan& Plan, float SearchRadius = 1600.f) const;
+
+    /** Fills only contract metadata from the PCG point, never caller-provided literals. */
+    bool PopulateAuthoritativeRestorationMetadata(int32 PointIndex, FRestorationEventPayload& InOutPayload) const;
+
     UFUNCTION(BlueprintPure, Category="PCG|Ritual")
     float GetCorruptionLevel(int32 PointIndex) const;
 
@@ -96,6 +122,17 @@ public:
 
     UFUNCTION(BlueprintPure, Category="PCG|Sanctuary")
     FNightSanctuarySnapshot BuildSanctuarySnapshot() const;
+
+    /**
+     * Subscribe to a completed authoritative PCG reconstruction or a completed
+     * authoritative restoration-flag transition. This is an observation-only
+     * native seam: listeners receive no payload and cannot broadcast, replace,
+     * or otherwise author PCG state through it.
+     */
+    FDelegateHandle AddAuthoritativeStateRebuiltListener(const FSimpleDelegate& Listener);
+
+    /** Remove only the listener represented by ListenerHandle. */
+    void RemoveAuthoritativeStateRebuiltListener(FDelegateHandle ListenerHandle);
 
     // === State Mutation (optimized hot path) ===
     /** Mend a ritual point and broadcast OnStructureRestored. Returns false — mutating and broadcasting
@@ -127,7 +164,8 @@ public:
 
     /** Night-only: reclaim a restored point (Retrieval failure). Clears the restored flag, drops its light
      *  (the night takes back what it gave), and removes it from the restored set. Corruption is left to the
-     *  caller (pressure already scarred it). Returns true if a restored point was actually reclaimed. */
+     *  caller (pressure already scarred it). After a real reclaim it publishes the private authoritative
+     *  notice so derived projections rebuild; a rejected no-op publishes nothing. */
     UFUNCTION(BlueprintCallable, Category="PCG|Night")
     bool RevertRestoration(int32 PointIndex);
 
@@ -143,9 +181,9 @@ public:
     UFUNCTION(BlueprintCallable, Category="PCG|Persistence")
     void CaptureToSaveGame(UGloamsteadSaveGame* SaveGame) const;
 
-    /** Replace current per-point state with the save object's contents (full round-trip, unlike ReapplyRestoredState). */
+    /** Migrate then replace current per-point state with the save object's contents. Returns false for an unsupported save version. */
     UFUNCTION(BlueprintCallable, Category="PCG|Persistence")
-    void RestoreFromSaveGame(const UGloamsteadSaveGame* SaveGame);
+    bool RestoreFromSaveGame(UGloamsteadSaveGame* SaveGame);
 
     /** Convenience: capture into a fresh save object and write it to a named slot. */
     UFUNCTION(BlueprintCallable, Category="PCG|Persistence")
@@ -172,13 +210,30 @@ public:
     UPROPERTY(BlueprintAssignable, Category="PCG|Ritual")
     FOnStructureRestored OnStructureRestored;
 
-    // === Test seam (unconditional inline; unused in shipping → linker emits nothing) ===
+#if WITH_DEV_AUTOMATION_TESTS
+    // === Automation-only synthetic-world seams ===
+    // These declarations intentionally disappear from non-automation builds.
+    // In particular, Test_SetPointContractMetadata is the sole semantic
+    // metadata WRITER and must never become a shipping/Blueprint authoring API.
     /** Test-only seam: install a known synthetic point-state set, bypassing PCG init. */
     void Test_SeedPointStates(const TArray<FRitualPointState>& InStates) { PointStates = InStates; }
     /** Test-only seam: install synthetic LanternPost points with metadata and rebuild the spatial grid. */
     void Test_SeedPoints(const TArray<FVector>& Locations);
+    /** Test-only metadata injection for an existing synthetic point. */
+    bool Test_SetPointContractMetadata(
+        int32 PointIndex,
+        FName WarningId,
+        FName SemanticSubject,
+        ERitualType RitualType,
+        FName RestorationTag);
     /** Test-only seam: read current point state for assertions. */
     const TArray<FRitualPointState>& Test_PeekPointStates() const { return PointStates; }
+    /** Test-only null/re-init coverage; not reflected and absent from shipping. */
+    void Test_InitializeFromPCGComponent(UPCGComponent* PCGComponent, int32 WorldSeed)
+    {
+        InitializeFromPCGComponent(PCGComponent, WorldSeed);
+    }
+#endif
 
 public:
     /**
@@ -189,6 +244,29 @@ public:
     static const FName FirstLanternAnchorTag;
 
 private:
+    // PCG metadata is the root of Gloamstead semantic target authority. Only
+    // the placed bootstrap may duplicate generated output into this subsystem;
+    // a Blueprint or arbitrary runtime component cannot supply a forged graph.
+    friend class AGloamsteadSanctuaryBootstrap;
+    void InitializeFromPCGComponent(UPCGComponent* PCGComponent, int32 WorldSeed);
+
+    friend class URitualPlacementComponent;
+    friend class AVeilHeart;
+
+    /**
+     * The only issuer of the native interpretation-completion event.  It is
+     * private and callable solely by URitualPlacementComponent after its
+     * restore confirmation succeeds.  Applying a generic PCG mutation must
+     * never call this method.
+     */
+    void EmitPlacementAuthorizedRestoration(const FRestorationEventPayload& Payload)
+    {
+        PlacementAuthorizedRestoration.Broadcast(Payload);
+    }
+
+    /** Only AVeilHeart may subscribe to this private native event. */
+    FOnPlacementAuthorizedRestoration PlacementAuthorizedRestoration;
+
     ERitualType GetRitualTypeFromPoint(const FPCGPoint& Point) const;
 
     /**
@@ -220,6 +298,12 @@ private:
      *  is how an index with no point behind it gets into the set, and a second copy of this loop is
      *  how the two views drift apart again. */
     void RebuildRestoredIndicesFromPointStates();
+
+    /** Notifies observers only after this subsystem has completed an authoritative reconstruction or restoration-flag transition. */
+    void NotifyAuthoritativeStateRebuilt();
+
+    /** Private so only this subsystem can broadcast its reconstruction notice. */
+    FSimpleMulticastDelegate AuthoritativeStateRebuilt;
 
     UPROPERTY()
     UPCGPointData* MutablePointData = nullptr;

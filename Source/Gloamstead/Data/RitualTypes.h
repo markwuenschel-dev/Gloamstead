@@ -61,6 +61,14 @@ struct FRestorationEventPayload
     UPROPERTY(BlueprintReadOnly, Category="Restoration")
     FName WarningTagSatisfied;
 
+    /** Exact warning identity carried by the point's authored metadata. */
+    UPROPERTY(BlueprintReadOnly, Category="Restoration")
+    FName WarningId = NAME_None;
+
+    /** Stable semantic place identity carried by the point's authored metadata. */
+    UPROPERTY(BlueprintReadOnly, Category="Restoration")
+    FName SemanticSubject = NAME_None;
+
     /** Unique ID for this restoration instance (useful for tracking) */
     UPROPERTY(BlueprintReadOnly, Category="Restoration")
     int32 RestorationInstanceID = 0;

@@ -1,4 +1,5 @@
 #include "Components/RitualPlacementComponent.h"
+#include "Actors/GloamsteadRestoredGardenBed.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Systems/GloamsteadDayNightSubsystem.h"
 #include "Systems/GloamsteadSurveySubjectRegistry.h"
@@ -15,6 +16,7 @@
 // namespace does NOT keep helper names apart once files land in the same unity translation unit (the
 // same C2264 note as GloamsteadSurveySubjectTypes.cpp:170-174).
 static constexpr int32 GRitualEvidenceEmitAttemptLimit = 2;
+static constexpr float GRitualTargetSearchRadius = 1600.0f;
 
 // Declared in the header, where the code's meaning and its unregistered status are documented.
 const FString URitualPlacementComponent::GSSRestoredActorMissing = TEXT("GSS016");
@@ -75,10 +77,34 @@ void URitualPlacementComponent::EnterPlacementMode()
         return;
     }
 
+    UWorld* World = GetWorld();
+    UGloamsteadDayNightSubsystem* DayNight = World ? World->GetSubsystem<UGloamsteadDayNightSubsystem>() : nullptr;
+    if (!DayNight)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("RitualPlacementComponent: Cannot enter placement mode - DayNight plan authority is missing."));
+        return;
+    }
+
+    // This can arm an existing exact plan even if its warning presenter is not
+    // ready yet. It deliberately does not use the return value as a ritual
+    // fallback: the only admissible placement mode is the plan that remains
+    // armed afterwards.
+    DayNight->PrepareUpcomingCycle();
+    const FExperienceCyclePlan* Plan = DayNight->GetUpcomingPlan();
+    const ERitualType AuthoredRitualType = Plan ? ResolveAuthoredPlacementRitualType(*Plan) : ERitualType::Invalid;
+    if (AuthoredRitualType == ERitualType::Invalid)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("RitualPlacementComponent: Cannot enter placement mode - no playable authored ritual is armed."));
+        return;
+    }
+
     bIsInPlacementMode = true;
-    CurrentMode = ERitualType::LanternPost;
+    CurrentMode = AuthoredRitualType;
+    ArmedPlanId = Plan->PlanId;
     CurrentTargetPointIndex = -1;
+    bLastPreviewTargetValid = false;
     bHasShownPathPointMessageThisSession = false;
+    SetPlacementStatus(FText::GetEmpty());
 
     LastQueryLocation = GetOwner()->GetActorLocation();
     TimeSinceLastQuery = QueryUpdateInterval;
@@ -92,6 +118,9 @@ void URitualPlacementComponent::ExitPlacementMode()
 
     bIsInPlacementMode = false;
     CurrentTargetPointIndex = -1;
+    ArmedPlanId = NAME_None;
+    bLastPreviewTargetValid = false;
+    SetPlacementStatus(FText::GetEmpty());
 
     // Cancel must leave nothing behind, or re-entry stacks a second ghost on the first.
     DestroyPreviewActor();
@@ -192,9 +221,24 @@ void URitualPlacementComponent::RefreshPreviewActor()
 bool URitualPlacementComponent::ConfirmPlacement()
 {
     if (!bIsInPlacementMode || !CachedSubsystem) return false;
-    if (!IsCurrentPlacementValid()) return false;
 
-    // The evidence request id is minted HERE — before the target is resolved, before anything is
+    // Do not trust the target that happened to be previewed on the last tick.
+    // The active plan can change while placement is open, and a same-ritual
+    // decoy can be nearer than the canonical point. Re-resolve from the
+    // authoritative plan before this confirmation mints any side effect.
+    UpdateTargetPoint();
+
+    const int32 FinalPointIndex = CurrentTargetPointIndex;
+    FText TargetFailure;
+    if (!IsTargetStillAuthorizedForMutation(FinalPointIndex, TargetFailure))
+    {
+        SetPlacementStatus(TargetFailure);
+        UE_LOG(LogTemp, Warning, TEXT("RitualPlacement: confirmation refused before spawn/mutation: %s"),
+            *TargetFailure.ToString());
+        return false;
+    }
+
+    // The evidence request id is minted HERE — after the target has been resolved exactly, before anything is
     // spawned, and long before the survey subject is resolved inside BuildRequest. One id per
     // confirmation, carried unchanged through resolution, publication and the GetLastEvidence* getters.
     //
@@ -203,15 +247,24 @@ bool URitualPlacementComponent::ConfirmPlacement()
     // artifact for ONE restoration instead of re-publishing the same one.
     const FString EvidenceRequestId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphens);
 
-    const int32 FinalPointIndex = ResolveTargetForPlacement(CurrentTargetPointIndex);
-    if (FinalPointIndex == -1 || CachedSubsystem->IsPointRestored(FinalPointIndex)) return false;
-
     // We keep spawning the actor before restoring, and undo it on failure, rather than spawning after.
     // The payload carries RestoredActor and ApplyRestoration broadcasts that payload from inside itself,
     // so restoring first would hand every OnStructureRestored listener a null actor. The price of
     // keeping that contract is an orphan on failure, so every failure path below destroys the actor.
     AActor* SpawnedActor = nullptr;
     SpawnRestoredActor(FinalPointIndex, SpawnedActor);
+
+    // SpawnRestoredActor is a BlueprintNativeEvent. A Blueprint override can
+    // run arbitrary gameplay, so validate a second time after that callback
+    // and before BuildRestorationPayload/ApplyRestoration can consume a point.
+    if (!IsTargetStillAuthorizedForMutation(FinalPointIndex, TargetFailure))
+    {
+        if (SpawnedActor) SpawnedActor->Destroy();
+        SetPlacementStatus(TargetFailure);
+        UE_LOG(LogTemp, Warning, TEXT("RitualPlacement: target changed during spawn; point %d was not restored: %s"),
+            FinalPointIndex, *TargetFailure.ToString());
+        return false;
+    }
 
     // === RULE: a confirmation that spawns NO actor still restores the point, and is reported as a
     // === degraded success. It is never refused, and never reported as clean.
@@ -242,6 +295,19 @@ bool URitualPlacementComponent::ConfirmPlacement()
         if (SpawnedActor) SpawnedActor->Destroy();
         UE_LOG(LogTemp, Warning, TEXT("RitualPlacement: Could not build a payload for point %d (request %s); placement aborted."),
             FinalPointIndex, *EvidenceRequestId);
+        return false;
+    }
+
+    // This is the final guard immediately before the one mutation in the
+    // confirmation route. It makes plan/metadata changes fail closed rather
+    // than allowing the Heart to discover a mismatch after the place was
+    // already visibly consumed.
+    if (!IsTargetStillAuthorizedForMutation(FinalPointIndex, TargetFailure))
+    {
+        if (SpawnedActor) SpawnedActor->Destroy();
+        SetPlacementStatus(TargetFailure);
+        UE_LOG(LogTemp, Warning, TEXT("RitualPlacement: target changed before restoration; point %d was not restored: %s"),
+            FinalPointIndex, *TargetFailure.ToString());
         return false;
     }
 
@@ -286,6 +352,16 @@ bool URitualPlacementComponent::CommitRestorationWithEvidence(
         return false;
     }
 
+    // Generic ApplyRestoration remains the authority for ordinary point state,
+    // but it cannot say *how* that state changed. Only this private confirmation
+    // tail may emit the native event the Heart treats as an interpretation-capable
+    // ritual completion. This happens immediately after the successful
+    // confirmation mutation, independent of later survey publication: reporting
+    // failures are loud but must never roll back authoritative gameplay. Direct
+    // Blueprint PCG calls only reach OnStructureRestored and can never mint a
+    // Cycle II receipt.
+    Subsystem->EmitPlacementAuthorizedRestoration(Payload);
+
     // Publish the evidence for the payload that was ACCEPTED — not a freshly rebuilt one. ApplyRestoration
     // has already proved Payload.PointIndex == PointIndex (GloamsteadPCGSubsystem.cpp:282-287), so the
     // point index the artifact is correlated with is the point the restoration actually mutated.
@@ -315,17 +391,35 @@ void URitualPlacementComponent::SpawnRestoredActor_Implementation(int32 PointInd
 
     const ERitualType RitualType = static_cast<ERitualType>(
         Subsystem->GetIntAttribute(Point, TEXT("RitualType"), static_cast<int32>(ERitualType::LanternPost)));
-    if (RitualType != ERitualType::LanternPost)
+    UClass* ClassToSpawn = nullptr;
+    FName RestorationActorTag = NAME_None;
+    switch (RitualType)
     {
+    case ERitualType::LanternPost:
+        ClassToSpawn = LanternPostRestoredClass.Get();
+        if (!ClassToSpawn && bUseProjectDefaultLanternPostClass)
+        {
+            ClassToSpawn = StaticLoadClass(AActor::StaticClass(), nullptr,
+                TEXT("/Game/Gloamstead/Restoration/FirstLantern/BP_Restored_LanternPost.BP_Restored_LanternPost_C"));
+        }
+        RestorationActorTag = TEXT("Gloamstead.RestoredLantern");
+        break;
+
+    case ERitualType::GardenBed:
+        ClassToSpawn = GardenBedRestoredClass.Get();
+        if (!ClassToSpawn && bUseProjectDefaultGardenBedClass)
+        {
+            ClassToSpawn = AGloamsteadRestoredGardenBed::StaticClass();
+        }
+        RestorationActorTag = TEXT("Gloamstead.RestoredGarden");
+        break;
+
+    default:
+        UE_LOG(LogTemp, Warning, TEXT("RitualPlacementComponent: ritual type %d has no restored-actor contract."),
+            static_cast<int32>(RitualType));
         return;
     }
 
-    UClass* ClassToSpawn = LanternPostRestoredClass.Get();
-    if (!ClassToSpawn && bUseProjectDefaultLanternPostClass)
-    {
-        ClassToSpawn = StaticLoadClass(AActor::StaticClass(), nullptr,
-            TEXT("/Game/Gloamstead/Restoration/FirstLantern/BP_Restored_LanternPost.BP_Restored_LanternPost_C"));
-    }
     if (!ClassToSpawn)
     {
         return;
@@ -341,7 +435,7 @@ void URitualPlacementComponent::SpawnRestoredActor_Implementation(int32 PointInd
     OutSpawnedActor = World->SpawnActor<AActor>(ClassToSpawn, SpawnLocation, SpawnRotation, Params);
     if (OutSpawnedActor)
     {
-        OutSpawnedActor->Tags.AddUnique(TEXT("Gloamstead.RestoredLantern"));
+        OutSpawnedActor->Tags.AddUnique(RestorationActorTag);
         OutSpawnedActor->Tags.AddUnique(*FString::Printf(TEXT("Gloamstead.RitualPoint.%d"), PointIndex));
     }
 }
@@ -491,13 +585,58 @@ void URitualPlacementComponent::UpdateTargetPoint()
 {
     if (!CachedSubsystem) return;
 
-    const FVector PlayerLocation = GetOwner()->GetActorLocation();
-    const float SearchRadius = 1600.0f;
+    FText PlanFailure;
+    const FExperienceCyclePlan* Plan = GetActivePlacementPlan(&PlanFailure);
+    int32 ResolvedIndex = INDEX_NONE;
 
-    int32 RawIndex = CachedSubsystem->FindNearestUnrestoredPointIndex(PlayerLocation, CurrentMode, SearchRadius);
-    const int32 ResolvedIndex = ResolveTargetForPlacement(RawIndex);
+    if (!Plan)
+    {
+        SetPlacementStatus(PlanFailure);
+    }
+    else if (HasCompleteTargetContract(*Plan))
+    {
+        const FVector PlayerLocation = GetOwner()->GetActorLocation();
+        ResolvedIndex = CachedSubsystem->FindNearestUnrestoredPointMatchingExperiencePlan(
+            PlayerLocation, *Plan, GRitualTargetSearchRadius);
 
-    if (ResolvedIndex != CurrentTargetPointIndex)
+        if (ResolvedIndex == INDEX_NONE)
+        {
+            // A matching ritual form is deliberately not enough. Calling out a
+            // nearby decoy turns a refusal into a readable interpretation
+            // lesson instead of a silent failure or a post-mutation surprise.
+            const int32 NearbySameRitual = CachedSubsystem->FindNearestUnrestoredPointIndex(
+                PlayerLocation, CurrentMode, GRitualTargetSearchRadius);
+            if (NearbySameRitual != INDEX_NONE)
+            {
+                SetPlacementStatus(CurrentMode == ERitualType::GardenBed
+                    ? NSLOCTEXT("Gloamstead", "PromptGardenBedDoesNotAnswerWarning", "This garden bed does not answer the Heart's warning        [E]  Cancel")
+                    : NSLOCTEXT("Gloamstead", "PromptRitualDoesNotAnswerWarning", "This ritual site does not answer the Heart's warning        [E]  Cancel"));
+            }
+            else
+            {
+                SetPlacementStatus(CurrentMode == ERitualType::GardenBed
+                    ? NSLOCTEXT("Gloamstead", "PromptNoMatchingGardenBed", "No garden bed that answers the Heart's warning is within reach        [E]  Cancel")
+                    : NSLOCTEXT("Gloamstead", "PromptNoMatchingRitualSite", "No ritual site that answers the Heart's warning is within reach        [E]  Cancel"));
+            }
+        }
+        else
+        {
+            SetPlacementStatus(FText::GetEmpty());
+        }
+    }
+    else
+    {
+        // The only incomplete target contract permitted to remain playable is
+        // Cycle I's explicitly locked tutorial mapping. It keeps its existing
+        // Lantern path; no later authored plan may inherit a generic fallback.
+        const int32 RawIndex = CachedSubsystem->FindNearestUnrestoredPointIndex(
+            GetOwner()->GetActorLocation(), CurrentMode, GRitualTargetSearchRadius);
+        ResolvedIndex = ResolveLegacyTutorialTargetForPlacement(RawIndex);
+        SetPlacementStatus(FText::GetEmpty());
+    }
+
+    const bool bValid = IsCurrentPlacementValid();
+    if (ResolvedIndex != CurrentTargetPointIndex || bValid != bLastPreviewTargetValid)
     {
         CurrentTargetPointIndex = ResolvedIndex;
 
@@ -509,8 +648,9 @@ void URitualPlacementComponent::UpdateTargetPoint()
             ResolvedType = static_cast<ERitualType>(CachedSubsystem->GetIntAttribute(Point, "RitualType", 0));
         }
 
-        const bool bValid = IsCurrentPlacementValid();
-        OnPreviewTargetChanged(CurrentTargetPointIndex, ResolvedType, bValid);
+        const bool bResolvedTargetValid = IsCurrentPlacementValid();
+        bLastPreviewTargetValid = bResolvedTargetValid;
+        OnPreviewTargetChanged(CurrentTargetPointIndex, ResolvedType, bResolvedTargetValid);
     }
 
     // Outside the index-changed branch on purpose: walking in and out of RestorationRadius flips
@@ -518,7 +658,97 @@ void URitualPlacementComponent::UpdateTargetPoint()
     RefreshPreviewActor();
 }
 
-int32 URitualPlacementComponent::ResolveTargetForPlacement(int32 RawPointIndex)
+void URitualPlacementComponent::SetPlacementStatus(const FText& NewStatusText)
+{
+    if (PlacementStatusText.ToString() == NewStatusText.ToString())
+    {
+        return;
+    }
+
+    PlacementStatusText = NewStatusText;
+    OnPlacementStatusChanged(PlacementStatusText);
+}
+
+bool URitualPlacementComponent::HasCompleteTargetContract(const FExperienceCyclePlan& Plan) const
+{
+    return Plan.IsAuthoredPlan()
+        && Plan.WarningId != NAME_None
+        && Plan.SemanticSubject != NAME_None
+        && Plan.RequiredRitualType != ERitualType::Invalid
+        && Plan.RequiredRestorationTags.Num() == 1
+        && Plan.RequiredRestorationTags[0] != NAME_None;
+}
+
+bool URitualPlacementComponent::IsExplicitTutorialPlan(const FExperienceCyclePlan& Plan) const
+{
+    return Plan.Slot == 1
+        && Plan.PlanId == TEXT("Cycle1_Tutorial")
+        && Plan.WarningId == TEXT("TutorialLostPath")
+        && Plan.RequiredRitualType == ERitualType::Invalid
+        && Plan.RequiredRestorationTags.Num() == 1
+        && Plan.RequiredRestorationTags[0] == TEXT("LanternPost");
+}
+
+const FExperienceCyclePlan* URitualPlacementComponent::GetActivePlacementPlan(FText* OutFailureText) const
+{
+    if (OutFailureText)
+    {
+        *OutFailureText = FText::GetEmpty();
+    }
+
+    const UWorld* World = GetWorld();
+    const UGloamsteadDayNightSubsystem* DayNight = World ? World->GetSubsystem<UGloamsteadDayNightSubsystem>() : nullptr;
+    if (!DayNight)
+    {
+        if (OutFailureText)
+        {
+            *OutFailureText = NSLOCTEXT("Gloamstead", "PromptNoPlacementPlanAuthority", "The Heart's warning cannot be read here        [E]  Cancel");
+        }
+        return nullptr;
+    }
+
+    const FExperienceCyclePlan* Plan = DayNight->GetUpcomingPlan();
+    if (!Plan || !Plan->IsAuthoredPlan())
+    {
+        if (OutFailureText)
+        {
+            *OutFailureText = NSLOCTEXT("Gloamstead", "PromptPlacementPlanWithdrawn", "The Heart's warning has faded        [E]  Cancel");
+        }
+        return nullptr;
+    }
+
+    if (ArmedPlanId == NAME_None || Plan->PlanId != ArmedPlanId)
+    {
+        if (OutFailureText)
+        {
+            *OutFailureText = NSLOCTEXT("Gloamstead", "PromptPlacementPlanChanged", "The Heart's warning has shifted        [E]  Cancel");
+        }
+        return nullptr;
+    }
+
+    const ERitualType CurrentPlanRitual = ResolveAuthoredPlacementRitualType(*Plan);
+    if (CurrentPlanRitual == ERitualType::Invalid || CurrentPlanRitual != CurrentMode)
+    {
+        if (OutFailureText)
+        {
+            *OutFailureText = NSLOCTEXT("Gloamstead", "PromptPlacementPlanNoLongerPlayable", "The Heart's warning can no longer be answered this way        [E]  Cancel");
+        }
+        return nullptr;
+    }
+
+    if (!HasCompleteTargetContract(*Plan) && !IsExplicitTutorialPlan(*Plan))
+    {
+        if (OutFailureText)
+        {
+            *OutFailureText = NSLOCTEXT("Gloamstead", "PromptPlacementPlanIncomplete", "The Heart's warning has no safe restoration target        [E]  Cancel");
+        }
+        return nullptr;
+    }
+
+    return Plan;
+}
+
+int32 URitualPlacementComponent::ResolveLegacyTutorialTargetForPlacement(int32 RawPointIndex)
 {
     if (RawPointIndex == -1 || !CachedSubsystem) return -1;
 
@@ -544,7 +774,7 @@ int32 URitualPlacementComponent::ResolveTargetForPlacement(int32 RawPointIndex)
 
 bool URitualPlacementComponent::IsPointValidForPlacement(int32 PointIndex) const
 {
-    if (!CachedSubsystem || PointIndex == -1) return false;
+    if (!CachedSubsystem || !GetOwner() || PointIndex == INDEX_NONE) return false;
     if (CachedSubsystem->IsPointRestored(PointIndex)) return false;
 
     FPCGPoint Point;
@@ -555,9 +785,72 @@ bool URitualPlacementComponent::IsPointValidForPlacement(int32 PointIndex) const
     return Distance <= Radius * 1.25f;
 }
 
+bool URitualPlacementComponent::IsPointAuthorizedForCurrentPlacement(
+    int32 PointIndex, const FExperienceCyclePlan& Plan) const
+{
+    if (!IsPointValidForPlacement(PointIndex))
+    {
+        return false;
+    }
+
+    FPCGPoint Point;
+    if (!CachedSubsystem->GetPointByIndex(PointIndex, Point)
+        || static_cast<ERitualType>(CachedSubsystem->GetIntAttribute(Point, TEXT("RitualType"), static_cast<int32>(ERitualType::Invalid))) != CurrentMode)
+    {
+        return false;
+    }
+
+    if (HasCompleteTargetContract(Plan))
+    {
+        return Plan.RequiredRitualType == CurrentMode
+            && CachedSubsystem->PointMatchesExperiencePlan(PointIndex, Plan);
+    }
+
+    return IsExplicitTutorialPlan(Plan);
+}
+
+bool URitualPlacementComponent::IsTargetStillAuthorizedForMutation(int32 PointIndex, FText& OutFailureText) const
+{
+    OutFailureText = FText::GetEmpty();
+    const FExperienceCyclePlan* Plan = GetActivePlacementPlan(&OutFailureText);
+    if (!Plan)
+    {
+        return false;
+    }
+
+    if (!IsPointAuthorizedForCurrentPlacement(PointIndex, *Plan))
+    {
+        OutFailureText = CurrentMode == ERitualType::GardenBed
+            ? NSLOCTEXT("Gloamstead", "PromptGardenBedNoLongerAnswersWarning", "This garden bed does not answer the Heart's warning        [E]  Cancel")
+            : NSLOCTEXT("Gloamstead", "PromptRitualNoLongerAnswersWarning", "This ritual site does not answer the Heart's warning        [E]  Cancel");
+        return false;
+    }
+
+    if (HasCompleteTargetContract(*Plan))
+    {
+        const int32 ExactNearestIndex = CachedSubsystem->FindNearestUnrestoredPointMatchingExperiencePlan(
+            GetOwner()->GetActorLocation(), *Plan, GRitualTargetSearchRadius);
+        if (ExactNearestIndex != PointIndex)
+        {
+            OutFailureText = CurrentMode == ERitualType::GardenBed
+                ? NSLOCTEXT("Gloamstead", "PromptGardenBedTargetChanged", "The garden that answers the Heart's warning is no longer within reach        [E]  Cancel")
+                : NSLOCTEXT("Gloamstead", "PromptRitualTargetChanged", "The ritual site that answers the Heart's warning is no longer within reach        [E]  Cancel");
+            return false;
+        }
+    }
+
+    return true;
+}
+
 bool URitualPlacementComponent::IsCurrentPlacementValid() const
 {
-    return IsPointValidForPlacement(CurrentTargetPointIndex);
+    if (!bIsInPlacementMode)
+    {
+        return false;
+    }
+
+    const FExperienceCyclePlan* Plan = GetActivePlacementPlan();
+    return Plan && IsPointAuthorizedForCurrentPlacement(CurrentTargetPointIndex, *Plan);
 }
 
 bool URitualPlacementComponent::BuildRestorationPayload(int32 PointIndex, AActor* SpawnedRestoredActor, FRestorationEventPayload& OutPayload) const
@@ -577,7 +870,15 @@ bool URitualPlacementComponent::BuildRestorationPayload(int32 PointIndex, AActor
     OutPayload.PathSegmentID = CachedSubsystem->GetIntAttribute(Point, "PathSegmentID", -1);
     OutPayload.PathPosition = CachedSubsystem->GetFloatAttribute(Point, "PathPosition", 0.0f);
     OutPayload.RestoredActor = SpawnedRestoredActor;
-    OutPayload.WarningTagSatisfied = CachedSubsystem->GetNameAttribute(Point, "RecommendedForWarning", NAME_None);
+    // `RecommendedForWarning` has always been authored point metadata. It names
+    // the warning identity, not the ritual tag; treating GardenRot as a tag let
+    // a point accidentally satisfy a different warning with the same night type.
+    OutPayload.WarningId = CachedSubsystem->GetNameAttribute(Point, "RecommendedForWarning", NAME_None);
+    OutPayload.SemanticSubject = CachedSubsystem->GetNameAttribute(Point, "SemanticSubject", NAME_None);
+    // An authored Cycle II point names the restoration tag itself. The Heart
+    // will independently read this metadata from PCG before minting a receipt;
+    // this copy is presentation/legacy compatibility only, not authority.
+    OutPayload.WarningTagSatisfied = CachedSubsystem->GetNameAttribute(Point, "RestorationTag", NAME_None);
 
     OutPayload.LightDelta = GetDefaultLightContribution(OutPayload.RitualType);
     OutPayload.CorruptionCleared = GetDefaultCorruptionClearance(OutPayload.RitualType);
@@ -591,6 +892,15 @@ bool URitualPlacementComponent::BuildRestorationPayload(int32 PointIndex, AActor
         {
             OutPayload.WarningTagSatisfied = Definition->SatisfiableWarningTags[0];
         }
+    }
+
+    // Legacy points that predate ritual definitions retain their former generic
+    // feedback only when they carry no exact warning identity. An authored
+    // GardenRot point without its canonical GardenBed tag stays ineligible for
+    // interpretation instead of reusing its warning id as a tag.
+    if (OutPayload.WarningTagSatisfied == NAME_None && OutPayload.WarningId == NAME_None)
+    {
+        OutPayload.WarningTagSatisfied = CachedSubsystem->GetNameAttribute(Point, "RecommendedForWarning", NAME_None);
     }
 
     OutPayload.TimeOfDayAtRestoration = 0.5f;
@@ -723,6 +1033,34 @@ const URitualDefinition* URitualPlacementComponent::GetRitualDefinitionForType(E
         return Found->Get();
     }
     return nullptr;
+}
+
+ERitualType URitualPlacementComponent::ResolveAuthoredPlacementRitualType(const FExperienceCyclePlan& Plan) const
+{
+    if (!Plan.IsAuthoredPlan())
+    {
+        return ERitualType::Invalid;
+    }
+
+    if (Plan.RequiredRitualType != ERitualType::Invalid)
+    {
+        return Plan.RequiredRitualType;
+    }
+
+    // Cycle I's locked authored contract predates RequiredRitualType and
+    // represents its one lantern through the exact LanternPost restoration
+    // tag. This is a narrow interpretation of that canonical plan, not a
+    // generic default: any other authored plan without a ritual type refuses
+    // placement instead of quietly becoming a lantern.
+    if (Plan.Slot == 1
+        && Plan.PlanId == TEXT("Cycle1_Tutorial")
+        && Plan.RequiredRestorationTags.Num() == 1
+        && Plan.RequiredRestorationTags[0] == TEXT("LanternPost"))
+    {
+        return ERitualType::LanternPost;
+    }
+
+    return ERitualType::Invalid;
 }
 
 class UGloamsteadPCGSubsystem* URitualPlacementComponent::GetSubsystem() const

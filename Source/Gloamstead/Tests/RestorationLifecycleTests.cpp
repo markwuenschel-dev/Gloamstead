@@ -294,8 +294,8 @@ bool FGloamRestoreFailedReinitPreservesStateTest::RunTest(const FString& /*Param
     const int32 RestoredBefore = Sub->GetRestoredPointCount();
     const float LightBefore = Sub->GetLightLevel(2);
 
-    Sub->InitializeFromPCGComponent(nullptr, /*WorldSeed*/ 1234);
-    Sub->InitializeFromPCGComponent(nullptr, /*WorldSeed*/ 5678); // repeating it changes nothing either
+    Sub->Test_InitializeFromPCGComponent(nullptr, /*WorldSeed*/ 1234);
+    Sub->Test_InitializeFromPCGComponent(nullptr, /*WorldSeed*/ 5678); // repeating it changes nothing either
 
     TestEqual(TEXT("point count survives a failed re-init"), Sub->Test_PeekPointStates().Num(), PointsBefore);
     TestEqual(TEXT("restored count survives a failed re-init"), Sub->GetRestoredPointCount(), RestoredBefore);

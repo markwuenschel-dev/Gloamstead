@@ -3,18 +3,11 @@
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Systems/NightConsequenceRuntime.h"
 #include "Systems/VeilHeart.h"
-#include "Components/DirectionalLightComponent.h"
-#include "Components/ExponentialHeightFogComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SceneComponent.h"
-#include "Components/SkyLightComponent.h"
 #include "Components/StaticMeshComponent.h"
-#include "Engine/DirectionalLight.h"
-#include "Engine/ExponentialHeightFog.h"
-#include "Engine/SkyLight.h"
 #include "Engine/World.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
 
 AGloamsteadFirstNightDirector::AGloamsteadFirstNightDirector()
@@ -27,24 +20,26 @@ void AGloamsteadFirstNightDirector::BeginPlay()
 	Super::BeginPlay();
 
 	ResolveWorldSystems();
-	CapturePresentationActors();
-	BindDelegates();
 
 	if (!CachedDayNight)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("FirstNightDirector '%s': no UGloamsteadDayNightSubsystem; cannot drive the first-night loop."), *GetName());
+		DetachTutorial();
 		return;
 	}
 
 	// First night only: drive the loop when the world opens on Day before any night has passed.
 	if (CachedDayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day && CachedDayNight->GetNightCount() == 0)
 	{
+		CaptureLanternMarker();
+		BindDelegates();
 		BeginIntro();
 	}
 	else
 	{
 		UE_LOG(LogTemp, Log, TEXT("FirstNightDirector '%s': not first-night Day (phase=%d night=%d); staying dormant."),
 			*GetName(), static_cast<int32>(CachedDayNight->GetCurrentPhase()), CachedDayNight->GetNightCount());
+		DetachTutorial();
 	}
 }
 
@@ -52,34 +47,7 @@ void AGloamsteadFirstNightDirector::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	if (bDuskTransitionActive || bDawnTransitionActive)
-	{
-		TransitionElapsed += DeltaSeconds;
-		const float Alpha = TransitionDuration > 0.0f
-			? FMath::Clamp(TransitionElapsed / TransitionDuration, 0.0f, 1.0f)
-			: 1.0f;
-		const float SmoothedAlpha = FMath::SmoothStep(0.0f, 1.0f, Alpha);
-
-		ApplyPresentationValues(
-			FMath::Lerp(TransitionStartSunIntensity, TransitionTargetSunIntensity, SmoothedAlpha),
-			FMath::Lerp(TransitionStartSkyIntensity, TransitionTargetSkyIntensity, SmoothedAlpha),
-			FMath::Lerp(TransitionStartSunColor, TransitionTargetSunColor, SmoothedAlpha),
-			FMath::Lerp(TransitionStartSkyColor, TransitionTargetSkyColor, SmoothedAlpha),
-			FMath::Lerp(TransitionStartFogDensity, TransitionTargetFogDensity, SmoothedAlpha));
-
-		if (Alpha >= 1.0f)
-		{
-			const bool bFinishedDawn = bDawnTransitionActive;
-			bDuskTransitionActive = false;
-			bDawnTransitionActive = false;
-			if (bFinishedDawn)
-			{
-				CompleteDawn();
-			}
-		}
-	}
-
-	if (bMarkerVisible)
+	if (!bTutorialDetached && bMarkerVisible)
 	{
 		MarkerPulseElapsed += DeltaSeconds;
 		const float Pulse = 0.82f + 0.18f * FMath::Sin(MarkerPulseElapsed * 3.25f);
@@ -103,18 +71,12 @@ void AGloamsteadFirstNightDirector::Tick(float DeltaSeconds)
 
 void AGloamsteadFirstNightDirector::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().ClearTimer(DuskToNightTimer);
-		World->GetTimerManager().ClearTimer(NightDurationTimer);
-	}
-	RestoreCapturedPresentation();
-	UnbindDelegates();
+	DetachTutorial();
 
 	Super::EndPlay(EndPlayReason);
 }
 
-void AGloamsteadFirstNightDirector::CapturePresentationActors()
+void AGloamsteadFirstNightDirector::CaptureLanternMarker()
 {
 	UWorld* World = GetWorld();
 	if (!World)
@@ -123,46 +85,6 @@ void AGloamsteadFirstNightDirector::CapturePresentationActors()
 	}
 
 	TArray<AActor*> Actors;
-	UGameplayStatics::GetAllActorsWithTag(World, TEXT("Gloamstead.FirstNight.Sun"), Actors);
-	if (Actors.Num() > 0)
-	{
-		if (const ADirectionalLight* Sun = Cast<ADirectionalLight>(Actors[0]))
-		{
-			CachedSun = Cast<UDirectionalLightComponent>(Sun->GetLightComponent());
-		}
-	}
-
-	Actors.Reset();
-	UGameplayStatics::GetAllActorsWithTag(World, TEXT("Gloamstead.FirstNight.SkyLight"), Actors);
-	if (Actors.Num() > 0)
-	{
-		if (const ASkyLight* Sky = Cast<ASkyLight>(Actors[0]))
-		{
-			CachedSkyLight = Sky->GetLightComponent();
-		}
-	}
-
-	Actors.Reset();
-	UGameplayStatics::GetAllActorsWithTag(World, TEXT("Gloamstead.FirstNight.Fog"), Actors);
-	if (Actors.Num() > 0)
-	{
-		if (const AExponentialHeightFog* Fog = Cast<AExponentialHeightFog>(Actors[0]))
-		{
-			CachedFog = Fog->GetComponent();
-		}
-	}
-
-	bPresentationCaptured = CachedSun && CachedSkyLight && CachedFog;
-	if (bPresentationCaptured)
-	{
-		CapturedSunIntensity = CachedSun->Intensity;
-		CapturedSkyIntensity = CachedSkyLight->Intensity;
-		CapturedFogDensity = CachedFog->FogDensity;
-		CapturedSunColor = CachedSun->LightColor;
-		CapturedSkyColor = CachedSkyLight->LightColor;
-	}
-
-	Actors.Reset();
 	UGameplayStatics::GetAllActorsWithTag(World, TEXT("Gloamstead.FirstLantern.Anchor"), Actors);
 	for (AActor* Anchor : Actors)
 	{
@@ -194,15 +116,6 @@ void AGloamsteadFirstNightDirector::CapturePresentationActors()
 	SetLanternMarkerVisible(false);
 }
 
-void AGloamsteadFirstNightDirector::RestoreCapturedPresentation()
-{
-	if (bPresentationCaptured)
-	{
-		ApplyPresentationValues(CapturedSunIntensity, CapturedSkyIntensity, CapturedSunColor,
-			CapturedSkyColor, CapturedFogDensity);
-	}
-}
-
 void AGloamsteadFirstNightDirector::SetLanternMarkerVisible(bool bVisible)
 {
 	bMarkerVisible = bVisible;
@@ -216,73 +129,6 @@ void AGloamsteadFirstNightDirector::SetLanternMarkerVisible(bool bVisible)
 	}
 }
 
-void AGloamsteadFirstNightDirector::ApplyPresentationValues(float SunIntensity, float SkyIntensity,
-	const FLinearColor& SunColor, const FLinearColor& SkyColor, float FogDensity)
-{
-	if (!bPresentationCaptured)
-	{
-		return;
-	}
-	CachedSun->SetIntensity(SunIntensity);
-	CachedSun->SetLightColor(SunColor, false);
-	CachedSkyLight->SetIntensity(SkyIntensity);
-	CachedSkyLight->SetLightColor(SkyColor);
-	CachedFog->SetFogDensity(FogDensity);
-}
-
-void AGloamsteadFirstNightDirector::BeginDuskPresentation()
-{
-	if (!bPresentationCaptured)
-	{
-		return;
-	}
-	bDawnTransitionActive = false;
-	bDuskTransitionActive = true;
-	TransitionElapsed = 0.0f;
-	TransitionDuration = DuskToNightDelaySeconds;
-	TransitionStartSunIntensity = CachedSun->Intensity;
-	TransitionStartSkyIntensity = CachedSkyLight->Intensity;
-	TransitionStartFogDensity = CachedFog->FogDensity;
-	TransitionStartSunColor = CachedSun->LightColor;
-	TransitionStartSkyColor = CachedSkyLight->LightColor;
-	TransitionTargetSunIntensity = CapturedSunIntensity * 0.35f;
-	TransitionTargetSkyIntensity = CapturedSkyIntensity * 0.55f;
-	TransitionTargetFogDensity = CapturedFogDensity;
-	TransitionTargetSunColor = DuskSunTint;
-	TransitionTargetSkyColor = CapturedSkyColor;
-}
-
-void AGloamsteadFirstNightDirector::ApplyNightPresentation()
-{
-	bDuskTransitionActive = false;
-	bDawnTransitionActive = false;
-	ApplyPresentationValues(CapturedSunIntensity * 0.08f, CapturedSkyIntensity * 0.25f,
-		NightAmbientTint, NightAmbientTint, CapturedFogDensity + 0.015f);
-}
-
-bool AGloamsteadFirstNightDirector::BeginDawnPresentation()
-{
-	if (!bPresentationCaptured || DawnTransitionSeconds <= 0.0f)
-	{
-		RestoreCapturedPresentation();
-		return false;
-	}
-	bDuskTransitionActive = false;
-	bDawnTransitionActive = true;
-	TransitionElapsed = 0.0f;
-	TransitionDuration = DawnTransitionSeconds;
-	TransitionStartSunIntensity = CachedSun->Intensity;
-	TransitionStartSkyIntensity = CachedSkyLight->Intensity;
-	TransitionStartFogDensity = CachedFog->FogDensity;
-	TransitionStartSunColor = CachedSun->LightColor;
-	TransitionStartSkyColor = CachedSkyLight->LightColor;
-	TransitionTargetSunIntensity = CapturedSunIntensity;
-	TransitionTargetSkyIntensity = CapturedSkyIntensity;
-	TransitionTargetFogDensity = CapturedFogDensity;
-	TransitionTargetSunColor = CapturedSunColor;
-	TransitionTargetSkyColor = CapturedSkyColor;
-	return true;
-}
 
 void AGloamsteadFirstNightDirector::ResolveWorldSystems()
 {
@@ -306,7 +152,7 @@ void AGloamsteadFirstNightDirector::ResolveWorldSystems()
 
 void AGloamsteadFirstNightDirector::BindDelegates()
 {
-	if (bDelegatesBound)
+	if (bTutorialDetached || bDelegatesBound)
 	{
 		return;
 	}
@@ -322,13 +168,16 @@ void AGloamsteadFirstNightDirector::BindDelegates()
 	if (CachedRuntime)
 	{
 		CachedRuntime->OnNightStarted.AddDynamic(this, &AGloamsteadFirstNightDirector::HandleNightStarted);
-		CachedRuntime->OnNightShouldEnd.AddDynamic(this, &AGloamsteadFirstNightDirector::HandleNightShouldEnd);
 	}
 	if (AVeilHeart* Heart = CachedHeart.Get())
 	{
 		// The Heart speaks; the director captions. Without these the dusk warning and the dawn
 		// reflection existed only as log lines.
 		Heart->OnWarningEmittedDelegate.AddDynamic(this, &AGloamsteadFirstNightDirector::HandleHeartWarning);
+		if (!Heart->RegisterWarningPresenter(this, GET_FUNCTION_NAME_CHECKED(AGloamsteadFirstNightDirector, HandleHeartWarning)))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("FirstNightDirector '%s': Heart warning presenter registration failed; rest remains safely gated."), *GetName());
+		}
 		Heart->OnDawnReflectionDelegate.AddDynamic(this, &AGloamsteadFirstNightDirector::HandleHeartDawnReflection);
 	}
 
@@ -353,11 +202,11 @@ void AGloamsteadFirstNightDirector::UnbindDelegates()
 	if (CachedRuntime)
 	{
 		CachedRuntime->OnNightStarted.RemoveDynamic(this, &AGloamsteadFirstNightDirector::HandleNightStarted);
-		CachedRuntime->OnNightShouldEnd.RemoveDynamic(this, &AGloamsteadFirstNightDirector::HandleNightShouldEnd);
 	}
 	if (AVeilHeart* Heart = CachedHeart.Get())
 	{
 		Heart->OnWarningEmittedDelegate.RemoveDynamic(this, &AGloamsteadFirstNightDirector::HandleHeartWarning);
+		Heart->UnregisterWarningPresenter(this);
 		Heart->OnDawnReflectionDelegate.RemoveDynamic(this, &AGloamsteadFirstNightDirector::HandleHeartDawnReflection);
 	}
 
@@ -366,6 +215,10 @@ void AGloamsteadFirstNightDirector::UnbindDelegates()
 
 void AGloamsteadFirstNightDirector::Test_BindTo(UGloamsteadPCGSubsystem* InPCG, UGloamsteadDayNightSubsystem* InDayNight, UNightConsequenceRuntime* InRuntime)
 {
+	if (bTutorialDetached)
+	{
+		return;
+	}
 	CachedPCG = InPCG;
 	CachedDayNight = InDayNight;
 	CachedRuntime = InRuntime;
@@ -374,7 +227,7 @@ void AGloamsteadFirstNightDirector::Test_BindTo(UGloamsteadPCGSubsystem* InPCG, 
 
 void AGloamsteadFirstNightDirector::BeginIntro()
 {
-	if (bIntroPresented)
+	if (bTutorialDetached || bIntroPresented)
 	{
 		return;
 	}
@@ -387,19 +240,47 @@ void AGloamsteadFirstNightDirector::BeginIntro()
 	PresentLanternTarget();
 }
 
+void AGloamsteadFirstNightDirector::DetachTutorial()
+{
+	if (bTutorialDetached)
+	{
+		return;
+	}
+
+	// DayNight owns every Dusk/Night cadence timer. The tutorial actor owns no
+	// remaining timer after this handoff, so detaching makes any later Cycle II
+	// callback inert instead of trying to clean up a second phase authority.
+	bTutorialDetached = true;
+	SetLanternMarkerVisible(false);
+	UnbindDelegates();
+	CurrentBeat = EFirstNightBeat::Complete;
+	SetActorTickEnabled(false);
+}
+
+void AGloamsteadFirstNightDirector::DetachForProgressionResume()
+{
+	// A validated later-cycle Day save is conclusive evidence that this live
+	// Cycle I lesson is stale. Detach before DayNight retries the new warning so
+	// the Heart never treats tutorial UI as the later-cycle player-facing surface.
+	DetachTutorial();
+}
+
 void AGloamsteadFirstNightDirector::PresentWarning()
 {
-	// Deliberately does NOT call EmitWarningForNight here. The phase authority emits the warning at
-	// dusk with the night the catalog actually selected (GloamsteadDayNightSubsystem::HandleEnterDusk);
-	// emitting again on the Day intro produced the warning twice, the first time for a hardcoded night
-	// type that may not be the one that runs. The Day intro keeps its own caption beat instead, and the
-	// Heart's real words arrive at dusk through HandleHeartWarning.
+	// Deliberately does NOT emit a warning here. DayNight exposes the exact authored
+	// fragment during Day only after the lantern gate and registered presenter are
+	// ready. The intro keeps its own local caption beat without creating a duplicate
+	// or hard-coded warning identity.
 	++Test_WarningCount;
 	OnFirstNightWarning();
 }
 
 void AGloamsteadFirstNightDirector::HandleHeartWarning(const FVeilHeartWarningFragment& WarningFragment)
 {
+	if (bTutorialDetached || WarningFragment.AssociatedNightType != FirstNightType)
+	{
+		return;
+	}
 	UE_LOG(LogTemp, Log, TEXT("FirstNightDirector: captioning Heart warning [%s]."), *WarningFragment.WarningId.ToString());
 	OnHeartWarning(WarningFragment.Fragment);
 }
@@ -442,8 +323,13 @@ FText AGloamsteadFirstNightDirector::BuildDawnReflectionText(const FNightRuntime
 
 void AGloamsteadFirstNightDirector::HandleHeartDawnReflection(const FNightRuntimeOutcome& Outcome)
 {
+	if (bTutorialDetached || CurrentBeat != EFirstNightBeat::Night || Outcome.NightType != FirstNightType)
+	{
+		return;
+	}
 	const FText Reflection = BuildDawnReflectionText(Outcome);
 	UE_LOG(LogTemp, Log, TEXT("FirstNightDirector: dawn reflection — %s"), *Reflection.ToString());
+	++Test_HeartReflectionCount;
 	OnHeartReflection(Reflection);
 }
 
@@ -474,10 +360,14 @@ void AGloamsteadFirstNightDirector::PresentDawnPayoff()
 
 void AGloamsteadFirstNightDirector::CompleteDawn()
 {
-	RestoreCapturedPresentation();
+	if (bTutorialDetached)
+	{
+		return;
+	}
 	PresentDawnPayoff();
 	CurrentBeat = EFirstNightBeat::Complete;
 	UE_LOG(LogTemp, Log, TEXT("FirstNightDirector: first-night loop complete."));
+	DetachTutorial();
 }
 
 float AGloamsteadFirstNightDirector::ComputeLanternInfluence() const
@@ -489,7 +379,7 @@ float AGloamsteadFirstNightDirector::ComputeLanternInfluence() const
 void AGloamsteadFirstNightDirector::HandleStructureRestored(const FRestorationEventPayload& Payload)
 {
 	// Only the first qualifying restoration during the Day intro unlocks the night.
-	if (bLanternRestored || CurrentBeat != EFirstNightBeat::Intro)
+	if (bTutorialDetached || bLanternRestored || CurrentBeat != EFirstNightBeat::Intro)
 	{
 		return;
 	}
@@ -518,32 +408,33 @@ void AGloamsteadFirstNightDirector::HandleStructureRestored(const FRestorationEv
 
 void AGloamsteadFirstNightDirector::HandlePhaseChanged(EGloamsteadDayPhase OldPhase, EGloamsteadDayPhase NewPhase)
 {
+	if (bTutorialDetached)
+	{
+		return;
+	}
+
 	switch (NewPhase)
 	{
 	case EGloamsteadDayPhase::Dusk:
-		CurrentBeat = EFirstNightBeat::Dusk;
-		BeginDuskPresentation();
-		PresentDuskCue();
-		if (UWorld* World = GetWorld())
+		if (OldPhase != EGloamsteadDayPhase::Day || CurrentBeat != EFirstNightBeat::LanternRestored)
 		{
-			if (DuskToNightDelaySeconds > 0.0f)
-			{
-				World->GetTimerManager().SetTimer(DuskToNightTimer, this, &AGloamsteadFirstNightDirector::RequestAdvanceToNight, DuskToNightDelaySeconds, false);
-			}
-			else
-			{
-				RequestAdvanceToNight();
-			}
+			return;
 		}
+		CurrentBeat = EFirstNightBeat::Dusk;
+		PresentDuskCue();
 		break;
 
 	case EGloamsteadDayPhase::Dawn:
-		CurrentBeat = EFirstNightBeat::Dawn;
-		UE_LOG(LogTemp, Log, TEXT("FirstNightDirector: dawn transition started."));
-		if (!BeginDawnPresentation())
+		// DayNight may reach a valid first dawn even if a degraded runtime did not
+		// emit OnNightStarted. The completed lantern lesson, not the presentation
+		// callback ordering, is what makes this actor permanently relinquish Cycle II.
+		if (OldPhase != EGloamsteadDayPhase::Night || !bLanternRestored)
 		{
-			CompleteDawn();
+			return;
 		}
+		CurrentBeat = EFirstNightBeat::Dawn;
+		UE_LOG(LogTemp, Log, TEXT("FirstNightDirector: Cycle I dawn payoff complete; relinquishing tutorial control."));
+		CompleteDawn();
 		break;
 
 	default:
@@ -555,43 +446,29 @@ void AGloamsteadFirstNightDirector::HandlePhaseChanged(EGloamsteadDayPhase OldPh
 
 void AGloamsteadFirstNightDirector::HandleNightStarted(ENightConsequenceType NightType)
 {
+	if (bTutorialDetached || CurrentBeat != EFirstNightBeat::Dusk || NightType != FirstNightType)
+	{
+		return;
+	}
 	ObservedNightType = NightType;
 	CurrentBeat = EFirstNightBeat::Night;
-	ApplyNightPresentation();
 
 	UE_LOG(LogTemp, Log, TEXT("FirstNightDirector: night started — type %s; beginning encroachment."),
 		*GetNightConsequenceTypeDisplayName(NightType));
 
 	PresentEncroachment();
-
-	if (UWorld* World = GetWorld())
-	{
-		if (NightDurationSeconds > 0.0f)
-		{
-			World->GetTimerManager().SetTimer(NightDurationTimer, this, &AGloamsteadFirstNightDirector::RequestAdvanceToDawn, NightDurationSeconds, false);
-		}
-		else
-		{
-			RequestAdvanceToDawn();
-		}
-	}
 }
 
 void AGloamsteadFirstNightDirector::HandleNightShouldEnd()
 {
-	// Intentional early end: the player resolved the night objective before the deadline.
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().ClearTimer(NightDurationTimer);
-	}
-	UE_LOG(LogTemp, Log, TEXT("FirstNightDirector: night objective resolved — advancing to dawn early."));
-	RequestAdvanceToDawn();
+	++Test_LegacyEarlyDawnCallbackCount;
+	UE_LOG(LogTemp, Verbose, TEXT("FirstNightDirector: ignoring legacy early-objective callback; DayNight owns the dawn transition."));
 }
 
 void AGloamsteadFirstNightDirector::RequestAdvanceToDusk()
 {
 	// The dusk gate: night cannot begin until the lantern is restored.
-	if (!bLanternRestored)
+	if (bTutorialDetached || !bLanternRestored)
 	{
 		UE_LOG(LogTemp, Verbose, TEXT("FirstNightDirector: dusk request ignored — lantern not yet restored."));
 		return;
@@ -604,16 +481,15 @@ void AGloamsteadFirstNightDirector::RequestAdvanceToDusk()
 
 void AGloamsteadFirstNightDirector::RequestAdvanceToNight()
 {
-	if (CachedDayNight && CachedDayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk)
-	{
-		CachedDayNight->AdvanceToNextPhase();
-	}
+	// Kept for Blueprint ABI compatibility only. DayNight's Dusk cadence is the
+	// sole Dusk->Night authority; allowing the tutorial actor through here would
+	// bypass the readable preparation interval on both Cycle I and later saves.
+	UE_LOG(LogTemp, Verbose, TEXT("FirstNightDirector: ignoring legacy Dusk->Night request; DayNight owns cadence."));
 }
 
 void AGloamsteadFirstNightDirector::RequestAdvanceToDawn()
 {
-	if (CachedDayNight && CachedDayNight->GetCurrentPhase() == EGloamsteadDayPhase::Night)
-	{
-		CachedDayNight->AdvanceToNextPhase();
-	}
+	// Kept for Blueprint ABI compatibility only. DayNight owns the deadline and
+	// runtime early-objective path, including its exactly-once Dawn guard.
+	UE_LOG(LogTemp, Verbose, TEXT("FirstNightDirector: ignoring legacy Night->Dawn request; DayNight owns cadence."));
 }

@@ -21,6 +21,7 @@ public class GloamsteadEditor : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"UnrealEd",
+			"DataValidation",
 			"AssetTools",
 			"AssetRegistry",
 			"Json",

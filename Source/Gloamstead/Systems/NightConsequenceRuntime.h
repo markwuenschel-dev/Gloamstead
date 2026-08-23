@@ -10,6 +10,7 @@
 class UNightStrategy;
 class UGloamsteadPCGSubsystem;
 class ANightPressureActor;
+struct FExperienceCyclePlan;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNightConsequenceStarted, ENightConsequenceType, NightType);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNightConsequenceEnded, ENightConsequenceType, NightType);
@@ -40,6 +41,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Night")
 	void EndNight();
 
+	/**
+	 * Drops a live night before a save payload restores its own PCG baseline.
+	 *
+	 * This is deliberately not EndNight(): a restore must neither resolve the old
+	 * strategy nor publish/record an outcome from the world being replaced.
+	 */
+	void AbortNightForRestore();
+
 	UFUNCTION(BlueprintPure, Category = "Night")
 	ENightConsequenceType GetPlannedNightType() const { return PlannedNightType; }
 
@@ -48,6 +57,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Night")
 	bool IsNightActive() const { return bNightActive; }
+
+	/** True after an objective has asked the phase authority for an early Dawn this run. */
+	bool HasRequestedEarlyDawn() const { return bEarlyDawnRequested; }
 
 	UFUNCTION(BlueprintPure, Category = "Night")
 	FNightRuntimeOutcome GetLastOutcome() const { return LastOutcome; }
@@ -88,6 +100,22 @@ public:
 	UNightStrategy* Test_GetActiveStrategy() const { return ActiveStrategy; }
 	/** Instantiate the strategy the runtime would use for a night type (proves the type->class mapping). */
 	UNightStrategy* Test_MakeStrategyFor(ENightConsequenceType Type);
+	/** True when the live pressure cadence still owns a timer in this world. */
+	bool Test_IsPressureCadenceScheduled() const;
+	/** True when a cosmetic pressure actor from the active night still exists. */
+	bool Test_HasActivePressureActor() const { return !!ActivePressureActor; }
+	/** Forces the next real BeginNight initial pressure beat to request early Dawn synchronously. */
+	void Test_ForceEarlyDawnDuringInitialPressureBeat() { bTestForceEarlyDawnDuringInitialPressureBeat = true; }
+
+	/**
+	 * Resolves one stable authored semantic subject through existing PCG metadata.
+	 * Returns INDEX_NONE for missing or ambiguous mappings; it never score-selects
+	 * a substitute point.
+	 */
+	int32 ResolveSemanticSubjectToPoint(FName SemanticSubject, const UGloamsteadPCGSubsystem* PCG) const;
+
+	/** Resolves a Cycle II target only when one PCG point matches the full authored contract. */
+	int32 ResolvePlanTargetToPoint(const FExperienceCyclePlan& Plan, const UGloamsteadPCGSubsystem* PCG) const;
 
 protected:
 	UFUNCTION()
@@ -98,6 +126,7 @@ protected:
 
 private:
 	FNightRuntimeContext BuildContext(UGloamsteadPCGSubsystem* PCG) const;
+	const FExperienceCyclePlan* ResolveActiveAuthoredPlan() const;
 	TSubclassOf<UNightStrategy> ResolveStrategyClass(ENightConsequenceType Type) const;
 	void HandlePressureStep();
 	void BroadcastOmenClueIfNeeded();
@@ -124,6 +153,13 @@ private:
 
 	UPROPERTY()
 	bool bNightActive = false;
+
+	/** Suppresses pressure cadence after an objective already asked the phase authority for Dawn. */
+	bool bEarlyDawnRequested = false;
+	/** True only around BeginNight's synchronous first pressure beat. */
+	bool bInitialPressureBeatInProgress = false;
+	/** Narrow live-regression hook; consumed only during the initial beat above. */
+	bool bTestForceEarlyDawnDuringInitialPressureBeat = false;
 
 	UPROPERTY()
 	TObjectPtr<ANightPressureActor> ActivePressureActor = nullptr;

@@ -1,6 +1,7 @@
 #include "Commandlets/GloamsteadImportDataAssetsCommandlet.h"
 
 #include "Data/NightConsequenceTypes.h"
+#include "Data/ExperienceCycleTypes.h"
 #include "Data/RitualDefinition.h"
 #include "Data/VeilHeartWarningTypes.h"
 
@@ -14,6 +15,10 @@
 #include "Serialization/JsonSerializer.h"
 #include "UObject/SavePackage.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+
+#if WITH_DEV_AUTOMATION_TESTS
+#include "Misc/AutomationTest.h"
+#endif
 
 namespace GloamsteadDataImport
 {
@@ -86,6 +91,54 @@ namespace GloamsteadDataImport
 			OutTypes.Add(static_cast<ERitualType>(EnumValue));
 		}
 		return true;
+	}
+
+	static bool ParseSupportChannels(const TArray<TSharedPtr<FJsonValue>>& Values, TArray<FVeilHeartWarningSupportChannel>& OutChannels)
+	{
+		OutChannels.Reset();
+		for (const TSharedPtr<FJsonValue>& Value : Values)
+		{
+			const TSharedPtr<FJsonObject> ChannelObj = Value.IsValid() ? Value->AsObject() : nullptr;
+			if (!ChannelObj.IsValid())
+			{
+				return false;
+			}
+
+			FString SupportId;
+			FString EvidenceText;
+			FString ChannelType;
+			if (!ChannelObj->TryGetStringField(TEXT("SupportId"), SupportId)
+				|| !ChannelObj->TryGetStringField(TEXT("EvidenceText"), EvidenceText)
+				|| !ChannelObj->TryGetStringField(TEXT("ChannelType"), ChannelType)
+				|| SupportId.IsEmpty()
+				|| EvidenceText.TrimStartAndEnd().IsEmpty()
+				|| ChannelType.IsEmpty())
+			{
+				return false;
+			}
+
+			FVeilHeartWarningSupportChannel& Channel = OutChannels.AddDefaulted_GetRef();
+			Channel.SupportId = FName(*SupportId);
+			Channel.EvidenceText = FText::FromString(EvidenceText);
+			Channel.ChannelType = FName(*ChannelType);
+		}
+		return true;
+	}
+
+	static bool ValidateCanonicalGardenRotContract(const FVeilHeartWarningFragment& Fragment, FString& OutError)
+	{
+		UExperienceCycleCatalog* Catalog = NewObject<UExperienceCycleCatalog>(GetTransientPackage());
+		PopulateDefaultExperienceCyclePlans(*Catalog);
+		for (const FExperienceCyclePlan& Plan : Catalog->AuthoredPlans)
+		{
+			if (Plan.PlanId == FName(TEXT("Cycle2_Garden")))
+			{
+				return Fragment.MatchesExactPlanContract(Plan, &OutError);
+			}
+		}
+
+		OutError = TEXT("the canonical Cycle2_Garden plan is unavailable");
+		return false;
 	}
 
 	static bool SaveDataAsset(UObject* Asset, const FString& PackageName, int32& OutErrorCount)
@@ -230,6 +283,7 @@ namespace GloamsteadDataImport
 		}
 
 		Catalog->Warnings.Reset();
+		TSet<FName> ImportedWarningIds;
 		for (const TSharedPtr<FJsonValue>& WarningValue : *WarningsArray)
 		{
 			const TSharedPtr<FJsonObject> WarningObj = WarningValue->AsObject();
@@ -247,6 +301,12 @@ namespace GloamsteadDataImport
 				return false;
 			}
 			Fragment.WarningId = FName(*WarningId);
+			if (Fragment.WarningId == NAME_None || ImportedWarningIds.Contains(Fragment.WarningId))
+			{
+				++OutErrorCount;
+				return false;
+			}
+			ImportedWarningIds.Add(Fragment.WarningId);
 
 			FString FragmentText;
 			if (!WarningObj->TryGetStringField(TEXT("Fragment"), FragmentText))
@@ -276,6 +336,49 @@ namespace GloamsteadDataImport
 			{
 				++OutErrorCount;
 				return false;
+			}
+
+			FString SemanticSubject;
+			if (WarningObj->TryGetStringField(TEXT("SemanticSubject"), SemanticSubject) && !SemanticSubject.IsEmpty())
+			{
+				Fragment.SemanticSubject = FName(*SemanticSubject);
+			}
+
+			FString RequiredRitualTypeName;
+			if (WarningObj->TryGetStringField(TEXT("RequiredRitualType"), RequiredRitualTypeName))
+			{
+				int64 EnumValue = INDEX_NONE;
+				if (!ParseEnumByName(StaticEnum<ERitualType>(), RequiredRitualTypeName, EnumValue))
+				{
+					++OutErrorCount;
+					return false;
+				}
+				Fragment.RequiredRitualType = static_cast<ERitualType>(EnumValue);
+			}
+
+			const TArray<TSharedPtr<FJsonValue>>* SupportsArray = nullptr;
+			if (WarningObj->TryGetArrayField(TEXT("SupportChannels"), SupportsArray)
+				&& !ParseSupportChannels(*SupportsArray, Fragment.SupportChannels))
+			{
+				++OutErrorCount;
+				return false;
+			}
+
+			FString ReceiptId;
+			if (WarningObj->TryGetStringField(TEXT("InterpretationReceiptId"), ReceiptId) && !ReceiptId.IsEmpty())
+			{
+				Fragment.InterpretationReceiptId = FName(*ReceiptId);
+			}
+
+			if (Fragment.WarningId == FName(TEXT("GardenRot")))
+			{
+				FString ContractError;
+				if (!ValidateCanonicalGardenRotContract(Fragment, ContractError))
+				{
+					UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: GardenRot contract rejected: %s"), *ContractError);
+					++OutErrorCount;
+					return false;
+				}
 			}
 
 			Catalog->Warnings.Add(Fragment);
@@ -458,3 +561,99 @@ int32 UGloamsteadImportDataAssetsCommandlet::Main(const FString& Params)
 	UE_LOG(LogTemp, Display, TEXT("GloamsteadImportDataAssets: success (%d assets)"), AssetsArray->Num());
 	return 0;
 }
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamsteadImportGardenRotSparseSupportRejectedTest,
+	"Gloamstead.Editor.Import.GardenRotRejectsSparseSupportFixture",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamsteadImportGardenRotSparseSupportRejectedTest::RunTest(const FString& /*Parameters*/)
+{
+	const FString SparseGardenJson = TEXT(R"JSON(
+{
+  "Warnings": [
+    {
+      "WarningId": "GardenRot",
+      "Fragment": "What grows in darkness must be tended before the bell tolls.",
+      "AssociatedNightType": "Corruption",
+      "SatisfiableTags": ["GardenBed"],
+      "SemanticSubject": "Cycle2_Garden",
+      "RequiredRitualType": "GardenBed",
+      "SupportChannels": [
+        {
+          "SupportId": "GardenRot.WitheredVines",
+          "EvidenceText": "Grey leaves curl toward the eastern bed.",
+          "ChannelType": "Environmental"
+        }
+      ],
+      "InterpretationReceiptId": "GardenRot.Interpreted",
+      "ClarityTier": 1
+    }
+  ]
+}
+)JSON");
+
+	TSharedPtr<FJsonObject> Properties;
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(SparseGardenJson);
+	if (!TestTrue(TEXT("negative import fixture parses as JSON"), FJsonSerializer::Deserialize(Reader, Properties) && Properties.IsValid()))
+	{
+		return false;
+	}
+
+	UVeilHeartWarningCatalog* Catalog = NewObject<UVeilHeartWarningCatalog>();
+	int32 ErrorCount = 0;
+	AddExpectedErrorPlain(TEXT("GloamsteadImportDataAssets: GardenRot contract rejected"), EAutomationExpectedErrorFlags::Contains, 1);
+	TestFalse(TEXT("import rejects a sparse GardenRot support array"),
+		GloamsteadDataImport::ImportWarningCatalog(Catalog, Properties, ErrorCount));
+	TestTrue(TEXT("import reports the rejected contract"), ErrorCount > 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamsteadImportGardenRotWrongMediumRejectedTest,
+	"Gloamstead.Editor.Import.GardenRotRejectsWrongMediumFixture",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamsteadImportGardenRotWrongMediumRejectedTest::RunTest(const FString& /*Parameters*/)
+{
+	const FString WrongMediumGardenJson = TEXT(R"JSON(
+{
+  "Warnings": [
+    {
+      "WarningId": "GardenRot",
+      "Fragment": "What grows in darkness must be tended before the bell tolls.",
+      "AssociatedNightType": "Corruption",
+      "SatisfiableTags": ["GardenBed"],
+      "SemanticSubject": "Cycle2_Garden",
+      "RequiredRitualType": "GardenBed",
+      "SupportChannels": [
+        { "SupportId": "GardenRot.WitheredVines", "EvidenceText": "Grey leaves curl toward the eastern bed.", "ChannelType": "Environmental" },
+        { "SupportId": "GardenRot.ColdSoil", "EvidenceText": "A root-chime answers beside the cracked bed.", "ChannelType": "ObjectReaction" },
+        { "SupportId": "GardenRot.BellMoths", "EvidenceText": "Moths gather where soil whispers beneath the bell.", "ChannelType": "Environmental" }
+      ],
+      "InterpretationReceiptId": "GardenRot.Interpreted",
+      "ClarityTier": 1
+    }
+  ]
+}
+)JSON");
+
+	TSharedPtr<FJsonObject> Properties;
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(WrongMediumGardenJson);
+	if (!TestTrue(TEXT("wrong-medium import fixture parses as JSON"), FJsonSerializer::Deserialize(Reader, Properties) && Properties.IsValid()))
+	{
+		return false;
+	}
+
+	UVeilHeartWarningCatalog* Catalog = NewObject<UVeilHeartWarningCatalog>();
+	int32 ErrorCount = 0;
+	AddExpectedErrorPlain(TEXT("GloamsteadImportDataAssets: GardenRot contract rejected"), EAutomationExpectedErrorFlags::Contains, 1);
+	TestFalse(TEXT("import rejects a wrong-medium GardenRot support"),
+		GloamsteadDataImport::ImportWarningCatalog(Catalog, Properties, ErrorCount));
+	TestTrue(TEXT("import reports the wrong-medium contract rejection"), ErrorCount > 0);
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

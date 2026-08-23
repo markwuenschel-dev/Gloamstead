@@ -58,7 +58,7 @@ void UNightCorruptionStrategy::EnterNight_Implementation(const FNightRuntimeCont
 	StartAvgCorruption = SafeAvgCorruption(PCG);
 
 	int32 TargetIndex = InContext.TargetPointIndex;
-	if (TargetIndex < 0 && PCG)
+	if (TargetIndex < 0 && PCG && !InContext.bRequiresExactSemanticTarget)
 	{
 		TargetIndex = PCG->FindMostCorruptedPointIndex(/*bOnlyUnrestored*/ true);
 	}
@@ -98,10 +98,21 @@ void UNightCorruptionStrategy::ApplyPressureStep_Implementation(UGloamsteadPCGSu
 		Objective.TargetPointIndex, NewLevel, Spread);
 }
 
-void UNightCorruptionStrategy::NotifyRestoration_Implementation(const FRestorationEventPayload& /*Payload*/, UGloamsteadPCGSubsystem* PCG)
+void UNightCorruptionStrategy::NotifyRestoration_Implementation(const FRestorationEventPayload& Payload, UGloamsteadPCGSubsystem* PCG)
 {
 	if (Objective.bResolved || Objective.TargetPointIndex < 0 || !PCG)
 	{
+		return;
+	}
+
+	if (Context.bRequiresExactSemanticTarget
+		&& (Payload.PointIndex != Objective.TargetPointIndex
+			|| Payload.WarningId != Context.RequiredWarningId
+			|| Payload.SemanticSubject != Context.RequiredSemanticSubject
+			|| Payload.RitualType != Context.RequiredRitualType
+			|| Payload.WarningTagSatisfied != Context.RequiredRestorationTag))
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("NightStrategy[Corruption]: ignored restoration that did not exactly match the authored bloom subject."));
 		return;
 	}
 

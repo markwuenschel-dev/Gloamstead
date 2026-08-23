@@ -1,4 +1,5 @@
 #include "PCG/GloamsteadPCGSubsystem.h"
+#include "Data/ExperienceCycleTypes.h"
 #include "PCGComponent.h"
 #include "PCGData.h"
 #include "Data/PCGSpatialData.h"
@@ -175,6 +176,7 @@ void UGloamsteadPCGSubsystem::InitializeFromPCGComponent(UPCGComponent* PCGCompo
     BuildSpatialGrid();
 
     UE_LOG(LogTemp, Log, TEXT("UGloamsteadPCGSubsystem: Initialized with %d points (Hybrid State + Spatial Grid)"), CachedPoints.Num());
+    NotifyAuthoritativeStateRebuilt();
 }
 
 bool UGloamsteadPCGSubsystem::GetPointByIndex(int32 PointIndex, FPCGPoint& OutPoint) const
@@ -246,6 +248,50 @@ int32 UGloamsteadPCGSubsystem::FindNearestUnrestoredPointIndex(const FVector& Lo
             }
         }
     }
+    return BestIndex;
+}
+
+int32 UGloamsteadPCGSubsystem::FindNearestUnrestoredPointMatchingExperiencePlan(
+    const FVector& Location, const FExperienceCyclePlan& Plan, float SearchRadius) const
+{
+    int32 BestIndex = INDEX_NONE;
+    float BestDistSq = SearchRadius * SearchRadius;
+
+    const FIntVector CenterCell = WorldToCell(Location);
+    const int32 CellRadius = FMath::CeilToInt(SearchRadius / CellSize) + 1;
+
+    for (int32 X = -CellRadius; X <= CellRadius; ++X)
+    {
+        for (int32 Y = -CellRadius; Y <= CellRadius; ++Y)
+        {
+            for (int32 Z = -CellRadius; Z <= CellRadius; ++Z)
+            {
+                const FIntVector Cell = CenterCell + FIntVector(X, Y, Z);
+                const FRitualSpatialCell* CellData = SpatialGrid.Find(Cell);
+                if (!CellData)
+                {
+                    continue;
+                }
+
+                for (const int32 PointIndex : CellData->PointIndices)
+                {
+                    if (IsPointRestored(PointIndex)
+                        || !PointMatchesExperiencePlan(PointIndex, Plan))
+                    {
+                        continue;
+                    }
+
+                    const float DistSq = FVector::DistSquared(Location, CachedPoints[PointIndex].Transform.GetLocation());
+                    if (DistSq < BestDistSq)
+                    {
+                        BestDistSq = DistSq;
+                        BestIndex = PointIndex;
+                    }
+                }
+            }
+        }
+    }
+
     return BestIndex;
 }
 
@@ -333,6 +379,19 @@ FNightSanctuarySnapshot UGloamsteadPCGSubsystem::BuildSanctuarySnapshot() const
     Snapshot.MirrorPillarRestored = GetRestoredCountByRitualType(ERitualType::MirrorPillar);
     Snapshot.BellShrineRestored = GetRestoredCountByRitualType(ERitualType::BellShrine);
     return Snapshot;
+}
+
+FDelegateHandle UGloamsteadPCGSubsystem::AddAuthoritativeStateRebuiltListener(const FSimpleDelegate& Listener)
+{
+    return AuthoritativeStateRebuilt.Add(Listener);
+}
+
+void UGloamsteadPCGSubsystem::RemoveAuthoritativeStateRebuiltListener(FDelegateHandle ListenerHandle)
+{
+    if (ListenerHandle.IsValid())
+    {
+        AuthoritativeStateRebuilt.Remove(ListenerHandle);
+    }
 }
 
 bool UGloamsteadPCGSubsystem::ApplyRestoration(int32 PointIndex, const FRestorationEventPayload& Payload)
@@ -445,6 +504,7 @@ int32 UGloamsteadPCGSubsystem::FindMostCorruptedPointIndex(bool bOnlyUnrestored)
     return BestIndex;
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
 void UGloamsteadPCGSubsystem::Test_SeedPoints(const TArray<FVector>& Locations)
 {
     MutablePointData = NewObject<UPCGPointData>(this);
@@ -454,6 +514,15 @@ void UGloamsteadPCGSubsystem::Test_SeedPoints(const TArray<FVector>& Locations)
         MutablePointData->Metadata->CreateAttribute<int32>(
             TEXT("RitualType"), static_cast<int32>(ERitualType::LanternPost),
             /*bAllowsInterpolation*/ false, /*bOverrideParent*/ false);
+    MutablePointData->Metadata->CreateAttribute<FName>(
+        TEXT("RecommendedForWarning"), NAME_None,
+        /*bAllowsInterpolation*/ false, /*bOverrideParent*/ false);
+    MutablePointData->Metadata->CreateAttribute<FName>(
+        TEXT("SemanticSubject"), NAME_None,
+        /*bAllowsInterpolation*/ false, /*bOverrideParent*/ false);
+    MutablePointData->Metadata->CreateAttribute<FName>(
+        TEXT("RestorationTag"), NAME_None,
+        /*bAllowsInterpolation*/ false, /*bOverrideParent*/ false);
 
     TArray<FPCGPoint>& Points = MutablePointData->GetMutablePoints();
     Points.Reset(Locations.Num());
@@ -468,6 +537,37 @@ void UGloamsteadPCGSubsystem::Test_SeedPoints(const TArray<FVector>& Locations)
     CachedPoints = Points;
     BuildSpatialGrid();
 }
+
+bool UGloamsteadPCGSubsystem::Test_SetPointContractMetadata(
+    int32 PointIndex,
+    FName WarningId,
+    FName SemanticSubject,
+    ERitualType RitualType,
+    FName RestorationTag)
+{
+    if (!CachedPoints.IsValidIndex(PointIndex) || !MutablePointData || !MutablePointData->Metadata)
+    {
+        return false;
+    }
+
+    UPCGMetadata* Metadata = MutablePointData->Metadata;
+    FPCGMetadataAttribute<int32>* RitualAttribute = Metadata->GetMutableTypedAttribute<int32>(TEXT("RitualType"));
+    FPCGMetadataAttribute<FName>* WarningAttribute = Metadata->GetMutableTypedAttribute<FName>(TEXT("RecommendedForWarning"));
+    FPCGMetadataAttribute<FName>* SubjectAttribute = Metadata->GetMutableTypedAttribute<FName>(TEXT("SemanticSubject"));
+    FPCGMetadataAttribute<FName>* TagAttribute = Metadata->GetMutableTypedAttribute<FName>(TEXT("RestorationTag"));
+    if (!RitualAttribute || !WarningAttribute || !SubjectAttribute || !TagAttribute)
+    {
+        return false;
+    }
+
+    const int64 Entry = CachedPoints[PointIndex].MetadataEntry;
+    RitualAttribute->SetValue(Entry, static_cast<int32>(RitualType));
+    WarningAttribute->SetValue(Entry, WarningId);
+    SubjectAttribute->SetValue(Entry, SemanticSubject);
+    TagAttribute->SetValue(Entry, RestorationTag);
+    return true;
+}
+#endif // WITH_DEV_AUTOMATION_TESTS
 
 int32 UGloamsteadPCGSubsystem::FindRestoredPointIndex(bool bMostLit) const
 {
@@ -507,6 +607,11 @@ bool UGloamsteadPCGSubsystem::RevertRestoration(int32 PointIndex)
     State.bIsRestored = false;
     State.LightLevel = FMath::Max(0.f, State.LightLevel * 0.5f); // the night takes back its light
     RestoredPointIndices.Remove(PointIndex);
+    // Reclaiming is an authoritative restoration-flag transition. Observers
+    // such as the one-way WorldForge projection must rebuild only after this
+    // mutation has completed; the early returns above deliberately publish
+    // nothing when there was no point or no restored state to reclaim.
+    NotifyAuthoritativeStateRebuilt();
     return true;
 }
 
@@ -553,6 +658,7 @@ void UGloamsteadPCGSubsystem::ReapplyRestoredState(const TSet<int32>& RestoredIn
     // entry behind it: GetRestoredPointCount() then over-reports against IsPointRestored(), and
     // CaptureToSaveGame() persists the phantom so it survives the save/load round trip.
     RebuildRestoredIndicesFromPointStates();
+    NotifyAuthoritativeStateRebuilt();
 }
 
 void UGloamsteadPCGSubsystem::CaptureToSaveGame(UGloamsteadSaveGame* SaveGame) const
@@ -564,15 +670,24 @@ void UGloamsteadPCGSubsystem::CaptureToSaveGame(UGloamsteadSaveGame* SaveGame) c
     SaveGame->PointStates           = PointStates;
     SaveGame->RestoredPointIndices  = RestoredPointIndices.Array();
     SaveGame->WorldSeed             = CurrentWorldSeed;
-    SaveGame->SaveVersion           = 1;
+    SaveGame->SaveVersion           = UGloamsteadSaveGame::CurrentSaveVersion;
 }
 
-void UGloamsteadPCGSubsystem::RestoreFromSaveGame(const UGloamsteadSaveGame* SaveGame)
+bool UGloamsteadPCGSubsystem::RestoreFromSaveGame(UGloamsteadSaveGame* SaveGame)
 {
     if (!SaveGame)
     {
-        return;
+        return false;
     }
+
+    // This is the first PCG consumer of a loaded payload. Do not read either
+    // point state or authored state until the schema is known to be current.
+    if (!SaveGame->MigrateToCurrentVersion())
+    {
+        UE_LOG(LogTemp, Error, TEXT("UGloamsteadPCGSubsystem: refusing to restore unsupported save version %d."), SaveGame->SaveVersion);
+        return false;
+    }
+
     // Full per-point restore (light + corruption + flags), unlike ReapplyRestoredState which only flips flags.
     PointStates      = SaveGame->PointStates;
     CurrentWorldSeed = SaveGame->WorldSeed;
@@ -596,6 +711,9 @@ void UGloamsteadPCGSubsystem::RestoreFromSaveGame(const UGloamsteadSaveGame* Sav
         UE_LOG(LogTemp, Warning, TEXT("PCG: RestoreFromSaveGame ignored %d of %d persisted restored index/indices with no restored point behind them (save holds %d points)."),
             UnbackedCount, SaveGame->RestoredPointIndices.Num(), SaveGame->PointStates.Num());
     }
+
+    NotifyAuthoritativeStateRebuilt();
+    return true;
 }
 
 bool UGloamsteadPCGSubsystem::SaveToSlot(const FString& SlotName, int32 UserIndex) const
@@ -622,8 +740,7 @@ bool UGloamsteadPCGSubsystem::LoadFromSlot(const FString& SlotName, int32 UserIn
     {
         return false;
     }
-    RestoreFromSaveGame(SaveGame);
-    return true;
+    return RestoreFromSaveGame(SaveGame);
 }
 
 void UGloamsteadPCGSubsystem::DrawDebugRitualPoints(float Duration) const
@@ -694,6 +811,11 @@ void UGloamsteadPCGSubsystem::DrawDebugSpatialGrid(float Duration) const
 void UGloamsteadPCGSubsystem::SetDrawSpatialGridDebug(bool bEnabled)
 {
     bDrawSpatialGridDebug = bEnabled;
+}
+
+void UGloamsteadPCGSubsystem::NotifyAuthoritativeStateRebuilt()
+{
+    AuthoritativeStateRebuilt.Broadcast();
 }
 
 void UGloamsteadPCGSubsystem::BuildSpatialGrid()
@@ -798,6 +920,49 @@ FName UGloamsteadPCGSubsystem::GetNameAttribute(const FPCGPoint& Point, FName At
         }
     }
     return DefaultValue;
+}
+
+bool UGloamsteadPCGSubsystem::PointMatchesExperiencePlan(
+    int32 PointIndex,
+    const FExperienceCyclePlan& Plan,
+    bool bRequireRestored) const
+{
+    if (!Plan.IsAuthoredPlan()
+        || Plan.WarningId == NAME_None
+        || Plan.SemanticSubject == NAME_None
+        || Plan.RequiredRitualType == ERitualType::Invalid
+        || Plan.RequiredRestorationTags.Num() != 1
+        || Plan.RequiredRestorationTags[0] == NAME_None
+        || !CachedPoints.IsValidIndex(PointIndex)
+        || (bRequireRestored && !IsPointRestored(PointIndex)))
+    {
+        return false;
+    }
+
+    const FPCGPoint& Point = CachedPoints[PointIndex];
+    return GetNameAttribute(Point, TEXT("RecommendedForWarning"), NAME_None) == Plan.WarningId
+        && GetNameAttribute(Point, TEXT("SemanticSubject"), NAME_None) == Plan.SemanticSubject
+        && static_cast<ERitualType>(GetIntAttribute(Point, TEXT("RitualType"), static_cast<int32>(ERitualType::Invalid))) == Plan.RequiredRitualType
+        && GetNameAttribute(Point, TEXT("RestorationTag"), NAME_None) == Plan.RequiredRestorationTags[0];
+}
+
+bool UGloamsteadPCGSubsystem::PopulateAuthoritativeRestorationMetadata(
+    int32 PointIndex,
+    FRestorationEventPayload& InOutPayload) const
+{
+    if (!CachedPoints.IsValidIndex(PointIndex))
+    {
+        return false;
+    }
+
+    const FPCGPoint& Point = CachedPoints[PointIndex];
+    InOutPayload.PointIndex = PointIndex;
+    InOutPayload.RitualType = static_cast<ERitualType>(
+        GetIntAttribute(Point, TEXT("RitualType"), static_cast<int32>(ERitualType::Invalid)));
+    InOutPayload.WarningId = GetNameAttribute(Point, TEXT("RecommendedForWarning"), NAME_None);
+    InOutPayload.SemanticSubject = GetNameAttribute(Point, TEXT("SemanticSubject"), NAME_None);
+    InOutPayload.WarningTagSatisfied = GetNameAttribute(Point, TEXT("RestorationTag"), NAME_None);
+    return true;
 }
 
 FVector UGloamsteadPCGSubsystem::GetVectorAttribute(const FPCGPoint& Point, FName AttributeName, FVector DefaultValue) const

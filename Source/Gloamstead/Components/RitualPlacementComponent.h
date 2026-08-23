@@ -115,18 +115,21 @@ public:
      */
     static const FString GSSRestoredActorMissing;
 
-    // === Test seam (unconditional inline; unused in shipping → the linker emits nothing) ===
+#if WITH_DEV_AUTOMATION_TESTS
+    // === Automation-only test seam ===
     /**
      * Test seam: run the confirm path's restore-then-publish tail against explicit collaborators.
      * This is the SAME function ConfirmPlacement calls, not a parallel copy. Reaching it through
      * ConfirmPlacement needs a preview target, and that needs UGloamsteadPCGSubsystem's spatial grid,
-     * which no public test seam can populate — that, and only that, is why this exists.
+     * which automation-only synthetic metadata supplies. This declaration does
+     * not exist in shipping, so it cannot become a generic placement authority.
      */
     bool Test_CommitRestorationWithEvidence(class UGloamsteadPCGSubsystem* Subsystem, int32 PointIndex,
         const FRestorationEventPayload& Payload, const FString& RequestId)
     {
         return CommitRestorationWithEvidence(Subsystem, PointIndex, Payload, RequestId);
     }
+#endif
 
     // === Events for Blueprint Child ===
     UFUNCTION(BlueprintImplementableEvent, Category="Ritual|Placement")
@@ -144,6 +147,10 @@ public:
     UFUNCTION(BlueprintImplementableEvent, Category="Ritual|Placement")
     void OnPlacementModeExited();
 
+    /** Fires when the player-facing placement reason changes, including an exact-plan mismatch. */
+    UFUNCTION(BlueprintImplementableEvent, Category="Ritual|Placement")
+    void OnPlacementStatusChanged(const FText& StatusText);
+
     /** Optional per-character override. When unset, the project-owned first-lantern Blueprint is loaded. */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ritual|Placement")
     TSubclassOf<AActor> LanternPostRestoredClass;
@@ -151,6 +158,14 @@ public:
     /** Keep enabled for the playable slice. Tests and specialized characters may disable the project fallback. */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ritual|Placement", meta=(AdvancedDisplay))
     bool bUseProjectDefaultLanternPostClass = true;
+
+    /** Optional per-character override for the Cycle II garden restoration. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ritual|Placement")
+    TSubclassOf<AActor> GardenBedRestoredClass;
+
+    /** Keep enabled so an authored GardenBed never degrades into an invisible success by default. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ritual|Placement", meta=(AdvancedDisplay))
+    bool bUseProjectDefaultGardenBedClass = true;
 
     UFUNCTION(BlueprintNativeEvent, Category="Ritual|Placement")
     void SpawnRestoredActor(int32 PointIndex, AActor*& OutSpawnedActor);
@@ -175,10 +190,28 @@ public:
     UFUNCTION(BlueprintPure, Category="Ritual|Placement|Preview")
     AActor* GetActivePreviewActor() const { return ActivePreviewActor.Get(); }
 
+    /** Ritual currently armed from the active authored cycle plan, never a generic fallback. */
+    UFUNCTION(BlueprintPure, Category="Ritual|Placement")
+    ERitualType GetPlacementRitualType() const { return CurrentMode; }
+
+    /**
+     * Readable reason a currently armed ritual cannot be confirmed. This is
+     * intentionally player-facing data, not a log-only diagnostic: UI can
+     * explain why a nearby same-ritual place does not answer the Heart.
+     */
+    UFUNCTION(BlueprintPure, Category="Ritual|Placement")
+    FText GetPlacementStatusText() const { return PlacementStatusText; }
+
 protected:
     void UpdateTargetPoint();
     bool IsPointValidForPlacement(int32 PointIndex) const;
-    int32 ResolveTargetForPlacement(int32 RawPointIndex);
+    bool IsPointAuthorizedForCurrentPlacement(int32 PointIndex, const struct FExperienceCyclePlan& Plan) const;
+    bool IsTargetStillAuthorizedForMutation(int32 PointIndex, FText& OutFailureText) const;
+    const struct FExperienceCyclePlan* GetActivePlacementPlan(FText* OutFailureText = nullptr) const;
+    bool HasCompleteTargetContract(const struct FExperienceCyclePlan& Plan) const;
+    bool IsExplicitTutorialPlan(const struct FExperienceCyclePlan& Plan) const;
+    int32 ResolveLegacyTutorialTargetForPlacement(int32 RawPointIndex);
+    void SetPlacementStatus(const FText& NewStatusText);
 
     /** Spawns, moves, or removes the ghost so it always matches the current valid target. */
     void RefreshPreviewActor();
@@ -193,17 +226,6 @@ protected:
     FRotator CalculateAlignedRotation(const FVector& Location, const FVector& TerrainNormal) const;
 
     /**
-     * The confirm path's tail: apply the restoration and, ONLY if it succeeded, publish request-bound
-     * survey evidence describing it.
-     *
-     * @return whether the RESTORATION succeeded — never whether the evidence was published. Restoration
-     *         is authoritative: a report that could not be written is loud (Error log + the
-     *         GetLastEvidence* getters) but must never roll back gameplay that already happened.
-     */
-    bool CommitRestorationWithEvidence(class UGloamsteadPCGSubsystem* Subsystem, int32 PointIndex,
-        const FRestorationEventPayload& Payload, const FString& RequestId);
-
-    /**
      * Publish one request-bound survey artifact for a restoration that has ALREADY been applied.
      * Reads world state only; it never touches UGloamsteadPCGSubsystem, so it cannot start a second
      * restoration. Records the outcome in the LastEvidence* fields either way.
@@ -211,6 +233,9 @@ protected:
     void PublishRestorationEvidence(const FRestorationEventPayload& AppliedPayload, const FString& RequestId);
 
     const class URitualDefinition* GetRitualDefinitionForType(ERitualType Type) const;
+
+    /** Maps the exact active authored plan to a playable ritual without a generic Lantern fallback. */
+    ERitualType ResolveAuthoredPlacementRitualType(const struct FExperienceCyclePlan& Plan) const;
 
     /** Fill any unassigned RitualDefinitions slot from the DA_Ritual_* assets in /Game/Data.
      *  Editor-assigned entries win; types whose asset fails to load fall back to the RitualTypes.cpp
@@ -223,12 +248,26 @@ protected:
     TMap<ERitualType, TObjectPtr<URitualDefinition>> RitualDefinitions;
 
 private:
+    /**
+     * The only runtime path that may emit PCG's native placement-authorized
+     * completion event. ConfirmPlacement reaches it only after target and
+     * ritual validation; the automation wrapper above disappears from shipping.
+     */
+    bool CommitRestorationWithEvidence(class UGloamsteadPCGSubsystem* Subsystem, int32 PointIndex,
+        const FRestorationEventPayload& Payload, const FString& RequestId);
+
     UPROPERTY()
     TObjectPtr<class UGloamsteadPCGSubsystem> CachedSubsystem;
 
     int32 CurrentTargetPointIndex = -1;
-    ERitualType CurrentMode = ERitualType::LanternPost;
+    ERitualType CurrentMode = ERitualType::Invalid;
+    /** Stable plan identity captured on entry; a changed or missing active plan invalidates confirmation. */
+    FName ArmedPlanId = NAME_None;
     bool bIsInPlacementMode = false;
+    bool bLastPreviewTargetValid = false;
+
+    /** UI-facing explanation for an invalid target. Empty only when no explanation is needed. */
+    FText PlacementStatusText;
 
     /** Weak: the ghost is a world actor and may be destroyed by level teardown out from under us. */
     UPROPERTY()

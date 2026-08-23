@@ -1,10 +1,12 @@
 #include "Systems/NightConsequenceRuntime.h"
 #include "Systems/NightConsequenceManager.h"
+#include "Systems/GloamsteadExperienceCycleSubsystem.h"
 #include "Systems/NightStrategy.h"
 #include "Systems/NightPressureActor.h"
 #include "Systems/VeilHeart.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Data/PCGPointData.h"
+#include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
@@ -39,10 +41,9 @@ void UNightConsequenceRuntime::Initialize(FSubsystemCollectionBase& Collection)
 
 void UNightConsequenceRuntime::Deinitialize()
 {
+	AbortNightForRestore();
 	if (UWorld* World = GetWorld())
 	{
-		World->GetTimerManager().ClearTimer(PressureTimer);
-
 		if (UNightConsequenceManager* Manager = World->GetSubsystem<UNightConsequenceManager>())
 		{
 			Manager->OnNightPlanReady.RemoveDynamic(this, &UNightConsequenceRuntime::HandleNightPlanReady);
@@ -68,32 +69,148 @@ bool UNightConsequenceRuntime::IsObjectiveResolved() const
 	return ActiveStrategy ? ActiveStrategy->IsObjectiveResolved() : false;
 }
 
+const FExperienceCyclePlan* UNightConsequenceRuntime::ResolveActiveAuthoredPlan() const
+{
+	const UWorld* World = GetWorld();
+	UGameInstance* GameInstance = World ? World->GetGameInstance() : nullptr;
+	const UGloamsteadExperienceCycleSubsystem* Experience = GameInstance
+		? GameInstance->GetSubsystem<UGloamsteadExperienceCycleSubsystem>()
+		: nullptr;
+	if (!Experience)
+	{
+		return nullptr;
+	}
+
+	const FExperienceCyclePlan& Plan = Experience->GetActivePlan();
+	return Plan.IsAuthoredPlan() ? &Plan : nullptr;
+}
+
+int32 UNightConsequenceRuntime::ResolveSemanticSubjectToPoint(FName SemanticSubject, const UGloamsteadPCGSubsystem* PCG) const
+{
+	if (!PCG || SemanticSubject == NAME_None)
+	{
+		return INDEX_NONE;
+	}
+
+	int32 ResolvedIndex = INDEX_NONE;
+	for (int32 PointIndex = 0; PointIndex < PCG->GetRitualPointCount(); ++PointIndex)
+	{
+		FPCGPoint Point;
+		if (!PCG->GetPointByIndex(PointIndex, Point)
+			|| PCG->GetNameAttribute(Point, TEXT("SemanticSubject"), NAME_None) != SemanticSubject)
+		{
+			continue;
+		}
+
+		if (ResolvedIndex != INDEX_NONE)
+		{
+			UE_LOG(LogTemp, Error, TEXT("NightRuntime: authored subject %s maps to multiple PCG points; Corruption will not target a substitute bloom."),
+				*SemanticSubject.ToString());
+			return INDEX_NONE;
+		}
+		ResolvedIndex = PointIndex;
+	}
+
+	if (ResolvedIndex == INDEX_NONE)
+	{
+		UE_LOG(LogTemp, Error, TEXT("NightRuntime: authored subject %s has no PCG mapping; Corruption will remain untargeted."),
+			*SemanticSubject.ToString());
+	}
+	return ResolvedIndex;
+}
+
+int32 UNightConsequenceRuntime::ResolvePlanTargetToPoint(const FExperienceCyclePlan& Plan, const UGloamsteadPCGSubsystem* PCG) const
+{
+	if (!PCG || !Plan.IsAuthoredPlan())
+	{
+		return INDEX_NONE;
+	}
+
+	int32 ResolvedIndex = INDEX_NONE;
+	for (int32 PointIndex = 0; PointIndex < PCG->GetRitualPointCount(); ++PointIndex)
+	{
+		if (!PCG->PointMatchesExperiencePlan(PointIndex, Plan))
+		{
+			continue;
+		}
+
+		if (ResolvedIndex != INDEX_NONE)
+		{
+			UE_LOG(LogTemp, Error, TEXT("NightRuntime: full authored target contract for %s maps to multiple PCG points; Corruption will remain quiet."),
+				*Plan.PlanId.ToString());
+			return INDEX_NONE;
+		}
+		ResolvedIndex = PointIndex;
+	}
+
+	if (ResolvedIndex == INDEX_NONE)
+	{
+		UE_LOG(LogTemp, Error, TEXT("NightRuntime: no PCG point satisfies the full authored target contract for %s; Corruption will remain quiet."),
+			*Plan.PlanId.ToString());
+	}
+	return ResolvedIndex;
+}
+
 FNightRuntimeContext UNightConsequenceRuntime::BuildContext(UGloamsteadPCGSubsystem* PCG) const
 {
 	FNightRuntimeContext Ctx;
 	Ctx.NightType = PlannedNightType;
+	const FExperienceCyclePlan* ActivePlan = ResolveActiveAuthoredPlan();
 
 	if (PCG)
 	{
 		Ctx.DuskSnapshot = PCG->BuildSanctuarySnapshot();
-		Ctx.TargetPointIndex = PCG->FindMostCorruptedPointIndex(/*bOnlyUnrestored*/ true);
+
+		// An authored Corruption plan must name one real place. It may never fall
+		// back to a score-selected bloom: missing/multiple metadata is a visible
+		// fail-closed quiet threat, not a different garden being punished.
+		if (PlannedNightType == ENightConsequenceType::Corruption && ActivePlan)
+		{
+			Ctx.bRequiresExactSemanticTarget = true;
+			Ctx.RequiredWarningId = ActivePlan->WarningId;
+			Ctx.RequiredSemanticSubject = ActivePlan->SemanticSubject;
+			Ctx.RequiredRitualType = ActivePlan->RequiredRitualType;
+			Ctx.RequiredRestorationTag = ActivePlan->RequiredRestorationTags.Num() == 1
+				? ActivePlan->RequiredRestorationTags[0]
+				: NAME_None;
+
+			if (ActivePlan->NightType != ENightConsequenceType::Corruption
+				|| Ctx.RequiredWarningId == NAME_None
+				|| Ctx.RequiredSemanticSubject == NAME_None
+				|| Ctx.RequiredRitualType == ERitualType::Invalid
+				|| Ctx.RequiredRestorationTag == NAME_None)
+			{
+				UE_LOG(LogTemp, Error, TEXT("NightRuntime: active authored plan is not a complete Corruption target contract; no substitute bloom will be selected."));
+				Ctx.TargetPointIndex = INDEX_NONE;
+			}
+			else
+			{
+				Ctx.TargetPointIndex = ResolvePlanTargetToPoint(*ActivePlan, PCG);
+			}
+		}
+		else
+		{
+			Ctx.TargetPointIndex = PCG->FindMostCorruptedPointIndex(/*bOnlyUnrestored*/ true);
+		}
+
 		if (Ctx.TargetPointIndex >= 0)
 		{
 			Ctx.TargetStartCorruption = PCG->GetCorruptionLevel(Ctx.TargetPointIndex);
 		}
 	}
 
-	// The player "heeded the warning" if the Veil Heart recorded a satisfied warning tag this cycle.
+	// The player heeded an authored warning only if a concrete exact receipt
+	// proves it. Generic tags, clarity tiers, and other same-type warnings do
+	// not substitute for the active plan.
 	if (UWorld* World = GetWorld())
 	{
 		TArray<AActor*> Hearts;
 		UGameplayStatics::GetAllActorsOfClass(World, AVeilHeart::StaticClass(), Hearts);
-		for (AActor* Actor : Hearts)
+		if (Hearts.Num() == 1)
 		{
-			if (const AVeilHeart* Heart = Cast<AVeilHeart>(Actor))
+			if (const AVeilHeart* Heart = Cast<AVeilHeart>(Hearts[0]))
 			{
-				Ctx.bWarningHeeded = Heart->GetSatisfiedWarningTagCount() > 0;
-				break;
+				Ctx.bWarningHeeded = ActivePlan && Heart->HasExactInterpretationForPlan(*ActivePlan);
 			}
 		}
 	}
@@ -116,6 +233,15 @@ TSubclassOf<UNightStrategy> UNightConsequenceRuntime::ResolveStrategyClass(ENigh
 UNightStrategy* UNightConsequenceRuntime::Test_MakeStrategyFor(ENightConsequenceType Type)
 {
 	return NewObject<UNightStrategy>(this, ResolveStrategyClass(Type));
+}
+
+bool UNightConsequenceRuntime::Test_IsPressureCadenceScheduled() const
+{
+	if (UWorld* World = GetWorld())
+	{
+		return World->GetTimerManager().IsTimerActive(PressureTimer);
+	}
+	return false;
 }
 
 void UNightConsequenceRuntime::BeginNight()
@@ -142,6 +268,7 @@ void UNightConsequenceRuntime::BeginNight()
 
 	ActiveNightType = PlannedNightType;
 	bNightActive = true;
+	bEarlyDawnRequested = false;
 	LastOutcome = FNightRuntimeOutcome();
 
 	ActiveContext = BuildContext(PCG);
@@ -160,8 +287,13 @@ void UNightConsequenceRuntime::BeginNight()
 	MaybeSpawnPressureActor(PCG);
 
 	// Immediate first pressure beat, then a repeating cadence for the rest of the night.
+	bInitialPressureBeatInProgress = true;
 	HandlePressureStep();
-	if (World && PressureStepSeconds > 0.f)
+	bInitialPressureBeatInProgress = false;
+	// A synchronous early-dawn callback may have already ended this run (or be
+	// queued by DayNight until this call returns). Never arm pressure after either
+	// state: duration/pressure are valid only for a still-active Night.
+	if (World && PressureStepSeconds > 0.f && bNightActive && !bEarlyDawnRequested)
 	{
 		World->GetTimerManager().SetTimer(PressureTimer, this, &UNightConsequenceRuntime::HandlePressureStep,
 			PressureStepSeconds, /*bLoop*/ true);
@@ -201,6 +333,19 @@ void UNightConsequenceRuntime::HandlePressureStep()
 	UWorld* World = GetWorld();
 	UGloamsteadPCGSubsystem* PCG = World ? World->GetSubsystem<UGloamsteadPCGSubsystem>() : nullptr;
 
+	if (bInitialPressureBeatInProgress && bTestForceEarlyDawnDuringInitialPressureBeat)
+	{
+		bTestForceEarlyDawnDuringInitialPressureBeat = false;
+		bEarlyDawnRequested = true;
+		if (World)
+		{
+			World->GetTimerManager().ClearTimer(PressureTimer);
+		}
+		UE_LOG(LogTemp, Log, TEXT("NightRuntime: test initial pressure beat requesting early dawn."));
+		OnNightShouldEnd.Broadcast();
+		return;
+	}
+
 	// A pressure step can resolve the objective on its own — the tutorial night's shelter check rides
 	// this cadence — so the early-dawn condition is evaluated here as well as on restoration. Without
 	// this the only mid-night resolution path was NotifyRestoration, and objectives the player completes
@@ -210,6 +355,7 @@ void UNightConsequenceRuntime::HandlePressureStep()
 
 	if (!bWasResolved && ActiveStrategy->IsObjectiveResolved())
 	{
+		bEarlyDawnRequested = true;
 		if (World)
 		{
 			World->GetTimerManager().ClearTimer(PressureTimer);
@@ -228,12 +374,27 @@ void UNightConsequenceRuntime::HandleRestorationDuringNight(const FRestorationEv
 
 	UWorld* World = GetWorld();
 	UGloamsteadPCGSubsystem* PCG = World ? World->GetSubsystem<UGloamsteadPCGSubsystem>() : nullptr;
+	FRestorationEventPayload AuthoritativePayload = Payload;
+	if (ActiveContext.bRequiresExactSemanticTarget)
+	{
+		const FExperienceCyclePlan* ActivePlan = ResolveActiveAuthoredPlan();
+		if (!ActivePlan
+			|| !PCG
+			|| !PCG->IsPointRestored(Payload.PointIndex)
+			|| !PCG->PointMatchesExperiencePlan(Payload.PointIndex, *ActivePlan, /*bRequireRestored*/ true)
+			|| !PCG->PopulateAuthoritativeRestorationMetadata(Payload.PointIndex, AuthoritativePayload))
+		{
+			UE_LOG(LogTemp, Verbose, TEXT("NightRuntime: ignored restoration whose PCG point does not satisfy the active authored target contract."));
+			return;
+		}
+	}
 
 	const bool bWasResolved = ActiveStrategy->IsObjectiveResolved();
-	ActiveStrategy->NotifyRestoration(Payload, PCG);
+	ActiveStrategy->NotifyRestoration(AuthoritativePayload, PCG);
 
 	if (!bWasResolved && ActiveStrategy->IsObjectiveResolved())
 	{
+		bEarlyDawnRequested = true;
 		// Intentional end condition: the player resolved the objective before dawn.
 		if (World)
 		{
@@ -284,8 +445,37 @@ void UNightConsequenceRuntime::EndNight()
 	DestroyPressureActor();
 
 	bNightActive = false;
+	bEarlyDawnRequested = false;
+	bInitialPressureBeatInProgress = false;
+	bTestForceEarlyDawnDuringInitialPressureBeat = false;
 	ActiveNightType = ENightConsequenceType::Invalid;
 	ActiveStrategy = nullptr;
+}
+
+void UNightConsequenceRuntime::AbortNightForRestore()
+{
+	// Restore replaces the PCG baseline underneath this runtime. Do not use
+	// EndNight here: resolving the strategy, broadcasting OnNightEnded, or
+	// retaining LastOutcome would let an abandoned world alter the new Day.
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(PressureTimer);
+	}
+
+	// DayNight removes its own cadence callback before it aborts this runtime.
+	// This is a public BlueprintAssignable delegate, so restore must preserve
+	// every listener it does not own; clearing runtime state below prevents any
+	// abandoned run from broadcasting another early-dawn event.
+	DestroyPressureActor();
+	bNightActive = false;
+	bEarlyDawnRequested = false;
+	bInitialPressureBeatInProgress = false;
+	bTestForceEarlyDawnDuringInitialPressureBeat = false;
+	PlannedNightType = ENightConsequenceType::Invalid;
+	ActiveNightType = ENightConsequenceType::Invalid;
+	ActiveStrategy = nullptr;
+	ActiveContext = FNightRuntimeContext();
+	LastOutcome = FNightRuntimeOutcome();
 }
 
 void UNightConsequenceRuntime::MaybeSpawnPressureActor(UGloamsteadPCGSubsystem* PCG)
@@ -320,8 +510,14 @@ void UNightConsequenceRuntime::MaybeSpawnPressureActor(UGloamsteadPCGSubsystem* 
 		}
 	}
 
+	if (BoundIndex < 0)
+	{
+		UE_LOG(LogTemp, Error, TEXT("NightRuntime: no valid pressure-actor target for the active consequence; refusing to spawn at a substitute location."));
+		return;
+	}
+
 	FVector SpawnLocation = FVector::ZeroVector;
-	if (PCG && BoundIndex >= 0)
+	if (PCG)
 	{
 		FPCGPoint TargetPoint;
 		if (PCG->GetPointByIndex(BoundIndex, TargetPoint))
