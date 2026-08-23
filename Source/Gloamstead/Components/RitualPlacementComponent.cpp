@@ -577,7 +577,11 @@ bool URitualPlacementComponent::BuildRestorationPayload(int32 PointIndex, AActor
     OutPayload.PathSegmentID = CachedSubsystem->GetIntAttribute(Point, "PathSegmentID", -1);
     OutPayload.PathPosition = CachedSubsystem->GetFloatAttribute(Point, "PathPosition", 0.0f);
     OutPayload.RestoredActor = SpawnedRestoredActor;
-    OutPayload.WarningTagSatisfied = CachedSubsystem->GetNameAttribute(Point, "RecommendedForWarning", NAME_None);
+    // `RecommendedForWarning` has always been authored point metadata. It names
+    // the warning identity, not the ritual tag; treating GardenRot as a tag let
+    // a point accidentally satisfy a different warning with the same night type.
+    OutPayload.WarningId = CachedSubsystem->GetNameAttribute(Point, "RecommendedForWarning", NAME_None);
+    OutPayload.SemanticSubject = CachedSubsystem->GetNameAttribute(Point, "SemanticSubject", NAME_None);
 
     OutPayload.LightDelta = GetDefaultLightContribution(OutPayload.RitualType);
     OutPayload.CorruptionCleared = GetDefaultCorruptionClearance(OutPayload.RitualType);
@@ -591,6 +595,15 @@ bool URitualPlacementComponent::BuildRestorationPayload(int32 PointIndex, AActor
         {
             OutPayload.WarningTagSatisfied = Definition->SatisfiableWarningTags[0];
         }
+    }
+
+    // Legacy points that predate ritual definitions retain their former generic
+    // feedback only when they carry no exact warning identity. An authored
+    // GardenRot point without its canonical GardenBed tag stays ineligible for
+    // interpretation instead of reusing its warning id as a tag.
+    if (OutPayload.WarningTagSatisfied == NAME_None && OutPayload.WarningId == NAME_None)
+    {
+        OutPayload.WarningTagSatisfied = CachedSubsystem->GetNameAttribute(Point, "RecommendedForWarning", NAME_None);
     }
 
     OutPayload.TimeOfDayAtRestoration = 0.5f;

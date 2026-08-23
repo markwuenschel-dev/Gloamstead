@@ -39,6 +39,14 @@ void PopulateDefaultExperienceCyclePlans(UExperienceCycleCatalog& Catalog)
 	Garden.NightType = ENightConsequenceType::Corruption;
 	Garden.SemanticSubject = TEXT("Cycle2_Garden");
 	Garden.RequiredRestorationTags = { TEXT("GardenBed") };
+	Garden.RequiredRitualType = ERitualType::GardenBed;
+	Garden.RequiredSupportIds = {
+		TEXT("GardenRot.WitheredVines"),
+		TEXT("GardenRot.ColdSoil"),
+		TEXT("GardenRot.BellMoths")
+	};
+	Garden.MinimumDistinctSupportCount = 2;
+	Garden.InterpretationReceiptId = TEXT("GardenRot.Interpreted");
 	Garden.VisualStateKey = TEXT("restoration_level");
 	Garden.OutcomeSummaryKey = TEXT("Cycle2_Garden");
 	Garden.Resolution = EExperiencePlanResolution::Authored;

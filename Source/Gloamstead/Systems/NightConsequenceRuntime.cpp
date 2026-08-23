@@ -1,10 +1,12 @@
 #include "Systems/NightConsequenceRuntime.h"
 #include "Systems/NightConsequenceManager.h"
+#include "Systems/GloamsteadExperienceCycleSubsystem.h"
 #include "Systems/NightStrategy.h"
 #include "Systems/NightPressureActor.h"
 #include "Systems/VeilHeart.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Data/PCGPointData.h"
+#include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
@@ -67,32 +69,116 @@ bool UNightConsequenceRuntime::IsObjectiveResolved() const
 	return ActiveStrategy ? ActiveStrategy->IsObjectiveResolved() : false;
 }
 
+const FExperienceCyclePlan* UNightConsequenceRuntime::ResolveActiveAuthoredPlan() const
+{
+	const UWorld* World = GetWorld();
+	UGameInstance* GameInstance = World ? World->GetGameInstance() : nullptr;
+	const UGloamsteadExperienceCycleSubsystem* Experience = GameInstance
+		? GameInstance->GetSubsystem<UGloamsteadExperienceCycleSubsystem>()
+		: nullptr;
+	if (!Experience)
+	{
+		return nullptr;
+	}
+
+	const FExperienceCyclePlan& Plan = Experience->GetActivePlan();
+	return Plan.IsAuthoredPlan() ? &Plan : nullptr;
+}
+
+int32 UNightConsequenceRuntime::ResolveSemanticSubjectToPoint(FName SemanticSubject, const UGloamsteadPCGSubsystem* PCG) const
+{
+	if (!PCG || SemanticSubject == NAME_None)
+	{
+		return INDEX_NONE;
+	}
+
+	int32 ResolvedIndex = INDEX_NONE;
+	for (int32 PointIndex = 0; PointIndex < PCG->GetRitualPointCount(); ++PointIndex)
+	{
+		FPCGPoint Point;
+		if (!PCG->GetPointByIndex(PointIndex, Point)
+			|| PCG->GetNameAttribute(Point, TEXT("SemanticSubject"), NAME_None) != SemanticSubject)
+		{
+			continue;
+		}
+
+		if (ResolvedIndex != INDEX_NONE)
+		{
+			UE_LOG(LogTemp, Error, TEXT("NightRuntime: authored subject %s maps to multiple PCG points; Corruption will not target a substitute bloom."),
+				*SemanticSubject.ToString());
+			return INDEX_NONE;
+		}
+		ResolvedIndex = PointIndex;
+	}
+
+	if (ResolvedIndex == INDEX_NONE)
+	{
+		UE_LOG(LogTemp, Error, TEXT("NightRuntime: authored subject %s has no PCG mapping; Corruption will remain untargeted."),
+			*SemanticSubject.ToString());
+	}
+	return ResolvedIndex;
+}
+
 FNightRuntimeContext UNightConsequenceRuntime::BuildContext(UGloamsteadPCGSubsystem* PCG) const
 {
 	FNightRuntimeContext Ctx;
 	Ctx.NightType = PlannedNightType;
+	const FExperienceCyclePlan* ActivePlan = ResolveActiveAuthoredPlan();
 
 	if (PCG)
 	{
 		Ctx.DuskSnapshot = PCG->BuildSanctuarySnapshot();
-		Ctx.TargetPointIndex = PCG->FindMostCorruptedPointIndex(/*bOnlyUnrestored*/ true);
+
+		// An authored Corruption plan must name one real place. It may never fall
+		// back to a score-selected bloom: missing/multiple metadata is a visible
+		// fail-closed quiet threat, not a different garden being punished.
+		if (PlannedNightType == ENightConsequenceType::Corruption && ActivePlan)
+		{
+			Ctx.bRequiresExactSemanticTarget = true;
+			Ctx.RequiredWarningId = ActivePlan->WarningId;
+			Ctx.RequiredSemanticSubject = ActivePlan->SemanticSubject;
+			Ctx.RequiredRitualType = ActivePlan->RequiredRitualType;
+			Ctx.RequiredRestorationTag = ActivePlan->RequiredRestorationTags.Num() == 1
+				? ActivePlan->RequiredRestorationTags[0]
+				: NAME_None;
+
+			if (ActivePlan->NightType != ENightConsequenceType::Corruption
+				|| Ctx.RequiredWarningId == NAME_None
+				|| Ctx.RequiredSemanticSubject == NAME_None
+				|| Ctx.RequiredRitualType == ERitualType::Invalid
+				|| Ctx.RequiredRestorationTag == NAME_None)
+			{
+				UE_LOG(LogTemp, Error, TEXT("NightRuntime: active authored plan is not a complete Corruption target contract; no substitute bloom will be selected."));
+				Ctx.TargetPointIndex = INDEX_NONE;
+			}
+			else
+			{
+				Ctx.TargetPointIndex = ResolveSemanticSubjectToPoint(Ctx.RequiredSemanticSubject, PCG);
+			}
+		}
+		else
+		{
+			Ctx.TargetPointIndex = PCG->FindMostCorruptedPointIndex(/*bOnlyUnrestored*/ true);
+		}
+
 		if (Ctx.TargetPointIndex >= 0)
 		{
 			Ctx.TargetStartCorruption = PCG->GetCorruptionLevel(Ctx.TargetPointIndex);
 		}
 	}
 
-	// The player "heeded the warning" if the Veil Heart recorded a satisfied warning tag this cycle.
+	// The player heeded an authored warning only if a concrete exact receipt
+	// proves it. Generic tags, clarity tiers, and other same-type warnings do
+	// not substitute for the active plan.
 	if (UWorld* World = GetWorld())
 	{
 		TArray<AActor*> Hearts;
 		UGameplayStatics::GetAllActorsOfClass(World, AVeilHeart::StaticClass(), Hearts);
-		for (AActor* Actor : Hearts)
+		if (Hearts.Num() == 1)
 		{
-			if (const AVeilHeart* Heart = Cast<AVeilHeart>(Actor))
+			if (const AVeilHeart* Heart = Cast<AVeilHeart>(Hearts[0]))
 			{
-				Ctx.bWarningHeeded = Heart->GetSatisfiedWarningTagCount() > 0;
-				break;
+				Ctx.bWarningHeeded = ActivePlan && Heart->HasExactInterpretationForPlan(*ActivePlan);
 			}
 		}
 	}
@@ -378,8 +464,14 @@ void UNightConsequenceRuntime::MaybeSpawnPressureActor(UGloamsteadPCGSubsystem* 
 		}
 	}
 
+	if (BoundIndex < 0)
+	{
+		UE_LOG(LogTemp, Error, TEXT("NightRuntime: no valid pressure-actor target for the active consequence; refusing to spawn at a substitute location."));
+		return;
+	}
+
 	FVector SpawnLocation = FVector::ZeroVector;
-	if (PCG && BoundIndex >= 0)
+	if (PCG)
 	{
 		FPCGPoint TargetPoint;
 		if (PCG->GetPointByIndex(BoundIndex, TargetPoint))

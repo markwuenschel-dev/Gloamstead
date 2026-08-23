@@ -10,6 +10,7 @@
 class UNightStrategy;
 class UGloamsteadPCGSubsystem;
 class ANightPressureActor;
+struct FExperienceCyclePlan;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNightConsequenceStarted, ENightConsequenceType, NightType);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNightConsequenceEnded, ENightConsequenceType, NightType);
@@ -106,6 +107,13 @@ public:
 	/** Forces the next real BeginNight initial pressure beat to request early Dawn synchronously. */
 	void Test_ForceEarlyDawnDuringInitialPressureBeat() { bTestForceEarlyDawnDuringInitialPressureBeat = true; }
 
+	/**
+	 * Resolves one stable authored semantic subject through existing PCG metadata.
+	 * Returns INDEX_NONE for missing or ambiguous mappings; it never score-selects
+	 * a substitute point.
+	 */
+	int32 ResolveSemanticSubjectToPoint(FName SemanticSubject, const UGloamsteadPCGSubsystem* PCG) const;
+
 protected:
 	UFUNCTION()
 	void HandleNightPlanReady(ENightConsequenceType SelectedNightType);
@@ -115,6 +123,7 @@ protected:
 
 private:
 	FNightRuntimeContext BuildContext(UGloamsteadPCGSubsystem* PCG) const;
+	const FExperienceCyclePlan* ResolveActiveAuthoredPlan() const;
 	TSubclassOf<UNightStrategy> ResolveStrategyClass(ENightConsequenceType Type) const;
 	void HandlePressureStep();
 	void BroadcastOmenClueIfNeeded();

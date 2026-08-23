@@ -11,15 +11,129 @@
       "items": {
         "type": "object",
         "required": ["asset_name", "class", "properties"],
-        "properties": {
-          "asset_name": { "type": "string" },
-          "class": {
-            "type": "string",
-            "enum": ["NightConsequenceCatalog", "VeilHeartWarningCatalog", "RitualDefinition"]
+          "properties": {
+            "asset_name": { "type": "string" },
+            "class": {
+              "type": "string",
+              "enum": ["NightConsequenceCatalog", "VeilHeartWarningCatalog", "RitualDefinition"]
+            },
+            "properties": { "type": "object" }
           },
-          "properties": { "type": "object" }
+          "allOf": [
+            {
+              "if": {
+                "properties": { "class": { "const": "VeilHeartWarningCatalog" } },
+                "required": ["class"]
+              },
+              "then": {
+                "properties": {
+                  "properties": {
+                    "type": "object",
+                    "required": ["Warnings"],
+                    "properties": {
+                      "Warnings": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": ["WarningId", "Fragment", "AssociatedNightType", "SatisfiableTags"],
+                          "properties": {
+                            "WarningId": { "type": "string" },
+                            "Fragment": { "type": "string" },
+                            "AssociatedNightType": { "type": "string" },
+                            "SatisfiableTags": {
+                              "type": "array",
+                              "items": { "type": "string" },
+                              "uniqueItems": true
+                            },
+                            "SemanticSubject": { "type": "string" },
+                            "RequiredRitualType": { "type": "string" },
+                            "InterpretationReceiptId": { "type": "string" },
+                            "SupportChannels": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "required": ["SupportId", "EvidenceText", "ChannelType"],
+                                "properties": {
+                                  "SupportId": { "type": "string" },
+                                  "EvidenceText": { "type": "string", "minLength": 1 },
+                                  "ChannelType": { "type": "string", "minLength": 1 }
+                                }
+                              }
+                            }
+                          },
+                          "allOf": [
+                            {
+                              "if": {
+                                "properties": { "WarningId": { "const": "GardenRot" } },
+                                "required": ["WarningId"]
+                              },
+                              "then": {
+                                "required": ["SemanticSubject", "RequiredRitualType", "SupportChannels", "InterpretationReceiptId"],
+                                "properties": {
+                                  "AssociatedNightType": { "const": "Corruption" },
+                                  "SemanticSubject": { "const": "Cycle2_Garden" },
+                                  "RequiredRitualType": { "const": "GardenBed" },
+                                  "InterpretationReceiptId": { "const": "GardenRot.Interpreted" },
+                                  "SatisfiableTags": {
+                                    "type": "array",
+                                    "minItems": 1,
+                                    "maxItems": 1,
+                                    "items": { "const": "GardenBed" }
+                                  },
+                                  "SupportChannels": {
+                                    "type": "array",
+                                    "minItems": 3,
+                                    "maxItems": 3,
+                                    "uniqueItems": true,
+                                    "items": {
+                                      "type": "object",
+                                      "required": ["SupportId", "EvidenceText", "ChannelType"],
+                                      "properties": {
+                                        "SupportId": {
+                                          "enum": [
+                                            "GardenRot.WitheredVines",
+                                            "GardenRot.ColdSoil",
+                                            "GardenRot.BellMoths"
+                                          ]
+                                        },
+                                        "EvidenceText": { "type": "string", "minLength": 1 },
+                                        "ChannelType": { "type": "string", "minLength": 1 }
+                                      }
+                                    },
+                                    "allOf": [
+                                      {
+                                        "contains": {
+                                          "properties": { "SupportId": { "const": "GardenRot.WitheredVines" } },
+                                          "required": ["SupportId"]
+                                        }
+                                      },
+                                      {
+                                        "contains": {
+                                          "properties": { "SupportId": { "const": "GardenRot.ColdSoil" } },
+                                          "required": ["SupportId"]
+                                        }
+                                      },
+                                      {
+                                        "contains": {
+                                          "properties": { "SupportId": { "const": "GardenRot.BellMoths" } },
+                                          "required": ["SupportId"]
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
         }
       }
-    }
   }
 }

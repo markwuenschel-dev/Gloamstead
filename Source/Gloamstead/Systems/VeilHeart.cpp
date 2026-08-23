@@ -141,13 +141,54 @@ bool AVeilHeart::HasValidWarningPresenter() const
 		&& OnWarningEmittedDelegate.Contains(Presenter, RegisteredWarningPresenterFunction);
 }
 
+const FExperienceCyclePlan* AVeilHeart::ResolveActivePlan() const
+{
+#if WITH_DEV_AUTOMATION_TESTS
+	if (bHasTestActivePlan)
+	{
+		return &TestActivePlan;
+	}
+#endif
+
+	const UGloamsteadDayNightSubsystem* DayNight = GetDayNight(this);
+	return DayNight ? DayNight->GetUpcomingPlan() : nullptr;
+}
+
+bool AVeilHeart::IsExactWarningPresentedForPlan(const FExperienceCyclePlan& Plan) const
+{
+	return Plan.IsAuthoredPlan()
+		&& Plan.WarningId != NAME_None
+		&& LastEmittedWarningId == Plan.WarningId
+		&& FindExactWarningById(Plan.WarningId, Plan.NightType) != nullptr;
+}
+
+bool AVeilHeart::HasRequiredSupportEvidence(const FExperienceCyclePlan& Plan) const
+{
+	if (Plan.RequiredSupportIds.IsEmpty()
+		|| Plan.MinimumDistinctSupportCount < 2
+		|| EncounteredSupportIds.Num() < Plan.MinimumDistinctSupportCount)
+	{
+		return false;
+	}
+
+	for (const FName EncounteredId : EncounteredSupportIds)
+	{
+		if (EncounteredId == NAME_None || !Plan.RequiredSupportIds.Contains(EncounteredId))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 void AVeilHeart::OnRestorationComplete(const FRestorationEventPayload& Payload)
 {
-	UE_LOG(LogTemp, Log, TEXT("VeilHeart: Restoration received - Ritual: %d, LightDelta: %.2f, CorruptionCleared: %.2f, WarningTag: %s"),
+	UE_LOG(LogTemp, Log, TEXT("VeilHeart: Restoration received - Ritual: %d, LightDelta: %.2f, CorruptionCleared: %.2f, Warning: %s, WarningTag: %s, Subject: %s"),
 		static_cast<int32>(Payload.RitualType), Payload.LightDelta, Payload.CorruptionCleared,
-		*Payload.WarningTagSatisfied.ToString());
+		*Payload.WarningId.ToString(), *Payload.WarningTagSatisfied.ToString(), *Payload.SemanticSubject.ToString());
 
 	EvaluateRestorationAgainstWarnings(Payload);
+	EvaluateRestorationAgainstActivePlan(Payload);
 }
 
 void AVeilHeart::EvaluateRestorationAgainstWarnings(const FRestorationEventPayload& Payload)
@@ -186,6 +227,135 @@ void AVeilHeart::EvaluateRestorationAgainstWarnings(const FRestorationEventPaylo
 		SatisfiedWarningTags.Add(TagToCheck);
 		UE_LOG(LogTemp, Log, TEXT("VeilHeart: Warning tag satisfied (no catalog): %s"), *TagToCheck.ToString());
 	}
+}
+
+bool AVeilHeart::RecordSupportEncounter(FName WarningId, FName SupportId)
+{
+	if (!EnsureWarningCatalog())
+	{
+		return false;
+	}
+
+	const FExperienceCyclePlan* ActivePlan = ResolveActivePlan();
+	if (!ActivePlan || !IsExactWarningPresentedForPlan(*ActivePlan) || WarningId != ActivePlan->WarningId)
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("VeilHeart: support %s rejected because it does not name the currently presented authored warning."),
+			*SupportId.ToString());
+		return false;
+	}
+
+	const FVeilHeartWarningFragment* ExactWarning = FindExactWarningById(ActivePlan->WarningId, ActivePlan->NightType);
+	FString ContractError;
+	if (!ExactWarning || !ExactWarning->MatchesExactPlanContract(*ActivePlan, &ContractError))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("VeilHeart: support rejected because the warning contract is invalid: %s."), *ContractError);
+		return false;
+	}
+
+	const bool bKnownSupport = ExactWarning->SupportChannels.ContainsByPredicate(
+		[SupportId](const FVeilHeartWarningSupportChannel& Channel)
+		{
+			return Channel.SupportId == SupportId;
+		});
+	if (SupportId == NAME_None || !bKnownSupport || EncounteredSupportIds.Contains(SupportId))
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("VeilHeart: duplicate or unknown support %s was not counted."), *SupportId.ToString());
+		return false;
+	}
+
+	EncounteredSupportIds.Add(SupportId);
+	UE_LOG(LogTemp, Log, TEXT("VeilHeart: recorded support %s for exact warning %s (%d/%d distinct)."),
+		*SupportId.ToString(), *ActivePlan->WarningId.ToString(), EncounteredSupportIds.Num(), ActivePlan->MinimumDistinctSupportCount);
+	return true;
+}
+
+bool AVeilHeart::EvaluateRestorationAgainstActivePlan(const FRestorationEventPayload& Payload)
+{
+	if (!EnsureWarningCatalog())
+	{
+		return false;
+	}
+
+	const FExperienceCyclePlan* ActivePlan = ResolveActivePlan();
+	if (!ActivePlan || !IsExactWarningPresentedForPlan(*ActivePlan) || !HasRequiredSupportEvidence(*ActivePlan))
+	{
+		return false;
+	}
+
+	const FVeilHeartWarningFragment* ExactWarning = FindExactWarningById(ActivePlan->WarningId, ActivePlan->NightType);
+	FString ContractError;
+	if (!ExactWarning || !ExactWarning->MatchesExactPlanContract(*ActivePlan, &ContractError))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("VeilHeart: restoration rejected because the warning contract is invalid: %s."), *ContractError);
+		return false;
+	}
+
+	if (Payload.WarningId != ActivePlan->WarningId
+		|| Payload.SemanticSubject != ActivePlan->SemanticSubject
+		|| Payload.RitualType != ActivePlan->RequiredRitualType
+		|| Payload.WarningTagSatisfied == NAME_None
+		|| !ActivePlan->RequiredRestorationTags.Contains(Payload.WarningTagSatisfied)
+		|| Payload.PointIndex == INDEX_NONE)
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("VeilHeart: restoration did not exactly match warning %s, subject %s, ritual/tag, and point receipt."),
+			*ActivePlan->WarningId.ToString(), *ActivePlan->SemanticSubject.ToString());
+		return false;
+	}
+
+	if (HasExactInterpretationForPlan(*ActivePlan))
+	{
+		return false;
+	}
+
+	LastInterpretationReceipt = FExperienceInterpretationReceipt();
+	LastInterpretationReceipt.ReceiptId = ActivePlan->InterpretationReceiptId;
+	LastInterpretationReceipt.PlanId = ActivePlan->PlanId;
+	LastInterpretationReceipt.WarningId = ActivePlan->WarningId;
+	LastInterpretationReceipt.SemanticSubject = ActivePlan->SemanticSubject;
+	LastInterpretationReceipt.RestorationTag = Payload.WarningTagSatisfied;
+	LastInterpretationReceipt.RestorationRitualType = Payload.RitualType;
+	LastInterpretationReceipt.RestorationPointIndex = Payload.PointIndex;
+	LastInterpretationReceipt.SupportIds.Reset(EncounteredSupportIds.Num());
+	for (const FName SupportId : EncounteredSupportIds)
+	{
+		LastInterpretationReceipt.SupportIds.Add(SupportId);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("VeilHeart: exact interpretation receipt %s earned for %s at subject %s."),
+		*LastInterpretationReceipt.ReceiptId.ToString(), *LastInterpretationReceipt.WarningId.ToString(),
+		*LastInterpretationReceipt.SemanticSubject.ToString());
+	return true;
+}
+
+bool AVeilHeart::HasExactInterpretationForPlan(const FExperienceCyclePlan& Plan) const
+{
+	if (!Plan.IsAuthoredPlan()
+		|| !LastInterpretationReceipt.IsValid()
+		|| LastInterpretationReceipt.ReceiptId != Plan.InterpretationReceiptId
+		|| LastInterpretationReceipt.PlanId != Plan.PlanId
+		|| LastInterpretationReceipt.WarningId != Plan.WarningId
+		|| LastInterpretationReceipt.SemanticSubject != Plan.SemanticSubject
+		|| LastInterpretationReceipt.RestorationRitualType != Plan.RequiredRitualType
+		|| LastInterpretationReceipt.RestorationPointIndex == INDEX_NONE
+		|| !Plan.RequiredRestorationTags.Contains(LastInterpretationReceipt.RestorationTag)
+		|| LastInterpretationReceipt.SupportIds.Num() < Plan.MinimumDistinctSupportCount)
+	{
+		return false;
+	}
+
+	TSet<FName> ReceiptSupportIds;
+	for (const FName SupportId : LastInterpretationReceipt.SupportIds)
+	{
+		if (SupportId == NAME_None
+			|| ReceiptSupportIds.Contains(SupportId)
+			|| !Plan.RequiredSupportIds.Contains(SupportId))
+		{
+			return false;
+		}
+		ReceiptSupportIds.Add(SupportId);
+	}
+
+	return ReceiptSupportIds.Num() >= Plan.MinimumDistinctSupportCount;
 }
 
 const FVeilHeartWarningFragment* AVeilHeart::FindWarningForNight(ENightConsequenceType NightType) const
@@ -314,4 +484,7 @@ void AVeilHeart::ProcessDawnReflectionWithOutcome(const FNightRuntimeOutcome& Ou
 	OnDawnReflectionDelegate.Broadcast(Outcome);
 
 	SatisfiedWarningTags.Empty();
+	EncounteredSupportIds.Empty();
+	LastInterpretationReceipt = FExperienceInterpretationReceipt();
+	LastEmittedWarningId = NAME_None;
 }

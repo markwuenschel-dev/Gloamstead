@@ -66,6 +66,11 @@ bool FGloamExperiencePlanSlotTwoIsExactCorruptionTest::RunTest(const FString& /*
 	TestEqual(TEXT("slot two uses the exact warning"), Plan.WarningId, FName(TEXT("GardenRot")));
 	TestEqual(TEXT("slot two uses the exact garden subject"), Plan.SemanticSubject, FName(TEXT("Cycle2_Garden")));
 	TestEqual(TEXT("slot two keeps its stable id"), Plan.PlanId, FName(TEXT("Cycle2_Garden")));
+	TestEqual(TEXT("slot two requires the canonical GardenBed ritual"), Plan.RequiredRitualType, ERitualType::GardenBed);
+	TestEqual(TEXT("slot two requires two distinct readable supports"), Plan.MinimumDistinctSupportCount, 2);
+	TestEqual(TEXT("slot two has exactly three authored support ids"), Plan.RequiredSupportIds.Num(), 3);
+	TestTrue(TEXT("slot two names the withered-vines support"), Plan.RequiredSupportIds.Contains(FName(TEXT("GardenRot.WitheredVines"))));
+	TestEqual(TEXT("slot two records the exact interpretation receipt id"), Plan.InterpretationReceiptId, FName(TEXT("GardenRot.Interpreted")));
 	return true;
 }
 
@@ -180,6 +185,20 @@ bool FGloamExperiencePlanRequiredSlotsFailClosedTest::RunTest(const FString& /*P
 	TestTrue(TEXT("mismatched catalog state restores"), Subsystem->RestorePersistentState(State));
 	TestFalse(TEXT("mismatched required slot fails closed"), Subsystem->EnsureUpcomingPlan());
 	TestTrue(TEXT("mismatched failure is invalid"), Subsystem->GetActivePlan().IsInvalid());
+
+	Catalog = MakeAuthoredCatalog();
+	Catalog->AuthoredPlans[1].RequiredSupportIds.RemoveAt(0);
+	Subsystem = MakeSubsystem(Catalog);
+	TestTrue(TEXT("sparse support catalog state restores"), Subsystem->RestorePersistentState(State));
+	TestFalse(TEXT("sparse authored support contract fails closed"), Subsystem->EnsureUpcomingPlan());
+	TestTrue(TEXT("sparse support failure is invalid"), Subsystem->GetActivePlan().IsInvalid());
+
+	Catalog = MakeAuthoredCatalog();
+	Catalog->AuthoredPlans[1].InterpretationReceiptId = TEXT("SubstitutedReceipt");
+	Subsystem = MakeSubsystem(Catalog);
+	TestTrue(TEXT("mismatched receipt catalog state restores"), Subsystem->RestorePersistentState(State));
+	TestFalse(TEXT("mismatched receipt contract fails closed"), Subsystem->EnsureUpcomingPlan());
+	TestTrue(TEXT("mismatched receipt failure is invalid"), Subsystem->GetActivePlan().IsInvalid());
 	return true;
 }
 

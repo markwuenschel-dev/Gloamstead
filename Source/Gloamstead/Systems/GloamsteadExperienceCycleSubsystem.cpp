@@ -9,6 +9,14 @@ namespace
 		return Plan.RequiredRestorationTags.Num() == 1 && Plan.RequiredRestorationTags[0] == Tag;
 	}
 
+	bool HasExactGardenSupports(const FExperienceCyclePlan& Plan)
+	{
+		return Plan.RequiredSupportIds.Num() == 3
+			&& Plan.RequiredSupportIds.Contains(FName(TEXT("GardenRot.WitheredVines")))
+			&& Plan.RequiredSupportIds.Contains(FName(TEXT("GardenRot.ColdSoil")))
+			&& Plan.RequiredSupportIds.Contains(FName(TEXT("GardenRot.BellMoths")));
+	}
+
 	bool MatchesRequiredContract(const FExperienceCyclePlan& Plan, int32 Slot)
 	{
 		if (!Plan.IsAuthoredPlan())
@@ -25,6 +33,10 @@ namespace
 				&& Plan.NightType == ENightConsequenceType::Tutorial
 				&& Plan.SemanticSubject == FName(TEXT("courtyard.lantern.first"))
 				&& HasOnlyTag(Plan, FName(TEXT("LanternPost")))
+				&& Plan.RequiredRitualType == ERitualType::Invalid
+				&& Plan.RequiredSupportIds.IsEmpty()
+				&& Plan.MinimumDistinctSupportCount == 0
+				&& Plan.InterpretationReceiptId == NAME_None
 				&& Plan.VisualStateKey == FName(TEXT("restoration_level"))
 				&& Plan.OutcomeSummaryKey == FName(TEXT("Cycle1_Tutorial"));
 
@@ -35,6 +47,10 @@ namespace
 				&& Plan.NightType == ENightConsequenceType::Corruption
 				&& Plan.SemanticSubject == FName(TEXT("Cycle2_Garden"))
 				&& HasOnlyTag(Plan, FName(TEXT("GardenBed")))
+				&& Plan.RequiredRitualType == ERitualType::GardenBed
+				&& HasExactGardenSupports(Plan)
+				&& Plan.MinimumDistinctSupportCount == 2
+				&& Plan.InterpretationReceiptId == FName(TEXT("GardenRot.Interpreted"))
 				&& Plan.VisualStateKey == FName(TEXT("restoration_level"))
 				&& Plan.OutcomeSummaryKey == FName(TEXT("Cycle2_Garden"));
 

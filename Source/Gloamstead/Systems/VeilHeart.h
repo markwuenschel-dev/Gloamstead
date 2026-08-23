@@ -51,6 +51,17 @@ public:
     UFUNCTION(BlueprintCallable, Category="Veil Heart")
     void EvaluateRestorationAgainstWarnings(const FRestorationEventPayload& Payload);
 
+	/** Records one known evidence encounter for the exact currently armed warning. */
+	UFUNCTION(BlueprintCallable, Category="Veil Heart|Interpretation")
+	bool RecordSupportEncounter(FName WarningId, FName SupportId);
+
+	/**
+	 * Evaluates a restoration only against the exact active authored plan. This
+	 * never falls back by clarity tier, night type, tag, or a different subject.
+	 */
+	UFUNCTION(BlueprintCallable, Category="Veil Heart|Interpretation")
+	bool EvaluateRestorationAgainstActivePlan(const FRestorationEventPayload& Payload);
+
 	UFUNCTION(BlueprintCallable, Category="Veil Heart")
 	void EmitWarningForNight(ENightConsequenceType NightType);
 
@@ -73,6 +84,13 @@ public:
     UFUNCTION(BlueprintPure, Category="Veil Heart")
     int32 GetSatisfiedWarningTagCount() const { return SatisfiedWarningTags.Num(); }
 
+	/** Last concrete receipt earned by an exact warning/evidence/restoration match. */
+	UFUNCTION(BlueprintPure, Category="Veil Heart|Interpretation")
+	FExperienceInterpretationReceipt GetLastInterpretationReceipt() const { return LastInterpretationReceipt; }
+
+	/** True only when the stored receipt exactly proves this authored plan was interpreted. */
+	bool HasExactInterpretationForPlan(const FExperienceCyclePlan& Plan) const;
+
     /** The outcome of the most recently reflected-upon night (session memory the next cycle can read). */
     UFUNCTION(BlueprintPure, Category="Veil Heart")
     FNightRuntimeOutcome GetLastNightOutcome() const { return LastNightOutcome; }
@@ -92,6 +110,21 @@ public:
 
 	/** True only when this Heart owns exactly one matching catalog row. */
 	bool HasExactWarningById(FName WarningId, ENightConsequenceType ExpectedNightType);
+
+#if WITH_DEV_AUTOMATION_TESTS
+	/** Narrow headless seam for focused fair-crypticism fixtures. */
+	void Test_SetActivePlan(const FExperienceCyclePlan& InPlan)
+	{
+		TestActivePlan = InPlan;
+		bHasTestActivePlan = true;
+	}
+
+	void Test_ClearActivePlan()
+	{
+		TestActivePlan = FExperienceCyclePlan::MakeInvalid(0);
+		bHasTestActivePlan = false;
+	}
+#endif
 
     UFUNCTION(BlueprintImplementableEvent, Category="Veil Heart")
     void OnWarningEmitted(const FVeilHeartWarningFragment& WarningFragment);
@@ -130,8 +163,15 @@ private:
 	/** Lazily loads the assigned catalog for startup-order-safe exact emission. */
 	bool EnsureWarningCatalog();
 	const FVeilHeartWarningFragment* FindExactWarningById(FName WarningId, ENightConsequenceType ExpectedNightType) const;
+	const FExperienceCyclePlan* ResolveActivePlan() const;
+	bool IsExactWarningPresentedForPlan(const FExperienceCyclePlan& Plan) const;
+	bool HasRequiredSupportEvidence(const FExperienceCyclePlan& Plan) const;
 
     TSet<FName> SatisfiedWarningTags;
+	TSet<FName> EncounteredSupportIds;
+
+	UPROPERTY()
+	FExperienceInterpretationReceipt LastInterpretationReceipt;
 
     UPROPERTY()
     FNightRuntimeOutcome LastNightOutcome;
@@ -142,4 +182,9 @@ private:
 	/** Weak identity avoids keeping a torn-down presenter alive across world teardown. */
 	TWeakObjectPtr<UObject> RegisteredWarningPresenter;
 	FName RegisteredWarningPresenterFunction = NAME_None;
+
+#if WITH_DEV_AUTOMATION_TESTS
+	FExperienceCyclePlan TestActivePlan;
+	bool bHasTestActivePlan = false;
+#endif
 };

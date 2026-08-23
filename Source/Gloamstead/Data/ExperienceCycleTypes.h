@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Data/NightConsequenceTypes.h"
+#include "Data/RitualTypes.h"
 #include "Engine/DataAsset.h"
 #include "ExperienceCycleTypes.generated.h"
 
@@ -44,6 +45,22 @@ struct GLOAMSTEAD_API FExperienceCyclePlan
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Experience Cycle")
 	TArray<FName> RequiredRestorationTags;
 
+	/** The ritual form that can satisfy the plan's exact restoration requirement. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Experience Cycle")
+	ERitualType RequiredRitualType = ERitualType::Invalid;
+
+	/** Stable identifiers for the readable evidence channels this plan permits. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Experience Cycle")
+	TArray<FName> RequiredSupportIds;
+
+	/** Number of distinct known supports the player must encounter before interpreting this plan. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Experience Cycle", meta = (ClampMin = "0"))
+	int32 MinimumDistinctSupportCount = 0;
+
+	/** Stable receipt id written only after the exact warning, supports, and restoration agree. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Experience Cycle")
+	FName InterpretationReceiptId = NAME_None;
+
 	/** Generic world-state key which an external generator may mirror but never author. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Experience Cycle")
 	FName VisualStateKey = NAME_None;
@@ -61,6 +78,49 @@ struct GLOAMSTEAD_API FExperienceCyclePlan
 
 	static FExperienceCyclePlan MakeInvalid(int32 InSlot);
 	static FExperienceCyclePlan MakeGenericHandoff(int32 InSlot);
+};
+
+/** Concrete proof that a player interpreted one exact authored warning fairly. */
+USTRUCT(BlueprintType)
+struct GLOAMSTEAD_API FExperienceInterpretationReceipt
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Experience Cycle|Interpretation")
+	FName ReceiptId = NAME_None;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Experience Cycle|Interpretation")
+	FName PlanId = NAME_None;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Experience Cycle|Interpretation")
+	FName WarningId = NAME_None;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Experience Cycle|Interpretation")
+	FName SemanticSubject = NAME_None;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Experience Cycle|Interpretation")
+	FName RestorationTag = NAME_None;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Experience Cycle|Interpretation")
+	ERitualType RestorationRitualType = ERitualType::Invalid;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Experience Cycle|Interpretation")
+	int32 RestorationPointIndex = INDEX_NONE;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Experience Cycle|Interpretation")
+	TArray<FName> SupportIds;
+
+	bool IsValid() const
+	{
+		return ReceiptId != NAME_None
+			&& PlanId != NAME_None
+			&& WarningId != NAME_None
+			&& SemanticSubject != NAME_None
+			&& RestorationTag != NAME_None
+			&& RestorationRitualType != ERitualType::Invalid
+			&& RestorationPointIndex != INDEX_NONE
+			&& SupportIds.Num() > 0;
+	}
 };
 
 /** Designer-facing catalog for the explicitly authored opening sequence. */
