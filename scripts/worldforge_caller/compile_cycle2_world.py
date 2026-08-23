@@ -34,6 +34,13 @@ COMPILER_OUTPUTS = (
 )
 SIDE_CAR = "intent-provenance.json"
 RECEIPT = "bridge-receipt.json"
+SEMANTIC_SCHEMA_SHA256 = "09fe85ffb949f3f470ae8f9fb897041750d40e1a8eb1d1501590a619544fa2d2"
+STATE_WRITE_LEASE_REVISION = "97b1af6f5fa3fb1498095cd0925d29845d079df3"
+STATE_WRITE_LEASE_HASHES = {
+    "Plugins/WorldForge/Source/WorldForgeCore/Public/WorldStateSubsystem.h": "BC63B5A0AC6714E40B998A0693AB7DD505AEDAE5A49C8BAEFCCEAB41BB518DEF",
+    "Plugins/WorldForge/Source/WorldForgeCore/Private/WorldStateSubsystem.cpp": "44FF7A9B599E929BD3862F95C78DBC20A1B6811354E9F65DBBB88A69634975BD",
+    "Plugins/WorldForge/Source/WorldForgeCore/Private/Tests/WorldStateWriteReservationTests.cpp": "CC70BA41AE45FA10A8680BCCDA57881F932FFC643CF39F4B57B9194F385E18E7",
+}
 
 
 class BridgeError(ValueError):
@@ -125,6 +132,8 @@ def validate_cycle2_intent(intent: dict[str, Any]) -> None:
     top = {"specVersion", "worldId", "map", "output", "anchors", "poi", "generationInput",
            "subjects", "evidence", "reactiveCategories", "worldState"}
     _require_keys(intent, (), top)
+    if not isinstance(intent["specVersion"], int) or isinstance(intent["specVersion"], bool):
+        raise BridgeError("$.specVersion: expected integer")
     _require_equal(intent["specVersion"], 1, ("specVersion",))
     _require_equal(intent["worldId"], "Cycle2_Garden", ("worldId",))
 
@@ -162,11 +171,11 @@ def validate_cycle2_intent(intent: dict[str, Any]) -> None:
 
     generation = _require_object(intent["generationInput"], ("generationInput",))
     _require_keys(generation, ("generationInput",), {"seed", "inputVersion"})
+    if not isinstance(generation["seed"], int) or isinstance(generation["seed"], bool):
+        raise BridgeError("$.generationInput.seed: expected integer")
     _require_equal(generation["seed"], 42, ("generationInput", "seed"))
     _require_equal(generation["inputVersion"], "gloamstead-cycle2-corruption-neglect.v1",
                    ("generationInput", "inputVersion"))
-    if isinstance(generation["seed"], bool):
-        raise BridgeError("$.generationInput.seed: expected integer, got bool")
 
     subjects = _require_array(intent["subjects"], ("subjects",), 1)
     subject = _require_object(subjects[0], ("subjects", 0))
@@ -246,6 +255,16 @@ def _sha256(value: bytes | Path) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+def _validate_pinned_semantic_schema(schema: dict[str, Any], raw: bytes) -> None:
+    """The Cycle II schema is a fixed caller contract, not a caller override."""
+    if _sha256(raw) != SEMANTIC_SCHEMA_SHA256:
+        raise BridgeError("$: semantic schema SHA-256 does not match the pinned Cycle II contract")
+    if schema.get("$id") != "https://gloamstead.local/specs/world/gloamstead_world_spec.schema.json":
+        raise BridgeError("$.$id: semantic schema does not identify the pinned Cycle II contract")
+    if schema.get("additionalProperties") is not False:
+        raise BridgeError("$.additionalProperties: pinned semantic schema must reject unknown fields")
+
+
 def _git_commit(repository: Path, label: str) -> str:
     try:
         result = subprocess.run(["git", "-c", "safe.directory={}".format(repository.as_posix()),
@@ -257,6 +276,31 @@ def _git_commit(repository: Path, label: str) -> str:
     if len(commit) != 40 or any(character not in "0123456789abcdef" for character in commit):
         raise BridgeError("$: invalid {} commit returned by git".format(label))
     return commit
+
+
+def _git_paths_clean(repository: Path, paths: list[Path], label: str) -> bool:
+    try:
+        relative_paths = [str(path.resolve().relative_to(repository.resolve())) for path in paths]
+    except ValueError:
+        # A caller may deliberately stage an immutable copy of its intent for
+        # a reproducibility test.  It cannot truthfully claim repository
+        # cleanliness, but that must not prevent the compile from recording
+        # the scoped source as external.
+        return False
+    try:
+        result = subprocess.run(["git", "-c", "safe.directory={}".format(repository.as_posix()),
+                                 "-C", str(repository), "status", "--porcelain=v1", "--untracked-files=all",
+                                 "--", *relative_paths], capture_output=True, text=True, check=True)
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise BridgeError("$: cannot inspect {} source cleanliness: {}".format(label, error)) from error
+    return not bool(result.stdout.strip())
+
+
+def _repository_path_label(path: Path) -> str:
+    try:
+        return path.resolve().relative_to(REPO_ROOT.resolve()).as_posix()
+    except ValueError:
+        return str(path.resolve())
 
 
 def _safe_output_root(path: Path, intent: Path, schema: Path) -> Path:
@@ -280,6 +324,12 @@ def _safe_output_root(path: Path, intent: Path, schema: Path) -> Path:
         else:
             raise BridgeError("$: output root may not contain {} input".format(label))
     return output_root
+
+
+def _prepare_empty_publish_root(output_root: Path) -> None:
+    if output_root.exists():
+        raise BridgeError("$: output root already exists; atomic publish requires an absent destination")
+    output_root.parent.mkdir(parents=True, exist_ok=True)
 
 
 def _safe_compiler(path: Path) -> Path:
@@ -394,59 +444,110 @@ def _run_compiler(compiler: Path, spec: Path, schema: Path, output_root: Path) -
 def compile_cycle2_world(intent_path: Path, schema_path: Path, compiler_path: Path, output_root: Path) -> dict[str, Any]:
     intent_path, schema_path = intent_path.resolve(), schema_path.resolve()
     intent, intent_bytes = _load_object(intent_path, "intent")
-    _, schema_bytes = _load_object(schema_path, "schema")
+    schema, schema_bytes = _load_object(schema_path, "schema")
+    _validate_pinned_semantic_schema(schema, schema_bytes)
     validate_cycle2_intent(intent)
     output_root = _safe_output_root(output_root, intent_path, schema_path)
+    _prepare_empty_publish_root(output_root)
     compiler_path = _safe_compiler(compiler_path)
     normalized = _normalise(intent)
     normalized_bytes, compiler_schema_bytes = _canonical_json(normalized), _canonical_json(GENERIC_SCHEMA)
     gloamstead_commit = _git_commit(REPO_ROOT, "Gloamstead")
-    compiler_commit = _git_commit(compiler_path.parents[2], "WorldForge compiler")
-
-    with tempfile.TemporaryDirectory(prefix="gloamstead-cycle2-worldforge-") as temporary:
-        temporary_root = Path(temporary)
-        canonical_spec, canonical_schema = (temporary_root / "canonical-world.json",
-                                             temporary_root / "canonical-world.schema.json")
-        canonical_spec.write_bytes(normalized_bytes)
-        canonical_schema.write_bytes(compiler_schema_bytes)
-        _run_compiler(compiler_path, canonical_spec, canonical_schema, output_root)
-
-    missing = [name for name in COMPILER_OUTPUTS if not _safe_artifact_path(output_root, name).is_file()]
-    if missing:
-        raise BridgeError("$: WorldForge compiler did not produce required artifact(s): {}".format(
-            ", ".join(missing)))
-    output_hashes = {name: _sha256(_safe_artifact_path(output_root, name)) for name in COMPILER_OUTPUTS}
-    output_set_hash = _sha256(_canonical_json(output_hashes))
-    provenance = {
+    compiler_root = compiler_path.parents[2]
+    compiler_commit = _git_commit(compiler_root, "WorldForge compiler")
+    source_provenance = {
+        "gloamstead_source_revision": gloamstead_commit,
+        "gloamstead_source_clean": _git_paths_clean(REPO_ROOT, [intent_path, schema_path], "Gloamstead"),
+        "worldforge_source_revision": compiler_commit,
+        "worldforge_source_clean": _git_paths_clean(compiler_root, [compiler_path], "WorldForge compiler"),
+        "world_spec_path": _repository_path_label(intent_path),
+        "world_spec_sha256": _sha256(intent_bytes),
+        "schema_path": _repository_path_label(schema_path),
+        "schema_sha256": _sha256(schema_bytes),
+    }
+    poi, state = intent["poi"], intent["worldState"]
+    contract_provenance = {
+        "poi_id": poi["poiId"], "poi_anchor_id": poi["anchorId"],
+        "poi_coordinate_space": poi["anchorTransform"]["coordinateSpace"],
+        "poi_anchor_translation": poi["anchorTransform"]["translation"],
+        "poi_box_half_extents": poi["bounds"]["halfExtents"],
+        "poi_box_contained_by_sanctuary_bootstrap_half_extents": [800.0, 800.0, 400.0],
+        "generation_input_seed": intent["generationInput"]["seed"],
+        "generation_input_version": intent["generationInput"]["inputVersion"],
+        "worldforge_state_address": {"scope": state["scope"], "context_id": state["contextId"], "key": state["key"]},
+        "worldforge_state_scenarios": [
+            {"label": "untouched" if value == 0.0 else "restored", "value": value}
+            for value in sorted(state["scenarios"])
+        ],
+    }
+    with tempfile.TemporaryDirectory(prefix=".gloamstead-cycle2-stage-", dir=str(output_root.parent)) as staging_name:
+        staging_root = Path(staging_name)
+        with tempfile.TemporaryDirectory(prefix="gloamstead-cycle2-worldforge-") as temporary:
+            temporary_root = Path(temporary)
+            canonical_spec, canonical_schema = (temporary_root / "canonical-world.json",
+                                                 temporary_root / "canonical-world.schema.json")
+            canonical_spec.write_bytes(normalized_bytes)
+            canonical_schema.write_bytes(compiler_schema_bytes)
+            _run_compiler(compiler_path, canonical_spec, canonical_schema, staging_root)
+        missing = [name for name in COMPILER_OUTPUTS if not _safe_artifact_path(staging_root, name).is_file()]
+        if missing:
+            raise BridgeError("$: WorldForge compiler did not produce required artifact(s): {}".format(
+                ", ".join(missing)))
+        compiler_manifest, _ = _load_object(_safe_artifact_path(staging_root, "manifest.json"), "WorldForge manifest")
+        worldforge_provenance = compiler_manifest.get("worldforge_provenance")
+        if not isinstance(worldforge_provenance, dict):
+            raise BridgeError("$.worldforge_provenance: compiler manifest omitted provenance")
+        if worldforge_provenance.get("source_commit") != compiler_commit:
+            raise BridgeError("$.worldforge_provenance.source_commit: compiler manifest revision differs from invoked compiler")
+        compiler_tree_dirty = worldforge_provenance.get("source_tree_dirty")
+        if not isinstance(compiler_tree_dirty, bool):
+            raise BridgeError("$.worldforge_provenance.source_tree_dirty: compiler manifest must report boolean cleanliness")
+        output_hashes = {name: _sha256(_safe_artifact_path(staging_root, name)) for name in COMPILER_OUTPUTS}
+        output_set_hash = _sha256(_canonical_json(output_hashes))
+        provenance = {
         "artifact_kind": "gloamstead_cycle2_intent_provenance",
         "execution_status": "not_materialized",
         "observation_status": "not_observed",
-        "source": {
-            "intent_sha256": _sha256(intent_bytes), "schema_sha256": _sha256(schema_bytes),
-            "gloamstead_commit": gloamstead_commit,
-        },
+        "source": source_provenance,
+        "contract": contract_provenance,
+        "worldforge_compiler_manifest_source_tree_dirty": compiler_tree_dirty,
         "semantic_intent_retained_by_gloamstead": {
             "subjects": intent["subjects"], "evidence": intent["evidence"],
         },
         "compiler_boundary": "WorldForge received only generic spatial and state records; it did not interpret warning, ritual, evidence, or lore meaning.",
-    }
-    _write_atomic(_safe_artifact_path(output_root, SIDE_CAR), _canonical_json(provenance))
-    receipt = {
+        }
+        _write_atomic(_safe_artifact_path(staging_root, SIDE_CAR), _canonical_json(provenance))
+        receipt = {
         "artifact_kind": "gloamstead_worldforge_bridge_receipt",
         "execution_status": "not_materialized",
         "observation_status": "not_observed",
         "materialization_claim": "none",
-        "source": provenance["source"],
+        "source": {
+            "intent_sha256": source_provenance["world_spec_sha256"],
+            "schema_sha256": source_provenance["schema_sha256"],
+            "gloamstead_commit": gloamstead_commit,
+        },
+        **source_provenance,
+        **contract_provenance,
         "normalized_spec_sha256": _sha256(normalized_bytes),
-        "compiler": {"path": str(compiler_path), "commit": compiler_commit},
+        "generator_revision": compiler_commit,
+        "generator_parameters": {},
+        "worldforge_state_write_lease_source_revision": STATE_WRITE_LEASE_REVISION,
+        "worldforge_state_write_lease_source_sha256": STATE_WRITE_LEASE_HASHES,
+        "compiler": {"path": str(compiler_path), "commit": compiler_commit,
+                     "manifest_source_tree_dirty": compiler_tree_dirty},
         "outputs": {
             "artifacts": output_hashes,
             "output_manifest_sha256": output_hashes["manifest.json"],
             "output_set_sha256": output_set_hash,
         },
         "scope": "planned generic descriptors only; no UE materialization, map load, NeoStack activity, or observed survey is claimed.",
-    }
-    _write_atomic(_safe_artifact_path(output_root, RECEIPT), _canonical_json(receipt))
+        }
+        _write_atomic(_safe_artifact_path(staging_root, RECEIPT), _canonical_json(receipt))
+        try:
+            os.replace(staging_root, output_root)
+        except OSError as error:
+            raise BridgeError("$: cannot atomically publish staged output root: {}".format(error)) from error
     return receipt
 
 

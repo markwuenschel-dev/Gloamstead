@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -65,6 +64,14 @@ class Cycle2WorldForgeBridgeTests(unittest.TestCase):
             self.assertIn("GardenRot", json.dumps(provenance["semantic_intent_retained_by_gloamstead"]))
             self.assertEqual(hashlib.sha256(before_intent).hexdigest(), receipt["source"]["intent_sha256"])
             self.assertEqual(hashlib.sha256(before_schema).hexdigest(), receipt["source"]["schema_sha256"])
+            self.assertEqual("Cycle2_Garden", receipt["poi_id"])
+            self.assertEqual("Cycle2_Garden.Anchor", receipt["poi_anchor_id"])
+            self.assertEqual(["untouched", "restored"],
+                             [item["label"] for item in receipt["worldforge_state_scenarios"]])
+            self.assertIn("world_spec_path", receipt)
+            self.assertIn("schema_path", receipt)
+            self.assertIn("worldforge_source_clean", receipt)
+            self.assertIn("manifest_source_tree_dirty", receipt["compiler"])
             self.assertEqual("not_materialized", receipt["execution_status"])
             self.assertEqual("not_observed", receipt["observation_status"])
             self.assertEqual("none", receipt["materialization_claim"])
@@ -96,6 +103,53 @@ class Cycle2WorldForgeBridgeTests(unittest.TestCase):
         self._assert_preinvoke_failure(lambda value: value["evidence"]["supportBindings"][0].__setitem__("surface", "audio"),
                                        "$.evidence.supportBindings[0].surface")
         self._assert_preinvoke_failure(lambda value: value.__setitem__("unknown", True), "$: unknown field")
+
+    def test_json_types_and_schema_drift_fail_before_invocation(self):
+        self._assert_preinvoke_failure(lambda value: value.__setitem__("specVersion", True),
+                                       "$.specVersion: expected integer")
+        self._assert_preinvoke_failure(lambda value: value["generationInput"].__setitem__("seed", 42.0),
+                                       "$.generationInput.seed: expected integer")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            intent, schema, _, _ = self._inputs(root)
+            schema.write_text("{}", encoding="utf-8")
+            fake = root / "fake_compiler.py"
+            marker = root / "invoked"
+            fake.write_text("from pathlib import Path\nPath(r'{}').write_text('called')\n".format(marker), encoding="utf-8")
+            result = run_bridge(intent, schema, fake, root / "out")
+            self.assertEqual(2, result.returncode, result.stderr)
+            self.assertIn("semantic schema SHA-256", result.stderr)
+            self.assertFalse(marker.exists())
+            self.assertFalse((root / "out").exists())
+
+    def test_output_publish_is_atomic_and_destination_is_not_reused(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            intent, schema, _, _ = self._inputs(root)
+            partial = root / "partial_compiler.py"
+            partial.write_text(
+                "import sys\n"
+                "from pathlib import Path\n"
+                "out = Path(sys.argv[sys.argv.index('--output-root') + 1])\n"
+                "(out / 'manifest.json').write_text('partial', encoding='utf-8')\n"
+                "raise SystemExit(7)\n", encoding="utf-8")
+            staged_failure = root / "staged-failure"
+            result = run_bridge(intent, schema, partial, staged_failure)
+            self.assertEqual(2, result.returncode, result.stderr)
+            self.assertFalse(staged_failure.exists(), "failed compile leaked a partial final output")
+
+            first = root / "first"
+            first_run = run_bridge(intent, schema, COMPILER, first)
+            self.assertEqual(0, first_run.returncode, first_run.stderr)
+            before = {path.name: path.read_bytes() for path in first.iterdir()}
+            marker = root / "reused"
+            reuse = root / "reuse_compiler.py"
+            reuse.write_text("from pathlib import Path\nPath(r'{}').write_text('called')\n".format(marker), encoding="utf-8")
+            second_run = run_bridge(intent, schema, reuse, first)
+            self.assertEqual(2, second_run.returncode, second_run.stderr)
+            self.assertIn("output root already exists", second_run.stderr)
+            self.assertFalse(marker.exists(), "existing destination was handed to the compiler")
+            self.assertEqual(before, {path.name: path.read_bytes() for path in first.iterdir()})
 
     def test_duplicate_json_and_path_traversal_fail_before_invocation(self):
         with tempfile.TemporaryDirectory() as temporary:
