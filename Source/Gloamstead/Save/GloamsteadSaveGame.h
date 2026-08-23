@@ -45,8 +45,9 @@ public:
     /**
      * Migrate this payload without consulting world state or selecting authored progression.
      * V1 retains PCG data but enters an explicit reconciliation state; v2 is unchanged.
+     * Returns false for invalid or newer schemas so callers do not restore an unsupported payload.
      */
-    void MigrateToCurrentVersion();
+    bool MigrateToCurrentVersion();
 
     const FExperienceCyclePersistentState& GetExperienceCycleState() const { return ExperienceCycleState; }
     void SetExperienceCycleState(const FExperienceCyclePersistentState& InState) { ExperienceCycleState = InState; }

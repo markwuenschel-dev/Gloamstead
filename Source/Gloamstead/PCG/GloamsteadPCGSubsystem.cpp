@@ -564,15 +564,24 @@ void UGloamsteadPCGSubsystem::CaptureToSaveGame(UGloamsteadSaveGame* SaveGame) c
     SaveGame->PointStates           = PointStates;
     SaveGame->RestoredPointIndices  = RestoredPointIndices.Array();
     SaveGame->WorldSeed             = CurrentWorldSeed;
-    SaveGame->SaveVersion           = 1;
+    SaveGame->SaveVersion           = UGloamsteadSaveGame::CurrentSaveVersion;
 }
 
-void UGloamsteadPCGSubsystem::RestoreFromSaveGame(const UGloamsteadSaveGame* SaveGame)
+bool UGloamsteadPCGSubsystem::RestoreFromSaveGame(UGloamsteadSaveGame* SaveGame)
 {
     if (!SaveGame)
     {
-        return;
+        return false;
     }
+
+    // This is the first PCG consumer of a loaded payload. Do not read either
+    // point state or authored state until the schema is known to be current.
+    if (!SaveGame->MigrateToCurrentVersion())
+    {
+        UE_LOG(LogTemp, Error, TEXT("UGloamsteadPCGSubsystem: refusing to restore unsupported save version %d."), SaveGame->SaveVersion);
+        return false;
+    }
+
     // Full per-point restore (light + corruption + flags), unlike ReapplyRestoredState which only flips flags.
     PointStates      = SaveGame->PointStates;
     CurrentWorldSeed = SaveGame->WorldSeed;
@@ -596,6 +605,8 @@ void UGloamsteadPCGSubsystem::RestoreFromSaveGame(const UGloamsteadSaveGame* Sav
         UE_LOG(LogTemp, Warning, TEXT("PCG: RestoreFromSaveGame ignored %d of %d persisted restored index/indices with no restored point behind them (save holds %d points)."),
             UnbackedCount, SaveGame->RestoredPointIndices.Num(), SaveGame->PointStates.Num());
     }
+
+    return true;
 }
 
 bool UGloamsteadPCGSubsystem::SaveToSlot(const FString& SlotName, int32 UserIndex) const
@@ -622,8 +633,7 @@ bool UGloamsteadPCGSubsystem::LoadFromSlot(const FString& SlotName, int32 UserIn
     {
         return false;
     }
-    RestoreFromSaveGame(SaveGame);
-    return true;
+    return RestoreFromSaveGame(SaveGame);
 }
 
 void UGloamsteadPCGSubsystem::DrawDebugRitualPoints(float Duration) const

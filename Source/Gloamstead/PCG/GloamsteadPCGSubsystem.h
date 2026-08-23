@@ -143,9 +143,9 @@ public:
     UFUNCTION(BlueprintCallable, Category="PCG|Persistence")
     void CaptureToSaveGame(UGloamsteadSaveGame* SaveGame) const;
 
-    /** Replace current per-point state with the save object's contents (full round-trip, unlike ReapplyRestoredState). */
+    /** Migrate then replace current per-point state with the save object's contents. Returns false for an unsupported save version. */
     UFUNCTION(BlueprintCallable, Category="PCG|Persistence")
-    void RestoreFromSaveGame(const UGloamsteadSaveGame* SaveGame);
+    bool RestoreFromSaveGame(UGloamsteadSaveGame* SaveGame);
 
     /** Convenience: capture into a fresh save object and write it to a named slot. */
     UFUNCTION(BlueprintCallable, Category="PCG|Persistence")
