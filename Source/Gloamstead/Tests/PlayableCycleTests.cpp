@@ -233,6 +233,13 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			TestTrue(TEXT("v2 pre-lantern Day snapshot reloads from its isolated slot"), DayNight->LoadProgressionFromSlot(LanternGateSlot));
 			TestFalse(TEXT("saved Tutorial plan cannot infer the lantern gate"), DayNight->IsFirstRestUnlocked());
 			TestEqual(TEXT("reload stays in Day before the lantern tutorial event"), DayNight->GetCurrentPhase(), EGloamsteadDayPhase::Day);
+			const FExperienceCyclePlan* ReloadedTutorialPlan = DayNight->GetUpcomingPlan();
+			TestNotNull(TEXT("isolated reload retains the persisted Cycle I Tutorial plan before unlock"), ReloadedTutorialPlan);
+			if (ReloadedTutorialPlan)
+			{
+				TestEqual(TEXT("isolated reload retains Cycle1_Tutorial before unlock"), ReloadedTutorialPlan->PlanId, FName(TEXT("Cycle1_Tutorial")));
+				TestEqual(TEXT("isolated reload retains TutorialLostPath before unlock"), ReloadedTutorialPlan->WarningId, FName(TEXT("TutorialLostPath")));
+			}
 			TestEqual(TEXT("reload still emits no Tutorial warning before the lantern tutorial event"), Heart->GetLastEmittedWarningId(), NAME_None);
 			TestFalse(TEXT("RequestRest remains closed after pre-lantern reload"), DayNight->RequestRest());
 			TestEqual(TEXT("rejected pre-lantern rest leaves the phase in Day"), DayNight->GetCurrentPhase(), EGloamsteadDayPhase::Day);
