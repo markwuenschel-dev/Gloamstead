@@ -651,6 +651,12 @@ bool FGloamPlayableCycleResumeQuiescenceWorldTest::RunTest(const FString& /*Para
 		TestNotNull(TEXT("old Corruption runtime owns an active strategy before restore"), Runtime->Test_GetActiveStrategy());
 		TestTrue(TEXT("old Corruption runtime scheduled pressure before restore"), Runtime->Test_IsPressureCadenceScheduled());
 		TestTrue(TEXT("old Corruption runtime spawned its pressure actor before restore"), Runtime->Test_HasActivePressureActor());
+		TestFalse(TEXT("the retained external observer is not a cadence owner before the explicit test bind"),
+			Runtime->OnNightShouldEnd.IsAlreadyBound(FirstNightDirector, &AGloamsteadFirstNightDirector::HandleNightShouldEnd));
+		Runtime->OnNightShouldEnd.AddDynamic(FirstNightDirector, &AGloamsteadFirstNightDirector::HandleNightShouldEnd);
+		TestTrue(TEXT("a non-DayNight observer can listen to the runtime early-dawn delegate"),
+			Runtime->OnNightShouldEnd.IsAlreadyBound(FirstNightDirector, &AGloamsteadFirstNightDirector::HandleNightShouldEnd));
+		const int32 ExternalEarlyDawnCallbacksBeforeRestore = FirstNightDirector->Test_LegacyEarlyDawnCallbackCount;
 		const int32 DawnRequestsBeforeRestore = DayNight->Test_GetCadenceDawnRequestCount();
 
 		TestTrue(TEXT("safe Day reload aborts the active old runtime"), DayNight->LoadProgressionFromSlot(SafeDaySlot));
@@ -662,6 +668,10 @@ bool FGloamPlayableCycleResumeQuiescenceWorldTest::RunTest(const FString& /*Para
 		TestEqual(TEXT("restore abort leaves no old night outcome to record"), Runtime->GetLastOutcome().Result, ENightOutcomeResult::None);
 		TestFalse(TEXT("restore abort removes the stale early-dawn callback"),
 			Runtime->OnNightShouldEnd.IsAlreadyBound(DayNight, &UGloamsteadDayNightSubsystem::HandleNightShouldEnd));
+		TestTrue(TEXT("restore abort preserves the non-DayNight early-dawn observer"),
+			Runtime->OnNightShouldEnd.IsAlreadyBound(FirstNightDirector, &AGloamsteadFirstNightDirector::HandleNightShouldEnd));
+		TestEqual(TEXT("restore abort emits no stale early-dawn event to the retained observer"),
+			FirstNightDirector->Test_LegacyEarlyDawnCallbackCount, ExternalEarlyDawnCallbacksBeforeRestore);
 
 		const TArray<FRitualPointState>& RestoredBeforeTick = PCG->Test_PeekPointStates();
 		TestEqual(TEXT("safe Day reload restores the saved PCG point count"), RestoredBeforeTick.Num(), SafeDayStates.Num());
@@ -676,6 +686,8 @@ bool FGloamPlayableCycleResumeQuiescenceWorldTest::RunTest(const FString& /*Para
 		World->Tick(LEVELTICK_All, 0.10f);
 		TestTrue(TEXT("a stale runtime tick cannot force restored Day into Dawn"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
 		TestEqual(TEXT("a stale runtime tick cannot request a new Dawn"), DayNight->Test_GetCadenceDawnRequestCount(), DawnRequestsBeforeRestore);
+		TestEqual(TEXT("a stale runtime tick emits no old early-dawn event to the retained observer"),
+			FirstNightDirector->Test_LegacyEarlyDawnCallbackCount, ExternalEarlyDawnCallbacksBeforeRestore);
 		const TArray<FRitualPointState>& RestoredAfterTick = PCG->Test_PeekPointStates();
 		if (RestoredAfterTick.IsValidIndex(0) && SafeDayStates.IsValidIndex(0))
 		{

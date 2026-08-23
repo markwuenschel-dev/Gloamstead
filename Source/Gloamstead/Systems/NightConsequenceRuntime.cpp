@@ -330,10 +330,10 @@ void UNightConsequenceRuntime::AbortNightForRestore()
 		World->GetTimerManager().ClearTimer(PressureTimer);
 	}
 
-	// Early-dawn observers are scoped to the abandoned run. DayNight will bind
-	// its fresh one immediately before the next BeginNight, so no stale callback
-	// can cross a restored Day even if an external listener forgot to unbind.
-	OnNightShouldEnd.Clear();
+	// DayNight removes its own cadence callback before it aborts this runtime.
+	// This is a public BlueprintAssignable delegate, so restore must preserve
+	// every listener it does not own; clearing runtime state below prevents any
+	// abandoned run from broadcasting another early-dawn event.
 	DestroyPressureActor();
 	bNightActive = false;
 	bEarlyDawnRequested = false;

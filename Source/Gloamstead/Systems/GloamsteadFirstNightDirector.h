@@ -187,6 +187,8 @@ public:
 	int32 Test_EncroachmentCount = 0;
 	int32 Test_DawnPayoffCount = 0;
 	int32 Test_HeartReflectionCount = 0;
+	/** Receipt-only test telemetry for the legacy callback; it remains gameplay-inert. */
+	int32 Test_LegacyEarlyDawnCallbackCount = 0;
 
 protected:
 	void ResolveWorldSystems();

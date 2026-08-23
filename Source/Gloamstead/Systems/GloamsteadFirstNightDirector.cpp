@@ -461,6 +461,7 @@ void AGloamsteadFirstNightDirector::HandleNightStarted(ENightConsequenceType Nig
 
 void AGloamsteadFirstNightDirector::HandleNightShouldEnd()
 {
+	++Test_LegacyEarlyDawnCallbackCount;
 	UE_LOG(LogTemp, Verbose, TEXT("FirstNightDirector: ignoring legacy early-objective callback; DayNight owns the dawn transition."));
 }
 
