@@ -84,6 +84,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "First Night")
 	bool IsTutorialDetached() const { return bTutorialDetached; }
 
+	/**
+	 * Releases this Cycle I-only actor when a safe later-cycle progression payload
+	 * replaces the live world. Called by DayNight before it retries the new warning.
+	 */
+	void DetachForProgressionResume();
+
 	// === Presentation hooks (implemented in the Blueprint child) ===
 
 	/** Day: the Heart's warning about the lost path should be shown/captioned. */
@@ -134,11 +140,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "First Night")
 	void RequestAdvanceToDusk();
 
-	/** Dusk -> Night compatibility request. It never schedules a tutorial timer. */
+	/** Dusk -> Night Blueprint compatibility entry point; inert because DayNight owns cadence. */
 	UFUNCTION(BlueprintCallable, Category = "First Night")
 	void RequestAdvanceToNight();
 
-	/** Night -> Dawn compatibility request. Runtime early completion is owned by DayNight. */
+	/** Night -> Dawn Blueprint compatibility entry point; inert because DayNight owns cadence. */
 	UFUNCTION(BlueprintCallable, Category = "First Night")
 	void RequestAdvanceToDawn();
 

@@ -1,5 +1,6 @@
 #include "Systems/GloamsteadDayNightSubsystem.h"
 #include "Systems/GloamsteadExperienceCycleSubsystem.h"
+#include "Systems/GloamsteadFirstNightDirector.h"
 #include "Systems/NightConsequenceManager.h"
 #include "Systems/NightConsequenceRuntime.h"
 #include "Systems/VeilHeart.h"
@@ -327,16 +328,17 @@ bool UGloamsteadDayNightSubsystem::LoadProgressionFromSlot(const FString& SlotNa
 		return false;
 	}
 
-	// Resume never inherits a live world's pending cadence or early-objective
-	// callback. The persisted payload is still reconciled by the existing
-	// Task 3 rules below; this only prevents a stale timer from crossing phases
-	// after that payload has made its decision.
-	ClearCadenceTimers();
-	UnbindCadenceRuntime();
-	bDawnTransitionRequested = false;
-
 	UGloamsteadSaveGame* SaveGame = Cast<UGloamsteadSaveGame>(UGameplayStatics::LoadGameFromSlot(SlotName, UserIndex));
-	if (!SaveGame || !PCG->RestoreFromSaveGame(SaveGame))
+	if (!SaveGame)
+	{
+		ResetToSafeDayReconciliation();
+		return false;
+	}
+
+	// Quiesce before the first PCG write. In particular, a live runtime must
+	// never resolve or pressure the newly restored Day on its old timer tick.
+	QuiesceLiveWorldForProgressionRestore();
+	if (!PCG->RestoreFromSaveGame(SaveGame))
 	{
 		ResetToSafeDayReconciliation();
 		return false;
@@ -408,6 +410,7 @@ bool UGloamsteadDayNightSubsystem::LoadProgressionFromSlot(const FString& SlotNa
 	PendingPresentationPlanId = NAME_None;
 	bWarningPresentationDeferralLogged = false;
 	ClearWarningPresentationRetry();
+	DetachStaleFirstNightDirectorsForLaterCycleResume();
 
 	// A persisted armed plan is validated by RestorePersistentState. An unarmed
 	// later Day may now arm exactly one next plan; the first tutorial day stays
@@ -429,9 +432,7 @@ void UGloamsteadDayNightSubsystem::ResetToSafeDayReconciliation()
 	// Rejected progression payloads leave PCG restored for a human-visible
 	// reconciliation, but never leave the phase machine or rest gate carrying
 	// authority from the pre-load world.
-	ClearCadenceTimers();
-	UnbindCadenceRuntime();
-	bDawnTransitionRequested = false;
+	QuiesceLiveWorldForProgressionRestore();
 	CurrentPhase = EGloamsteadDayPhase::Day;
 	NightCount = 0;
 	bFirstRestUnlocked = false;
@@ -491,11 +492,57 @@ void UGloamsteadDayNightSubsystem::ClearWarningPresentationRetry()
 	}
 }
 
-void UGloamsteadDayNightSubsystem::Deinitialize()
+void UGloamsteadDayNightSubsystem::QuiesceLiveWorldForProgressionRestore()
 {
+	// A save payload owns the PCG baseline it is about to restore. Nothing from
+	// the abandoned Dusk/Night may observe or mutate that baseline while it is
+	// being replaced: clear the phase authority first, then abort the runtime
+	// without resolving its old strategy or broadcasting an old outcome.
 	ClearCadenceTimers();
 	UnbindCadenceRuntime();
 	ClearWarningPresentationRetry();
+	bDawnTransitionRequested = false;
+	bDuskPlanPrepared = false;
+
+	if (UWorld* World = GetWorld())
+	{
+		if (UNightConsequenceRuntime* Runtime = World->GetSubsystem<UNightConsequenceRuntime>())
+		{
+			Runtime->AbortNightForRestore();
+		}
+	}
+}
+
+void UGloamsteadDayNightSubsystem::DetachStaleFirstNightDirectorsForLaterCycleResume()
+{
+	// NightCount is reconstructed from the validated completed-cycle slot. A
+	// nonzero value on Day proves this is no longer the opening lantern lesson;
+	// detach every stale tutorial actor before any Cycle II warning can retry.
+	if (CurrentPhase != EGloamsteadDayPhase::Day || NightCount <= 0)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	TArray<AActor*> Directors;
+	UGameplayStatics::GetAllActorsOfClass(World, AGloamsteadFirstNightDirector::StaticClass(), Directors);
+	for (AActor* Actor : Directors)
+	{
+		if (AGloamsteadFirstNightDirector* Director = Cast<AGloamsteadFirstNightDirector>(Actor))
+		{
+			Director->DetachForProgressionResume();
+		}
+	}
+}
+
+void UGloamsteadDayNightSubsystem::Deinitialize()
+{
+	QuiesceLiveWorldForProgressionRestore();
 	bWarningPresentationPending = false;
 	bInProgressSaveReconciliation = false;
 	PendingPresentationPlanId = NAME_None;
@@ -653,6 +700,10 @@ void UGloamsteadDayNightSubsystem::ApplyPhaseChange(EGloamsteadDayPhase NewPhase
 
 void UGloamsteadDayNightSubsystem::HandleEnterDay()
 {
+	// A resumed Dawn becomes a later Day only through this authority. Ensure a
+	// stale opening-tutorial presenter cannot win the exact Cycle II warning
+	// race before the generic post-tutorial bridge takes the Heart role.
+	DetachStaleFirstNightDirectorsForLaterCycleResume();
 	if (GetExperienceCycleSubsystem() && !PrepareUpcomingCycle())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("DayNight: Day began without a safe authored plan."));

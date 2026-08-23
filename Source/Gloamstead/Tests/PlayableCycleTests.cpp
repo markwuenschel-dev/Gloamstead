@@ -236,6 +236,9 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			FExperienceCyclePersistentState ClearedCycle;
 			TestTrue(TEXT("test clears the pre-lantern in-memory plan before isolated reload"), Experience->RestorePersistentState(ClearedCycle));
 			TestTrue(TEXT("v2 pre-lantern Day snapshot reloads from its isolated slot"), DayNight->LoadProgressionFromSlot(LanternGateSlot));
+			TestFalse(TEXT("pre-lantern Cycle I reload keeps the live tutorial director attached"),
+				FirstNightDirector && FirstNightDirector->IsTutorialDetached());
+			TestTrue(TEXT("pre-lantern Cycle I reload retains the tutorial Heart presenter"), Heart->HasValidWarningPresenter());
 			TestFalse(TEXT("saved Tutorial plan cannot infer the lantern gate"), DayNight->IsFirstRestUnlocked());
 			TestEqual(TEXT("reload stays in Day before the lantern tutorial event"), DayNight->GetCurrentPhase(), EGloamsteadDayPhase::Day);
 			const FExperienceCyclePlan* ReloadedTutorialPlan = DayNight->GetUpcomingPlan();
@@ -521,6 +524,166 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 
 	UGameplayStatics::DeleteGameInSlot(Slot, 0);
 	UGameplayStatics::DeleteGameInSlot(LanternGateSlot, 0);
+	return true;
+}
+
+// A valid later-cycle Day save replaces the opening lesson's world state. The
+// live regression proves that the tutorial presenter releases before GardenRot
+// can become rest-eligible, and that an active old night is aborted before its
+// pressure cadence can touch the restored PCG baseline.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamPlayableCycleResumeQuiescenceWorldTest,
+	"Gloamstead.PlayableCycle.ResumeQuiescesTutorialAndRuntime",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamPlayableCycleResumeQuiescenceWorldTest::RunTest(const FString& /*Parameters*/)
+{
+	const FString SafeDaySlot = TEXT("GloamsteadPlayableCycleResumeQuiescence");
+	UGameplayStatics::DeleteGameInSlot(SafeDaySlot, 0);
+
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld*/ false);
+	if (!TestNotNull(TEXT("resume-quiescence live world created"), World))
+	{
+		return false;
+	}
+
+	UGameInstance* GameInstance = NewObject<UGameInstance>(GEngine);
+	GameInstance->Init();
+	World->SetGameInstance(GameInstance);
+	FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
+	WorldContext.OwningGameInstance = GameInstance;
+	WorldContext.SetCurrentWorld(World);
+	FURL URL;
+	World->InitializeActorsForPlay(URL);
+	World->BeginPlay();
+
+	UGloamsteadDayNightSubsystem* DayNight = World->GetSubsystem<UGloamsteadDayNightSubsystem>();
+	UGloamsteadExperienceCycleSubsystem* Experience = GameInstance->GetSubsystem<UGloamsteadExperienceCycleSubsystem>();
+	UGloamsteadPCGSubsystem* PCG = World->GetSubsystem<UGloamsteadPCGSubsystem>();
+	UNightConsequenceRuntime* Runtime = World->GetSubsystem<UNightConsequenceRuntime>();
+	const bool bSubsystems = DayNight && Experience && PCG && Runtime;
+	TestTrue(TEXT("resume-quiescence subsystems present"), bSubsystems);
+
+	if (bSubsystems)
+	{
+		DayNight->SetDawnAutosaveEnabled(false);
+		DayNight->NightDurationSeconds = 60.0f;
+		Runtime->PressureStepSeconds = 0.05f;
+
+		TArray<FRitualPointState> SafeDayStates;
+		for (int32 Index = 0; Index < 3; ++Index)
+		{
+			FRitualPointState State;
+			State.LightLevel = 0.35f + static_cast<float>(Index) * 0.1f;
+			State.CorruptionLevel = (Index == 0) ? 0.65f : 0.15f;
+			State.bIsRestored = false;
+			SafeDayStates.Add(State);
+		}
+		PCG->Test_SeedPointStates(SafeDayStates);
+
+		AVeilHeart* Heart = World->SpawnActor<AVeilHeart>();
+		AGloamsteadSkyPresenter* SkyPresenter = World->SpawnActor<AGloamsteadSkyPresenter>();
+		TestNotNull(TEXT("resume-quiescence Heart spawned"), Heart);
+		TestNotNull(TEXT("resume-quiescence SkyPresenter spawned"), SkyPresenter);
+		if (Heart)
+		{
+			Heart->WarningCatalog = MakeCycleWarningCatalog();
+		}
+
+		AGloamsteadFirstNightDirector* FirstNightDirector = World->SpawnActor<AGloamsteadFirstNightDirector>();
+		TestNotNull(TEXT("resume-quiescence director begins active"), FirstNightDirector);
+		TestTrue(TEXT("opening director owns the tutorial presenter before the later save"), Heart && Heart->HasValidWarningPresenter());
+		TestFalse(TEXT("opening director is active before the later save"),
+			FirstNightDirector && FirstNightDirector->IsTutorialDetached());
+
+		UGloamsteadSaveGame* SafeDaySave = Cast<UGloamsteadSaveGame>(
+			UGameplayStatics::CreateSaveGameObject(UGloamsteadSaveGame::StaticClass()));
+		TestNotNull(TEXT("safe later-cycle Day save allocated"), SafeDaySave);
+		if (SafeDaySave)
+		{
+			PCG->CaptureToSaveGame(SafeDaySave);
+			FExperienceCyclePersistentState SafeCycleState;
+			SafeCycleState.CompletedCycleSlot = 1;
+			SafeCycleState.ArmedPlanId = FName(TEXT("Cycle2_Garden"));
+			SafeCycleState.LastPlanId = FName(TEXT("Cycle1_Tutorial"));
+			SafeCycleState.LastOutcomeResultTag = FName(TEXT("TutorialSheltered"));
+			SafeCycleState.bFirstRestCompleted = true;
+			SafeCycleState.SavedPhaseOrdinal = static_cast<int32>(EGloamsteadDayPhase::Day);
+			SafeDaySave->SetExperienceCycleState(SafeCycleState);
+			TestTrue(TEXT("safe authored Cycle II Day fixture writes"), UGameplayStatics::SaveGameToSlot(SafeDaySave, SafeDaySlot, 0));
+		}
+
+		TestTrue(TEXT("later-cycle Day load succeeds while Cycle I director is active"), DayNight->LoadProgressionFromSlot(SafeDaySlot));
+		TestTrue(TEXT("later-cycle Day load detaches the stale tutorial director before warning retry"),
+			FirstNightDirector && FirstNightDirector->IsTutorialDetached());
+		TestFalse(TEXT("detached tutorial director releases the Heart presenter slot"), Heart && Heart->HasValidWarningPresenter());
+		TestFalse(TEXT("detached tutorial director no longer receives Heart warning callbacks"),
+			Heart && FirstNightDirector && Heart->OnWarningEmittedDelegate.IsAlreadyBound(FirstNightDirector, &AGloamsteadFirstNightDirector::HandleHeartWarning));
+		TestTrue(TEXT("Cycle II warning stays pending until the generic presenter attaches"), DayNight->IsWarningPresentationPending());
+		TestFalse(TEXT("rest stays closed while the former tutorial presenter is the only UI path"), DayNight->CanRestNow());
+
+		// The placed generic presenter observes the detached director on its next
+		// world tick, registers, and lets the queued exact warning land.
+		World->Tick(LEVELTICK_All, 0.30f);
+		World->Tick(LEVELTICK_All, 0.30f);
+		TestTrue(TEXT("SkyPresenter takes the released Heart presenter role"), Heart && Heart->HasValidWarningPresenter());
+		TestFalse(TEXT("generic presenter clears the retained Cycle II warning pending state"), DayNight->IsWarningPresentationPending());
+		TestEqual(TEXT("generic handoff exposes exactly GardenRot"), Heart ? Heart->GetLastEmittedWarningId() : NAME_None, FName(TEXT("GardenRot")));
+		if (SkyPresenter)
+		{
+			TestEqual(TEXT("SkyPresenter receives exactly GardenRot after resume"), SkyPresenter->Test_GetLastPresentedWarningId(), FName(TEXT("GardenRot")));
+		}
+		TestTrue(TEXT("rest opens only after the generic GardenRot presentation"), DayNight->CanRestNow());
+
+		// Establish a real Corruption runtime, then replace it with the same safe
+		// Day snapshot. This must not become EndNight or an early-dawn callback.
+		TestTrue(TEXT("Cycle II rest enters Dusk before live runtime abort proof"), DayNight->RequestRest());
+		TestTrue(TEXT("Cycle II rest reached Dusk before live runtime abort proof"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk);
+		DayNight->AdvanceToNextPhase();
+		TestTrue(TEXT("Cycle II cadence enters Night before live runtime abort proof"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Night);
+		TestTrue(TEXT("old Corruption runtime is active before restore"), Runtime->IsNightActive());
+		TestNotNull(TEXT("old Corruption runtime owns an active strategy before restore"), Runtime->Test_GetActiveStrategy());
+		TestTrue(TEXT("old Corruption runtime scheduled pressure before restore"), Runtime->Test_IsPressureCadenceScheduled());
+		TestTrue(TEXT("old Corruption runtime spawned its pressure actor before restore"), Runtime->Test_HasActivePressureActor());
+		const int32 DawnRequestsBeforeRestore = DayNight->Test_GetCadenceDawnRequestCount();
+
+		TestTrue(TEXT("safe Day reload aborts the active old runtime"), DayNight->LoadProgressionFromSlot(SafeDaySlot));
+		TestTrue(TEXT("safe reload returns the phase authority to Day"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
+		TestFalse(TEXT("old runtime is inactive after restore abort"), Runtime->IsNightActive());
+		TestNull(TEXT("old runtime strategy is cleared without ResolveNight"), Runtime->Test_GetActiveStrategy());
+		TestFalse(TEXT("old pressure cadence is cleared before restored PCG can tick"), Runtime->Test_IsPressureCadenceScheduled());
+		TestFalse(TEXT("old pressure actor is destroyed before restored PCG can tick"), Runtime->Test_HasActivePressureActor());
+		TestEqual(TEXT("restore abort leaves no old night outcome to record"), Runtime->GetLastOutcome().Result, ENightOutcomeResult::None);
+		TestFalse(TEXT("restore abort removes the stale early-dawn callback"),
+			Runtime->OnNightShouldEnd.IsAlreadyBound(DayNight, &UGloamsteadDayNightSubsystem::HandleNightShouldEnd));
+
+		const TArray<FRitualPointState>& RestoredBeforeTick = PCG->Test_PeekPointStates();
+		TestEqual(TEXT("safe Day reload restores the saved PCG point count"), RestoredBeforeTick.Num(), SafeDayStates.Num());
+		if (RestoredBeforeTick.IsValidIndex(0) && SafeDayStates.IsValidIndex(0))
+		{
+			TestTrue(TEXT("safe Day reload restores corruption before stale timer opportunity"),
+				FMath::IsNearlyEqual(RestoredBeforeTick[0].CorruptionLevel, SafeDayStates[0].CorruptionLevel));
+			TestTrue(TEXT("safe Day reload restores light before stale timer opportunity"),
+				FMath::IsNearlyEqual(RestoredBeforeTick[0].LightLevel, SafeDayStates[0].LightLevel));
+		}
+
+		World->Tick(LEVELTICK_All, 0.10f);
+		TestTrue(TEXT("a stale runtime tick cannot force restored Day into Dawn"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
+		TestEqual(TEXT("a stale runtime tick cannot request a new Dawn"), DayNight->Test_GetCadenceDawnRequestCount(), DawnRequestsBeforeRestore);
+		const TArray<FRitualPointState>& RestoredAfterTick = PCG->Test_PeekPointStates();
+		if (RestoredAfterTick.IsValidIndex(0) && SafeDayStates.IsValidIndex(0))
+		{
+			TestTrue(TEXT("a stale runtime tick cannot mutate restored corruption"),
+				FMath::IsNearlyEqual(RestoredAfterTick[0].CorruptionLevel, SafeDayStates[0].CorruptionLevel));
+			TestTrue(TEXT("a stale runtime tick cannot mutate restored light"),
+				FMath::IsNearlyEqual(RestoredAfterTick[0].LightLevel, SafeDayStates[0].LightLevel));
+		}
+	}
+
+	GEngine->DestroyWorldContext(World);
+	World->DestroyWorld(false);
+	GameInstance->Shutdown();
+	UGameplayStatics::DeleteGameInSlot(SafeDaySlot, 0);
 	return true;
 }
 

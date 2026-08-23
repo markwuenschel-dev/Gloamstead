@@ -136,6 +136,10 @@ private:
 	void QueueWarningPresentationRetry();
 	void RetryPendingWarningPresentation();
 	void ClearWarningPresentationRetry();
+	/** Quiesces timers, early-dawn callbacks, and a live runtime before any PCG restore. */
+	void QuiesceLiveWorldForProgressionRestore();
+	/** A safe later-cycle Day cannot retain a Cycle I tutorial presenter or callbacks. */
+	void DetachStaleFirstNightDirectorsForLaterCycleResume();
 	void ScheduleDuskToNightCadence();
 	void ScheduleNightToDawnCadence();
 	void ClearCadenceTimers();

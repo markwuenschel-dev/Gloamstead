@@ -40,6 +40,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Night")
 	void EndNight();
 
+	/**
+	 * Drops a live night before a save payload restores its own PCG baseline.
+	 *
+	 * This is deliberately not EndNight(): a restore must neither resolve the old
+	 * strategy nor publish/record an outcome from the world being replaced.
+	 */
+	void AbortNightForRestore();
+
 	UFUNCTION(BlueprintPure, Category = "Night")
 	ENightConsequenceType GetPlannedNightType() const { return PlannedNightType; }
 
@@ -88,6 +96,10 @@ public:
 	UNightStrategy* Test_GetActiveStrategy() const { return ActiveStrategy; }
 	/** Instantiate the strategy the runtime would use for a night type (proves the type->class mapping). */
 	UNightStrategy* Test_MakeStrategyFor(ENightConsequenceType Type);
+	/** True when the live pressure cadence still owns a timer in this world. */
+	bool Test_IsPressureCadenceScheduled() const;
+	/** True when a cosmetic pressure actor from the active night still exists. */
+	bool Test_HasActivePressureActor() const { return !!ActivePressureActor; }
 
 protected:
 	UFUNCTION()

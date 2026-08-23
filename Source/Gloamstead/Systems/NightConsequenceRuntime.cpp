@@ -39,10 +39,9 @@ void UNightConsequenceRuntime::Initialize(FSubsystemCollectionBase& Collection)
 
 void UNightConsequenceRuntime::Deinitialize()
 {
+	AbortNightForRestore();
 	if (UWorld* World = GetWorld())
 	{
-		World->GetTimerManager().ClearTimer(PressureTimer);
-
 		if (UNightConsequenceManager* Manager = World->GetSubsystem<UNightConsequenceManager>())
 		{
 			Manager->OnNightPlanReady.RemoveDynamic(this, &UNightConsequenceRuntime::HandleNightPlanReady);
@@ -116,6 +115,15 @@ TSubclassOf<UNightStrategy> UNightConsequenceRuntime::ResolveStrategyClass(ENigh
 UNightStrategy* UNightConsequenceRuntime::Test_MakeStrategyFor(ENightConsequenceType Type)
 {
 	return NewObject<UNightStrategy>(this, ResolveStrategyClass(Type));
+}
+
+bool UNightConsequenceRuntime::Test_IsPressureCadenceScheduled() const
+{
+	if (UWorld* World = GetWorld())
+	{
+		return World->GetTimerManager().IsTimerActive(PressureTimer);
+	}
+	return false;
 }
 
 void UNightConsequenceRuntime::BeginNight()
@@ -286,6 +294,29 @@ void UNightConsequenceRuntime::EndNight()
 	bNightActive = false;
 	ActiveNightType = ENightConsequenceType::Invalid;
 	ActiveStrategy = nullptr;
+}
+
+void UNightConsequenceRuntime::AbortNightForRestore()
+{
+	// Restore replaces the PCG baseline underneath this runtime. Do not use
+	// EndNight here: resolving the strategy, broadcasting OnNightEnded, or
+	// retaining LastOutcome would let an abandoned world alter the new Day.
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(PressureTimer);
+	}
+
+	// Early-dawn observers are scoped to the abandoned run. DayNight will bind
+	// its fresh one immediately before the next BeginNight, so no stale callback
+	// can cross a restored Day even if an external listener forgot to unbind.
+	OnNightShouldEnd.Clear();
+	DestroyPressureActor();
+	bNightActive = false;
+	PlannedNightType = ENightConsequenceType::Invalid;
+	ActiveNightType = ENightConsequenceType::Invalid;
+	ActiveStrategy = nullptr;
+	ActiveContext = FNightRuntimeContext();
+	LastOutcome = FNightRuntimeOutcome();
 }
 
 void UNightConsequenceRuntime::MaybeSpawnPressureActor(UGloamsteadPCGSubsystem* PCG)

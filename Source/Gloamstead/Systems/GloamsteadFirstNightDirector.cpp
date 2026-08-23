@@ -257,6 +257,14 @@ void AGloamsteadFirstNightDirector::DetachTutorial()
 	SetActorTickEnabled(false);
 }
 
+void AGloamsteadFirstNightDirector::DetachForProgressionResume()
+{
+	// A validated later-cycle Day save is conclusive evidence that this live
+	// Cycle I lesson is stale. Detach before DayNight retries the new warning so
+	// the Heart never treats tutorial UI as the later-cycle player-facing surface.
+	DetachTutorial();
+}
+
 void AGloamsteadFirstNightDirector::PresentWarning()
 {
 	// Deliberately does NOT emit a warning here. DayNight exposes the exact authored
@@ -472,16 +480,15 @@ void AGloamsteadFirstNightDirector::RequestAdvanceToDusk()
 
 void AGloamsteadFirstNightDirector::RequestAdvanceToNight()
 {
-	if (!bTutorialDetached && CachedDayNight && CachedDayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk)
-	{
-		CachedDayNight->AdvanceToNextPhase();
-	}
+	// Kept for Blueprint ABI compatibility only. DayNight's Dusk cadence is the
+	// sole Dusk->Night authority; allowing the tutorial actor through here would
+	// bypass the readable preparation interval on both Cycle I and later saves.
+	UE_LOG(LogTemp, Verbose, TEXT("FirstNightDirector: ignoring legacy Dusk->Night request; DayNight owns cadence."));
 }
 
 void AGloamsteadFirstNightDirector::RequestAdvanceToDawn()
 {
-	if (!bTutorialDetached && CachedDayNight && CachedDayNight->GetCurrentPhase() == EGloamsteadDayPhase::Night)
-	{
-		CachedDayNight->AdvanceToNextPhase();
-	}
+	// Kept for Blueprint ABI compatibility only. DayNight owns the deadline and
+	// runtime early-objective path, including its exactly-once Dawn guard.
+	UE_LOG(LogTemp, Verbose, TEXT("FirstNightDirector: ignoring legacy Night->Dawn request; DayNight owns cadence."));
 }

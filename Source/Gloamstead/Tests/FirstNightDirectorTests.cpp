@@ -158,6 +158,12 @@ bool FGloamFirstNightSequenceToDawnTest::RunTest(const FString& /*Parameters*/)
 	TestTrue(TEXT("beat is Dusk"), Director->GetCurrentBeat() == EFirstNightBeat::Dusk);
 	TestEqual(TEXT("dusk cue fired"), Director->Test_DuskCueCount, 1);
 
+	// Legacy Blueprint compatibility requests must not bypass the readable Dusk
+	// cadence before the tutorial detaches. DayNight is the only authority that
+	// may take Dusk -> Night.
+	Director->RequestAdvanceToNight();
+	TestTrue(TEXT("the active tutorial director cannot bypass Dusk cadence"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk);
+
 	// Dusk -> Night is DayNight cadence-owned. The test advances its authority directly;
 	// in play its cadence timer takes the same guarded route.
 	DayNight->AdvanceToNextPhase();
@@ -168,6 +174,11 @@ bool FGloamFirstNightSequenceToDawnTest::RunTest(const FString& /*Parameters*/)
 	TestTrue(TEXT("observed night type is Tutorial"), Director->GetObservedNightType() == ENightConsequenceType::Tutorial);
 	TestTrue(TEXT("beat is Night"), Director->GetCurrentBeat() == EFirstNightBeat::Night);
 	TestEqual(TEXT("encroachment presented once"), Director->Test_EncroachmentCount, 1);
+
+	// The active tutorial director likewise cannot force an early Dawn; only
+	// DayNight's deadline/early-objective path owns that transition.
+	Director->RequestAdvanceToDawn();
+	TestTrue(TEXT("the active tutorial director cannot bypass Night cadence"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Night);
 
 	// Night completion advances to Dawn and fires the payoff.
 	DayNight->AdvanceToNextPhase();
