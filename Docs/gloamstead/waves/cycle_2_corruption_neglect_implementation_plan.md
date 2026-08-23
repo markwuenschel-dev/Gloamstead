@@ -68,6 +68,7 @@
 
 - `Source/Gloamstead/Systems/GloamsteadDayNightSubsystem.h`
 - `Source/Gloamstead/Systems/GloamsteadDayNightSubsystem.cpp`
+- `Source/Gloamstead/Data/ExperienceCycleTypes.cpp`
 - `Source/Gloamstead/Systems/GloamsteadExperienceCycleSubsystem.h`
 - `Source/Gloamstead/Systems/GloamsteadExperienceCycleSubsystem.cpp`
 - `Source/Gloamstead/Systems/NightConsequenceManager.h`
@@ -80,7 +81,7 @@
 - `Source/Gloamstead/Tests/ExperienceCycleTests.cpp`
 - `Source/Gloamstead/Tests/PlayableCycleTests.cpp`
 
-**Implementation:** Replace the PCG-only dawn save with a single bounded save orchestration path that invokes PCG capture and experience/day capture. On load, restore PCG first, then cycle/day state, then arm/reconcile the upcoming plan before the Heart permits progression. The sanctuary bootstrap delegates its existing load-on-start route to that full progression loader after it initializes the PCG baseline; it may not retain a competing PCG-only restore. A legacy reconciliation never assumes a later-cycle warning. Dusk must reject a missing/mismatched armed plan rather than call generic selection.
+**Implementation:** Replace the PCG-only dawn save with a single bounded save orchestration path that invokes PCG capture and experience/day capture. On load, restore PCG first, then cycle/day state, then arm/reconcile the upcoming plan before the Heart permits progression. Exact warning presentation may retry until its Heart/catalog is ready, but a valid payload is never rejected solely for that timing. The sanctuary bootstrap delegates its existing load-on-start route to that full progression loader after it initializes the PCG baseline; it may not retain a competing PCG-only restore. A legacy reconciliation never assumes a later-cycle warning and resets phase authority coherently. Dusk must reject a missing/mismatched armed plan rather than call generic selection.
 
 **Acceptance:** the player can inspect the exact second-day warning before rest; rest does not alter the plan ID; Dusk/Night/Dawn use that same ID; v2 save/load resumes Cycle II without replaying Cycle I or changing the plan; legacy save remains safe and explicit.
 
