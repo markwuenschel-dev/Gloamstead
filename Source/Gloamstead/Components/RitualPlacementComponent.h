@@ -147,6 +147,10 @@ public:
     UFUNCTION(BlueprintImplementableEvent, Category="Ritual|Placement")
     void OnPlacementModeExited();
 
+    /** Fires when the player-facing placement reason changes, including an exact-plan mismatch. */
+    UFUNCTION(BlueprintImplementableEvent, Category="Ritual|Placement")
+    void OnPlacementStatusChanged(const FText& StatusText);
+
     /** Optional per-character override. When unset, the project-owned first-lantern Blueprint is loaded. */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ritual|Placement")
     TSubclassOf<AActor> LanternPostRestoredClass;
@@ -190,10 +194,24 @@ public:
     UFUNCTION(BlueprintPure, Category="Ritual|Placement")
     ERitualType GetPlacementRitualType() const { return CurrentMode; }
 
+    /**
+     * Readable reason a currently armed ritual cannot be confirmed. This is
+     * intentionally player-facing data, not a log-only diagnostic: UI can
+     * explain why a nearby same-ritual place does not answer the Heart.
+     */
+    UFUNCTION(BlueprintPure, Category="Ritual|Placement")
+    FText GetPlacementStatusText() const { return PlacementStatusText; }
+
 protected:
     void UpdateTargetPoint();
     bool IsPointValidForPlacement(int32 PointIndex) const;
-    int32 ResolveTargetForPlacement(int32 RawPointIndex);
+    bool IsPointAuthorizedForCurrentPlacement(int32 PointIndex, const struct FExperienceCyclePlan& Plan) const;
+    bool IsTargetStillAuthorizedForMutation(int32 PointIndex, FText& OutFailureText) const;
+    const struct FExperienceCyclePlan* GetActivePlacementPlan(FText* OutFailureText = nullptr) const;
+    bool HasCompleteTargetContract(const struct FExperienceCyclePlan& Plan) const;
+    bool IsExplicitTutorialPlan(const struct FExperienceCyclePlan& Plan) const;
+    int32 ResolveLegacyTutorialTargetForPlacement(int32 RawPointIndex);
+    void SetPlacementStatus(const FText& NewStatusText);
 
     /** Spawns, moves, or removes the ghost so it always matches the current valid target. */
     void RefreshPreviewActor();
@@ -243,7 +261,13 @@ private:
 
     int32 CurrentTargetPointIndex = -1;
     ERitualType CurrentMode = ERitualType::Invalid;
+    /** Stable plan identity captured on entry; a changed or missing active plan invalidates confirmation. */
+    FName ArmedPlanId = NAME_None;
     bool bIsInPlacementMode = false;
+    bool bLastPreviewTargetValid = false;
+
+    /** UI-facing explanation for an invalid target. Empty only when no explanation is needed. */
+    FText PlacementStatusText;
 
     /** Weak: the ghost is a world actor and may be destroyed by level teardown out from under us. */
     UPROPERTY()

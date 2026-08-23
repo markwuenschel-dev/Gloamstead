@@ -89,6 +89,14 @@ public:
      */
     bool PointMatchesExperiencePlan(int32 PointIndex, const FExperienceCyclePlan& Plan, bool bRequireRestored = false) const;
 
+    /**
+     * Finds the nearest unrestored point carrying the complete immutable
+     * warning/subject/ritual/tag contract for Plan. This is a query only: it
+     * never grants restoration or interpretation authority to its caller.
+     */
+    int32 FindNearestUnrestoredPointMatchingExperiencePlan(
+        const FVector& Location, const FExperienceCyclePlan& Plan, float SearchRadius = 1600.f) const;
+
     /** Fills only contract metadata from the PCG point, never caller-provided literals. */
     bool PopulateAuthoritativeRestorationMetadata(int32 PointIndex, FRestorationEventPayload& InOutPayload) const;
 

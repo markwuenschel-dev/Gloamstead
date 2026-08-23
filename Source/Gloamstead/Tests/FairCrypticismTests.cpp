@@ -8,6 +8,7 @@
 #include "Actors/GloamsteadRestoredGardenBed.h"
 #include "Components/RitualPlacementComponent.h"
 #include "Components/GloamsteadSurveySubjectComponent.h"
+#include "GloamsteadCharacter.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Systems/GloamsteadDayNightSubsystem.h"
 #include "Systems/GloamsteadExperienceCycleSubsystem.h"
@@ -139,7 +140,31 @@ namespace
 		TObjectPtr<UGloamsteadPCGSubsystem> PCG;
 		TObjectPtr<UGloamsteadDayNightSubsystem> DayNight;
 		TObjectPtr<UGloamsteadExperienceCycleSubsystem> Experience;
+		TObjectPtr<AGloamsteadCharacter> PlayerCharacter;
 		bool bReady = false;
+
+		bool SpawnPlayerCharacterAt(const FVector& Location)
+		{
+			if (!LiveWorld.IsValid() || !LiveWorld->World)
+			{
+				return false;
+			}
+
+			// AGloamsteadCharacter is deliberately abstract; the shipped Blueprint
+			// child is the concrete player surface that owns the UI prompt and the
+			// same placement component the real map uses.
+			UClass* PlayerClass = LoadClass<AGloamsteadCharacter>(nullptr,
+				TEXT("/Game/ThirdPerson/Blueprints/BP_ThirdPersonCharacter.BP_ThirdPersonCharacter_C"));
+			if (!PlayerClass)
+			{
+				return false;
+			}
+
+			PlayerCharacter = LiveWorld->World->SpawnActor<AGloamsteadCharacter>(
+				PlayerClass, FTransform(Location));
+			EnsureGloamFairCrypticismActorBegunPlay(PlayerCharacter);
+			return PlayerCharacter && PlayerCharacter->GetRitualPlacement();
+		}
 
 		bool ApplyRestorationAt(int32 PointIndex, const FRestorationEventPayload& Payload) const
 		{
@@ -204,7 +229,10 @@ namespace
 		}
 	};
 
-	FHeartFixture MakeHeartFixture(bool bAddSameTypeDecoy = false)
+	FHeartFixture MakeHeartFixture(
+		bool bAddSameTypeDecoy = false,
+		bool bPlaceCanonicalGardenOutOfRange = false,
+		bool bPlaceSameRitualDecoyCloserThanCanonical = false)
 	{
 		FHeartFixture Fixture;
 		Fixture.LiveWorld = MakeShared<FGloamFairCrypticismScopedWorld>();
@@ -249,8 +277,10 @@ namespace
 		}
 
 		Fixture.PCG->Test_SeedPoints({
-			FVector::ZeroVector,
-			FVector(100.f, 0.f, 0.f),
+			bPlaceCanonicalGardenOutOfRange
+				? FVector(2400.f, 0.f, 0.f)
+				: (bPlaceSameRitualDecoyCloserThanCanonical ? FVector(200.f, 0.f, 0.f) : FVector::ZeroVector),
+			bPlaceSameRitualDecoyCloserThanCanonical ? FVector::ZeroVector : FVector(100.f, 0.f, 0.f),
 			FVector(200.f, 0.f, 0.f),
 			FVector(300.f, 0.f, 0.f),
 			FVector(400.f, 0.f, 0.f)
@@ -312,6 +342,100 @@ namespace
 			&& Fixture.DayNight->GetUpcomingPlan()->PlanId == Fixture.Plan.PlanId;
 		return Fixture;
 	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamFairCrypticismRejectsSameRitualDecoyBeforeMutationTest,
+	"Gloamstead.FairCrypticism.Targeting.RejectsSameRitualDecoyBeforeMutation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamFairCrypticismRejectsSameRitualDecoyBeforeMutationTest::RunTest(const FString& /*Parameters*/)
+{
+	// The only nearby GardenBed is deliberately a different warning. The
+	// canonical GardenRot point exists but is beyond placement search range.
+	// This must exercise the actual character -> placement route, not the
+	// automation-only confirmation tail, because the player must never visibly
+	// consume a same-ritual decoy before the Heart rejects it after the fact.
+	FHeartFixture Fixture = MakeHeartFixture(/*bAddSameTypeDecoy*/ true, /*bPlaceCanonicalGardenOutOfRange*/ true);
+	if (!TestTrue(TEXT("fixture presents the exact GardenRot warning"), Fixture.bReady)
+		|| !TestTrue(TEXT("a live player character owns the actual placement component"),
+			Fixture.SpawnPlayerCharacterAt(FVector::ZeroVector)))
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("first exact support makes a receipt possible if the target were correct"),
+		Fixture.ReportSupportEncounter(Fixture.Plan.WarningId, Fixture.Plan.RequiredSupportIds[0], Fixture.Plan.RequiredSupportChannelTypes[0]));
+	TestTrue(TEXT("second exact support makes a receipt possible if the target were correct"),
+		Fixture.ReportSupportEncounter(Fixture.Plan.WarningId, Fixture.Plan.RequiredSupportIds[1], Fixture.Plan.RequiredSupportChannelTypes[1]));
+
+	URitualPlacementComponent* PlayerPlacement = Fixture.PlayerCharacter->GetRitualPlacement();
+	Fixture.PlayerCharacter->GloamRestore();
+	TestTrue(TEXT("the player arms the authored GardenBed ritual"), PlayerPlacement->IsInPlacementMode());
+	TestEqual(TEXT("the player remains in the authored GardenBed mode"),
+		PlayerPlacement->GetPlacementRitualType(), ERitualType::GardenBed);
+	TestFalse(TEXT("a nearer same-ritual decoy is not a valid confirmation target"), PlayerPlacement->IsCurrentPlacementValid());
+	TestTrue(TEXT("the actual player prompt explains that the decoy does not answer the Heart warning"),
+		Fixture.PlayerCharacter->GetPlayerPromptText().ToString().Contains(TEXT("does not answer the Heart's warning")));
+	TestFalse(TEXT("confirmation refuses the nearby wrong GardenBed before mutation"), PlayerPlacement->ConfirmPlacement());
+	TestFalse(TEXT("the canonical out-of-range GardenRot point remains unrestored"), Fixture.PCG->IsPointRestored(0));
+	TestFalse(TEXT("the nearer wrong-warning GardenBed decoy remains unrestored"), Fixture.PCG->IsPointRestored(1));
+
+	AGloamsteadRestoredGardenBed* RestoredGarden = nullptr;
+	for (TActorIterator<AGloamsteadRestoredGardenBed> It(Fixture.LiveWorld->World); It; ++It)
+	{
+		if (It->ActorHasTag(TEXT("Gloamstead.RestoredGarden")))
+		{
+			RestoredGarden = *It;
+			break;
+		}
+	}
+	TestNull(TEXT("a rejected decoy never spawns a visible restored garden actor"), RestoredGarden);
+	TestFalse(TEXT("a rejected decoy cannot mint a GardenRot interpretation receipt"),
+		Fixture.Heart->HasExactInterpretationForPlan(Fixture.Plan));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamFairCrypticismRefusesChangedOrWithdrawnPlanWhileOpenTest,
+	"Gloamstead.FairCrypticism.Targeting.RefusesChangedOrWithdrawnPlanWhileOpen",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamFairCrypticismRefusesChangedOrWithdrawnPlanWhileOpenTest::RunTest(const FString& /*Parameters*/)
+{
+	FHeartFixture Fixture = MakeHeartFixture();
+	if (!TestTrue(TEXT("fixture presents GardenRot before the plan-change guard runs"), Fixture.bReady))
+	{
+		return false;
+	}
+
+	Fixture.Placement->EnterPlacementMode();
+	TestTrue(TEXT("the original exact GardenRot plan starts with a valid target"), Fixture.Placement->IsCurrentPlacementValid());
+
+	FExperienceCyclePersistentState ChangedPlanState;
+	ChangedPlanState.ArmedPlanId = TEXT("Cycle1_Tutorial");
+	TestTrue(TEXT("the live experience authority can move to a different authored plan"),
+		Fixture.Experience->RestorePersistentState(ChangedPlanState));
+	Fixture.Placement->ForceUpdatePreview();
+	TestTrue(TEXT("placement remains open long enough to explain a changed plan"), Fixture.Placement->IsInPlacementMode());
+	TestFalse(TEXT("a changed plan invalidates the old GardenRot target"), Fixture.Placement->IsCurrentPlacementValid());
+	TestTrue(TEXT("the changed-plan status is readable through the placement UI seam"),
+		Fixture.Placement->GetPlacementStatusText().ToString().Contains(TEXT("warning has shifted")));
+	TestFalse(TEXT("a changed plan refuses confirmation before mutation"), Fixture.Placement->ConfirmPlacement());
+	TestFalse(TEXT("a changed plan leaves the original GardenRot point unrestored"), Fixture.PCG->IsPointRestored(0));
+
+	FExperienceCyclePersistentState WithdrawnPlanState;
+	WithdrawnPlanState.CompletedCycleSlot = 1;
+	WithdrawnPlanState.bFirstRestCompleted = true;
+	TestTrue(TEXT("the live experience authority can withdraw the active plan"),
+		Fixture.Experience->RestorePersistentState(WithdrawnPlanState));
+	Fixture.Placement->ForceUpdatePreview();
+	TestFalse(TEXT("a withdrawn plan keeps the ritual invalid"), Fixture.Placement->IsCurrentPlacementValid());
+	TestTrue(TEXT("the withdrawn-plan status is readable through the placement UI seam"),
+		Fixture.Placement->GetPlacementStatusText().ToString().Contains(TEXT("warning has faded")));
+	TestFalse(TEXT("a withdrawn plan refuses confirmation before mutation"), Fixture.Placement->ConfirmPlacement());
+	TestFalse(TEXT("a withdrawn plan leaves the original GardenRot point unrestored"), Fixture.PCG->IsPointRestored(0));
+	return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -395,7 +519,10 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FGloamFairCrypticismExactWarningAndRestorationTest::RunTest(const FString& /*Parameters*/)
 {
-	FHeartFixture Fixture = MakeHeartFixture(/*bAddSameTypeDecoy*/ true);
+	FHeartFixture Fixture = MakeHeartFixture(
+		/*bAddSameTypeDecoy*/ true,
+		/*bPlaceCanonicalGardenOutOfRange*/ false,
+		/*bPlaceSameRitualDecoyCloserThanCanonical*/ true);
 	if (!TestTrue(TEXT("fixture presents the exact GardenRot warning"), Fixture.bReady))
 	{
 		return false;
@@ -469,6 +596,8 @@ bool FGloamFairCrypticismExactWarningAndRestorationTest::RunTest(const FString& 
 		Fixture.Placement->GetPlacementRitualType(), ERitualType::GardenBed);
 	TestEqual(TEXT("the real target carries GardenBed semantics"),
 		Fixture.Placement->GetCurrentTargetRitualType(), ERitualType::GardenBed);
+	TestEqual(TEXT("the real route ignores the closer same-ritual decoy and targets the exact GardenRot point"),
+		Fixture.Placement->GetCurrentTargetPointInfo().PointIndex, 0);
 	TestTrue(TEXT("the authored GardenBed target is valid for the player-world confirmation"),
 		Fixture.Placement->IsCurrentPlacementValid());
 	TestTrue(TEXT("the real confirmation restores the exact GardenBed point"), Fixture.Placement->ConfirmPlacement());

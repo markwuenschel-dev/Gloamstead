@@ -250,6 +250,50 @@ int32 UGloamsteadPCGSubsystem::FindNearestUnrestoredPointIndex(const FVector& Lo
     return BestIndex;
 }
 
+int32 UGloamsteadPCGSubsystem::FindNearestUnrestoredPointMatchingExperiencePlan(
+    const FVector& Location, const FExperienceCyclePlan& Plan, float SearchRadius) const
+{
+    int32 BestIndex = INDEX_NONE;
+    float BestDistSq = SearchRadius * SearchRadius;
+
+    const FIntVector CenterCell = WorldToCell(Location);
+    const int32 CellRadius = FMath::CeilToInt(SearchRadius / CellSize) + 1;
+
+    for (int32 X = -CellRadius; X <= CellRadius; ++X)
+    {
+        for (int32 Y = -CellRadius; Y <= CellRadius; ++Y)
+        {
+            for (int32 Z = -CellRadius; Z <= CellRadius; ++Z)
+            {
+                const FIntVector Cell = CenterCell + FIntVector(X, Y, Z);
+                const FRitualSpatialCell* CellData = SpatialGrid.Find(Cell);
+                if (!CellData)
+                {
+                    continue;
+                }
+
+                for (const int32 PointIndex : CellData->PointIndices)
+                {
+                    if (IsPointRestored(PointIndex)
+                        || !PointMatchesExperiencePlan(PointIndex, Plan))
+                    {
+                        continue;
+                    }
+
+                    const float DistSq = FVector::DistSquared(Location, CachedPoints[PointIndex].Transform.GetLocation());
+                    if (DistSq < BestDistSq)
+                    {
+                        BestDistSq = DistSq;
+                        BestIndex = PointIndex;
+                    }
+                }
+            }
+        }
+    }
+
+    return BestIndex;
+}
+
 bool UGloamsteadPCGSubsystem::IsPointRestored(int32 PointIndex) const
 {
     return PointStates.IsValidIndex(PointIndex) && PointStates[PointIndex].bIsRestored;

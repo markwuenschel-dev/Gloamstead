@@ -182,6 +182,10 @@ void AGloamsteadCharacter::OnRestoreInput()
 	}
 	else
 	{
+		// Refresh before reporting refusal: a plan can change between placement
+		// ticks, and the component owns the player-facing reason a nearby ritual
+		// no longer answers the Heart.
+		RitualPlacement->ForceUpdatePreview();
 		UE_LOG(LogTemp, Log, TEXT("GloamInput: Restore ignored — no valid target in range."));
 	}
 }
@@ -202,6 +206,12 @@ FText AGloamsteadCharacter::GetPlayerPromptText() const
 			default:
 				return NSLOCTEXT("Gloamstead", "PromptConfirmRitual", "[R]  Complete the restoration        [E]  Cancel");
 			}
+		}
+
+		const FText PlacementStatus = RitualPlacement->GetPlacementStatusText();
+		if (!PlacementStatus.IsEmpty())
+		{
+			return PlacementStatus;
 		}
 
 		return RitualType == ERitualType::GardenBed
