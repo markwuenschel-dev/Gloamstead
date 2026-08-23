@@ -205,7 +205,7 @@ For an authored plan with a complete target contract (including Cycle II GardenR
 - `Source/Gloamstead/Tests/WorldStateProjectionTests.cpp`
 - `Plugins/WorldForge/Source/WorldForgeCore/Public/WorldStateSubsystem.h`
 - `Plugins/WorldForge/Source/WorldForgeCore/Private/WorldStateSubsystem.cpp`
-- `Plugins/WorldForge/Source/WorldForgeCore/Private/WorldStateSubsystemTests.cpp`
+- `Plugins/WorldForge/Source/WorldForgeCore/Private/Tests/WorldStateWriteReservationTests.cpp`
 - `specs/world/gloamstead_world_spec.schema.json`
 - `specs/world/cycle-2-corruption-neglect.world.json`
 - `Docs/gloamstead/world/cycle_2_worldforge_receipt_requirements.md`

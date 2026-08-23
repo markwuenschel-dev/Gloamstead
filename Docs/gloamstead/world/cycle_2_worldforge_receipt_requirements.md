@@ -35,6 +35,21 @@ Every receipt must identify all of the following fields:
   materializer and survey command revisions.
 - `generator_parameters`: all non-default generation parameters in addition
   to the required semantic `generationInput` values above.
+- `worldforge_state_write_lease_source_revision`:
+  `97b1af6f5fa3fb1498095cd0925d29845d079df3`, the reviewed portable
+  WorldForge lease source imported into Gloamstead.
+- `worldforge_state_write_lease_source_sha256`: SHA-256 hashes of the exact
+  imported source bytes:
+  - `Plugins/WorldForge/Source/WorldForgeCore/Public/WorldStateSubsystem.h`:
+    `BC63B5A0AC6714E40B998A0693AB7DD505AEDAE5A49C8BAEFCCEAB41BB518DEF`
+  - `Plugins/WorldForge/Source/WorldForgeCore/Private/WorldStateSubsystem.cpp`:
+    `44FF7A9B599E929BD3862F95C78DBC20A1B6811354E9F65DBBB88A69634975BD`
+  - `Plugins/WorldForge/Source/WorldForgeCore/Private/Tests/WorldStateWriteReservationTests.cpp`:
+    `CC70BA41AE45FA10A8680BCCDA57881F932FFC643CF39F4B57B9194F385E18E7`
+
+`e18bb7d30610d507e3b0e8bc8815f9ee9280127f` is upstream policy provenance
+only. It does not assert that any pipeline files from that revision were
+vendored into this Gloamstead slice.
 
 The receipt must reject a mismatch between the named spec hash and the actual
 input, a dirty source where `*_source_clean` claims clean, or a generator

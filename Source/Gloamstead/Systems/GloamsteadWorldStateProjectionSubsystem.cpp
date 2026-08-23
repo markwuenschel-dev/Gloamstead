@@ -219,11 +219,50 @@ namespace
 
 }
 
+struct UGloamsteadWorldStateProjectionSubsystem::FStateWriteLeaseHolder
+{
+	explicit FStateWriteLeaseHolder(FWorldForgeStateWriteLease&& InLease)
+		: Lease(MoveTemp(InLease))
+	{
+	}
+
+	FWorldForgeStateWriteLease Lease;
+};
+
+UGloamsteadWorldStateProjectionSubsystem::~UGloamsteadWorldStateProjectionSubsystem()
+{
+	delete StateWriteLeaseHolder;
+	StateWriteLeaseHolder = nullptr;
+}
+
 void UGloamsteadWorldStateProjectionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 	Collection.InitializeDependency<UGloamsteadPCGSubsystem>();
 	Collection.InitializeDependency<UWorldStateSubsystem>();
+
+	UWorld* World = GetWorld();
+	UWorldStateSubsystem* WorldState = World ? World->GetSubsystem<UWorldStateSubsystem>() : nullptr;
+	if (!WorldState)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Cycle II WorldForge projection cannot reserve its state address: WorldForge state subsystem is unavailable."));
+		ensureMsgf(false, TEXT("Cycle II WorldForge projection requires a WorldForge state subsystem before it can mirror state."));
+		return;
+	}
+
+	StateWriteLeaseHolder = new FStateWriteLeaseHolder(WorldState->ReserveStateAddress(
+		EWorldForgeStateScope::Region,
+		Cycle2GardenRegionId,
+		RestorationLevelKey));
+	if (!StateWriteLeaseHolder->Lease.IsValid())
+	{
+		UE_LOG(LogTemp, Error, TEXT("Cycle II WorldForge projection could not reserve Region/Cycle2_Garden/restoration_level; refusing to mirror state."));
+		ensureMsgf(false, TEXT("Cycle II WorldForge projection must exclusively own its WorldForge state address."));
+		delete StateWriteLeaseHolder;
+		StateWriteLeaseHolder = nullptr;
+		return;
+	}
+
 	BindToAuthoritativePCG();
 	RebuildFromAuthoritativeState();
 }
@@ -231,6 +270,8 @@ void UGloamsteadWorldStateProjectionSubsystem::Initialize(FSubsystemCollectionBa
 void UGloamsteadWorldStateProjectionSubsystem::Deinitialize()
 {
 	UnbindFromAuthoritativePCG();
+	delete StateWriteLeaseHolder;
+	StateWriteLeaseHolder = nullptr;
 	Super::Deinitialize();
 }
 
@@ -308,14 +349,31 @@ float UGloamsteadWorldStateProjectionSubsystem::DetermineCycle2GardenRestoration
 
 void UGloamsteadWorldStateProjectionSubsystem::WriteWorldForgeRestorationLevel(float RestorationLevel) const
 {
-	UWorld* World = GetWorld();
-	if (UWorldStateSubsystem* WorldState = World ? World->GetSubsystem<UWorldStateSubsystem>() : nullptr)
+	if (!StateWriteLeaseHolder || !StateWriteLeaseHolder->Lease.IsValid())
 	{
-		WorldState->SetStateValue(
+		UE_LOG(LogTemp, Error, TEXT("Cycle II WorldForge projection has no active native write lease; refusing to mirror state."));
+		ensureMsgf(false, TEXT("Cycle II WorldForge projection cannot write without its active native lease."));
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	UWorldStateSubsystem* WorldState = World ? World->GetSubsystem<UWorldStateSubsystem>() : nullptr;
+	if (!WorldState)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Cycle II WorldForge projection lost the WorldForge state subsystem; refusing to mirror state."));
+		ensureMsgf(false, TEXT("Cycle II WorldForge projection requires its issuing WorldForge state subsystem."));
+		return;
+	}
+
+	if (!WorldState->SetStateValueWithLease(
+		StateWriteLeaseHolder->Lease,
 			EWorldForgeStateScope::Region,
 			Cycle2GardenRegionId,
 			RestorationLevelKey,
-			RestorationLevel);
+			RestorationLevel))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Cycle II WorldForge projection lease write failed; refusing to fall back to a generic state write."));
+		ensureMsgf(false, TEXT("Cycle II WorldForge projection lease must match its reserved address and issuing world."));
 	}
 }
 

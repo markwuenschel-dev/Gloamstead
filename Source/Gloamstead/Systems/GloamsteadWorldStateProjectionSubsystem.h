@@ -19,6 +19,7 @@ class GLOAMSTEAD_API UGloamsteadWorldStateProjectionSubsystem : public UWorldSub
 	GENERATED_BODY()
 
 public:
+	virtual ~UGloamsteadWorldStateProjectionSubsystem() override;
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
@@ -38,6 +39,8 @@ public:
 	static bool ValidateWorldSpecificationJson(const FString& SpecificationJson, FString* OutError = nullptr);
 
 private:
+	struct FStateWriteLeaseHolder;
+
 	UFUNCTION()
 	void HandleStructureRestored(const FRestorationEventPayload& Payload);
 
@@ -50,4 +53,7 @@ private:
 	/** The PCG source currently bound by this subsystem, never an authority sink. */
 	TWeakObjectPtr<UGloamsteadPCGSubsystem> BoundPCG;
 	FDelegateHandle AuthoritativeStateRebuiltHandle;
+
+	/** Private native capability for exactly Region/Cycle2_Garden/restoration_level. */
+	FStateWriteLeaseHolder* StateWriteLeaseHolder = nullptr;
 };
