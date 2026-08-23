@@ -507,6 +507,14 @@ int32 UGloamsteadPCGSubsystem::FindMostCorruptedPointIndex(bool bOnlyUnrestored)
 #if WITH_DEV_AUTOMATION_TESTS
 void UGloamsteadPCGSubsystem::Test_SeedPoints(const TArray<FVector>& Locations)
 {
+	Test_SeedPoints(Locations, {}, {});
+}
+
+void UGloamsteadPCGSubsystem::Test_SeedPoints(
+	const TArray<FVector>& Locations,
+	const TArray<float>& Wetness,
+	const TArray<FName>& RecommendedWarningTags)
+{
     MutablePointData = NewObject<UPCGPointData>(this);
     check(MutablePointData && MutablePointData->Metadata);
 
@@ -514,7 +522,7 @@ void UGloamsteadPCGSubsystem::Test_SeedPoints(const TArray<FVector>& Locations)
         MutablePointData->Metadata->CreateAttribute<int32>(
             TEXT("RitualType"), static_cast<int32>(ERitualType::LanternPost),
             /*bAllowsInterpolation*/ false, /*bOverrideParent*/ false);
-    MutablePointData->Metadata->CreateAttribute<FName>(
+    FPCGMetadataAttribute<FName>* WarningAttribute = MutablePointData->Metadata->CreateAttribute<FName>(
         TEXT("RecommendedForWarning"), NAME_None,
         /*bAllowsInterpolation*/ false, /*bOverrideParent*/ false);
     MutablePointData->Metadata->CreateAttribute<FName>(
@@ -523,15 +531,20 @@ void UGloamsteadPCGSubsystem::Test_SeedPoints(const TArray<FVector>& Locations)
     MutablePointData->Metadata->CreateAttribute<FName>(
         TEXT("RestorationTag"), NAME_None,
         /*bAllowsInterpolation*/ false, /*bOverrideParent*/ false);
+    FPCGMetadataAttribute<float>* WetnessAttribute = MutablePointData->Metadata->CreateAttribute<float>(
+        TEXT("Wetness"), 0.f, /*bAllowsInterpolation*/ true, /*bOverrideParent*/ false);
 
     TArray<FPCGPoint>& Points = MutablePointData->GetMutablePoints();
     Points.Reset(Locations.Num());
-    for (const FVector& Loc : Locations)
+    for (int32 Index = 0; Index < Locations.Num(); ++Index)
     {
         FPCGPoint P;
-        P.Transform = FTransform(Loc);
+        P.Transform = FTransform(Locations[Index]);
         P.MetadataEntry = MutablePointData->Metadata->AddEntry();
         RitualTypeAttribute->SetValue(P.MetadataEntry, static_cast<int32>(ERitualType::LanternPost));
+        WarningAttribute->SetValue(P.MetadataEntry,
+            RecommendedWarningTags.IsValidIndex(Index) ? RecommendedWarningTags[Index] : NAME_None);
+        WetnessAttribute->SetValue(P.MetadataEntry, Wetness.IsValidIndex(Index) ? Wetness[Index] : 0.f);
         Points.Add(P);
     }
     CachedPoints = Points;

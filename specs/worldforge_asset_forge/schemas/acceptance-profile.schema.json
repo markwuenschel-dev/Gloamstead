@@ -1,0 +1,372 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gloamstead.local/specs/worldforge_asset_forge/acceptance-profile.schema.json",
+  "title": "acceptance-profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "document_sha256",
+    "profile_id",
+    "immutable",
+    "automatic_mutation_allowed",
+    "style",
+    "visual",
+    "textures",
+    "meshes",
+    "pcg",
+    "performance",
+    "runtime",
+    "required_gates"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "gloamstead.sanctuary.acceptance-profile.v1"
+    },
+    "document_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "profile_id": {
+      "const": "sanctuary-withered-gothic-production-v1"
+    },
+    "immutable": {
+      "const": true
+    },
+    "automatic_mutation_allowed": {
+      "const": false
+    },
+    "style": {
+      "const": "Withered Gothic Stylization"
+    },
+    "visual": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "palette_lab_ranges",
+        "minimum_state_delta_e",
+        "minimum_silhouette_iou_delta",
+        "night_readability_min_contrast_ratio",
+        "golden_scenes"
+      ],
+      "properties": {
+        "palette_lab_ranges": {
+          "type": "object",
+          "minProperties": 5,
+          "additionalProperties": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "items": false
+          }
+        },
+        "minimum_state_delta_e": {
+          "type": "number",
+          "minimum": 12
+        },
+        "minimum_silhouette_iou_delta": {
+          "type": "number",
+          "minimum": 0.08
+        },
+        "night_readability_min_contrast_ratio": {
+          "type": "number",
+          "minimum": 3
+        },
+        "golden_scenes": {
+          "type": "array",
+          "minItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^/Game/"
+          }
+        }
+      }
+    },
+    "textures": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allowed_resolutions",
+        "surface_resolution",
+        "hero_resolution",
+        "channel_rules"
+      ],
+      "properties": {
+        "allowed_resolutions": {
+          "const": [
+            512,
+            1024,
+            2048,
+            4096
+          ]
+        },
+        "surface_resolution": {
+          "const": 4096
+        },
+        "hero_resolution": {
+          "const": 4096
+        },
+        "channel_rules": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "base_color",
+            "normal",
+            "orm",
+            "opacity"
+          ],
+          "properties": {
+            "base_color": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "normal": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "orm": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "opacity": {
+              "type": "string",
+              "pattern": "\\S"
+            }
+          }
+        }
+      }
+    },
+    "meshes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hero_triangles_max",
+        "ritual_triangles_max",
+        "ruin_piece_triangles_max",
+        "foliage_triangles_max",
+        "lod_count_min",
+        "collision_required",
+        "nanite",
+        "uv_overlap_max_percent"
+      ],
+      "properties": {
+        "hero_triangles_max": {
+          "type": "integer",
+          "maximum": 180000
+        },
+        "ritual_triangles_max": {
+          "type": "integer",
+          "maximum": 90000
+        },
+        "ruin_piece_triangles_max": {
+          "type": "integer",
+          "maximum": 65000
+        },
+        "foliage_triangles_max": {
+          "type": "integer",
+          "maximum": 18000
+        },
+        "lod_count_min": {
+          "type": "integer",
+          "minimum": 3
+        },
+        "collision_required": {
+          "const": true
+        },
+        "nanite": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "hero",
+            "ritual",
+            "ruins",
+            "foliage"
+          ],
+          "properties": {
+            "hero": {
+              "const": true
+            },
+            "ritual": {
+              "const": true
+            },
+            "ruins": {
+              "const": true
+            },
+            "foliage": {
+              "const": false
+            }
+          }
+        },
+        "uv_overlap_max_percent": {
+          "type": "number",
+          "maximum": 0.5
+        }
+      }
+    },
+    "pcg": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "instances_per_1000m2",
+        "deterministic_seed_required",
+        "no_nav_blocking_overlaps"
+      ],
+      "properties": {
+        "instances_per_1000m2": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "courtyard",
+            "perimeter_ruins",
+            "ritual_approaches",
+            "corruption_pockets"
+          ],
+          "properties": {
+            "courtyard": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "items": false
+            },
+            "perimeter_ruins": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "items": false
+            },
+            "ritual_approaches": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "items": false
+            },
+            "corruption_pockets": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "items": false
+            }
+          }
+        },
+        "deterministic_seed_required": {
+          "const": true
+        },
+        "no_nav_blocking_overlaps": {
+          "const": true
+        }
+      }
+    },
+    "performance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sanctuary_gpu_ms_max_1440p",
+        "draw_calls_max",
+        "streaming_memory_mib_max",
+        "vfx_overdraw_percent_max"
+      ],
+      "properties": {
+        "sanctuary_gpu_ms_max_1440p": {
+          "type": "number",
+          "maximum": 5.5
+        },
+        "draw_calls_max": {
+          "type": "integer",
+          "maximum": 950
+        },
+        "streaming_memory_mib_max": {
+          "type": "integer",
+          "maximum": 1536
+        },
+        "vfx_overdraw_percent_max": {
+          "type": "number",
+          "maximum": 18
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cook_required",
+        "package_required",
+        "pie_state_matrix_required",
+        "packaged_first_night_path_required",
+        "gameplay_state_mutation_forbidden"
+      ],
+      "properties": {
+        "cook_required": {
+          "const": true
+        },
+        "package_required": {
+          "const": true
+        },
+        "pie_state_matrix_required": {
+          "const": true
+        },
+        "packaged_first_night_path_required": {
+          "const": true
+        },
+        "gameplay_state_mutation_forbidden": {
+          "const": true
+        }
+      }
+    },
+    "required_gates": {
+      "type": "array",
+      "minItems": 16,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "schema",
+          "provenance",
+          "license",
+          "texture",
+          "mesh",
+          "dependency",
+          "collision",
+          "lod",
+          "pcg",
+          "visual-day",
+          "visual-night",
+          "performance",
+          "cook",
+          "package",
+          "pie-state-matrix",
+          "packaged-first-night"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "intent": "sanctuary-biome-kit-1.0.0/art-intent.json",
+  "acceptance": "sanctuary-biome-kit-1.0.0/acceptance-profile.json",
+  "inventory": "sanctuary-biome-kit-1.0.0/inventory.json",
+  "expected_deliverables": 107,
+  "expected_pointer": "sanctuary-biome-kit-1.0.0"
+}

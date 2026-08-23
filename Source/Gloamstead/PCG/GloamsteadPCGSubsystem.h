@@ -219,6 +219,9 @@ public:
     void Test_SeedPointStates(const TArray<FRitualPointState>& InStates) { PointStates = InStates; }
     /** Test-only seam: install synthetic LanternPost points with metadata and rebuild the spatial grid. */
     void Test_SeedPoints(const TArray<FVector>& Locations);
+    /** Test-only seam: seed the same authoritative metadata fields the PCG graph supplies to visual consumers. */
+    void Test_SeedPoints(const TArray<FVector>& Locations, const TArray<float>& Wetness,
+        const TArray<FName>& RecommendedWarningTags);
     /** Test-only metadata injection for an existing synthetic point. */
     bool Test_SetPointContractMetadata(
         int32 PointIndex,

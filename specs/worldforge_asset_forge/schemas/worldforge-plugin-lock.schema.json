@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gloamstead.local/specs/worldforge_asset_forge/worldforge-plugin-lock.schema.json",
+  "title": "worldforge-plugin-lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "plugin_id",
+    "plugin_version",
+    "source_repository",
+    "source_commit",
+    "release_manifest_commit",
+    "source_tree_sha256",
+    "descriptor_sha256",
+    "package_sha256",
+    "release_manifest_sha256",
+    "packaged_tree_sha256",
+    "supported_engine",
+    "build_identity",
+    "capabilities",
+    "schemas",
+    "runtime_identity_contract"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "gloamstead.worldforge.plugin-lock.v1"
+    },
+    "plugin_id": {
+      "const": "WorldForge"
+    },
+    "plugin_version": {
+      "const": "0.2.0"
+    },
+    "source_repository": {
+      "const": "https://github.com/markwuenschel-dev/WorldForge.git"
+    },
+    "source_commit": {
+      "const": "4f21f336bd90dd084492c7c0d4165b3564171636"
+    },
+    "release_manifest_commit": {
+      "const": "e9afc2aa"
+    },
+    "source_tree_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "descriptor_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "package_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "release_manifest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "packaged_tree_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "supported_engine": {
+      "const": "5.8"
+    },
+    "build_identity": {
+      "type": "string",
+      "pattern": "^wfplugin-[0-9a-f]{64}$"
+    },
+    "capabilities": {
+      "const": [
+        "asset_set.reconcile@1",
+        "scene_survey"
+      ]
+    },
+    "schemas": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^specs/asset_forge/.+\\.schema\\.json$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "runtime_identity_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_id",
+        "serialization",
+        "observed_fields",
+        "requires_complete_enabled_plugin_inventory",
+        "requires_derived_terminal_authorities"
+      ],
+      "properties": {
+        "contract_id": {
+          "const": "gloamstead.worldforge.runtime-identity@1"
+        },
+        "serialization": {
+          "const": "canonical UTF-8 LF"
+        },
+        "observed_fields": {
+          "const": [
+            "engine_version",
+            "compatible_engine_version",
+            "engine_build_version",
+            "engine_changelist",
+            "compatible_engine_changelist",
+            "gloamstead_commit",
+            "plugin_version",
+            "plugin_engine_version",
+            "plugin_descriptor_sha256",
+            "installed_plugin_tree_sha256",
+            "vendor_lock_sha256",
+            "declared_plugin_package_sha256",
+            "declared_plugin_build_identity",
+            "enabled_plugin_inventory_sha256",
+            "terminal_script_authority"
+          ]
+        },
+        "requires_complete_enabled_plugin_inventory": {
+          "const": true
+        },
+        "requires_derived_terminal_authorities": {
+          "const": true
+        }
+      }
+    }
+  }
+}

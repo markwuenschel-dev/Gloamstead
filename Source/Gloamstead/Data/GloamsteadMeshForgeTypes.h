@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Data/RitualTypes.h"
 #include "Data/NightConsequenceTypes.h"
+#include "Data/GloamsteadGeneratedAssetCatalog.h"
 #include "GloamsteadMeshForgeTypes.generated.h"
 
 /**
@@ -36,7 +37,7 @@ UENUM(BlueprintType)
 enum class EGMFProviderType : uint8
 {
 	EnginePrimitiveRuntimeProxy = 0, // engine basic-shape components spawned at runtime (this wave)
-	GeneratedOwnedMeshForgeAsset = 1, // future: a generated .uasset proxy (editor/human gate required)
+	GeneratedOwnedMeshForgeAsset = 1, // receipt-bound generated catalog asset
 };
 
 /** Who owns the proxy's visual. Kept explicit so a runtime proxy can never masquerade as a generated asset. */
@@ -44,7 +45,7 @@ UENUM(BlueprintType)
 enum class EGMFOwnershipClass : uint8
 {
 	CodeOwnedRuntimeProxy = 0, // spawned by code from engine primitives; nothing authored/generated
-	GeneratedOwned        = 1, // a generated asset owned by the MeshForge/WorldForge pipeline (future)
+	GeneratedOwned        = 1, // a receipt-bound generated asset selected by Gloamstead
 };
 
 /** The gameplay system a proxy is bound to (read-only; the adapter never takes authority from it). */
@@ -87,6 +88,13 @@ struct FGloamsteadMeshForgeProxySpec
 	UPROPERTY(BlueprintReadOnly, Category = "MeshForge") FLinearColor Color = FLinearColor::White;
 	UPROPERTY(BlueprintReadOnly, Category = "MeshForge") float Scale = 1.f;
 	UPROPERTY(BlueprintReadOnly, Category = "MeshForge") bool bInteractionRelevant = false;
+	/** Caller-owned exact catalog key. Ignored by the primitive development provider. */
+	UPROPERTY(BlueprintReadOnly, Category = "MeshForge") FName GeneratedAssetRole;
+	UPROPERTY(BlueprintReadOnly, Category = "MeshForge") EGloamsteadGeneratedAssetState GeneratedAssetState = EGloamsteadGeneratedAssetState::Unknown;
+	/** Orthogonal one-way visual parameters; never used as restoration-state substitutes. */
+	UPROPERTY(BlueprintReadOnly, Category = "MeshForge") FName ProjectedDayPhase;
+	UPROPERTY(BlueprintReadOnly, Category = "MeshForge") float ProjectedWetness = 0.f;
+	UPROPERTY(BlueprintReadOnly, Category = "MeshForge") FName ProjectedWarningTag;
 };
 
 /** A resolved proxy: spec + binding + the provider's honest provenance and spawn result. */
@@ -102,6 +110,12 @@ struct FGloamsteadMeshForgeProxyInstance
 	UPROPERTY(BlueprintReadOnly, Category = "MeshForge") bool bRuntimeOnly = true;
 	/** Empty for runtime proxies; a /Game/... path only when a real generated asset backs the proxy. */
 	UPROPERTY(BlueprintReadOnly, Category = "MeshForge") FString GeneratedAssetPath;
+	UPROPERTY(BlueprintReadOnly, Category = "MeshForge") FString GeneratedVersionRoot;
+	UPROPERTY(BlueprintReadOnly, Category = "MeshForge") FString GeneratedBundleId;
+	UPROPERTY(BlueprintReadOnly, Category = "MeshForge") FString GeneratedReceiptSha256;
+	UPROPERTY(BlueprintReadOnly, Category = "MeshForge") FString GeneratedObjectSha256;
+	UPROPERTY(BlueprintReadOnly, Category = "MeshForge") FString GeneratedOwnershipId;
+	UPROPERTY(BlueprintReadOnly, Category = "MeshForge") FString GeneratedLicenseId;
 	UPROPERTY(BlueprintReadOnly, Category = "MeshForge") bool bSpawned = false;
 	UPROPERTY(BlueprintReadOnly, Category = "MeshForge") bool bVisibleProxyCreated = false;
 	UPROPERTY() TWeakObjectPtr<AActor> SpawnedActor;
@@ -144,6 +158,9 @@ struct FGloamsteadMeshForgeVisibilityReport
 	UPROPERTY() int32 NightFeedbackProxyCount = 0;
 	UPROPERTY() int32 GeneratedAssetCount = 0;
 	UPROPERTY() int32 RuntimeOnlyProxyCount = 0;
+	UPROPERTY() FString ActiveGeneratedVersionRoot;
+	UPROPERTY() FString ActiveGeneratedBundleId;
+	UPROPERTY() FString ActiveGeneratedReceiptSha256;
 	UPROPERTY() bool bBinaryContentTouched = false;
 	UPROPERTY() TArray<FString> FailureCodes;
 	UPROPERTY() TArray<FGloamsteadMeshForgeProxyInstance> Proxies;

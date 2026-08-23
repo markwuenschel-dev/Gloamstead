@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gloamstead.local/specs/worldforge_asset_forge/art-intent.schema.json",
+  "title": "art-intent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "document_sha256",
+    "kit_id",
+    "version",
+    "style",
+    "authority",
+    "subjects",
+    "states",
+    "art_direction",
+    "intent_rules",
+    "inventory_ref"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "gloamstead.sanctuary.art-intent.v1"
+    },
+    "document_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "kit_id": {
+      "const": "sanctuary-biome-kit"
+    },
+    "version": {
+      "const": "1.0.0"
+    },
+    "style": {
+      "const": "Withered Gothic Stylization"
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner",
+        "worldforge_may_invent_semantics",
+        "worldforge_may_reject"
+      ],
+      "properties": {
+        "owner": {
+          "const": "Gloamstead"
+        },
+        "worldforge_may_invent_semantics": {
+          "const": false
+        },
+        "worldforge_may_reject": {
+          "const": true
+        }
+      }
+    },
+    "subjects": {
+      "type": "array",
+      "minItems": 9,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "\\S"
+      }
+    },
+    "states": {
+      "const": [
+        "before",
+        "restoration_in_progress",
+        "restored",
+        "corrupted"
+      ]
+    },
+    "art_direction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "palette",
+        "value_structure",
+        "shape_language",
+        "surface_language"
+      ],
+      "properties": {
+        "palette": {
+          "type": "array",
+          "minItems": 6,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "\\S"
+          }
+        },
+        "value_structure": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "shape_language": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "surface_language": {
+          "type": "string",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "intent_rules": {
+      "type": "array",
+      "minItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "\\S"
+      }
+    },
+    "inventory_ref": {
+      "const": "specs/worldforge_asset_forge/sanctuary-biome-kit-1.0.0/inventory.json"
+    }
+  }
+}

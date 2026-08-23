@@ -1,12 +1,15 @@
 #include "Systems/GloamsteadMeshForgeAdapterSubsystem.h"
+#include "Gloamstead.h"
 #include "Systems/GloamsteadMeshForgeProvider.h"
 #include "Systems/VeilHeart.h"
+#include "Systems/GloamsteadSurveySubjectRegistry.h"
+#include "Settings/GloamsteadGeneratedAssetSettings.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Data/PCGPointData.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
-#include "Kismet/GameplayStatics.h"
 #include "HAL/IConsoleManager.h"
+#include "UObject/UObjectGlobals.h"
 
 namespace
 {
@@ -26,6 +29,33 @@ namespace
 		case EGloamsteadDayPhase::Dawn:  return FLinearColor(1.00f, 0.85f, 0.45f); // gold
 		default:                         return FLinearColor::White;
 		}
+	}
+
+	FName PhaseToken(EGloamsteadDayPhase Phase)
+	{
+		switch (Phase)
+		{
+		case EGloamsteadDayPhase::Day: return TEXT("day");
+		case EGloamsteadDayPhase::Dusk: return TEXT("dusk");
+		case EGloamsteadDayPhase::Night: return TEXT("night");
+		case EGloamsteadDayPhase::Dawn: return TEXT("dawn");
+		default: return NAME_None;
+		}
+	}
+
+	FString BuildProviderConfigurationFingerprint(
+		const UGloamsteadGeneratedAssetSettings& Settings,
+		bool bPrimitiveFallbackGateOpen)
+	{
+		if (Settings.ProviderMode == EGloamsteadMeshForgeProviderMode::EnginePrimitiveDevelopmentFallback)
+		{
+			return FString::Printf(TEXT("primitive@1|gate=%d"), bPrimitiveFallbackGateOpen ? 1 : 0);
+		}
+		return FString::Printf(TEXT("generated@1|catalog=%s|bundle=%s|receipt=%s|runtime=%s"),
+			*Settings.Catalog.ToSoftObjectPath().ToString(),
+			*Settings.ExpectedActiveBundleId,
+			*Settings.ExpectedReceiptSha256.ToLower(),
+			*Settings.ExpectedTargetBuildIdentitySha256.ToLower());
 	}
 }
 
@@ -52,12 +82,38 @@ void UGloamsteadMeshForgeAdapterSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	// Runtime debug proxies are gated OFF by default (see CVarSpawnDebugRitualProxies) — they are a
 	// diagnostic overlay of abstract primitives, not shipping visuals. Automation bypasses this gate via
 	// Test_BuildFor(), so tests/evidence still exercise the full build.
-	if (!CVarSpawnDebugRitualProxies.GetValueOnGameThread())
+	const UGloamsteadGeneratedAssetSettings* Settings = GetDefault<UGloamsteadGeneratedAssetSettings>();
+	if (!Settings)
 	{
+		RejectProviderSelection(TEXT("GMF025"), TEXT("generated-asset settings are unavailable"));
 		return;
 	}
 
-	BuildFor(&InWorld);
+	bool bPrimitiveFallbackGateOpen = false;
+	switch (Settings->ProviderMode)
+	{
+	case EGloamsteadMeshForgeProviderMode::GeneratedCatalog:
+		break;
+	case EGloamsteadMeshForgeProviderMode::EnginePrimitiveDevelopmentFallback:
+		bPrimitiveFallbackGateOpen = CVarSpawnDebugRitualProxies.GetValueOnGameThread();
+		if (!bPrimitiveFallbackGateOpen)
+		{
+			// A valid development fallback that is deliberately disabled is not a runtime fault.
+			// It must nevertheless remain completely inert: no provider and no proxy construction.
+			Provider = nullptr;
+			return;
+		}
+		break;
+	default:
+		RejectProviderSelection(TEXT("GMF026"), TEXT("provider mode is outside the declared enum"));
+		return;
+	}
+
+	BuildFor(&InWorld, Settings, bPrimitiveFallbackGateOpen);
+	if (!Provider)
+	{
+		return;
+	}
 	BindSourceEvents(&InWorld);
 
 	// Only emit the shared, source-controlled report when this world actually produced a sanctuary.
@@ -85,6 +141,7 @@ void UGloamsteadMeshForgeAdapterSubsystem::Deinitialize()
 		World->GetTimerManager().ClearTimer(RebuildTimer);
 	}
 	UnbindSourceEvents();
+	ReleaseProvider();
 	Super::Deinitialize();
 }
 
@@ -112,21 +169,75 @@ void UGloamsteadMeshForgeAdapterSubsystem::BuildProxies()
 	BuildFor(GetWorld());
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
 void UGloamsteadMeshForgeAdapterSubsystem::Test_BuildFor(UWorld* World)
 {
-	BuildFor(World);
+	// Automation explicitly exercises the checked development fallback even though the live CVar defaults off.
+	BuildFor(World, GetDefault<UGloamsteadGeneratedAssetSettings>(),
+		/*bPrimitiveFallbackGateOpen*/ true);
 }
+#endif
 
 void UGloamsteadMeshForgeAdapterSubsystem::BuildFor(UWorld* World)
 {
+	const UGloamsteadGeneratedAssetSettings* Settings = GetDefault<UGloamsteadGeneratedAssetSettings>();
+	const bool bPrimitiveFallbackGateOpen = Settings
+		&& Settings->ProviderMode == EGloamsteadMeshForgeProviderMode::EnginePrimitiveDevelopmentFallback
+		&& CVarSpawnDebugRitualProxies.GetValueOnGameThread();
+	BuildFor(World, Settings, bPrimitiveFallbackGateOpen);
+}
+
+void UGloamsteadMeshForgeAdapterSubsystem::BuildFor(
+	UWorld* World,
+	const UGloamsteadGeneratedAssetSettings* Settings,
+	bool bPrimitiveFallbackGateOpen)
+{
+#if WITH_DEV_AUTOMATION_TESTS
+	++TestBuildInvocationCount;
+#endif
 	if (!World)
 	{
 		return;
 	}
 	ClearProxies();
-	EnsureProvider();
+	AdapterFailureCodes.Reset();
+	if (!EnsureProvider(Settings, bPrimitiveFallbackGateOpen))
+	{
+		return;
+	}
+	if (UGloamsteadGeneratedAssetMeshForgeProvider* Generated =
+		Cast<UGloamsteadGeneratedAssetMeshForgeProvider>(Provider))
+	{
+		PendingBuildWorld = World;
+		if (Generated->GetState() == EGMFGeneratedProviderState::Uninitialized)
+		{
+			const uint64 ExpectedGeneration = ProviderGeneration;
+			const uint64 ExpectedLoadRequestGeneration = ++ProviderLoadRequestGeneration;
+			const TWeakObjectPtr<UGloamsteadGeneratedAssetMeshForgeProvider> ExpectedProvider = Generated;
+			Generated->PreloadCatalogAsyncWithResult(
+				FGloamsteadGeneratedCatalogLoadCompletion::CreateWeakLambda(this,
+				[this, ExpectedGeneration, ExpectedLoadRequestGeneration, ExpectedProvider](
+					const FGloamsteadGeneratedCatalogLoadResult& Result)
+				{
+					HandleGeneratedProviderPreloadComplete(ExpectedGeneration,
+						ExpectedLoadRequestGeneration, ExpectedProvider, Result);
+				}));
+			if (Generated->HasFailed()) { AdapterFailureCodes = Generated->GetFailureCodes(); }
+			return;
+		}
+		if (!Generated->IsReadyForBuild())
+		{
+			if (Generated->HasFailed()) { AdapterFailureCodes = Generated->GetFailureCodes(); }
+			return;
+		}
+		if (!Generated->RevalidateRuntimeIdentity())
+		{
+			AdapterFailureCodes = Generated->GetFailureCodes();
+			return;
+		}
+	}
 
-	AVeilHeart* Heart = FindHeart(World);
+	AVeilHeart* Heart = ResolveHeart(World);
 	if (Heart)
 	{
 		BuildHeartProxy(World, Heart);
@@ -140,13 +251,162 @@ void UGloamsteadMeshForgeAdapterSubsystem::BuildFor(UWorld* World)
 	}
 }
 
-void UGloamsteadMeshForgeAdapterSubsystem::EnsureProvider()
+bool UGloamsteadMeshForgeAdapterSubsystem::EnsureProvider(
+	const UGloamsteadGeneratedAssetSettings* Settings,
+	bool bPrimitiveFallbackGateOpen)
 {
-	if (!Provider)
+	if (!Settings)
 	{
-		Provider = NewObject<UGloamsteadEnginePrimitiveMeshForgeProvider>(this);
+		RejectProviderSelection(TEXT("GMF025"), TEXT("generated-asset settings are unavailable"));
+		return false;
+	}
+	const FString DesiredFingerprint = BuildProviderConfigurationFingerprint(
+		*Settings, bPrimitiveFallbackGateOpen);
+	if (Provider && ProviderConfigurationFingerprint == DesiredFingerprint)
+	{
+		switch (Settings->ProviderMode)
+		{
+		case EGloamsteadMeshForgeProviderMode::GeneratedCatalog:
+			return Cast<UGloamsteadGeneratedAssetMeshForgeProvider>(Provider) != nullptr;
+		case EGloamsteadMeshForgeProviderMode::EnginePrimitiveDevelopmentFallback:
+			return bPrimitiveFallbackGateOpen
+				&& Cast<UGloamsteadEnginePrimitiveMeshForgeProvider>(Provider) != nullptr;
+		default:
+			break;
+		}
+	}
+	if (Provider)
+	{
+		ReleaseProvider();
+	}
+
+	switch (Settings->ProviderMode)
+	{
+	case EGloamsteadMeshForgeProviderMode::GeneratedCatalog:
+		break;
+	case EGloamsteadMeshForgeProviderMode::EnginePrimitiveDevelopmentFallback:
+		if (!bPrimitiveFallbackGateOpen)
+		{
+			RejectProviderSelection(TEXT("GMF027"),
+				TEXT("engine-primitive development fallback is not enabled by its runtime gate"));
+			return false;
+		}
+		break;
+	default:
+		RejectProviderSelection(TEXT("GMF026"), TEXT("provider mode is outside the declared enum"));
+		return false;
+	}
+
+	Provider = CreateProviderForMode(Settings, bPrimitiveFallbackGateOpen);
+	if (Provider)
+	{
+		ProviderConfigurationFingerprint = DesiredFingerprint;
+		++ProviderGeneration;
+	}
+	return Provider != nullptr;
+}
+
+void UGloamsteadMeshForgeAdapterSubsystem::ReleaseProvider()
+{
+	// Retire the adapter request before Deactivate synchronously delivers provider cancellation.
+	++ProviderLoadRequestGeneration;
+	if (UGloamsteadGeneratedAssetMeshForgeProvider* Generated =
+		Cast<UGloamsteadGeneratedAssetMeshForgeProvider>(Provider))
+	{
+		Generated->Deactivate();
+	}
+	Provider = nullptr;
+	ProviderConfigurationFingerprint.Reset();
+	PendingBuildWorld.Reset();
+	++ProviderGeneration;
+}
+
+UGloamsteadMeshForgeProvider* UGloamsteadMeshForgeAdapterSubsystem::CreateProviderForMode(
+	const UGloamsteadGeneratedAssetSettings* Settings,
+	bool bPrimitiveFallbackGateOpen)
+{
+	if (!Settings)
+	{
+		RejectProviderSelection(TEXT("GMF025"), TEXT("generated-asset settings are unavailable"));
+		return nullptr;
+	}
+
+	switch (Settings->ProviderMode)
+	{
+	case EGloamsteadMeshForgeProviderMode::GeneratedCatalog:
+		{
+			UGloamsteadGeneratedAssetMeshForgeProvider* Generated =
+				NewObject<UGloamsteadGeneratedAssetMeshForgeProvider>(this);
+			Generated->Configure(*Settings);
+			return Generated;
+		}
+	case EGloamsteadMeshForgeProviderMode::EnginePrimitiveDevelopmentFallback:
+		if (bPrimitiveFallbackGateOpen)
+		{
+			return NewObject<UGloamsteadEnginePrimitiveMeshForgeProvider>(this);
+		}
+		RejectProviderSelection(TEXT("GMF027"),
+			TEXT("engine-primitive development fallback is not enabled by its runtime gate"));
+		return nullptr;
+	default:
+		RejectProviderSelection(TEXT("GMF026"), TEXT("provider mode is outside the declared enum"));
+		return nullptr;
 	}
 }
+
+void UGloamsteadMeshForgeAdapterSubsystem::RejectProviderSelection(
+	const TCHAR* FailureCode,
+	const TCHAR* Detail)
+{
+	// Invalidate any provider selected before a settings/configuration change. A stale generated or
+	// development provider must never survive a newly invalid selection decision.
+	ReleaseProvider();
+	AdapterFailureCodes.AddUnique(FailureCode);
+	UE_LOG(LogGloamstead, Error, TEXT("MeshForge provider selection failed closed [%s]: %s"),
+		FailureCode, Detail);
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+UGloamsteadMeshForgeProvider* UGloamsteadMeshForgeAdapterSubsystem::Test_CreateProviderForSettings(
+	const UGloamsteadGeneratedAssetSettings* Settings,
+	bool bPrimitiveFallbackGateOpen)
+{
+	ReleaseProvider();
+	AdapterFailureCodes.Reset();
+	EnsureProvider(Settings, bPrimitiveFallbackGateOpen);
+	return Provider;
+}
+
+UGloamsteadMeshForgeProvider* UGloamsteadMeshForgeAdapterSubsystem::Test_EnsureProviderForSettings(
+	const UGloamsteadGeneratedAssetSettings* Settings,
+	bool bPrimitiveFallbackGateOpen)
+{
+	AdapterFailureCodes.Reset();
+	EnsureProvider(Settings, bPrimitiveFallbackGateOpen);
+	return Provider;
+}
+
+void UGloamsteadMeshForgeAdapterSubsystem::Test_UseProviderForSettings(
+	UGloamsteadMeshForgeProvider* InProvider,
+	const UGloamsteadGeneratedAssetSettings* Settings,
+	bool bPrimitiveFallbackGateOpen)
+{
+	ReleaseProvider();
+	Provider = InProvider;
+	ProviderConfigurationFingerprint = Settings
+		? BuildProviderConfigurationFingerprint(*Settings, bPrimitiveFallbackGateOpen)
+		: FString();
+	++ProviderGeneration;
+}
+
+void UGloamsteadMeshForgeAdapterSubsystem::Test_BuildForSettings(
+	UWorld* World,
+	const UGloamsteadGeneratedAssetSettings* Settings,
+	bool bPrimitiveFallbackGateOpen)
+{
+	BuildFor(World, Settings, bPrimitiveFallbackGateOpen);
+}
+#endif
 
 void UGloamsteadMeshForgeAdapterSubsystem::ClearProxies()
 {
@@ -161,15 +421,82 @@ void UGloamsteadMeshForgeAdapterSubsystem::ClearProxies()
 	NightFeedbackProxyIndex = -1;
 }
 
-AVeilHeart* UGloamsteadMeshForgeAdapterSubsystem::FindHeart(UWorld* World) const
+void UGloamsteadMeshForgeAdapterSubsystem::HandleGeneratedProviderPreloadComplete(
+	uint64 ExpectedProviderGeneration,
+	uint64 ExpectedLoadRequestGeneration,
+	TWeakObjectPtr<UGloamsteadGeneratedAssetMeshForgeProvider> ExpectedProvider,
+	const FGloamsteadGeneratedCatalogLoadResult& Result)
+{
+	if (ExpectedProviderGeneration != ProviderGeneration
+		|| ExpectedLoadRequestGeneration != ProviderLoadRequestGeneration
+		|| ExpectedProvider.Get() != Provider)
+	{
+		return;
+	}
+#if WITH_DEV_AUTOMATION_TESTS
+	++TestPendingLoadTerminalCount;
+	if (Result.Terminal == EGMFGeneratedCatalogLoadTerminal::Accepted)
+	{
+		++TestAcceptedLoadTerminalCount;
+	}
+#endif
+	UGloamsteadGeneratedAssetMeshForgeProvider* Generated =
+		Cast<UGloamsteadGeneratedAssetMeshForgeProvider>(Provider);
+	if (!Generated)
+	{
+		return;
+	}
+	UWorld* World = PendingBuildWorld.Get();
+	PendingBuildWorld.Reset();
+	if (Result.Terminal == EGMFGeneratedCatalogLoadTerminal::Rejected)
+	{
+		AdapterFailureCodes = Generated->GetFailureCodes();
+		UE_LOG(LogTemp, Error, TEXT("Generated MeshForge catalog failed closed: %s"),
+			*FString::Join(AdapterFailureCodes, TEXT(",")));
+		FString ReportPath;
+		EmitReport(ReportPath);
+		return;
+	}
+	if (Result.Terminal != EGMFGeneratedCatalogLoadTerminal::Accepted
+		|| !Generated->IsCatalogLoadResultCurrent(Result))
+	{
+		// Cancelled/stale terminals retire the pending adapter request without observing whatever
+		// generation the same provider UObject may own now.
+		return;
+	}
+	if (World)
+	{
+		BuildFor(World);
+		FString ReportPath;
+		EmitReport(ReportPath);
+	}
+}
+
+AVeilHeart* UGloamsteadMeshForgeAdapterSubsystem::ResolveHeart(UWorld* World)
 {
 	if (!World)
 	{
 		return nullptr;
 	}
-	TArray<AActor*> Hearts;
-	UGameplayStatics::GetAllActorsOfClass(World, AVeilHeart::StaticClass(), Hearts);
-	return Hearts.Num() > 0 ? Cast<AVeilHeart>(Hearts[0]) : nullptr;
+	UGloamsteadSurveySubjectRegistry* Registry = World->GetSubsystem<UGloamsteadSurveySubjectRegistry>();
+	if (!Registry)
+	{
+		AdapterFailureCodes.AddUnique(TEXT("GSS001"));
+		return nullptr;
+	}
+	FGloamsteadSurveySubject Subject;
+	if (!Registry->ResolveSubject(TEXT("sanctuary.heart"), Subject))
+	{
+		for (const FString& Code : Subject.FailureCodes) { AdapterFailureCodes.AddUnique(Code); }
+		return nullptr;
+	}
+	AActor* ResolvedActor = FindObject<AActor>(nullptr, *Subject.ActorObjectPath);
+	AVeilHeart* Heart = Cast<AVeilHeart>(ResolvedActor);
+	if (!Heart)
+	{
+		AdapterFailureCodes.AddUnique(TEXT("GSS008"));
+	}
+	return Heart;
 }
 
 void UGloamsteadMeshForgeAdapterSubsystem::BuildHeartProxy(UWorld* World, AVeilHeart* Heart)
@@ -186,6 +513,9 @@ void UGloamsteadMeshForgeAdapterSubsystem::BuildHeartProxy(UWorld* World, AVeilH
 	Spec.Color = ColHeart;
 	Spec.Scale = 1.5f;
 	Spec.bInteractionRelevant = true;
+	Spec.GeneratedAssetRole = TEXT("sanctuary.heart");
+	Spec.GeneratedAssetState = EGloamsteadGeneratedAssetState::Before;
+	Spec.ProjectedWarningTag = Binding.WarningTag;
 
 	Proxies.Add(Provider->CreateProxy(Spec, Binding, World));
 }
@@ -210,6 +540,7 @@ void UGloamsteadMeshForgeAdapterSubsystem::BuildRitualPointProxies(UWorld* World
 		// Record ritual-type provenance, read read-only from the point's PCG metadata (0 == ERitualType::Invalid
 		// when a synthetic/unlabelled point carries no attribute). The adapter never writes this attribute.
 		Binding.RitualType = static_cast<ERitualType>(PCG->GetIntAttribute(Point, TEXT("RitualType"), 0));
+		Binding.WarningTag = PCG->GetNameAttribute(Point, TEXT("RecommendedForWarning"), NAME_None);
 		Binding.WorldLocation = Point.Transform.GetLocation() + FVector(0, 0, 40);
 		Binding.bLocationResolved = true;
 
@@ -221,12 +552,14 @@ void UGloamsteadMeshForgeAdapterSubsystem::BuildRitualPointProxies(UWorld* World
 			Spec.ProxyType = EGMFProxyType::RitualPoint;
 			Spec.Color = ColRestored;
 			Spec.bInteractionRelevant = false;
+			Spec.GeneratedAssetState = EGloamsteadGeneratedAssetState::Restored;
 		}
 		else if (Corruption >= 0.5f)
 		{
 			Spec.ProxyType = EGMFProxyType::RitualPoint;
 			Spec.Color = ColCorrupted;
 			Spec.bInteractionRelevant = true;
+			Spec.GeneratedAssetState = EGloamsteadGeneratedAssetState::Corrupted;
 		}
 		else
 		{
@@ -234,7 +567,13 @@ void UGloamsteadMeshForgeAdapterSubsystem::BuildRitualPointProxies(UWorld* World
 			Spec.ProxyId = FString::Printf(TEXT("lantern_%d"), i);
 			Spec.Color = ColRestorable;
 			Spec.bInteractionRelevant = true;
+			Spec.GeneratedAssetState = EGloamsteadGeneratedAssetState::Before;
 		}
+		Spec.GeneratedAssetRole = Spec.ProxyType == EGMFProxyType::LanternRestore
+			? FName(TEXT("sanctuary.lantern_restore"))
+			: FName(TEXT("sanctuary.ritual_point"));
+		Spec.ProjectedWetness = FMath::Clamp(PCG->GetFloatAttribute(Point, TEXT("Wetness"), 0.f), 0.f, 1.f);
+		Spec.ProjectedWarningTag = Binding.WarningTag;
 
 		Proxies.Add(Provider->CreateProxy(Spec, Binding, World));
 	}
@@ -254,6 +593,9 @@ void UGloamsteadMeshForgeAdapterSubsystem::BuildInteractionRadiusProxy(UWorld* W
 	Spec.Color = ColRadius;
 	Spec.Scale = 3.0f;
 	Spec.bInteractionRelevant = false;
+	Spec.GeneratedAssetRole = TEXT("sanctuary.interaction_radius");
+	Spec.GeneratedAssetState = EGloamsteadGeneratedAssetState::Before;
+	Spec.ProjectedWarningTag = Binding.WarningTag;
 
 	Proxies.Add(Provider->CreateProxy(Spec, Binding, World));
 }
@@ -269,9 +611,16 @@ void UGloamsteadMeshForgeAdapterSubsystem::BuildNightFeedbackProxy(UWorld* World
 	FGloamsteadMeshForgeProxySpec Spec;
 	Spec.ProxyType = EGMFProxyType::NightFeedback;
 	Spec.ProxyId = TEXT("night_feedback");
-	Spec.Color = PhaseColor(EGloamsteadDayPhase::Day);
+	const EGloamsteadDayPhase Phase = Binding.SourceObject.IsValid()
+		? CastChecked<UGloamsteadDayNightSubsystem>(Binding.SourceObject.Get())->GetCurrentPhase()
+		: EGloamsteadDayPhase::Day;
+	Spec.Color = PhaseColor(Phase);
 	Spec.Scale = 2.0f;
 	Spec.bInteractionRelevant = false;
+	Spec.GeneratedAssetRole = TEXT("sanctuary.night_feedback");
+	Spec.GeneratedAssetState = EGloamsteadGeneratedAssetState::Before;
+	Spec.ProjectedDayPhase = PhaseToken(Phase);
+	Spec.ProjectedWarningTag = Binding.WarningTag;
 
 	NightFeedbackProxyIndex = Proxies.Num();
 	Proxies.Add(Provider->CreateProxy(Spec, Binding, World));
@@ -318,6 +667,7 @@ void UGloamsteadMeshForgeAdapterSubsystem::HandlePhaseChanged(EGloamsteadDayPhas
 {
 	if (Proxies.IsValidIndex(NightFeedbackProxyIndex))
 	{
+		Proxies[NightFeedbackProxyIndex].Spec.ProjectedDayPhase = PhaseToken(NewPhase);
 		if (AGloamsteadMeshForgeProxyActor* Actor = Cast<AGloamsteadMeshForgeProxyActor>(Proxies[NightFeedbackProxyIndex].SpawnedActor.Get()))
 		{
 			Actor->SetVisualColor(PhaseColor(NewPhase), /*bEmissive*/ true);
@@ -327,6 +677,12 @@ void UGloamsteadMeshForgeAdapterSubsystem::HandlePhaseChanged(EGloamsteadDayPhas
 
 void UGloamsteadMeshForgeAdapterSubsystem::HandleStructureRestored(const FRestorationEventPayload& Payload)
 {
+	if (Provider && Provider->GetDescriptor().ProviderType == EGMFProviderType::GeneratedOwnedMeshForgeAsset)
+	{
+		// Re-resolve the exact Restored catalog key from the now-current read-only gameplay state.
+		BuildFor(GetWorld());
+		return;
+	}
 	// The restored point turns green — the player sees their mend take hold.
 	for (const FGloamsteadMeshForgeProxyInstance& I : Proxies)
 	{
@@ -365,15 +721,39 @@ FGloamsteadMeshForgeVisibilityReport UGloamsteadMeshForgeAdapterSubsystem::Build
 	}
 	R.ProviderType = Desc.ProviderType;
 	R.OwnershipClass = Desc.OwnershipClass;
+	R.FailureCodes = AdapterFailureCodes;
+	if (const UGloamsteadGeneratedAssetMeshForgeProvider* Generated =
+		Cast<UGloamsteadGeneratedAssetMeshForgeProvider>(Provider))
+	{
+		for (const FString& Code : Generated->GetFailureCodes()) { R.FailureCodes.AddUnique(Code); }
+		if (const UGloamsteadGeneratedAssetCatalog* Catalog = Generated->GetCatalog())
+		{
+			R.ActiveGeneratedVersionRoot = Catalog->VersionRoot;
+			R.ActiveGeneratedBundleId = Catalog->BundleId;
+			R.ActiveGeneratedReceiptSha256 = Catalog->ReceiptSha256;
+		}
+	}
 
-	const int32 Lantern = CountProxiesOfType(EGMFProxyType::LanternRestore);
+	auto CountVisibleType = [this](EGMFProxyType Type)
+	{
+		int32 Count = 0;
+		for (const FGloamsteadMeshForgeProxyInstance& Instance : Proxies)
+		{
+			if (Instance.Spec.ProxyType == Type && Instance.bSpawned && Instance.bVisibleProxyCreated)
+			{
+				++Count;
+			}
+		}
+		return Count;
+	};
+	const int32 Lantern = CountVisibleType(EGMFProxyType::LanternRestore);
 	R.ProxyCount = Proxies.Num();
-	R.HeartProxyCount = CountProxiesOfType(EGMFProxyType::Heart);
+	R.HeartProxyCount = CountVisibleType(EGMFProxyType::Heart);
 	// "Ritual point" coverage counts every point-derived proxy (plain ritual points + lantern-restore markers).
-	R.RitualPointProxyCount = CountProxiesOfType(EGMFProxyType::RitualPoint) + Lantern;
+	R.RitualPointProxyCount = CountVisibleType(EGMFProxyType::RitualPoint) + Lantern;
 	R.LanternProxyCount = Lantern;
-	R.InteractionRadiusProxyCount = CountProxiesOfType(EGMFProxyType::InteractionRadius);
-	R.NightFeedbackProxyCount = CountProxiesOfType(EGMFProxyType::NightFeedback);
+	R.InteractionRadiusProxyCount = CountVisibleType(EGMFProxyType::InteractionRadius);
+	R.NightFeedbackProxyCount = CountVisibleType(EGMFProxyType::NightFeedback);
 
 	for (FGloamsteadMeshForgeProxyInstance I : Proxies)
 	{
@@ -382,13 +762,13 @@ FGloamsteadMeshForgeVisibilityReport UGloamsteadMeshForgeAdapterSubsystem::Build
 			// Should never happen for the engine-primitive provider; validators catch it if it does.
 		}
 		if (I.bRuntimeOnly) { ++R.RuntimeOnlyProxyCount; }
-		if (!I.GeneratedAssetPath.IsEmpty()) { ++R.GeneratedAssetCount; }
-		I.FailureCodes = GMFValidateInstance(I);
+		if (!I.GeneratedAssetPath.IsEmpty() && I.bSpawned && I.bVisibleProxyCreated) { ++R.GeneratedAssetCount; }
+		for (const FString& Code : GMFValidateInstance(I)) { I.FailureCodes.AddUnique(Code); }
 		R.Proxies.Add(I);
 	}
 
-	R.bBinaryContentTouched = false; // this wave spawns runtime primitives only; it authors nothing
-	R.FailureCodes = GMFValidateReport(R);
+	R.bBinaryContentTouched = false; // loading a catalog asset authors or mutates no binary content
+	for (const FString& Code : GMFValidateReport(R)) { R.FailureCodes.AddUnique(Code); }
 	return R;
 }
 
