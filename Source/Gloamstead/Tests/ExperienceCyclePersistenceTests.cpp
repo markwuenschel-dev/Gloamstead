@@ -41,7 +41,8 @@ namespace
         }
         Test.TestEqual(FString::Printf(TEXT("%s first-rest state is preserved"), Context), Actual.bFirstRestCompleted, Expected.bFirstRestCompleted);
         Test.TestEqual(FString::Printf(TEXT("%s saved phase ordinal is preserved"), Context), Actual.SavedPhaseOrdinal, Expected.SavedPhaseOrdinal);
-        Test.TestEqual(FString::Printf(TEXT("%s legacy reconciliation state is preserved"), Context), Actual.bRequiresLegacyReconciliation, Expected.bRequiresLegacyReconciliation);
+		Test.TestEqual(FString::Printf(TEXT("%s legacy reconciliation state is preserved"), Context), Actual.bRequiresLegacyReconciliation, Expected.bRequiresLegacyReconciliation);
+		Test.TestEqual(FString::Printf(TEXT("%s presented plan is preserved"), Context), Actual.HeartInterpretationState.PresentedPlanId, Expected.HeartInterpretationState.PresentedPlanId);
 		Test.TestEqual(FString::Printf(TEXT("%s presented warning is preserved"), Context), Actual.HeartInterpretationState.PresentedWarningId, Expected.HeartInterpretationState.PresentedWarningId);
 		Test.TestEqual(FString::Printf(TEXT("%s encountered support count is preserved"), Context), Actual.HeartInterpretationState.EncounteredSupportIds.Num(), Expected.HeartInterpretationState.EncounteredSupportIds.Num());
 		for (int32 Index = 0; Index < Expected.HeartInterpretationState.EncounteredSupportIds.Num(); ++Index)
@@ -56,6 +57,7 @@ namespace
 	FVeilHeartInterpretationPersistentState MakeGardenInterpretationState()
 	{
 		FVeilHeartInterpretationPersistentState State;
+		State.PresentedPlanId = TEXT("Cycle2_Garden");
 		State.PresentedWarningId = TEXT("GardenRot");
 		State.EncounteredSupportIds = { TEXT("GardenRot.WitheredVines"), TEXT("GardenRot.ColdSoil") };
 		State.InterpretationReceipt.ReceiptId = TEXT("GardenRot.Interpreted");
@@ -124,11 +126,11 @@ bool FGloamExperienceLegacyV1MigratesSafelyTest::RunTest(const FString& /*Parame
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-    FGloamExperienceCurrentV3RoundTripsTest,
-    "Gloamstead.Experience.Persistence.CurrentV3RoundTrips",
+	FGloamExperienceCurrentV4RoundTripsTest,
+	"Gloamstead.Experience.Persistence.CurrentV4RoundTrips",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FGloamExperienceCurrentV3RoundTripsTest::RunTest(const FString& /*Parameters*/)
+bool FGloamExperienceCurrentV4RoundTripsTest::RunTest(const FString& /*Parameters*/)
 {
     UGloamsteadSaveGame* SaveGame = NewObject<UGloamsteadSaveGame>();
     TestEqual(TEXT("new saves begin at current version"), SaveGame->SaveVersion, UGloamsteadSaveGame::CurrentSaveVersion);
@@ -145,7 +147,7 @@ bool FGloamExperienceCurrentV3RoundTripsTest::RunTest(const FString& /*Parameter
 	ExpectedState.HeartInterpretationState = MakeGardenInterpretationState();
     SaveGame->Test_SetExperienceCycleState(ExpectedState);
 
-    TestTrue(TEXT("current v3 migration succeeds"), SaveGame->MigrateToCurrentVersion());
+    TestTrue(TEXT("current v4 migration succeeds"), SaveGame->MigrateToCurrentVersion());
 
     const FExperienceCyclePersistentState& ActualState = SaveGame->GetExperienceCycleState();
     TestEqual(TEXT("current version remains current"), SaveGame->SaveVersion, UGloamsteadSaveGame::CurrentSaveVersion);
@@ -187,7 +189,7 @@ bool FGloamExperienceV2MigrationClearsInterpretationOnlyTest::RunTest(const FStr
 	SaveGame->Test_SetExperienceCycleState(ExpectedState);
 
 	TestTrue(TEXT("v2 migration succeeds"), SaveGame->MigrateToCurrentVersion());
-	TestEqual(TEXT("v2 migration advances to v3"), SaveGame->SaveVersion, UGloamsteadSaveGame::CurrentSaveVersion);
+	TestEqual(TEXT("v2 migration advances to the current version"), SaveGame->SaveVersion, UGloamsteadSaveGame::CurrentSaveVersion);
 	TestEqual(TEXT("v2 migration retains the PCG seed"), SaveGame->WorldSeed, 947);
 	TestEqual(TEXT("v2 migration retains the armed authored plan"), SaveGame->GetExperienceCycleState().ArmedPlanId, ExpectedState.ArmedPlanId);
 	TestEqual(TEXT("v2 migration retains the completed slot"), SaveGame->GetExperienceCycleState().CompletedCycleSlot, ExpectedState.CompletedCycleSlot);
@@ -196,11 +198,36 @@ bool FGloamExperienceV2MigrationClearsInterpretationOnlyTest::RunTest(const FStr
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-    FGloamExperiencePCGCaptureRetainsCurrentV3PayloadTest,
-    "Gloamstead.Experience.Persistence.PCGCaptureRetainsCurrentV3Payload",
+	FGloamExperienceV3MigrationClearsAmbiguousInterpretationTest,
+	"Gloamstead.Experience.Persistence.V3MigrationClearsAmbiguousInterpretation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamExperienceV3MigrationClearsAmbiguousInterpretationTest::RunTest(const FString& /*Parameters*/)
+{
+	UGloamsteadSaveGame* SaveGame = NewObject<UGloamsteadSaveGame>();
+	SaveGame->SaveVersion = 3;
+	FExperienceCyclePersistentState ExpectedState;
+	ExpectedState.CompletedCycleSlot = 2;
+	ExpectedState.ArmedPlanId = TEXT("Cycle3_Retrieval");
+	ExpectedState.LastPlanId = TEXT("Cycle2_Garden");
+	ExpectedState.LastOutcomeResultTag = TEXT("GardenScar");
+	ExpectedState.HeartInterpretationState = MakeGardenInterpretationState();
+	SaveGame->Test_SetExperienceCycleState(ExpectedState);
+
+	TestTrue(TEXT("v3 migration succeeds"), SaveGame->MigrateToCurrentVersion());
+	TestEqual(TEXT("v3 migration advances to the current version"), SaveGame->SaveVersion, UGloamsteadSaveGame::CurrentSaveVersion);
+	TestEqual(TEXT("v3 migration retains the completed cycle"), SaveGame->GetExperienceCycleState().CompletedCycleSlot, ExpectedState.CompletedCycleSlot);
+	TestEqual(TEXT("v3 migration retains the armed plan"), SaveGame->GetExperienceCycleState().ArmedPlanId, ExpectedState.ArmedPlanId);
+	TestFalse(TEXT("v3 migration clears warning identity that lacks an authored plan binding"), SaveGame->GetExperienceCycleState().HeartInterpretationState.HasAnyFacts());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FGloamExperiencePCGCaptureRetainsCurrentV4PayloadTest,
+    "Gloamstead.Experience.Persistence.PCGCaptureRetainsCurrentV4Payload",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FGloamExperiencePCGCaptureRetainsCurrentV3PayloadTest::RunTest(const FString& /*Parameters*/)
+bool FGloamExperiencePCGCaptureRetainsCurrentV4PayloadTest::RunTest(const FString& /*Parameters*/)
 {
     UGloamsteadPCGSubsystem* SourceSubsystem = NewObject<UGloamsteadPCGSubsystem>();
     TArray<FRitualPointState> SourcePointStates;
@@ -231,8 +258,8 @@ bool FGloamExperiencePCGCaptureRetainsCurrentV3PayloadTest::RunTest(const FStrin
     AssertExperienceCycleStateEqual(*this, SaveGame->GetExperienceCycleState(), ExpectedState, TEXT("PCG capture"));
     AssertPointStatesEqual(*this, SaveGame->PointStates, SourcePointStates);
 
-    TestTrue(TEXT("a current v3 payload with reconciliation remains migratable"), SaveGame->MigrateToCurrentVersion());
-    AssertExperienceCycleStateEqual(*this, SaveGame->GetExperienceCycleState(), ExpectedState, TEXT("second v3 migration"));
+    TestTrue(TEXT("a current v4 payload with reconciliation remains migratable"), SaveGame->MigrateToCurrentVersion());
+    AssertExperienceCycleStateEqual(*this, SaveGame->GetExperienceCycleState(), ExpectedState, TEXT("second v4 migration"));
 
     UGloamsteadPCGSubsystem* RestoredSubsystem = NewObject<UGloamsteadPCGSubsystem>();
     TestTrue(TEXT("PCG restore accepts the migrated current payload"), RestoredSubsystem->RestoreFromSaveGame(SaveGame));

@@ -70,10 +70,10 @@
                               "then": {
                                 "required": ["SemanticSubject", "RequiredRitualType", "SupportChannels", "InterpretationReceiptId"],
                                 "properties": {
-                                  "AssociatedNightType": { "const": "Corruption" },
+                                  "AssociatedNightType": { "enum": ["Corruption", "Retrieval"] },
                                   "SemanticSubject": { "const": "Cycle2_Garden" },
                                   "RequiredRitualType": { "const": "GardenBed" },
-                                  "InterpretationReceiptId": { "const": "GardenRot.Interpreted" },
+                                  "InterpretationReceiptId": { "type": "string", "minLength": 1 },
                                   "SatisfiableTags": {
                                     "type": "array",
                                     "minItems": 1,
@@ -130,7 +130,21 @@
                                       }
                                     ]
                                   }
-                                }
+                                },
+                                "oneOf": [
+                                  {
+                                    "properties": {
+                                      "AssociatedNightType": { "const": "Corruption" },
+                                      "InterpretationReceiptId": { "const": "GardenRot.Interpreted" }
+                                    }
+                                  },
+                                  {
+                                    "properties": {
+                                      "AssociatedNightType": { "const": "Retrieval" },
+                                      "InterpretationReceiptId": { "const": "GardenRot.Retrieved" }
+                                    }
+                                  }
+                                ]
                               }
                             }
                           ]

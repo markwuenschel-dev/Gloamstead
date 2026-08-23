@@ -22,6 +22,17 @@ bool UGloamsteadSaveGame::MigrateToCurrentVersion()
         return true;
     }
 
+    if (SaveVersion == 3)
+    {
+        // V3 stored only the warning ID. Cycle III deliberately reuses the
+        // GardenRot identity for Retrieval, so an old support set could be
+        // misattributed to the new plan. Clear that ambiguous knowledge while
+        // retaining the independently authoritative PCG/cycle facts.
+        ExperienceCycleState.HeartInterpretationState.Reset();
+        SaveVersion = CurrentSaveVersion;
+        return true;
+    }
+
     if (SaveVersion == CurrentSaveVersion)
     {
         return true;

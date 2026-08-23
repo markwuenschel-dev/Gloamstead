@@ -110,6 +110,36 @@ bool FGloamExperiencePlanDawnOutcomeAdvancesCycleTest::RunTest(const FString& /*
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamExperiencePlanSlotThreeIsExactRetrievalTest,
+	"Gloamstead.Experience.Plan.SlotThreeIsExactRetrieval",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamExperiencePlanSlotThreeIsExactRetrievalTest::RunTest(const FString& /*Parameters*/)
+{
+	UGloamsteadExperienceCycleSubsystem* Subsystem = MakeSubsystem(MakeAuthoredCatalog());
+	FExperienceCyclePersistentState State;
+	State.CompletedCycleSlot = 2;
+	TestTrue(TEXT("completed Cycle II state restores"), Subsystem->RestorePersistentState(State));
+
+	TestTrue(TEXT("the third authored plan resolves"), Subsystem->EnsureUpcomingPlan());
+	const FExperienceCyclePlan& Plan = Subsystem->GetActivePlan();
+	TestTrue(TEXT("the third plan is authored"), Plan.IsAuthoredPlan());
+	TestEqual(TEXT("slot three is selected"), Plan.Slot, 3);
+	TestEqual(TEXT("slot three uses Retrieval"), Plan.NightType, ENightConsequenceType::Retrieval);
+	TestEqual(TEXT("slot three reuses the garden warning identity"), Plan.WarningId, FName(TEXT("GardenRot")));
+	TestEqual(TEXT("slot three binds to the restored garden subject"), Plan.SemanticSubject, FName(TEXT("Cycle2_Garden")));
+	TestEqual(TEXT("slot three keeps its stable id"), Plan.PlanId, FName(TEXT("Cycle3_Retrieval")));
+	TestEqual(TEXT("slot three requires the canonical GardenBed ritual"), Plan.RequiredRitualType, ERitualType::GardenBed);
+	TestEqual(TEXT("slot three requires two distinct readable supports"), Plan.MinimumDistinctSupportCount, 2);
+	TestEqual(TEXT("slot three records a retrieval-specific interpretation receipt"), Plan.InterpretationReceiptId, FName(TEXT("GardenRot.Retrieved")));
+	TestEqual(TEXT("slot three keeps the garden support set"), Plan.RequiredSupportIds.Num(), 3);
+	TestTrue(TEXT("slot three retains the environmental vines clue"), Plan.RequiredSupportIds.Contains(FName(TEXT("GardenRot.WitheredVines"))));
+	TestTrue(TEXT("slot three retains the object-reaction soil clue"), Plan.RequiredSupportIds.Contains(FName(TEXT("GardenRot.ColdSoil"))));
+	TestTrue(TEXT("slot three retains the audio moth clue"), Plan.RequiredSupportIds.Contains(FName(TEXT("GardenRot.BellMoths"))));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FGloamExperiencePlanExactWarningAndNightPrepTest,
 	"Gloamstead.Experience.Plan.ExactWarningAndNightPrep",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -157,6 +187,13 @@ bool FGloamExperiencePlanExactWarningAndNightPrepTest::RunTest(const FString& /*
 
 	WarningCatalog->Warnings.Add(GardenWarning);
 	TestFalse(TEXT("a duplicate warning id emits no substitute"), Heart->EmitWarningById(Plan.WarningId, Plan.NightType));
+
+	FVeilHeartWarningFragment RetrievalWarning = GardenWarning;
+	RetrievalWarning.AssociatedNightType = ENightConsequenceType::Retrieval;
+	RetrievalWarning.InterpretationReceiptId = TEXT("GardenRot.Retrieved");
+	WarningCatalog->Warnings.Add(RetrievalWarning);
+	TestTrue(TEXT("the same warning identity is selectable for its distinct Retrieval night type"),
+		Heart->HasExactWarningById(Plan.WarningId, ENightConsequenceType::Retrieval));
 
 	Heart->OnWarningEmittedDelegate.RemoveDynamic(Presenter, &AGloamsteadFirstNightDirector::HandleHeartWarning);
 	TestFalse(TEXT("a registered presenter loses readiness when its warning binding is removed"), Heart->HasValidWarningPresenter());
@@ -276,7 +313,7 @@ bool FGloamExperiencePlanGenericHandoffIsExplicitTest::RunTest(const FString& /*
 {
 	UGloamsteadExperienceCycleSubsystem* Subsystem = MakeSubsystem(MakeAuthoredCatalog());
 	FExperienceCyclePersistentState State;
-	State.CompletedCycleSlot = 2;
+	State.CompletedCycleSlot = 3;
 	TestTrue(TEXT("post-authored state restores"), Subsystem->RestorePersistentState(State));
 
 	TestFalse(TEXT("no later authored plan is claimed"), Subsystem->EnsureUpcomingPlan());

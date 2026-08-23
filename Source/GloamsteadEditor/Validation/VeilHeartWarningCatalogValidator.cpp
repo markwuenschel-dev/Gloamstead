@@ -11,13 +11,15 @@
 
 namespace
 {
-	bool GetCanonicalGardenPlan(FExperienceCyclePlan& OutPlan)
+	bool GetCanonicalGardenPlan(
+		FExperienceCyclePlan& OutPlan,
+		ENightConsequenceType DesiredNightType = ENightConsequenceType::Corruption)
 	{
 		UExperienceCycleCatalog* CanonicalCatalog = NewObject<UExperienceCycleCatalog>(GetTransientPackage());
 		PopulateDefaultExperienceCyclePlans(*CanonicalCatalog);
 		for (const FExperienceCyclePlan& Plan : CanonicalCatalog->AuthoredPlans)
 		{
-			if (Plan.PlanId == FName(TEXT("Cycle2_Garden")))
+			if (Plan.WarningId == FName(TEXT("GardenRot")) && Plan.NightType == DesiredNightType)
 			{
 				OutPlan = Plan;
 				return true;
@@ -47,13 +49,6 @@ EDataValidationResult UVeilHeartWarningCatalogValidator::ValidateLoadedAsset_Imp
 		return EDataValidationResult::NotValidated;
 	}
 
-	FExperienceCyclePlan GardenPlan;
-	if (!GetCanonicalGardenPlan(GardenPlan))
-	{
-		AssetFails(InAsset, FText::FromString(TEXT("Canonical Cycle2_Garden plan is unavailable for warning validation.")));
-		return EDataValidationResult::Invalid;
-	}
-
 	bool bInvalid = false;
 	auto Fail = [this, InAsset, &bInvalid](const FString& Message)
 	{
@@ -61,8 +56,9 @@ EDataValidationResult UVeilHeartWarningCatalogValidator::ValidateLoadedAsset_Imp
 		AssetFails(InAsset, FText::FromString(Message));
 	};
 
-	TSet<FName> SeenWarningIds;
-	int32 GardenRotCount = 0;
+	TSet<FString> SeenWarningKeys;
+	bool bFoundCorruptionGarden = false;
+	bool bFoundRetrievalGarden = false;
 	for (const FVeilHeartWarningFragment& Warning : Catalog->Warnings)
 	{
 		if (Warning.WarningId == NAME_None)
@@ -70,27 +66,44 @@ EDataValidationResult UVeilHeartWarningCatalogValidator::ValidateLoadedAsset_Imp
 			Fail(TEXT("Veil Heart warning catalog contains an empty WarningId."));
 			continue;
 		}
-		if (SeenWarningIds.Contains(Warning.WarningId))
+		const FString WarningKey = FString::Printf(TEXT("%s|%d"),
+			*Warning.WarningId.ToString(), static_cast<int32>(Warning.AssociatedNightType));
+		if (SeenWarningKeys.Contains(WarningKey))
 		{
-			Fail(FString::Printf(TEXT("Veil Heart warning catalog duplicates WarningId '%s'."), *Warning.WarningId.ToString()));
+			Fail(FString::Printf(TEXT("Veil Heart warning catalog duplicates warning identity '%s' for night type %d."),
+				*Warning.WarningId.ToString(), static_cast<int32>(Warning.AssociatedNightType)));
 			continue;
 		}
-		SeenWarningIds.Add(Warning.WarningId);
+		SeenWarningKeys.Add(WarningKey);
 
-		if (Warning.WarningId == GardenPlan.WarningId)
+		if (Warning.WarningId == FName(TEXT("GardenRot")))
 		{
-			++GardenRotCount;
+			FExperienceCyclePlan GardenPlan;
+			if (!GetCanonicalGardenPlan(GardenPlan, Warning.AssociatedNightType))
+			{
+				Fail(FString::Printf(TEXT("Canonical GardenRot plan is unavailable for night type %d."),
+					static_cast<int32>(Warning.AssociatedNightType)));
+				continue;
+			}
 			FString ContractError;
 			if (!Warning.MatchesExactPlanContract(GardenPlan, &ContractError))
 			{
 				Fail(FString::Printf(TEXT("GardenRot warning contract is invalid: %s."), *ContractError));
 			}
+			if (Warning.AssociatedNightType == ENightConsequenceType::Corruption)
+			{
+				bFoundCorruptionGarden = true;
+			}
+			else if (Warning.AssociatedNightType == ENightConsequenceType::Retrieval)
+			{
+				bFoundRetrievalGarden = true;
+			}
 		}
 	}
 
-	if (GardenRotCount != 1)
+	if (!bFoundCorruptionGarden || !bFoundRetrievalGarden)
 	{
-		Fail(TEXT("Veil Heart warning catalog must contain exactly one GardenRot warning."));
+		Fail(TEXT("Veil Heart warning catalog must contain canonical Corruption and Retrieval GardenRot warnings."));
 	}
 
 	if (bInvalid)

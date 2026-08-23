@@ -131,13 +131,14 @@ namespace GloamsteadDataImport
 		PopulateDefaultExperienceCyclePlans(*Catalog);
 		for (const FExperienceCyclePlan& Plan : Catalog->AuthoredPlans)
 		{
-			if (Plan.PlanId == FName(TEXT("Cycle2_Garden")))
+			if (Plan.WarningId == Fragment.WarningId && Plan.NightType == Fragment.AssociatedNightType)
 			{
 				return Fragment.MatchesExactPlanContract(Plan, &OutError);
 			}
 		}
 
-		OutError = TEXT("the canonical Cycle2_Garden plan is unavailable");
+		OutError = FString::Printf(TEXT("the canonical plan for %s/%d is unavailable"),
+			*Fragment.WarningId.ToString(), static_cast<int32>(Fragment.AssociatedNightType));
 		return false;
 	}
 
@@ -283,7 +284,7 @@ namespace GloamsteadDataImport
 		}
 
 		Catalog->Warnings.Reset();
-		TSet<FName> ImportedWarningIds;
+		TSet<FString> ImportedWarningKeys;
 		for (const TSharedPtr<FJsonValue>& WarningValue : *WarningsArray)
 		{
 			const TSharedPtr<FJsonObject> WarningObj = WarningValue->AsObject();
@@ -301,12 +302,11 @@ namespace GloamsteadDataImport
 				return false;
 			}
 			Fragment.WarningId = FName(*WarningId);
-			if (Fragment.WarningId == NAME_None || ImportedWarningIds.Contains(Fragment.WarningId))
+			if (Fragment.WarningId == NAME_None)
 			{
 				++OutErrorCount;
 				return false;
 			}
-			ImportedWarningIds.Add(Fragment.WarningId);
 
 			FString FragmentText;
 			if (!WarningObj->TryGetStringField(TEXT("Fragment"), FragmentText))
@@ -327,6 +327,15 @@ namespace GloamsteadDataImport
 				}
 				Fragment.AssociatedNightType = static_cast<ENightConsequenceType>(EnumValue);
 			}
+
+			const FString WarningKey = FString::Printf(TEXT("%s|%d"),
+				*Fragment.WarningId.ToString(), static_cast<int32>(Fragment.AssociatedNightType));
+			if (ImportedWarningKeys.Contains(WarningKey))
+			{
+				++OutErrorCount;
+				return false;
+			}
+			ImportedWarningKeys.Add(WarningKey);
 
 			ReadNumberField(WarningObj, TEXT("ClarityTier"), Fragment.ClarityTier);
 

@@ -653,6 +653,7 @@ bool FGloamFairCrypticismV3ReceiptRestoreRequiresExactEncounterSetTest::RunTest(
 	Fixture.PCG->Test_SeedPointStates(States);
 
 	FVeilHeartInterpretationPersistentState CraftedState;
+	CraftedState.PresentedPlanId = Fixture.Plan.PlanId;
 	CraftedState.PresentedWarningId = Fixture.Plan.WarningId;
 	CraftedState.EncounteredSupportIds = { Fixture.Plan.RequiredSupportIds[0] };
 	FExperienceInterpretationReceipt& CraftedReceipt = CraftedState.InterpretationReceipt;

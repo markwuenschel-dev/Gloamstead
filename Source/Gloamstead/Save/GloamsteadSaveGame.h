@@ -22,7 +22,7 @@ class GLOAMSTEAD_API UGloamsteadSaveGame : public USaveGame
 
 public:
     /** Current save layout version. New save objects always begin at this version. */
-    static constexpr int32 CurrentSaveVersion = 3;
+    static constexpr int32 CurrentSaveVersion = 4;
 
     /** Full per-point state, ordered by point index (mirrors the subsystem's PointStates). */
     UPROPERTY()
@@ -45,7 +45,8 @@ public:
      * V1 retains PCG data but enters an explicit reconciliation state. V2 retains
      * PCG/cycle facts but clears the newly-versioned Heart interpretation state,
      * because old payloads cannot prove which presented warning or evidence led
-     * to a receipt. V3 is unchanged.
+     * to a receipt. V3 predates the exact presented-plan identity, so it clears
+     * Heart interpretation facts before advancing to v4. V4 is unchanged.
      * Returns false for invalid or newer schemas so callers do not restore an unsupported payload.
      */
     bool MigrateToCurrentVersion();

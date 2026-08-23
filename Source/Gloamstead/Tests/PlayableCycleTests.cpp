@@ -863,6 +863,7 @@ bool FGloamDelayedHeartInterpretationRestoreWorldTest::RunTest(const FString& /*
 		CycleState.ArmedPlanId = GardenPlan.PlanId;
 		CycleState.bFirstRestCompleted = true;
 		CycleState.SavedPhaseOrdinal = static_cast<int32>(EGloamsteadDayPhase::Day);
+		CycleState.HeartInterpretationState.PresentedPlanId = GardenPlan.PlanId;
 		CycleState.HeartInterpretationState.PresentedWarningId = GardenPlan.WarningId;
 		CycleState.HeartInterpretationState.EncounteredSupportIds = {
 			GardenPlan.RequiredSupportIds[0], GardenPlan.RequiredSupportIds[1]
