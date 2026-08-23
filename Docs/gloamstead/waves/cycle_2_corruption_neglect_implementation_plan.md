@@ -90,7 +90,7 @@
 
 ## Task 4 — Retire tutorial control and centralize cadence
 
-**Behavior:** Once Cycle I dawn completes, `AGloamsteadFirstNightDirector` clears timers and unbinds. DayNight owns Dusk-to-Night, Night-to-Dawn, and one early-objective completion transition. SkyPresenter is the sole global phase presentation writer. A safe later-cycle Day restore detaches any director that began before the save was loaded *before* generic warning presentation is retried. Any live night runtime is aborted before PCG restore, without resolving or recording its old outcome.
+**Behavior:** Once Cycle I dawn completes, `AGloamsteadFirstNightDirector` clears timers and unbinds. DayNight owns Dusk-to-Night, Night-to-Dawn, and one early-objective completion transition. SkyPresenter is the sole global phase presentation writer. A safe later-cycle Day restore detaches any director that began before the save was loaded *before* generic warning presentation is retried. Any live night runtime is aborted before PCG restore, without resolving or recording its old outcome. A synchronous objective completion during `BeginNight` queues behind the already-entering Night transition; it cannot re-enter phase application or arm pressure after Dawn.
 
 **Public seams:** `AGloamsteadFirstNightDirector::IsTutorialDetached()`, DayNight phase/cadence events, and existing runtime early-end delegate.
 
@@ -108,7 +108,7 @@
 - `Source/Gloamstead/Tests/FirstNightIntegrationTests.cpp`
 - `Source/Gloamstead/Tests/PlayableCycleTests.cpp`
 
-**Acceptance:** a second Dusk/Night/Dawn cannot schedule a tutorial timer, write lantern-only reflection copy, or modify globals through the tutorial actor; early objective completion yields exactly one Dawn. Loading a later-cycle Day while a first-night director began active transfers presenter ownership safely before an exact warning can become eligible. Loading while a night runtime is active leaves no pressure timer/actor/strategy capable of mutating the restored Day state, and records no stale outcome.
+**Acceptance:** a second Dusk/Night/Dawn cannot schedule a tutorial timer, write lantern-only reflection copy, or modify globals through the tutorial actor; early objective completion yields exactly one Dawn with ordered `Dusk -> Night -> Dawn` presentation and no timer armed after the early Dawn. Loading a later-cycle Day while a first-night director began active transfers presenter ownership safely before an exact warning can become eligible. Loading while a night runtime is active leaves no pressure timer/actor/strategy capable of mutating the restored Day state, and records no stale outcome.
 
 **Verification:** relevant director/cycle tests and full `Gloamstead` filter.
 
