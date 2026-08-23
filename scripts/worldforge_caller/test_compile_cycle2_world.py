@@ -18,13 +18,17 @@ INTENT = REPO_ROOT / "specs/world/cycle-2-corruption-neglect.world.json"
 SCHEMA = REPO_ROOT / "specs/world/gloamstead_world_spec.schema.json"
 COMPILER = Path(r"D:/Unreal Projects/.worktrees/worldforge-gloamstead-cycle2-factory/tools/pipeline/compile_authored_world.py")
 PARTIAL_COMPILER = Path(__file__).with_name("partial_failure_compiler.py")
+PARTIAL_PREPARER = Path(__file__).with_name("partial_failure_materialization_preparer.py")
 
 
-def run_bridge(intent: Path, schema: Path, compiler: Path | None, output: Path) -> subprocess.CompletedProcess[str]:
+def run_bridge(intent: Path, schema: Path, compiler: Path | None, output: Path,
+               preparer: Path | None = None) -> subprocess.CompletedProcess[str]:
     command = [sys.executable, str(MODULE), "--intent", str(intent), "--schema", str(schema),
                "--output-root", str(output)]
     if compiler is not None:
         command.extend(["--worldforge-compiler", str(compiler)])
+    if preparer is not None:
+        command.extend(["--worldforge-materialization-preparer", str(preparer)])
     return subprocess.run(command, cwd=REPO_ROOT, capture_output=True, text=True, check=False)
 
 
@@ -54,12 +58,14 @@ class Cycle2WorldForgeBridgeTests(unittest.TestCase):
             self.assertEqual(before_schema, schema.read_bytes())
             expected = {"manifest.json", "terrain-slice.json", "poi-descriptors.json",
                         "placement-variants.json", "material-variants.json", "survey-requests.json",
-                        "intent-provenance.json", "bridge-receipt.json"}
+                        "materialization-request.json", "intent-provenance.json", "bridge-receipt.json"}
             self.assertEqual(expected, {path.name for path in first.iterdir()})
             self.assertEqual({path.name: path.read_bytes() for path in first.iterdir()},
                              {path.name: path.read_bytes() for path in second.iterdir()})
             provenance = json.loads((first / "intent-provenance.json").read_text(encoding="utf-8"))
             receipt = json.loads((first / "bridge-receipt.json").read_text(encoding="utf-8"))
+            materialization_request = json.loads(
+                (first / "materialization-request.json").read_text(encoding="utf-8"))
             self.assertEqual("not_materialized", provenance["execution_status"])
             self.assertEqual("not_observed", provenance["observation_status"])
             self.assertIn("GardenRot", json.dumps(provenance["semantic_intent_retained_by_gloamstead"]))
@@ -76,6 +82,17 @@ class Cycle2WorldForgeBridgeTests(unittest.TestCase):
             self.assertEqual("not_materialized", receipt["execution_status"])
             self.assertEqual("not_observed", receipt["observation_status"])
             self.assertEqual("none", receipt["materialization_claim"])
+            self.assertEqual("authored_world_materialization_request",
+                             materialization_request["artifact_kind"])
+            self.assertEqual("not_materialized", materialization_request["execution_status"])
+            self.assertEqual("not_observed", materialization_request["observation_status"])
+            self.assertEqual("none", materialization_request["materialization_claim"])
+            self.assertEqual("/Game/Generated/WorldForge/Cycle2",
+                             materialization_request["generated_root"])
+            self.assertEqual(
+                hashlib.sha256((first / "materialization-request.json").read_bytes()).hexdigest(),
+                receipt["outputs"]["materialization_request_sha256"],
+            )
             self.assertNotIn("materialized", receipt["scope"].replace("not materialized", ""))
             self.assertEqual(hashlib.sha256((first / "manifest.json").read_bytes()).hexdigest(),
                              receipt["outputs"]["output_manifest_sha256"])
@@ -132,6 +149,13 @@ class Cycle2WorldForgeBridgeTests(unittest.TestCase):
             self.assertEqual(2, result.returncode, result.stderr)
             self.assertIn("compiler failed with exit 7", result.stderr)
             self.assertFalse(staged_failure.exists(), "failed compile leaked a partial final output")
+
+            staged_request_failure = root / "staged-request-failure"
+            result = run_bridge(intent, schema, COMPILER, staged_request_failure, PARTIAL_PREPARER)
+            self.assertEqual(2, result.returncode, result.stderr)
+            self.assertIn("materialization preparer failed with exit 9", result.stderr)
+            self.assertFalse(staged_request_failure.exists(),
+                             "failed preparation leaked a partial final output")
 
             first = root / "first"
             first_run = run_bridge(intent, schema, COMPILER, first)

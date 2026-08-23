@@ -34,6 +34,7 @@ COMPILER_OUTPUTS = (
 )
 SIDE_CAR = "intent-provenance.json"
 RECEIPT = "bridge-receipt.json"
+MATERIALIZATION_REQUEST = "materialization-request.json"
 SEMANTIC_SCHEMA_SHA256 = "09fe85ffb949f3f470ae8f9fb897041750d40e1a8eb1d1501590a619544fa2d2"
 STATE_WRITE_LEASE_REVISION = "97b1af6f5fa3fb1498095cd0925d29845d079df3"
 STATE_WRITE_LEASE_HASHES = {
@@ -341,6 +342,18 @@ def _safe_compiler(path: Path) -> Path:
     return compiler
 
 
+def _safe_materialization_preparer(path: Path | None, compiler: Path) -> Path:
+    preparer = (compiler.with_name("prepare_authored_world_materialization.py")
+                if path is None else path).resolve()
+    if not preparer.is_file():
+        raise BridgeError(
+            "$: WorldForge materialization preparer does not exist or is not a file: {}".format(preparer))
+    if preparer.suffix.lower() != ".py":
+        raise BridgeError(
+            "$: WorldForge materialization preparer must be a Python file: {}".format(preparer))
+    return preparer
+
+
 def _normalise(intent: dict[str, Any]) -> dict[str, Any]:
     """Create generic records from explicit spatial and state fields only."""
     anchor, poi, state = intent["anchors"][0], intent["poi"], intent["worldState"]
@@ -420,7 +433,7 @@ def _write_atomic(path: Path, payload: bytes) -> None:
 
 
 def _safe_artifact_path(output_root: Path, name: str) -> Path:
-    if name not in {*COMPILER_OUTPUTS, SIDE_CAR, RECEIPT} or Path(name).name != name:
+    if name not in {*COMPILER_OUTPUTS, SIDE_CAR, RECEIPT, MATERIALIZATION_REQUEST} or Path(name).name != name:
         raise BridgeError("$: unsafe bridge artifact name {!r}".format(name))
     candidate = (output_root / name).resolve()
     try:
@@ -441,7 +454,25 @@ def _run_compiler(compiler: Path, spec: Path, schema: Path, output_root: Path) -
         raise BridgeError("$: WorldForge compiler failed with exit {}: {}".format(result.returncode, detail))
 
 
-def compile_cycle2_world(intent_path: Path, schema_path: Path, compiler_path: Path, output_root: Path) -> dict[str, Any]:
+def _run_materialization_preparer(preparer: Path, input_root: Path, generated_root: str,
+                                  output_path: Path) -> None:
+    try:
+        result = subprocess.run(
+            [sys.executable, str(preparer), "--input-root", str(input_root),
+             "--generated-root", generated_root, "--output", str(output_path)],
+            capture_output=True, text=True, check=False,
+        )
+    except OSError as error:
+        raise BridgeError("$: failed to invoke WorldForge materialization preparer: {}".format(error)) from error
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise BridgeError(
+            "$: WorldForge materialization preparer failed with exit {}: {}".format(
+                result.returncode, detail))
+
+
+def compile_cycle2_world(intent_path: Path, schema_path: Path, compiler_path: Path, output_root: Path,
+                         materialization_preparer_path: Path | None = None) -> dict[str, Any]:
     intent_path, schema_path = intent_path.resolve(), schema_path.resolve()
     intent, intent_bytes = _load_object(intent_path, "intent")
     schema, schema_bytes = _load_object(schema_path, "schema")
@@ -493,6 +524,14 @@ def compile_cycle2_world(intent_path: Path, schema_path: Path, compiler_path: Pa
         if missing:
             raise BridgeError("$: WorldForge compiler did not produce required artifact(s): {}".format(
                 ", ".join(missing)))
+        materialization_preparer = _safe_materialization_preparer(materialization_preparer_path, compiler_path)
+        preparer_root = materialization_preparer.parents[2]
+        preparer_commit = _git_commit(preparer_root, "WorldForge materialization preparer")
+        source_provenance.update({
+            "worldforge_materialization_source_revision": preparer_commit,
+            "worldforge_materialization_source_clean": _git_paths_clean(
+                preparer_root, [materialization_preparer], "WorldForge materialization preparer"),
+        })
         compiler_manifest, _ = _load_object(_safe_artifact_path(staging_root, "manifest.json"), "WorldForge manifest")
         worldforge_provenance = compiler_manifest.get("worldforge_provenance")
         if not isinstance(worldforge_provenance, dict):
@@ -502,6 +541,29 @@ def compile_cycle2_world(intent_path: Path, schema_path: Path, compiler_path: Pa
         compiler_tree_dirty = worldforge_provenance.get("source_tree_dirty")
         if not isinstance(compiler_tree_dirty, bool):
             raise BridgeError("$.worldforge_provenance.source_tree_dirty: compiler manifest must report boolean cleanliness")
+        with tempfile.TemporaryDirectory(prefix=".worldforge-materialization-request-",
+                                          dir=str(output_root.parent)) as request_name:
+            request_path = Path(request_name) / MATERIALIZATION_REQUEST
+            _run_materialization_preparer(
+                materialization_preparer, staging_root, intent["output"]["root"], request_path)
+            materialization_request, materialization_request_bytes = _load_object(
+                request_path, "WorldForge materialization request")
+            _require_equal(materialization_request.get("artifact_kind"),
+                           "authored_world_materialization_request",
+                           ("materialization-request", "artifact_kind"))
+            _require_equal(materialization_request.get("execution_status"),
+                           "not_materialized", ("materialization-request", "execution_status"))
+            _require_equal(materialization_request.get("observation_status"),
+                           "not_observed", ("materialization-request", "observation_status"))
+            _require_equal(materialization_request.get("materialization_claim"),
+                           "none", ("materialization-request", "materialization_claim"))
+            _require_equal(materialization_request.get("generated_root"),
+                           intent["output"]["root"].rstrip("/"),
+                           ("materialization-request", "generated_root"))
+            _write_atomic(_safe_artifact_path(staging_root, MATERIALIZATION_REQUEST),
+                          materialization_request_bytes)
+        materialization_request_hash = _sha256(
+            _safe_artifact_path(staging_root, MATERIALIZATION_REQUEST))
         output_hashes = {name: _sha256(_safe_artifact_path(staging_root, name)) for name in COMPILER_OUTPUTS}
         output_set_hash = _sha256(_canonical_json(output_hashes))
         provenance = {
@@ -536,8 +598,16 @@ def compile_cycle2_world(intent_path: Path, schema_path: Path, compiler_path: Pa
         "worldforge_state_write_lease_source_sha256": STATE_WRITE_LEASE_HASHES,
         "compiler": {"path": str(compiler_path), "commit": compiler_commit,
                      "manifest_source_tree_dirty": compiler_tree_dirty},
+        "materialization_request": {
+            "path": MATERIALIZATION_REQUEST,
+            "sha256": materialization_request_hash,
+            "preparer": str(materialization_preparer),
+            "commit": preparer_commit,
+            "source_clean": source_provenance["worldforge_materialization_source_clean"],
+        },
         "outputs": {
             "artifacts": output_hashes,
+            "materialization_request_sha256": materialization_request_hash,
             "output_manifest_sha256": output_hashes["manifest.json"],
             "output_set_sha256": output_set_hash,
         },
@@ -558,18 +628,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--worldforge-compiler", type=Path,
                         default=os.environ.get("WORLDFORGE_COMPILER"),
                         help="External compile_authored_world.py (or WORLDFORGE_COMPILER).")
+    parser.add_argument("--worldforge-materialization-preparer", type=Path,
+                        default=os.environ.get("WORLDFORGE_MATERIALIZATION_PREPARER"),
+                        help="External prepare_authored_world_materialization.py (or environment variable).")
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
     args = parser.parse_args(argv)
     if args.worldforge_compiler is None:
         print("ERROR: $: --worldforge-compiler or WORLDFORGE_COMPILER is required", file=sys.stderr)
         return 2
     try:
-        receipt = compile_cycle2_world(args.intent, args.schema, args.worldforge_compiler, args.output_root)
+        receipt = compile_cycle2_world(args.intent, args.schema, args.worldforge_compiler, args.output_root,
+                                       args.worldforge_materialization_preparer)
     except BridgeError as error:
         print("ERROR: {}".format(error), file=sys.stderr)
         return 2
-    print("COMPILED: 6 planned WorldForge artifacts plus {} and {} under {}".format(
-        SIDE_CAR, RECEIPT, args.output_root))
+    print("COMPILED: 6 planned WorldForge artifacts plus {}, {}, and {} under {}".format(
+        MATERIALIZATION_REQUEST, SIDE_CAR, RECEIPT, args.output_root))
     print("RECEIPT: {}".format(_safe_artifact_path(args.output_root.resolve(), RECEIPT)))
     return 0
 
