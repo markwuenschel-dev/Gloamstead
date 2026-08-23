@@ -4,6 +4,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "Data/RitualTypes.h"
 #include "Data/NightConsequenceTypes.h"
+#include "Data/ExperienceCycleTypes.h"
 #include "NightConsequenceManager.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNightPlanReady, ENightConsequenceType, SelectedNightType);
@@ -21,6 +22,13 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Night")
 	void PrepareNightConsequences();
+
+	/**
+	 * Prepares the exact authored consequence supplied by the cycle owner. This
+	 * is deliberately separate from score-based generic selection: invalid
+	 * plans fail closed and emit no runtime-ready delegate.
+	 */
+	bool PrepareNightConsequencesForPlan(const FExperienceCyclePlan& Plan);
 
 	UFUNCTION(BlueprintPure, Category = "Night")
 	ENightConsequenceType GetLastSelectedNightType() const { return LastSelectedNightType; }

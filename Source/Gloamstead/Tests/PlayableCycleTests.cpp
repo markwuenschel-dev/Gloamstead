@@ -12,13 +12,19 @@
 #include "Misc/AutomationTest.h"
 #include "Systems/GloamsteadCycleFeedbackSubsystem.h"
 #include "Systems/GloamsteadDayNightSubsystem.h"
+#include "Systems/GloamsteadExperienceCycleSubsystem.h"
+#include "Systems/NightConsequenceManager.h"
 #include "Systems/NightConsequenceRuntime.h"
 #include "Systems/VeilHeart.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
+#include "Save/GloamsteadSaveGame.h"
 #include "Interfaces/GloamInteractable.h"
+#include "Data/ExperienceCycleTypes.h"
 #include "Data/NightConsequenceTypes.h"
 #include "Data/NightRuntimeTypes.h"
+#include "Data/VeilHeartWarningTypes.h"
 #include "Engine/Engine.h"
+#include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "Engine/OverlapResult.h"
 #include "GameFramework/SaveGame.h"
@@ -26,6 +32,24 @@
 #include "UObject/StrongObjectPtr.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
+
+namespace
+{
+	UVeilHeartWarningCatalog* MakeCycleWarningCatalog()
+	{
+		UVeilHeartWarningCatalog* Catalog = NewObject<UVeilHeartWarningCatalog>();
+		FVeilHeartWarningFragment Tutorial;
+		Tutorial.WarningId = TEXT("Tutorial");
+		Tutorial.AssociatedNightType = ENightConsequenceType::Tutorial;
+		Catalog->Warnings.Add(Tutorial);
+
+		FVeilHeartWarningFragment Garden;
+		Garden.WarningId = TEXT("GardenRot");
+		Garden.AssociatedNightType = ENightConsequenceType::Corruption;
+		Catalog->Warnings.Add(Garden);
+		return Catalog;
+	}
+}
 
 // 1. The on-screen feedback layer is legible and distinguishes the three outcomes.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -128,16 +152,22 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 	{
 		return false;
 	}
+	UGameInstance* GameInstance = NewObject<UGameInstance>(GEngine);
+	GameInstance->Init();
+	World->SetGameInstance(GameInstance);
 	FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
+	WorldContext.OwningGameInstance = GameInstance;
 	WorldContext.SetCurrentWorld(World);
 	FURL URL;
 	World->InitializeActorsForPlay(URL);
 	World->BeginPlay();
 
 	UGloamsteadDayNightSubsystem* DayNight = World->GetSubsystem<UGloamsteadDayNightSubsystem>();
+	UGloamsteadExperienceCycleSubsystem* Experience = GameInstance->GetSubsystem<UGloamsteadExperienceCycleSubsystem>();
 	UGloamsteadPCGSubsystem* PCG = World->GetSubsystem<UGloamsteadPCGSubsystem>();
+	UNightConsequenceManager* Manager = World->GetSubsystem<UNightConsequenceManager>();
 	UNightConsequenceRuntime* Runtime = World->GetSubsystem<UNightConsequenceRuntime>();
-	const bool bSubsystems = DayNight && PCG && Runtime;
+	const bool bSubsystems = DayNight && Experience && PCG && Manager && Runtime;
 	TestTrue(TEXT("world subsystems present"), bSubsystems);
 
 	if (bSubsystems)
@@ -157,6 +187,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 
 		if (Heart)
 		{
+			Heart->WarningCatalog = MakeCycleWarningCatalog();
 			// Regression guard: the interaction system focuses its target via an object-type overlap
 			// (UGloamInteractionComponent::UpdateFocus), so the Heart MUST carry query collision to be
 			// reachable. The interface assertions below call Execute_CanInteract/Interact directly, which
@@ -177,12 +208,25 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			}
 
 			TestTrue(TEXT("cycle starts in Day"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
-			// The first day belongs to the scripted director; the Heart does not offer rest yet (tutorial gate).
+			// The first day belongs to the scripted director; the Heart does not offer rest before its lantern gate.
 			TestFalse(TEXT("no rest on the first day (tutorial gate)"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));
 
-			// Run the first night as the director/timers would in-game; the phase handlers fire live.
-			DayNight->AdvanceToNextPhase(); // Day -> Dusk (prepare night + emit warning)
+			// This call is the route the untouched first-night director takes after
+			// the lantern is restored. It arms the exact Tutorial plan and its Day warning.
+			DayNight->UnlockFirstRest();
+			const FExperienceCyclePlan* TutorialPlan = DayNight->GetUpcomingPlan();
+			TestNotNull(TEXT("first rest arms a canonical Tutorial plan"), TutorialPlan);
+			if (TutorialPlan)
+			{
+				TestEqual(TEXT("first rest arms the canonical Tutorial plan"), TutorialPlan->PlanId, FName(TEXT("Cycle1_Tutorial")));
+			}
+			TestTrue(TEXT("the Heart offers rest only after the lantern gate"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));
+
+			// Run the first night through the exact plan path. Dusk must broadcast Tutorial without score selection.
+			IGloamInteractable::Execute_Interact(Heart, nullptr);
 			TestTrue(TEXT("advanced to Dusk"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk);
+			TestEqual(TEXT("manager received the exact Tutorial plan type"), Manager->GetLastSelectedNightType(), ENightConsequenceType::Tutorial);
+			TestEqual(TEXT("runtime received the manager's exact delegate type"), Runtime->GetPlannedNightType(), ENightConsequenceType::Tutorial);
 			TestFalse(TEXT("the Heart is inert at Dusk"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));
 			DayNight->AdvanceToNextPhase(); // Dusk -> Night (BeginNight)
 			TestTrue(TEXT("advanced to Night"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Night);
@@ -194,7 +238,7 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			TestTrue(TEXT("the night produced an outcome"), Outcome.Result != ENightOutcomeResult::None);
 			TestTrue(TEXT("the Heart recorded the dawn outcome"), Heart->GetLastNightOutcome().Result == Outcome.Result);
 
-			// The dawn autosave wrote the sanctuary slot.
+			// The dawn autosave wrote the single sanctuary progression slot.
 			TestTrue(TEXT("dawn autosave wrote the slot"), UGameplayStatics::DoesSaveGameExist(Slot, 0));
 
 			// The player wakes at the Heart (first dawn) -> Day, and the night is counted — all via the interface.
@@ -202,17 +246,58 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			IGloamInteractable::Execute_Interact(Heart, nullptr);
 			TestTrue(TEXT("waking advanced to Day"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
 			TestTrue(TEXT("a night has passed"), DayNight->GetNightCount() >= 1);
+			const FExperienceCyclePlan* CycleTwoBeforeSave = DayNight->GetUpcomingPlan();
+			TestNotNull(TEXT("the new Day arms Cycle II before rest"), CycleTwoBeforeSave);
+			if (CycleTwoBeforeSave)
+			{
+				TestEqual(TEXT("the exact Cycle II id is armed"), CycleTwoBeforeSave->PlanId, FName(TEXT("Cycle2_Garden")));
+				TestEqual(TEXT("the exact Cycle II warning is armed"), CycleTwoBeforeSave->WarningId, FName(TEXT("GardenRot")));
+			}
 
-			// From day two, resting at the Heart is the player-driven advance into the next night.
+			TestTrue(TEXT("full progression save retains the armed Cycle II plan"), DayNight->SaveProgressionToSlot());
+			FExperienceCyclePersistentState EmptyCycle;
+			TestTrue(TEXT("test can clear the in-memory cycle before reload"), Experience->RestorePersistentState(EmptyCycle));
+			TestTrue(TEXT("full progression load restores Cycle II rather than replaying Tutorial"), DayNight->LoadProgressionFromSlot());
+			const FExperienceCyclePlan* CycleTwoAfterLoad = DayNight->GetUpcomingPlan();
+			TestNotNull(TEXT("loaded Cycle II plan is available before rest"), CycleTwoAfterLoad);
+			if (CycleTwoAfterLoad)
+			{
+				TestEqual(TEXT("loaded plan keeps Cycle II id"), CycleTwoAfterLoad->PlanId, FName(TEXT("Cycle2_Garden")));
+				TestEqual(TEXT("loaded plan keeps GardenRot warning"), CycleTwoAfterLoad->WarningId, FName(TEXT("GardenRot")));
+			}
+
+			// From day two, rest preserves the armed ID and broadcasts only the exact Corruption type.
 			TestTrue(TEXT("the Heart offers rest on the recurring day"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));
 			IGloamInteractable::Execute_Interact(Heart, nullptr);
 			TestTrue(TEXT("resting advanced to Dusk on the recurring loop"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk);
+			const FExperienceCyclePlan* CycleTwoAtDusk = DayNight->GetUpcomingPlan();
+			TestNotNull(TEXT("rest retains an authored Cycle II plan at Dusk"), CycleTwoAtDusk);
+			if (CycleTwoAtDusk)
+			{
+				TestEqual(TEXT("rest did not mutate the Cycle II id"), CycleTwoAtDusk->PlanId, FName(TEXT("Cycle2_Garden")));
+			}
+			TestEqual(TEXT("Dusk did not choose a generic catalog type"), Manager->GetLastSelectedNightType(), ENightConsequenceType::Corruption);
+			TestEqual(TEXT("the runtime received exact Corruption through the existing delegate"), Runtime->GetPlannedNightType(), ENightConsequenceType::Corruption);
+
+			UGloamsteadSaveGame* LegacySave = Cast<UGloamsteadSaveGame>(UGameplayStatics::CreateSaveGameObject(UGloamsteadSaveGame::StaticClass()));
+			PCG->CaptureToSaveGame(LegacySave);
+			LegacySave->SaveVersion = 1;
+			FExperienceCyclePersistentState LegacyState;
+			LegacyState.CompletedCycleSlot = 1;
+			LegacyState.ArmedPlanId = TEXT("Cycle2_Garden");
+			LegacyState.bFirstRestCompleted = true;
+			LegacyState.SavedPhaseOrdinal = static_cast<int32>(EGloamsteadDayPhase::Day);
+			LegacySave->SetExperienceCycleState(LegacyState);
+			TestTrue(TEXT("legacy fixture writes to the default slot"), UGameplayStatics::SaveGameToSlot(LegacySave, Slot, 0));
+			TestFalse(TEXT("legacy load is explicitly rejected for authored progression"), DayNight->LoadProgressionFromSlot());
+			TestTrue(TEXT("legacy load remains invalid rather than replaying Cycle II"), Experience->GetActivePlan().IsInvalid());
 		}
 	}
 
 	// Teardown the world.
 	GEngine->DestroyWorldContext(World);
 	World->DestroyWorld(false);
+	GameInstance->Shutdown();
 
 	// Restore the player's real save slot exactly as we found it.
 	if (Backup)

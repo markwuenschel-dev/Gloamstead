@@ -182,6 +182,40 @@ void AVeilHeart::EmitWarningForNight(ENightConsequenceType NightType)
 	}
 }
 
+bool AVeilHeart::EmitWarningById(FName WarningId, ENightConsequenceType ExpectedNightType)
+{
+	if (!WarningCatalog || WarningId == NAME_None || ExpectedNightType == ENightConsequenceType::Invalid)
+	{
+		return false;
+	}
+
+	const FVeilHeartWarningFragment* ExactWarning = nullptr;
+	for (const FVeilHeartWarningFragment& Candidate : WarningCatalog->Warnings)
+	{
+		if (Candidate.WarningId != WarningId)
+		{
+			continue;
+		}
+
+		if (ExactWarning || Candidate.AssociatedNightType != ExpectedNightType)
+		{
+			return false;
+		}
+		ExactWarning = &Candidate;
+	}
+
+	if (!ExactWarning)
+	{
+		return false;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("VeilHeart: Authored Day warning [%s] for night %s."),
+		*ExactWarning->WarningId.ToString(), *GetNightConsequenceTypeDisplayName(ExpectedNightType));
+	OnWarningEmitted(*ExactWarning);
+	OnWarningEmittedDelegate.Broadcast(*ExactWarning);
+	return true;
+}
+
 void AVeilHeart::ProcessDawnReflection()
 {
 	// BP-compat entry point: reflect with no night outcome data.

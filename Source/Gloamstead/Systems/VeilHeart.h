@@ -51,8 +51,15 @@ public:
     UFUNCTION(BlueprintCallable, Category="Veil Heart")
     void EvaluateRestorationAgainstWarnings(const FRestorationEventPayload& Payload);
 
-    UFUNCTION(BlueprintCallable, Category="Veil Heart")
-    void EmitWarningForNight(ENightConsequenceType NightType);
+	UFUNCTION(BlueprintCallable, Category="Veil Heart")
+	void EmitWarningForNight(ENightConsequenceType NightType);
+
+	/**
+	 * Emits one exact authored warning. The ID must appear exactly once in the
+	 * assigned catalog and its associated type must equal ExpectedNightType.
+	 */
+	UFUNCTION(BlueprintCallable, Category="Veil Heart")
+	bool EmitWarningById(FName WarningId, ENightConsequenceType ExpectedNightType);
 
     /** Legacy no-outcome dawn reflection (BP compat): reflects on an empty outcome. */
     UFUNCTION(BlueprintCallable, Category="Veil Heart")

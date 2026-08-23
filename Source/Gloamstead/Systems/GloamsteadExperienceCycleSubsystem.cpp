@@ -191,6 +191,36 @@ FExperienceCyclePersistentState UGloamsteadExperienceCycleSubsystem::CapturePers
 	return CapturedState;
 }
 
+bool UGloamsteadExperienceCycleSubsystem::RecordActivePlanOutcome(const FNightRuntimeOutcome& Outcome)
+{
+	if (!ActivePlan.IsAuthoredPlan() || Outcome.NightType != ActivePlan.NightType)
+	{
+		return false;
+	}
+
+	PersistentState.CompletedCycleSlot = ActivePlan.Slot;
+	PersistentState.LastPlanId = ActivePlan.PlanId;
+	PersistentState.LastOutcomeResultTag = Outcome.ResultTag;
+	if (ActivePlan.Slot == 1)
+	{
+		PersistentState.bFirstRestCompleted = true;
+	}
+
+	// ScarTags are durable aftermath, not a second copy of every successful
+	// outcome. Keep an explicit failure marker only when the runtime supplied
+	// one, and avoid duplicating it across a restore/retry.
+	if (Outcome.Result == ENightOutcomeResult::Failure
+		&& Outcome.ResultTag != NAME_None
+		&& !PersistentState.ScarTags.Contains(Outcome.ResultTag))
+	{
+		PersistentState.ScarTags.Add(Outcome.ResultTag);
+	}
+
+	PersistentState.ArmedPlanId = NAME_None;
+	ActivePlan = FExperienceCyclePlan::MakeInvalid(PersistentState.CompletedCycleSlot + 1);
+	return true;
+}
+
 #if WITH_DEV_AUTOMATION_TESTS
 void UGloamsteadExperienceCycleSubsystem::Test_SetCatalog(UExperienceCycleCatalog* InCatalog)
 {

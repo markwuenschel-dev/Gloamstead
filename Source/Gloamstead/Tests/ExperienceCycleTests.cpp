@@ -1,7 +1,11 @@
 // Authored Cycle II plan invariants: early slots are contracts, never score-selected narratives.
 #include "Misc/AutomationTest.h"
 #include "Data/ExperienceCycleTypes.h"
+#include "Data/NightRuntimeTypes.h"
+#include "Data/VeilHeartWarningTypes.h"
 #include "Systems/GloamsteadExperienceCycleSubsystem.h"
+#include "Systems/NightConsequenceManager.h"
+#include "Systems/VeilHeart.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -60,6 +64,72 @@ bool FGloamExperiencePlanSlotTwoIsExactCorruptionTest::RunTest(const FString& /*
 	TestEqual(TEXT("slot two uses the exact warning"), Plan.WarningId, FName(TEXT("GardenRot")));
 	TestEqual(TEXT("slot two uses the exact garden subject"), Plan.SemanticSubject, FName(TEXT("Cycle2_Garden")));
 	TestEqual(TEXT("slot two keeps its stable id"), Plan.PlanId, FName(TEXT("Cycle2_Garden")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamExperiencePlanDawnOutcomeAdvancesCycleTest,
+	"Gloamstead.Experience.Plan.DawnOutcomeAdvancesCycle",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamExperiencePlanDawnOutcomeAdvancesCycleTest::RunTest(const FString& /*Parameters*/)
+{
+	UGloamsteadExperienceCycleSubsystem* Subsystem = MakeSubsystem(MakeAuthoredCatalog());
+	FExperienceCyclePersistentState State;
+	State.CompletedCycleSlot = 1;
+	TestTrue(TEXT("completed tutorial state restores"), Subsystem->RestorePersistentState(State));
+	TestTrue(TEXT("Cycle II is armed before its dawn"), Subsystem->EnsureUpcomingPlan());
+
+	FNightRuntimeOutcome Outcome;
+	Outcome.NightType = ENightConsequenceType::Corruption;
+	Outcome.Result = ENightOutcomeResult::Failure;
+	Outcome.ResultTag = TEXT("GardenScar");
+	TestTrue(TEXT("the active Cycle II plan records its dawn outcome"), Subsystem->RecordActivePlanOutcome(Outcome));
+
+	const FExperienceCyclePersistentState Captured = Subsystem->CapturePersistentState();
+	TestEqual(TEXT("dawn completes the exact active slot"), Captured.CompletedCycleSlot, 2);
+	TestEqual(TEXT("dawn records the exact active plan id"), Captured.LastPlanId, FName(TEXT("Cycle2_Garden")));
+	TestEqual(TEXT("dawn records the durable result tag"), Captured.LastOutcomeResultTag, FName(TEXT("GardenScar")));
+	TestTrue(TEXT("a failure result is retained as a scar"), Captured.ScarTags.Contains(FName(TEXT("GardenScar"))));
+	TestEqual(TEXT("dawn clears the armed plan for the next Day"), Captured.ArmedPlanId, NAME_None);
+	TestTrue(TEXT("dawn clears the active authored plan"), Subsystem->GetActivePlan().IsInvalid());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamExperiencePlanExactWarningAndNightPrepTest,
+	"Gloamstead.Experience.Plan.ExactWarningAndNightPrep",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamExperiencePlanExactWarningAndNightPrepTest::RunTest(const FString& /*Parameters*/)
+{
+	UGloamsteadExperienceCycleSubsystem* Subsystem = MakeSubsystem(MakeAuthoredCatalog());
+	FExperienceCyclePersistentState State;
+	State.CompletedCycleSlot = 1;
+	TestTrue(TEXT("completed tutorial state restores"), Subsystem->RestorePersistentState(State));
+	TestTrue(TEXT("Cycle II arms before any generic selection"), Subsystem->EnsureUpcomingPlan());
+	const FExperienceCyclePlan Plan = Subsystem->GetActivePlan();
+
+	UVeilHeartWarningCatalog* WarningCatalog = NewObject<UVeilHeartWarningCatalog>();
+	FVeilHeartWarningFragment GardenWarning;
+	GardenWarning.WarningId = TEXT("GardenRot");
+	GardenWarning.AssociatedNightType = ENightConsequenceType::Corruption;
+	WarningCatalog->Warnings.Add(GardenWarning);
+	AVeilHeart* Heart = NewObject<AVeilHeart>();
+	Heart->WarningCatalog = WarningCatalog;
+	TestTrue(TEXT("the exact Cycle II warning emits"), Heart->EmitWarningById(Plan.WarningId, Plan.NightType));
+	TestFalse(TEXT("a mismatched expected type emits no substitute"), Heart->EmitWarningById(Plan.WarningId, ENightConsequenceType::Tutorial));
+
+	WarningCatalog->Warnings.Add(GardenWarning);
+	TestFalse(TEXT("a duplicate warning id emits no substitute"), Heart->EmitWarningById(Plan.WarningId, Plan.NightType));
+
+	UNightConsequenceManager* Manager = NewObject<UNightConsequenceManager>();
+	TestTrue(TEXT("the manager accepts the exact armed authored plan"), Manager->PrepareNightConsequencesForPlan(Plan));
+	TestEqual(TEXT("the manager retains the exact authored type"), Manager->GetLastSelectedNightType(), ENightConsequenceType::Corruption);
+
+	FExperienceCyclePlan InvalidPlan = FExperienceCyclePlan::MakeInvalid(2);
+	TestFalse(TEXT("the manager rejects an invalid plan without generic fallback"), Manager->PrepareNightConsequencesForPlan(InvalidPlan));
+	TestEqual(TEXT("a rejected plan leaves no runnable type"), Manager->GetLastSelectedNightType(), ENightConsequenceType::Invalid);
 	return true;
 }
 

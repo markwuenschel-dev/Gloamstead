@@ -87,11 +87,19 @@ bool AGloamsteadSanctuaryBootstrap::TryInitializeSanctuary()
 
 	PCGSubsystem->InitializeFromPCGComponent(PCGComponent, WorldSeed);
 
-	// Load-on-start: if enabled and a prior save exists, restore it over the fresh baseline.
-	if (bEnablePersistence && PCGSubsystem->LoadFromSlot(UGloamsteadPCGSubsystem::DefaultSaveSlot))
+
+	// Load-on-start is owned by DayNight so the PCG baseline, authored cycle,
+	// first-rest eligibility, and saved phase are restored as one payload.
+	if (bEnablePersistence)
 	{
-		UE_LOG(LogTemp, Log, TEXT("GloamsteadSanctuaryBootstrap '%s': loaded saved sanctuary state (slot=%s)."),
-			*GetName(), *UGloamsteadPCGSubsystem::DefaultSaveSlot);
+		if (UGloamsteadDayNightSubsystem* DayNight = World->GetSubsystem<UGloamsteadDayNightSubsystem>())
+		{
+			if (DayNight->LoadProgressionFromSlot())
+			{
+				UE_LOG(LogTemp, Log, TEXT("GloamsteadSanctuaryBootstrap '%s': loaded full sanctuary progression (slot=%s)."),
+					*GetName(), *UGloamsteadPCGSubsystem::DefaultSaveSlot);
+			}
+		}
 	}
 
 	bInitializedSanctuary = true;

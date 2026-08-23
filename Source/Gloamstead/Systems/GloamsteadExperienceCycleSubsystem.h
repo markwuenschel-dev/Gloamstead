@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Data/ExperienceCycleTypes.h"
+#include "Data/NightRuntimeTypes.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "GloamsteadExperienceCycleSubsystem.generated.h"
 
@@ -31,6 +32,12 @@ public:
 
 	/** Captures the Task 1 state surface plus the currently armed canonical plan ID. */
 	FExperienceCyclePersistentState CapturePersistentState() const;
+
+	/**
+	 * Records the active authored plan's resolved dawn facts, then clears the
+	 * armed plan so only the following Day can author the next one.
+	 */
+	bool RecordActivePlanOutcome(const FNightRuntimeOutcome& Outcome);
 
 #if WITH_DEV_AUTOMATION_TESTS
 	/** Narrow test-only injection seam for malformed authored catalog fixtures. */

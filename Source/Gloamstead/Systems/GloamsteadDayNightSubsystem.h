@@ -55,6 +55,23 @@ public:
 	UFUNCTION(BlueprintPure, Category = "DayNight|Persistence")
 	bool IsDawnAutosaveEnabled() const { return bDawnAutosaveEnabled; }
 
+	/** Arms and presents the exact authored plan for the next rest during Day. */
+	UFUNCTION(BlueprintCallable, Category = "DayNight|Experience")
+	bool PrepareUpcomingCycle();
+
+	/** Returns the active exact authored plan, or nullptr when no safe plan is armed. */
+	const struct FExperienceCyclePlan* GetUpcomingPlan() const;
+
+	/** Saves PCG and day/cycle progression together in one sanctuary payload. */
+	UFUNCTION(BlueprintCallable, Category = "DayNight|Persistence")
+	bool SaveProgressionToSlot();
+	bool SaveProgressionToSlot(const FString& SlotName, int32 UserIndex = 0) const;
+
+	/** Restores PCG before day/cycle state, then reconciles a safe upcoming plan. */
+	UFUNCTION(BlueprintCallable, Category = "DayNight|Persistence")
+	bool LoadProgressionFromSlot();
+	bool LoadProgressionFromSlot(const FString& SlotName, int32 UserIndex = 0);
+
 	/** True when the current phase is one the player may rest through (Day or Dawn). */
 	UFUNCTION(BlueprintPure, Category = "DayNight")
 	bool CanRestNow() const;
@@ -78,9 +95,11 @@ public:
 
 private:
 	void ApplyPhaseChange(EGloamsteadDayPhase NewPhase);
+	void HandleEnterDay();
 	void HandleEnterDusk();
 	void HandleEnterNight();
 	void HandleEnterDawn();
+	class UGloamsteadExperienceCycleSubsystem* GetExperienceCycleSubsystem() const;
 
 	UPROPERTY()
 	EGloamsteadDayPhase CurrentPhase = EGloamsteadDayPhase::Day;
@@ -94,4 +113,10 @@ private:
 	/** Set once by the first-night director when the lantern lesson is complete. */
 	UPROPERTY()
 	bool bFirstRestUnlocked = false;
+
+	/** True only after Dusk prepared the exact active authored plan for runtime. */
+	bool bDuskPlanPrepared = false;
+
+	/** The authored warning successfully exposed during the current Day. */
+	FName PresentedPlanId = NAME_None;
 };
