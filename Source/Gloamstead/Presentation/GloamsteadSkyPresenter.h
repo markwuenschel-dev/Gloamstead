@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Data/VeilHeartWarningTypes.h"
 #include "Systems/GloamsteadDayNightSubsystem.h"
 #include "GloamsteadSkyPresenter.generated.h"
 
@@ -9,6 +10,7 @@ class ADirectionalLight;
 class ASkyLight;
 class AExponentialHeightFog;
 class APostProcessVolume;
+class AVeilHeart;
 
 /** One phase's worth of sky. Pure presentation values; nothing here affects game state. */
 USTRUCT(BlueprintType)
@@ -89,13 +91,27 @@ public:
 	UFUNCTION()
 	void HandlePhaseChanged(EGloamsteadDayPhase OldPhase, EGloamsteadDayPhase NewPhase);
 
+	/**
+	 * The generic post-tutorial warning surface. This actor takes the registered
+	 * presenter role only after Cycle I's director has detached, so the exact
+	 * Task 3 warning gate remains player-facing without reviving tutorial copy.
+	 */
+	UFUNCTION()
+	void HandleHeartWarning(const FVeilHeartWarningFragment& WarningFragment);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Gloamstead|Sky")
+	void OnHeartWarning(const FText& WarningText);
+
 	const FGloamSkyPreset& PresetFor(EGloamsteadDayPhase Phase) const;
 
 	/** Test seam: how far the blend has run, 0..1. */
 	float Test_GetBlendAlpha() const { return BlendAlpha; }
+	FName Test_GetLastPresentedWarningId() const { return LastPresentedWarningId; }
 
 private:
 	void CacheTargets();
+	void TryBindPostTutorialWarningPresenter();
+	void UnbindPostTutorialWarningPresenter();
 	void ApplyPreset(const FGloamSkyPreset& Preset);
 
 	UPROPERTY(Transient)
@@ -112,6 +128,10 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UGloamsteadDayNightSubsystem> CachedDayNight;
+
+	TWeakObjectPtr<AVeilHeart> CachedHeart;
+	bool bPostTutorialWarningPresenterBound = false;
+	FName LastPresentedWarningId = NAME_None;
 
 	FGloamSkyPreset FromPreset;
 	FGloamSkyPreset ToPreset;

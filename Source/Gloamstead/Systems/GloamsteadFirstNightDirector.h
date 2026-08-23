@@ -12,12 +12,9 @@
 class UGloamsteadPCGSubsystem;
 class UNightConsequenceRuntime;
 class AVeilHeart;
-class UDirectionalLightComponent;
-class UExponentialHeightFogComponent;
 class UMaterialInstanceDynamic;
 class UPointLightComponent;
 class USceneComponent;
-class USkyLightComponent;
 
 /** Ordered beats of the scripted first-night proof-of-loop. */
 UENUM(BlueprintType)
@@ -38,15 +35,15 @@ enum class EFirstNightBeat : uint8
 };
 
 /**
- * Thin first-night sequencer for the proof-of-loop vertical slice.
+ * Thin Cycle I presentation sequencer for the proof-of-loop vertical slice.
  *
- * Owns ONLY first-night beat sequencing and presentation triggers. It listens to existing
- * systems (PCG restoration, day/night phase, night runtime) and drives the phase authority
- * forward via AdvanceToNextPhase. Dusk is gated behind lantern restoration: if the lantern
- * is never restored, night never begins.
+ * Owns ONLY the first night's local lantern lesson and presentation triggers. It listens to
+ * existing systems (PCG restoration, phase, night runtime), opens the first rest after the
+ * lantern restoration, then permanently detaches at Cycle I dawn. DayNight owns every
+ * Dusk->Night, Night->Dawn, and early-objective cadence transition.
  *
  * It does NOT replace UGloamsteadDayNightSubsystem / UNightConsequenceManager, does NOT mutate
- * PCG point state, and does NOT own generic night selection, combat, resources, or progression.
+ * PCG point state, and does NOT own generic night selection, cadence, combat, resources, or progression.
  * Presentation (caption, prompts, cues, VFX, dawn payoff) lives in the Blueprint child via the
  * On* implementable events below.
  */
@@ -72,30 +69,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "First Night")
 	ENightConsequenceType FirstNightType = ENightConsequenceType::Tutorial;
 
-	/** Seconds the dusk readability cue holds before night begins. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "First Night", meta = (ClampMin = "0.0"))
-	float DuskToNightDelaySeconds = 6.0f;
-
-	/**
-	 * Seconds the scripted encroachment runs before the director calls dawn.
-	 *
-	 * This is the tutorial night's deadline, so it must be long enough for the player to actually cross
-	 * the plaza to the lantern they restored — the old 8s was a log-driven timing, not a walkable one.
-	 * Reaching the light resolves the objective and ends the night early, so this is an upper bound.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "First Night", meta = (ClampMin = "0.0"))
-	float NightDurationSeconds = 45.0f;
-
-	/** Seconds used to restore every captured sky value before the completion caption. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "First Night|Presentation", meta = (ClampMin = "0.0"))
-	float DawnTransitionSeconds = 2.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "First Night|Presentation")
-	FLinearColor DuskSunTint = FLinearColor(1.0f, 0.72f, 0.46f);
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "First Night|Presentation")
-	FLinearColor NightAmbientTint = FLinearColor(0.24f, 0.34f, 0.58f);
-
 	// === State queries ===
 
 	UFUNCTION(BlueprintPure, Category = "First Night")
@@ -106,6 +79,10 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "First Night")
 	ENightConsequenceType GetObservedNightType() const { return ObservedNightType; }
+
+	/** True once Cycle I's dawn payoff has relinquished every tutorial-only binding and cue. */
+	UFUNCTION(BlueprintPure, Category = "First Night")
+	bool IsTutorialDetached() const { return bTutorialDetached; }
 
 	// === Presentation hooks (implemented in the Blueprint child) ===
 
@@ -151,17 +128,17 @@ public:
 	UFUNCTION(BlueprintPure, Category = "First Night")
 	FText BuildDawnReflectionText(const FNightRuntimeOutcome& Outcome) const;
 
-	// === Beat advances (timer-driven in play; also callable by presentation BP) ===
+	// === Compatibility advances (DayNight remains the phase/cadence authority) ===
 
 	/** Day -> Dusk. No-op unless the lantern has been restored (the dusk gate). */
 	UFUNCTION(BlueprintCallable, Category = "First Night")
 	void RequestAdvanceToDusk();
 
-	/** Dusk -> Night. */
+	/** Dusk -> Night compatibility request. It never schedules a tutorial timer. */
 	UFUNCTION(BlueprintCallable, Category = "First Night")
 	void RequestAdvanceToNight();
 
-	/** Night -> Dawn. */
+	/** Night -> Dawn compatibility request. Runtime early completion is owned by DayNight. */
 	UFUNCTION(BlueprintCallable, Category = "First Night")
 	void RequestAdvanceToDawn();
 
@@ -176,7 +153,10 @@ public:
 	UFUNCTION()
 	void HandleNightStarted(ENightConsequenceType NightType);
 
-	/** The night objective resolved before the duration elapsed — advance to dawn now. */
+	/**
+	 * Legacy callback retained only as a safe no-op for serialized delegate references.
+	 * DayNight owns the runtime early-objective transition.
+	 */
 	UFUNCTION()
 	void HandleNightShouldEnd();
 
@@ -200,6 +180,7 @@ public:
 	int32 Test_DuskCueCount = 0;
 	int32 Test_EncroachmentCount = 0;
 	int32 Test_DawnPayoffCount = 0;
+	int32 Test_HeartReflectionCount = 0;
 
 protected:
 	void ResolveWorldSystems();
@@ -207,6 +188,7 @@ protected:
 	void UnbindDelegates();
 
 	void BeginIntro();
+	void DetachTutorial();
 
 	void PresentWarning();
 	void PresentLanternTarget();
@@ -215,14 +197,8 @@ protected:
 	void PresentDawnPayoff();
 	void CompleteDawn();
 
-	void CapturePresentationActors();
-	void RestoreCapturedPresentation();
+	void CaptureLanternMarker();
 	void SetLanternMarkerVisible(bool bVisible);
-	void BeginDuskPresentation();
-	void ApplyNightPresentation();
-	bool BeginDawnPresentation();
-	void ApplyPresentationValues(float SunIntensity, float SkyIntensity, const FLinearColor& SunColor,
-		const FLinearColor& SkyColor, float FogDensity);
 
 	/** Read-only sanctuary light level used to scale the encroachment cue. */
 	float ComputeLanternInfluence() const;
@@ -241,15 +217,6 @@ private:
 	TWeakObjectPtr<AVeilHeart> CachedHeart;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UDirectionalLightComponent> CachedSun;
-
-	UPROPERTY(Transient)
-	TObjectPtr<USkyLightComponent> CachedSkyLight;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UExponentialHeightFogComponent> CachedFog;
-
-	UPROPERTY(Transient)
 	TArray<TObjectPtr<UMaterialInstanceDynamic>> MarkerMaterials;
 
 	TArray<TWeakObjectPtr<USceneComponent>> MarkerComponents;
@@ -259,32 +226,8 @@ private:
 	bool bLanternRestored = false;
 	bool bIntroPresented = false;
 	bool bDelegatesBound = false;
-	bool bPresentationCaptured = false;
+	bool bTutorialDetached = false;
 	bool bMarkerVisible = false;
 	ENightConsequenceType ObservedNightType = ENightConsequenceType::Invalid;
-
-	float CapturedSunIntensity = 0.0f;
-	float CapturedSkyIntensity = 0.0f;
-	float CapturedFogDensity = 0.0f;
-	FLinearColor CapturedSunColor = FLinearColor::White;
-	FLinearColor CapturedSkyColor = FLinearColor::White;
-
-	float TransitionElapsed = 0.0f;
-	float TransitionDuration = 0.0f;
-	float TransitionStartSunIntensity = 0.0f;
-	float TransitionStartSkyIntensity = 0.0f;
-	float TransitionStartFogDensity = 0.0f;
-	float TransitionTargetSunIntensity = 0.0f;
-	float TransitionTargetSkyIntensity = 0.0f;
-	float TransitionTargetFogDensity = 0.0f;
-	FLinearColor TransitionStartSunColor = FLinearColor::White;
-	FLinearColor TransitionStartSkyColor = FLinearColor::White;
-	FLinearColor TransitionTargetSunColor = FLinearColor::White;
-	FLinearColor TransitionTargetSkyColor = FLinearColor::White;
-	bool bDawnTransitionActive = false;
-	bool bDuskTransitionActive = false;
 	float MarkerPulseElapsed = 0.0f;
-
-	FTimerHandle DuskToNightTimer;
-	FTimerHandle NightDurationTimer;
 };

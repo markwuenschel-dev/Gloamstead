@@ -8,7 +8,7 @@
 //     -> the production snapshot builder reads those states (BuildSanctuarySnapshot)
 //     -> the night brain selects a night type that REFLECTS the seeded snapshot
 //        (lit sanctuary -> non-Corruption; neglected/corrupted sanctuary -> Corruption)
-//     -> the first-night director runs its presentation beats for the selected night,
+//     -> the first-night director runs its Cycle I presentation beats for the selected night,
 //        with the encroachment cue scaled by the seeded sanctuary light
 //     -> the Veil Heart's dawn reflection consumes and clears the cycle's satisfied warnings.
 //
@@ -175,8 +175,8 @@ bool FGloamFirstNightSeededLoopToDawnTest::RunTest(const FString& /*Parameters*/
 	TestTrue(TEXT("beat is Dusk"), Director->GetCurrentBeat() == EFirstNightBeat::Dusk);
 	TestEqual(TEXT("dusk cue presented once"), Director->Test_DuskCueCount, 1);
 
-	// Dusk -> Night.
-	Director->RequestAdvanceToNight();
+	// Dusk -> Night is cadence-owned by DayNight.
+	DayNight->AdvanceToNextPhase();
 	TestTrue(TEXT("advanced to Night"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Night);
 
 	// The night runtime announces the SELECTED night (the brain's snapshot-driven choice); the director
@@ -190,11 +190,12 @@ bool FGloamFirstNightSeededLoopToDawnTest::RunTest(const FString& /*Parameters*/
 		PCG->GetSanctuaryAverageLightLevel(), SeededLight, KINDA_SMALL_NUMBER);
 
 	// Night completion advances to Dawn and fires the payoff; the loop is complete.
-	Director->RequestAdvanceToDawn();
+	DayNight->AdvanceToNextPhase();
 	TestTrue(TEXT("advanced to Dawn"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dawn);
 	Director->HandlePhaseChanged(EGloamsteadDayPhase::Night, EGloamsteadDayPhase::Dawn);
 	TestTrue(TEXT("beat is Complete"), Director->GetCurrentBeat() == EFirstNightBeat::Complete);
 	TestEqual(TEXT("dawn payoff presented once"), Director->Test_DawnPayoffCount, 1);
+	TestTrue(TEXT("the completed tutorial no longer owns recurring cycles"), Director->IsTutorialDetached());
 
 	// --- Dawn reflection: the Heart consumes and clears the cycle's satisfied warnings ---
 	AVeilHeart* Heart = NewObject<AVeilHeart>();

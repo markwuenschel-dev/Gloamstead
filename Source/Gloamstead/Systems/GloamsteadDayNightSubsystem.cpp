@@ -27,6 +27,132 @@ UGloamsteadExperienceCycleSubsystem* UGloamsteadDayNightSubsystem::GetExperience
 	return nullptr;
 }
 
+void UGloamsteadDayNightSubsystem::Test_BindCadenceRuntime(UNightConsequenceRuntime* InRuntime)
+{
+	BindCadenceRuntime(InRuntime);
+}
+
+void UGloamsteadDayNightSubsystem::BindCadenceRuntime(UNightConsequenceRuntime* InRuntime)
+{
+	if (CadenceRuntime.Get() == InRuntime)
+	{
+		return;
+	}
+
+	UnbindCadenceRuntime();
+	if (!InRuntime)
+	{
+		return;
+	}
+
+	CadenceRuntime = InRuntime;
+	CadenceRuntime->OnNightShouldEnd.AddDynamic(this, &UGloamsteadDayNightSubsystem::HandleNightShouldEnd);
+}
+
+void UGloamsteadDayNightSubsystem::UnbindCadenceRuntime()
+{
+	if (CadenceRuntime)
+	{
+		CadenceRuntime->OnNightShouldEnd.RemoveDynamic(this, &UGloamsteadDayNightSubsystem::HandleNightShouldEnd);
+		CadenceRuntime = nullptr;
+	}
+}
+
+void UGloamsteadDayNightSubsystem::ClearDuskToNightCadence()
+{
+	bDuskToNightCadenceScheduled = false;
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(DuskToNightCadenceTimer);
+	}
+}
+
+void UGloamsteadDayNightSubsystem::ClearNightToDawnCadence()
+{
+	bNightToDawnCadenceScheduled = false;
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(NightToDawnCadenceTimer);
+	}
+}
+
+void UGloamsteadDayNightSubsystem::ClearCadenceTimers()
+{
+	ClearDuskToNightCadence();
+	ClearNightToDawnCadence();
+}
+
+void UGloamsteadDayNightSubsystem::ScheduleDuskToNightCadence()
+{
+	ClearDuskToNightCadence();
+	if (CurrentPhase != EGloamsteadDayPhase::Dusk || !bDuskPlanPrepared)
+	{
+		return;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		// A zero authoring value still advances on the next timer tick rather than
+		// re-entering ApplyPhaseChange while its Dusk event is broadcasting.
+		const float Delay = FMath::Max(DuskToNightDelaySeconds, KINDA_SMALL_NUMBER);
+		World->GetTimerManager().SetTimer(
+			DuskToNightCadenceTimer,
+			this,
+			&UGloamsteadDayNightSubsystem::AdvanceFromDuskCadence,
+			Delay,
+			false);
+		bDuskToNightCadenceScheduled = true;
+	}
+}
+
+void UGloamsteadDayNightSubsystem::ScheduleNightToDawnCadence()
+{
+	ClearNightToDawnCadence();
+	if (CurrentPhase != EGloamsteadDayPhase::Night)
+	{
+		return;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		const float Delay = FMath::Max(NightDurationSeconds, KINDA_SMALL_NUMBER);
+		World->GetTimerManager().SetTimer(
+			NightToDawnCadenceTimer,
+			this,
+			&UGloamsteadDayNightSubsystem::RequestDawnFromCadence,
+			Delay,
+			false);
+		bNightToDawnCadenceScheduled = true;
+	}
+}
+
+void UGloamsteadDayNightSubsystem::AdvanceFromDuskCadence()
+{
+	bDuskToNightCadenceScheduled = false;
+	if (CurrentPhase == EGloamsteadDayPhase::Dusk && bDuskPlanPrepared)
+	{
+		AdvanceToNextPhase();
+	}
+}
+
+void UGloamsteadDayNightSubsystem::HandleNightShouldEnd()
+{
+	RequestDawnFromCadence();
+}
+
+void UGloamsteadDayNightSubsystem::RequestDawnFromCadence()
+{
+	if (CurrentPhase != EGloamsteadDayPhase::Night || bDawnTransitionRequested)
+	{
+		return;
+	}
+
+	bDawnTransitionRequested = true;
+	++CadenceDawnRequestCount;
+	ClearNightToDawnCadence();
+	AdvanceToNextPhase();
+}
+
 const FExperienceCyclePlan* UGloamsteadDayNightSubsystem::GetUpcomingPlan() const
 {
 	if (const UGloamsteadExperienceCycleSubsystem* Experience = GetExperienceCycleSubsystem())
@@ -201,6 +327,14 @@ bool UGloamsteadDayNightSubsystem::LoadProgressionFromSlot(const FString& SlotNa
 		return false;
 	}
 
+	// Resume never inherits a live world's pending cadence or early-objective
+	// callback. The persisted payload is still reconciled by the existing
+	// Task 3 rules below; this only prevents a stale timer from crossing phases
+	// after that payload has made its decision.
+	ClearCadenceTimers();
+	UnbindCadenceRuntime();
+	bDawnTransitionRequested = false;
+
 	UGloamsteadSaveGame* SaveGame = Cast<UGloamsteadSaveGame>(UGameplayStatics::LoadGameFromSlot(SlotName, UserIndex));
 	if (!SaveGame || !PCG->RestoreFromSaveGame(SaveGame))
 	{
@@ -295,6 +429,9 @@ void UGloamsteadDayNightSubsystem::ResetToSafeDayReconciliation()
 	// Rejected progression payloads leave PCG restored for a human-visible
 	// reconciliation, but never leave the phase machine or rest gate carrying
 	// authority from the pre-load world.
+	ClearCadenceTimers();
+	UnbindCadenceRuntime();
+	bDawnTransitionRequested = false;
 	CurrentPhase = EGloamsteadDayPhase::Day;
 	NightCount = 0;
 	bFirstRestUnlocked = false;
@@ -356,6 +493,8 @@ void UGloamsteadDayNightSubsystem::ClearWarningPresentationRetry()
 
 void UGloamsteadDayNightSubsystem::Deinitialize()
 {
+	ClearCadenceTimers();
+	UnbindCadenceRuntime();
 	ClearWarningPresentationRetry();
 	bWarningPresentationPending = false;
 	bInProgressSaveReconciliation = false;
@@ -522,6 +661,10 @@ void UGloamsteadDayNightSubsystem::HandleEnterDay()
 
 void UGloamsteadDayNightSubsystem::HandleEnterDusk()
 {
+	ClearDuskToNightCadence();
+	ClearNightToDawnCadence();
+	UnbindCadenceRuntime();
+	bDawnTransitionRequested = false;
 	bDuskPlanPrepared = false;
 	UWorld* World = GetWorld();
 	if (!World)
@@ -547,6 +690,10 @@ void UGloamsteadDayNightSubsystem::HandleEnterDusk()
 	if (UNightConsequenceManager* NightManager = World->GetSubsystem<UNightConsequenceManager>())
 	{
 		bDuskPlanPrepared = NightManager->PrepareNightConsequencesForPlan(Plan);
+		if (bDuskPlanPrepared)
+		{
+			ScheduleDuskToNightCadence();
+		}
 	}
 	else
 	{
@@ -556,6 +703,8 @@ void UGloamsteadDayNightSubsystem::HandleEnterDusk()
 
 void UGloamsteadDayNightSubsystem::HandleEnterNight()
 {
+	ClearDuskToNightCadence();
+	bDawnTransitionRequested = false;
 	if (!bDuskPlanPrepared)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("DayNight: Night blocked because Dusk did not prepare an exact authored plan."));
@@ -566,17 +715,28 @@ void UGloamsteadDayNightSubsystem::HandleEnterNight()
 	{
 		if (UNightConsequenceRuntime* Runtime = World->GetSubsystem<UNightConsequenceRuntime>())
 		{
+			// Bind before BeginNight: the initial pressure beat can resolve an
+			// objective synchronously, and that early request must reach the
+			// same one-shot Dawn path as the duration deadline.
+			BindCadenceRuntime(Runtime);
+			ScheduleNightToDawnCadence();
 			Runtime->BeginNight();
 		}
 		else
 		{
 			UE_LOG(LogTemp, Warning, TEXT("DayNight: NightConsequenceRuntime missing at night."));
+			ScheduleNightToDawnCadence();
 		}
 	}
+
+	// Keep a zero-duration authoring value asynchronous when a world exists;
+	// ScheduleNightToDawnCadence uses KINDA_SMALL_NUMBER for that case. Worldless
+	// automation still exercises the same early-objective handler directly.
 }
 
 void UGloamsteadDayNightSubsystem::HandleEnterDawn()
 {
+	ClearCadenceTimers();
 	if (UWorld* World = GetWorld())
 	{
 		// End the night first, then hand its real outcome to dawn reflection.
@@ -628,6 +788,8 @@ void UGloamsteadDayNightSubsystem::HandleEnterDawn()
 				*UGloamsteadPCGSubsystem::DefaultSaveSlot, bSaved ? TEXT("ok") : TEXT("FAILED"));
 		}
 
-		bDuskPlanPrepared = false;
 	}
+
+	bDuskPlanPrepared = false;
+	UnbindCadenceRuntime();
 }

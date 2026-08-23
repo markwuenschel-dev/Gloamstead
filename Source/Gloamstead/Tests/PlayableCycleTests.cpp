@@ -6,7 +6,7 @@
 //  3. A LIVE game world — the phase handlers, night runtime (BeginNight/EndNight), dawn reflection, the
 //     and the Heart's rest/wake interaction all run through real dynamic-multicast dispatch (which does NOT
 //     fire on worldless NewObject'd actors), spawning a real AVeilHeart and exercising the interaction interface.
-//     The interior Dusk/Night transitions are pumped as the director's timers would drive them in-game. The test
+//     The interior Dusk/Night transitions are pumped as DayNight cadence would drive them in-game. The test
 //     uses its own explicit slot and disables dawn autosave so it never touches a player's real save.
 #include "Misc/AutomationTest.h"
 #include "Systems/GloamsteadCycleFeedbackSubsystem.h"
@@ -16,6 +16,7 @@
 #include "Systems/NightConsequenceManager.h"
 #include "Systems/NightConsequenceRuntime.h"
 #include "Systems/VeilHeart.h"
+#include "Presentation/GloamsteadSkyPresenter.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Save/GloamsteadSaveGame.h"
 #include "Interfaces/GloamInteractable.h"
@@ -186,6 +187,10 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 		if (Heart)
 		{
 			Heart->WarningCatalog = MakeCycleWarningCatalog();
+			// The sky owns global phase presentation and becomes the generic warning
+			// presenter only after the first-night director has detached at Dawn.
+			AGloamsteadSkyPresenter* SkyPresenter = World->SpawnActor<AGloamsteadSkyPresenter>();
+			TestNotNull(TEXT("SkyPresenter spawned for the post-tutorial handoff"), SkyPresenter);
 			// Regression guard: the interaction system focuses its target via an object-type overlap
 			// (UGloamInteractionComponent::UpdateFocus), so the Heart MUST carry query collision to be
 			// reachable. The interface assertions below call Execute_CanInteract/Interact directly, which
@@ -244,12 +249,21 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			TestFalse(TEXT("RequestRest remains closed after pre-lantern reload"), DayNight->RequestRest());
 			TestEqual(TEXT("rejected pre-lantern rest leaves the phase in Day"), DayNight->GetCurrentPhase(), EGloamsteadDayPhase::Day);
 
-			DayNight->UnlockFirstRest();
+			FRestorationEventPayload LanternRestore;
+			LanternRestore.RitualType = ERitualType::LanternPost;
+			LanternRestore.WorldLocation = FVector(125.0f, 0.0f, 0.0f);
+			if (FirstNightDirector)
+			{
+				FirstNightDirector->HandleStructureRestored(LanternRestore);
+			}
 			TestTrue(TEXT("only the explicit lantern event opens the first-rest gate"), DayNight->IsFirstRestUnlocked());
+			TestTrue(TEXT("the director records the explicit lantern lesson"),
+				FirstNightDirector && FirstNightDirector->IsLanternRestored());
 			TestEqual(TEXT("explicit lantern event presents the retained Tutorial warning"), Heart->GetLastEmittedWarningId(), FName(TEXT("TutorialLostPath")));
 			TestTrue(TEXT("the Heart offers rest after the explicit lantern event"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));
 			TestTrue(TEXT("RequestRest takes the normal guarded first-rest route"), DayNight->RequestRest());
 			TestTrue(TEXT("guarded first rest advances to Dusk"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk);
+			TestTrue(TEXT("DayNight schedules the first Dusk-to-Night cadence"), DayNight->Test_IsDuskToNightCadenceScheduled());
 
 			// Run the first night through the exact plan path. Dusk must broadcast Tutorial without score selection.
 			TestEqual(TEXT("manager received the exact Tutorial plan type"), Manager->GetLastSelectedNightType(), ENightConsequenceType::Tutorial);
@@ -257,8 +271,15 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			TestFalse(TEXT("the Heart is inert at Dusk"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));
 			DayNight->AdvanceToNextPhase(); // Dusk -> Night (BeginNight)
 			TestTrue(TEXT("advanced to Night"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Night);
+			TestFalse(TEXT("entering Night clears the completed Dusk cadence"), DayNight->Test_IsDuskToNightCadenceScheduled());
+			TestTrue(TEXT("DayNight schedules the Night-to-Dawn cadence"), DayNight->Test_IsNightToDawnCadenceScheduled());
 			DayNight->AdvanceToNextPhase(); // Night -> Dawn (EndNight + reflection + autosave)
 			TestTrue(TEXT("advanced to Dawn"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dawn);
+			TestFalse(TEXT("entering Dawn clears the Night cadence"), DayNight->Test_IsNightToDawnCadenceScheduled());
+			TestTrue(TEXT("Cycle I dawn permanently detaches the tutorial director"),
+				FirstNightDirector && FirstNightDirector->IsTutorialDetached());
+			World->Tick(LEVELTICK_All, 0.05f);
+			TestTrue(TEXT("SkyPresenter takes the registered warning role after tutorial teardown"), Heart->HasValidWarningPresenter());
 
 			// The night resolved to a real outcome, and dawn reflection consumed it on the Heart.
 			const FNightRuntimeOutcome Outcome = Runtime->GetLastOutcome();
@@ -270,6 +291,11 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			IGloamInteractable::Execute_Interact(Heart, nullptr);
 			TestTrue(TEXT("waking advanced to Day"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
 			TestTrue(TEXT("a night has passed"), DayNight->GetNightCount() >= 1);
+			if (SkyPresenter)
+			{
+				TestEqual(TEXT("generic post-tutorial presenter receives Cycle II's exact warning"),
+					SkyPresenter->Test_GetLastPresentedWarningId(), FName(TEXT("GardenRot")));
+			}
 			const FExperienceCyclePlan* CycleTwoBeforeSave = DayNight->GetUpcomingPlan();
 			TestNotNull(TEXT("the new Day arms Cycle II before rest"), CycleTwoBeforeSave);
 			if (CycleTwoBeforeSave)
@@ -333,13 +359,13 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			TestFalse(TEXT("removing the duplicate lets the single canonical Heart present"), DayNight->IsWarningPresentationPending());
 			TestTrue(TEXT("the single canonical Heart re-opens rest after exact presentation"), DayNight->CanRestNow());
 
-			// Bootstrap may instead load while the one canonical Heart exists but its
-			// director has not reached BeginPlay. That valid payload must stay pending
-			// until the same explicit production presenter attaches.
-			if (FirstNightDirector)
+			// Bootstrap may instead load while the one canonical Heart exists but the
+			// generic post-tutorial presenter has not attached yet. That valid payload
+			// must stay pending until the same explicit production presenter attaches.
+			if (SkyPresenter)
 			{
-				Heart->OnWarningEmittedDelegate.RemoveDynamic(FirstNightDirector, &AGloamsteadFirstNightDirector::HandleHeartWarning);
-				Heart->UnregisterWarningPresenter(FirstNightDirector);
+				Heart->OnWarningEmittedDelegate.RemoveDynamic(SkyPresenter, &AGloamsteadSkyPresenter::HandleHeartWarning);
+				Heart->UnregisterWarningPresenter(SkyPresenter);
 			}
 			TestFalse(TEXT("test detaches the registered presenter before a singular resumed load"), Heart->HasValidWarningPresenter());
 			DayNight->SetPhase(EGloamsteadDayPhase::Dusk);
@@ -348,13 +374,13 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			TestFalse(TEXT("one canonical Heart without a presenter still cannot offer rest"), DayNight->CanRestNow());
 			DayNight->AdvanceToNextPhase();
 			TestTrue(TEXT("direct Day advance stays blocked while the singular presenter is late"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day);
-			if (FirstNightDirector)
+			if (SkyPresenter)
 			{
-				Heart->OnWarningEmittedDelegate.AddDynamic(FirstNightDirector, &AGloamsteadFirstNightDirector::HandleHeartWarning);
+				Heart->OnWarningEmittedDelegate.AddDynamic(SkyPresenter, &AGloamsteadSkyPresenter::HandleHeartWarning);
 				TestTrue(TEXT("the rebound warning delegate re-registers as the player-facing presenter"),
-					Heart->RegisterWarningPresenter(FirstNightDirector, GET_FUNCTION_NAME_CHECKED(AGloamsteadFirstNightDirector, HandleHeartWarning)));
+					Heart->RegisterWarningPresenter(SkyPresenter, GET_FUNCTION_NAME_CHECKED(AGloamsteadSkyPresenter, HandleHeartWarning)));
 			}
-			TestTrue(TEXT("the existing first-night director can rebind as the presenter"), Heart->HasValidWarningPresenter());
+			TestTrue(TEXT("the generic post-tutorial presenter can rebind"), Heart->HasValidWarningPresenter());
 			World->Tick(LEVELTICK_All, 0.3f);
 			TestFalse(TEXT("listener-late Cycle II presentation clears pending state"), DayNight->IsWarningPresentationPending());
 			TestEqual(TEXT("the canonical Heart emits the retained exact GardenRot warning"), Heart->GetLastEmittedWarningId(), FName(TEXT("GardenRot")));
@@ -364,6 +390,9 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			TestTrue(TEXT("the Heart offers rest on the recurring day"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));
 			IGloamInteractable::Execute_Interact(Heart, nullptr);
 			TestTrue(TEXT("resting advanced to Dusk on the recurring loop"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk);
+			TestTrue(TEXT("Cycle II Dusk cadence belongs to DayNight after tutorial teardown"), DayNight->Test_IsDuskToNightCadenceScheduled());
+			TestTrue(TEXT("Cycle II still cannot revive the detached tutorial actor"),
+				FirstNightDirector && FirstNightDirector->IsTutorialDetached());
 			const FExperienceCyclePlan* CycleTwoAtDusk = DayNight->GetUpcomingPlan();
 			TestNotNull(TEXT("rest retains an authored Cycle II plan at Dusk"), CycleTwoAtDusk);
 			if (CycleTwoAtDusk)

@@ -9,6 +9,8 @@
 #include "Engine/SkyLight.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Kismet/GameplayStatics.h"
+#include "Systems/VeilHeart.h"
 
 namespace
 {
@@ -130,10 +132,12 @@ void AGloamsteadSkyPresenter::BeginPlay()
 
 	BlendAlpha = 1.f;
 	ApplyPreset(ToPreset);
+	TryBindPostTutorialWarningPresenter();
 }
 
 void AGloamsteadSkyPresenter::EndPlay(const EEndPlayReason::Type Reason)
 {
+	UnbindPostTutorialWarningPresenter();
 	if (CachedDayNight)
 	{
 		CachedDayNight->OnPhaseChanged.RemoveDynamic(this, &AGloamsteadSkyPresenter::HandlePhaseChanged);
@@ -154,9 +158,82 @@ void AGloamsteadSkyPresenter::HandlePhaseChanged(EGloamsteadDayPhase /*OldPhase*
 		static_cast<int32>(NewPhase), BlendSeconds);
 }
 
+void AGloamsteadSkyPresenter::TryBindPostTutorialWarningPresenter()
+{
+	if (bPostTutorialWarningPresenterBound)
+	{
+		if (AVeilHeart* Heart = CachedHeart.Get(); Heart
+			&& Heart->HasValidWarningPresenter()
+			&& Heart->OnWarningEmittedDelegate.Contains(this, GET_FUNCTION_NAME_CHECKED(AGloamsteadSkyPresenter, HandleHeartWarning)))
+		{
+			return;
+		}
+		UnbindPostTutorialWarningPresenter();
+	}
+
+	// Cycle I owns its own intentionally lantern-specific caption and must be
+	// the only registered presenter until its dawn teardown. On later days the
+	// sky actor provides the generic bridge while Task 6 materializes the full
+	// caption/journal surface.
+	if (CachedDayNight
+		&& CachedDayNight->GetCurrentPhase() == EGloamsteadDayPhase::Day
+		&& CachedDayNight->GetNightCount() == 0)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	TArray<AActor*> Hearts;
+	UGameplayStatics::GetAllActorsOfClass(World, AVeilHeart::StaticClass(), Hearts);
+	if (Hearts.Num() != 1)
+	{
+		return;
+	}
+
+	AVeilHeart* Heart = Cast<AVeilHeart>(Hearts[0]);
+	if (!Heart)
+	{
+		return;
+	}
+
+	Heart->OnWarningEmittedDelegate.AddDynamic(this, &AGloamsteadSkyPresenter::HandleHeartWarning);
+	if (Heart->RegisterWarningPresenter(this, GET_FUNCTION_NAME_CHECKED(AGloamsteadSkyPresenter, HandleHeartWarning)))
+	{
+		CachedHeart = Heart;
+		bPostTutorialWarningPresenterBound = true;
+	}
+	else
+	{
+		Heart->OnWarningEmittedDelegate.RemoveDynamic(this, &AGloamsteadSkyPresenter::HandleHeartWarning);
+	}
+}
+
+void AGloamsteadSkyPresenter::UnbindPostTutorialWarningPresenter()
+{
+	if (AVeilHeart* Heart = CachedHeart.Get())
+	{
+		Heart->OnWarningEmittedDelegate.RemoveDynamic(this, &AGloamsteadSkyPresenter::HandleHeartWarning);
+		Heart->UnregisterWarningPresenter(this);
+	}
+	CachedHeart.Reset();
+	bPostTutorialWarningPresenterBound = false;
+}
+
+void AGloamsteadSkyPresenter::HandleHeartWarning(const FVeilHeartWarningFragment& WarningFragment)
+{
+	LastPresentedWarningId = WarningFragment.WarningId;
+	OnHeartWarning(WarningFragment.Fragment);
+}
+
 void AGloamsteadSkyPresenter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	TryBindPostTutorialWarningPresenter();
 
 	if (BlendAlpha >= 1.f)
 	{

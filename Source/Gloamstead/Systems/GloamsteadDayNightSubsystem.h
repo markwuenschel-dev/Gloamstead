@@ -5,6 +5,8 @@
 #include "TimerManager.h"
 #include "GloamsteadDayNightSubsystem.generated.h"
 
+class UNightConsequenceRuntime;
+
 UENUM(BlueprintType)
 enum class EGloamsteadDayPhase : uint8
 {
@@ -25,6 +27,14 @@ class GLOAMSTEAD_API UGloamsteadDayNightSubsystem : public UWorldSubsystem
 	GENERATED_BODY()
 
 public:
+	/** Seconds Dusk remains readable before this phase authority starts the prepared night. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DayNight|Cadence", meta = (ClampMin = "0.0"))
+	float DuskToNightDelaySeconds = 6.0f;
+
+	/** Maximum Night duration before this phase authority requests Dawn. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DayNight|Cadence", meta = (ClampMin = "0.0"))
+	float NightDurationSeconds = 45.0f;
+
 	UFUNCTION(BlueprintCallable, Category = "DayNight")
 	EGloamsteadDayPhase GetCurrentPhase() const { return CurrentPhase; }
 
@@ -98,6 +108,18 @@ public:
 	UFUNCTION(BlueprintPure, Category = "DayNight")
 	bool IsFirstRestUnlocked() const { return bFirstRestUnlocked; }
 
+	/** Runtime delegate: an objective resolved before the cadence deadline. */
+	UFUNCTION()
+	void HandleNightShouldEnd();
+
+	// === Test seams (unconditional inline; unused in shipping → linker drops them) ===
+	/** Binds the same exact runtime early-objective delegate used by HandleEnterNight. */
+	void Test_BindCadenceRuntime(UNightConsequenceRuntime* InRuntime);
+	/** Number of distinct runtime/cadence requests that actually entered Dawn this session. */
+	int32 Test_GetCadenceDawnRequestCount() const { return CadenceDawnRequestCount; }
+	bool Test_IsDuskToNightCadenceScheduled() const { return bDuskToNightCadenceScheduled; }
+	bool Test_IsNightToDawnCadenceScheduled() const { return bNightToDawnCadenceScheduled; }
+
 	UPROPERTY(BlueprintAssignable, Category = "DayNight")
 	FOnGloamsteadDayPhaseChanged OnPhaseChanged;
 
@@ -114,6 +136,15 @@ private:
 	void QueueWarningPresentationRetry();
 	void RetryPendingWarningPresentation();
 	void ClearWarningPresentationRetry();
+	void ScheduleDuskToNightCadence();
+	void ScheduleNightToDawnCadence();
+	void ClearCadenceTimers();
+	void ClearDuskToNightCadence();
+	void ClearNightToDawnCadence();
+	void AdvanceFromDuskCadence();
+	void RequestDawnFromCadence();
+	void BindCadenceRuntime(UNightConsequenceRuntime* InRuntime);
+	void UnbindCadenceRuntime();
 	class UGloamsteadExperienceCycleSubsystem* GetExperienceCycleSubsystem() const;
 
 	virtual void Deinitialize() override;
@@ -146,4 +177,15 @@ private:
 	bool bWarningPresentationRetryQueued = false;
 	bool bWarningPresentationDeferralLogged = false;
 	FTimerHandle WarningPresentationRetryTimer;
+
+	/** Exactly-one guard shared by deadline and runtime objective completion. */
+	bool bDawnTransitionRequested = false;
+	int32 CadenceDawnRequestCount = 0;
+	bool bDuskToNightCadenceScheduled = false;
+	bool bNightToDawnCadenceScheduled = false;
+	FTimerHandle DuskToNightCadenceTimer;
+	FTimerHandle NightToDawnCadenceTimer;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UNightConsequenceRuntime> CadenceRuntime;
 };
