@@ -114,7 +114,7 @@
 
 ## Task 5 — Fair crypticism, exact interpretation, and garden target
 
-**Behavior:** `GardenRot` has three unique support channels. The player must encounter at least two, restore the stable `Cycle2_Garden` subject with canonical `GardenBed` semantics, and receive an exact interpretation receipt; Corruption targets that subject rather than global-most-corrupted fallback.
+**Behavior:** `GardenRot` has three unique, distinct-media support channels. The player must encounter at least two through authored evidence sources, restore the stable `Cycle2_Garden` subject with canonical `GardenBed` semantics, and receive an exact interpretation receipt; Corruption targets that full subject contract rather than a global-most-corrupted fallback. The presented warning, evidence, and receipt are versioned save state: they restore atomically or reset safely, never leak across a rollback. Runtime data assets are regenerated from the authored manifest before this slice is called live.
 
 **Public seams:** `AVeilHeart::RecordSupportEncounter()`, `EvaluateRestorationAgainstActivePlan()`, `ResolveSemanticSubjectToPoint()`, and exact warning validation.
 
@@ -127,10 +127,18 @@
 - `Source/Gloamstead/Systems/VeilHeart.h`
 - `Source/Gloamstead/Systems/VeilHeart.cpp`
 - `Source/Gloamstead/Systems/GloamsteadExperienceCycleSubsystem.cpp`
+- `Source/Gloamstead/Systems/GloamsteadDayNightSubsystem.h`
+- `Source/Gloamstead/Systems/GloamsteadDayNightSubsystem.cpp`
 - `Source/Gloamstead/Systems/NightConsequenceRuntime.h`
 - `Source/Gloamstead/Systems/NightConsequenceRuntime.cpp`
 - `Source/Gloamstead/Data/NightRuntimeTypes.h`
 - `Source/Gloamstead/Systems/NightStrategy.cpp`
+- `Source/Gloamstead/PCG/GloamsteadPCGSubsystem.h`
+- `Source/Gloamstead/PCG/GloamsteadPCGSubsystem.cpp`
+- `Source/Gloamstead/Save/GloamsteadSaveGame.h`
+- `Source/Gloamstead/Save/GloamsteadSaveGame.cpp`
+- `Source/Gloamstead/Actors/GloamsteadEvidenceSource.h`
+- `Source/Gloamstead/Actors/GloamsteadEvidenceSource.cpp`
 - `Source/Gloamstead/Components/RitualPlacementComponent.cpp`
 - `Source/GloamsteadEditor/Commandlets/GloamsteadImportDataAssetsCommandlet.cpp`
 - `Source/GloamsteadEditor/Validation/VeilHeartWarningCatalogValidator.h`
@@ -140,10 +148,15 @@
 - `specs/data/vs-polish-starter.json`
 - `Source/Gloamstead/Tests/FairCrypticismTests.cpp`
 - `Source/Gloamstead/Tests/ExperienceCycleTests.cpp`
+- `Source/Gloamstead/Tests/ExperienceCyclePersistenceTests.cpp`
+- `Source/Gloamstead/Tests/PCGSubsystemTests.cpp`
+- `Source/Gloamstead/Tests/PlayableCycleTests.cpp`
+- `Content/Data/DA_VeilHeartWarningCatalog.uasset`
+- `Content/Data/DA_Ritual_GardenBed.uasset`
 
-**Implementation:** Consult Context7 for the current Unreal data-validation API before editor code. The importer and validator reject sparse/duplicate/mismatched support data. Runtime requires the active plan subject and tag, and fails visibly if map metadata cannot resolve it. Fix the authored `GardenBed` tag mismatch at its source of truth.
+**Implementation:** Consult Context7 for the current Unreal data-validation API before editor code. The importer and validator reject sparse/duplicate/mismatched support data and require the canonical Environmental/ObjectReaction/Audio GardenRot media. Runtime validates evidence/restoration against authoritative world objects and PCG point state, requires the full active-plan target contract, and fails visibly if map metadata cannot resolve it. Make evaluator write APIs non-Blueprint-forgeable. Migrate v2 saves to v3 by clearing unprovable interpretation state, then capture/restore the Heart state atomically with the cycle. Run the sanctioned importer to materialize changed controlled assets; do not hand-edit binary assets. `AGloamsteadEvidenceSource` is the player-world reporting endpoint, while Task 7/8 must materialize its authored instances and `Cycle2_Garden` metadata through WorldForge rather than one-off map edits.
 
-**Acceptance:** one-channel/duplicate/unknown support fixtures fail; the exact warning ID cannot be substituted by clarity; two distinct supports plus the correct garden restoration are required for an interpreted result; absent garden target does not silently select another corruption bloom.
+**Acceptance:** one-channel/duplicate/unknown/wrong-medium support fixtures fail; the exact warning ID cannot be substituted by clarity; two distinct supports plus the correct garden restoration are required for an interpreted result; forged payloads cannot mint a receipt; v2 and rollback reloads neither invent nor leak interpretation state; runtime-loaded controlled assets match the authored contract; absent or mismatched garden target does not silently select another corruption bloom. The Cycle II route is not called end-to-end playable until Task 7/8 materializes authored evidence sources and `Cycle2_Garden` metadata into `Lvl_Gloamstead` with WorldForge provenance.
 
 **Verification:** C++ and editor AutomationTests, import negative fixtures, then full `Gloamstead` filter.
 
