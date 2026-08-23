@@ -139,8 +139,11 @@
 - `Source/Gloamstead/Save/GloamsteadSaveGame.cpp`
 - `Source/Gloamstead/Actors/GloamsteadEvidenceSource.h`
 - `Source/Gloamstead/Actors/GloamsteadEvidenceSource.cpp`
+- `Source/Gloamstead/Actors/GloamsteadRestoredGardenBed.h`
+- `Source/Gloamstead/Actors/GloamsteadRestoredGardenBed.cpp`
 - `Source/Gloamstead/Components/RitualPlacementComponent.h`
 - `Source/Gloamstead/Components/RitualPlacementComponent.cpp`
+- `Source/Gloamstead/GloamsteadCharacter.cpp`
 - `Source/GloamsteadEditor/Commandlets/GloamsteadImportDataAssetsCommandlet.cpp`
 - `Source/GloamsteadEditor/Validation/VeilHeartWarningCatalogValidator.h`
 - `Source/GloamsteadEditor/Validation/VeilHeartWarningCatalogValidator.cpp`
@@ -153,10 +156,15 @@
 - `Source/Gloamstead/Tests/PCGSubsystemTests.cpp`
 - `Source/Gloamstead/Tests/PlayableCycleTests.cpp`
 - `Source/Gloamstead/Tests/RestorationLifecycleTests.cpp`
+- `Source/Gloamstead/Tests/FirstNightPlayableSliceTests.cpp`
 - `Content/Data/DA_VeilHeartWarningCatalog.uasset`
 - `Content/Data/DA_Ritual_GardenBed.uasset`
 
 **Implementation:** Consult Context7 for the current Unreal data-validation API before editor code. The importer and validator reject sparse/duplicate/mismatched support data and require the canonical Environmental/ObjectReaction/Audio GardenRot media. Runtime validates evidence/restoration against authoritative world objects and PCG point state, requires the full active-plan target contract, and fails visibly if map metadata cannot resolve it. Test-only PCG metadata setup must compile out of shipping builds; generic WorldForge/runtime code can consume authored metadata but cannot write Gloamstead semantic fields. Keep generic `ApplyRestoration` available for ordinary state mutation, but mint an interpretation receipt only from a non-Blueprint placement-authorized completion event emitted after a valid `URitualPlacementComponent` confirmation. A fresh matching point restored through the generic Blueprint path must never mint a receipt. Migrate v2 saves to v3 by clearing unprovable interpretation state, then capture/restore the Heart state atomically with the cycle: a restored receipt must be derived from, or have exact set equality with, the validated persisted encounter set. Run the sanctioned importer to materialize changed controlled assets; do not hand-edit binary assets. `AGloamsteadEvidenceSource` is the player-world reporting endpoint, while Task 7/8 must materialize its authored instances and `Cycle2_Garden` metadata through WorldForge rather than one-off map edits.
+
+**Post-review authority closure (required before Task 5 approval):** `AVeilHeart`'s interpretation capture/restore/reset operations are private to `UGloamsteadDayNightSubsystem`; automation receives macro-gated wrappers only. `UGloamsteadPCGSubsystem::InitializeFromPCGComponent` is likewise a private, non-reflected bootstrap capability granted solely to `AGloamsteadSanctuaryBootstrap`, with an automation-only wrapper for failure-injection coverage. The raw `UGloamsteadSaveGame::ExperienceCycleState` payload and its raw writer are private; only DayNight may write it in production, while tests use a macro-gated fixture writer. Add hostile coverage that a coherent literal payload followed by generic `ApplyRestoration` cannot manufacture a receipt, and reflection coverage that neither initialization nor test-only semantic writers expose a Blueprint route.
+
+`URitualPlacementComponent::EnterPlacementMode` resolves its ritual type from the active authored DayNight plan and refuses entry when no safe plan is armed; it may arm the existing exact plan but may not invent a Lantern fallback. Preserve Cycle I by arming its authored Tutorial plan in its real test setup. Restoration is type-aware: the player prompt names the active ritual, and a successful `GardenBed` confirmation materializes a project-owned visible Garden actor with an editor-overridable class rather than entering the degraded no-actor route. The positive Cycle II fair-crypticism fixture must use a live game instance and the actual `EnterPlacementMode -> target -> ConfirmPlacement` sequence, including an asserted Garden target and visible actor, not the test-only confirmation tail.
 
 **Acceptance:** one-channel/duplicate/unknown/wrong-medium support fixtures fail; the exact warning ID cannot be substituted by clarity; two distinct supports plus a placement-authorized correct garden restoration are required for an interpreted result; a direct fresh matching-point Blueprint `ApplyRestoration` call and forged payloads cannot mint a receipt; shipping code contains no semantic-PCG metadata writer; v2, crafted mismatched v3 receipts, and rollback reloads neither invent nor leak interpretation state; runtime-loaded controlled assets match the authored contract; absent or mismatched garden target does not silently select another corruption bloom. The Cycle II route is not called end-to-end playable until Task 7/8 materializes authored evidence sources and `Cycle2_Garden` metadata into `Lvl_Gloamstead` with WorldForge provenance.
 
