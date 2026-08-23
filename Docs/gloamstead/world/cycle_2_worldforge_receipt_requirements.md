@@ -22,10 +22,19 @@ Every receipt must identify all of the following fields:
 - `world_spec_path`: `specs/world/cycle-2-corruption-neglect.world.json`.
 - `world_spec_sha256`: SHA-256 of the exact bytes consumed by the generator.
 - `schema_path` and `schema_sha256`: the matching semantic schema and hash.
+- `poi_id` and `poi_anchor_id`: exactly `Cycle2_Garden` and
+  `Cycle2_Garden.Anchor`.
+- `poi_coordinate_space` and `poi_anchor_translation`: exactly
+  `sanctuary_bootstrap_local` and `[480.0, 160.0, 0.0]`.
+- `poi_box_half_extents`: exactly `[240.0, 280.0, 160.0]`, with the receipt
+  recording that the box is contained by the source-owned
+  `[800.0, 800.0, 400.0]` sanctuary-bootstrap extent.
+- `generation_input_seed` and `generation_input_version`: exactly `42` and
+  `gloamstead-cycle2-corruption-neglect.v1` from the consumed world spec.
 - `generator_revision`: the WorldForge generator/tool revision, including any
   materializer and survey command revisions.
-- `generator_parameters`: deterministic seed and all non-default generation
-  parameters.
+- `generator_parameters`: all non-default generation parameters in addition
+  to the required semantic `generationInput` values above.
 
 The receipt must reject a mismatch between the named spec hash and the actual
 input, a dirty source where `*_source_clean` claims clean, or a generator
@@ -33,9 +42,13 @@ revision that cannot be resolved to a source revision.
 
 ## Permitted subjects and output boundary
 
-The only semantic subject in this slice is `Cycle2_Garden`, with warning
-`GardenRot`, ritual type `GardenBed`, restoration tag `GardenBed`, anchor
-`Cycle2_Garden.Anchor`, and map `/Game/Maps/Lvl_Gloamstead`.
+This slice has exactly one semantic subject and exactly one bounded POI:
+`Cycle2_Garden`, with warning `GardenRot`, ritual type `GardenBed`, restoration
+tag `GardenBed`, anchor `Cycle2_Garden.Anchor`, and map
+`/Game/Maps/Lvl_Gloamstead`. Its POI is the
+`sanctuary_bootstrap_local` box centered at `[480.0, 160.0, 0.0]` with
+half-extents `[240.0, 280.0, 160.0]`. A receipt must reject any second,
+decoy, or otherwise unlisted anchor or subject instead of selecting one.
 
 All generated or materialized assets must be located below exactly:
 

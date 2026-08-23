@@ -203,11 +203,16 @@ For an authored plan with a complete target contract (including Cycle II GardenR
 - `Source/Gloamstead/PCG/GloamsteadPCGSubsystem.h`
 - `Source/Gloamstead/PCG/GloamsteadPCGSubsystem.cpp`
 - `Source/Gloamstead/Tests/WorldStateProjectionTests.cpp`
+- `Plugins/WorldForge/Source/WorldForgeCore/Public/WorldStateSubsystem.h`
+- `Plugins/WorldForge/Source/WorldForgeCore/Private/WorldStateSubsystem.cpp`
+- `Plugins/WorldForge/Source/WorldForgeCore/Private/WorldStateSubsystemTests.cpp`
 - `specs/world/gloamstead_world_spec.schema.json`
 - `specs/world/cycle-2-corruption-neglect.world.json`
 - `Docs/gloamstead/world/cycle_2_worldforge_receipt_requirements.md`
 
 **Acceptance:** neglected/restored garden yields deterministic `restoration_level` values; a mirror reset reconstructs from Gloamstead state; schema rejects ambiguous subjects, missing reactive categories, and output-path escape.
+
+**Cross-repository authority closure:** a generic WorldForge state-write reservation/capability must be authored and independently reviewed in the clean WorldForge worktree before the exact portable plugin-source diff is imported into Gloamstead. The generic API may reserve arbitrary addresses and issue native-only capabilities, but must contain no `Cycle2_Garden`, lore, or game-specific policy. Once the Gloamstead projection reserves its address, ordinary native writes, Blueprint calls, and console tracers cannot change it; only the held capability can. Pin the imported WorldForge source revision and source hash in the receipt requirements. This is a required Task 7 boundary closure, not WorldForge materialization work.
 
 ## Task 8 — WorldForge factory, controlled materialization, and proof
 

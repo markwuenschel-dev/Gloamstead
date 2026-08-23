@@ -124,9 +124,10 @@ public:
     FNightSanctuarySnapshot BuildSanctuarySnapshot() const;
 
     /**
-     * Subscribe to a completed authoritative PCG reconstruction. This is an
-     * observation-only native seam: listeners receive no payload and cannot
-     * broadcast, replace, or otherwise author PCG state through it.
+     * Subscribe to a completed authoritative PCG reconstruction or a completed
+     * authoritative restoration-flag transition. This is an observation-only
+     * native seam: listeners receive no payload and cannot broadcast, replace,
+     * or otherwise author PCG state through it.
      */
     FDelegateHandle AddAuthoritativeStateRebuiltListener(const FSimpleDelegate& Listener);
 
@@ -163,7 +164,8 @@ public:
 
     /** Night-only: reclaim a restored point (Retrieval failure). Clears the restored flag, drops its light
      *  (the night takes back what it gave), and removes it from the restored set. Corruption is left to the
-     *  caller (pressure already scarred it). Returns true if a restored point was actually reclaimed. */
+     *  caller (pressure already scarred it). After a real reclaim it publishes the private authoritative
+     *  notice so derived projections rebuild; a rejected no-op publishes nothing. */
     UFUNCTION(BlueprintCallable, Category="PCG|Night")
     bool RevertRestoration(int32 PointIndex);
 
@@ -297,7 +299,7 @@ private:
      *  how the two views drift apart again. */
     void RebuildRestoredIndicesFromPointStates();
 
-    /** Notifies observers only after this subsystem has reconstructed authoritative state. */
+    /** Notifies observers only after this subsystem has completed an authoritative reconstruction or restoration-flag transition. */
     void NotifyAuthoritativeStateRebuilt();
 
     /** Private so only this subsystem can broadcast its reconstruction notice. */

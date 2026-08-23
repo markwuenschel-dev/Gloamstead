@@ -11,6 +11,8 @@
     "map",
     "output",
     "anchors",
+    "poi",
+    "generationInput",
     "subjects",
     "evidence",
     "reactiveCategories",
@@ -32,20 +34,26 @@
     "anchors": {
       "type": "array",
       "minItems": 1,
+      "maxItems": 1,
       "uniqueItems": true,
       "items": {
         "$ref": "#/$defs/anchor"
-      },
-      "$comment": "The deterministic Gloamstead validator additionally rejects duplicate surveyId values across anchors and subjects."
+      }
+    },
+    "poi": {
+      "$ref": "#/$defs/poi"
+    },
+    "generationInput": {
+      "$ref": "#/$defs/generationInput"
     },
     "subjects": {
       "type": "array",
       "minItems": 1,
+      "maxItems": 1,
       "uniqueItems": true,
       "items": {
         "$ref": "#/$defs/subject"
-      },
-      "$comment": "The deterministic Gloamstead validator additionally requires exactly one Cycle2_Garden / GardenRot / GardenBed subject."
+      }
     },
     "evidence": {
       "$ref": "#/$defs/evidence"
@@ -53,6 +61,7 @@
     "reactiveCategories": {
       "type": "array",
       "minItems": 4,
+      "maxItems": 4,
       "uniqueItems": true,
       "items": {
         "$ref": "#/$defs/reactiveCategory"
@@ -115,11 +124,10 @@
       ],
       "properties": {
         "asset": {
-          "type": "string",
-          "pattern": "^/Game/"
+          "const": "/Game/Maps/Lvl_Gloamstead"
         },
         "anchorId": {
-          "$ref": "#/$defs/identifier"
+          "const": "Cycle2_Garden.Anchor"
         }
       }
     },
@@ -145,14 +153,104 @@
       ],
       "properties": {
         "anchorId": {
-          "$ref": "#/$defs/identifier"
+          "const": "Cycle2_Garden.Anchor"
         },
         "mapAsset": {
-          "type": "string",
-          "pattern": "^/Game/"
+          "const": "/Game/Maps/Lvl_Gloamstead"
         },
         "surveyId": {
-          "$ref": "#/$defs/identifier"
+          "const": "cycle2-garden-anchor"
+        }
+      }
+    },
+    "poi": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "poiId",
+        "anchorId",
+        "anchorTransform",
+        "bounds"
+      ],
+      "properties": {
+        "poiId": {
+          "const": "Cycle2_Garden"
+        },
+        "anchorId": {
+          "const": "Cycle2_Garden.Anchor"
+        },
+        "anchorTransform": {
+          "$ref": "#/$defs/anchorTransform"
+        },
+        "bounds": {
+          "$ref": "#/$defs/poiBounds"
+        }
+      }
+    },
+    "anchorTransform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coordinateSpace",
+        "translation"
+      ],
+      "properties": {
+        "coordinateSpace": {
+          "const": "sanctuary_bootstrap_local"
+        },
+        "translation": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [
+            { "type": "number" },
+            { "type": "number" },
+            { "type": "number" }
+          ],
+          "items": false,
+          "const": [480.0, 160.0, 0.0]
+        }
+      }
+    },
+    "poiBounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shape",
+        "halfExtents"
+      ],
+      "properties": {
+        "shape": {
+          "const": "box"
+        },
+        "halfExtents": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [
+            { "type": "number", "exclusiveMinimum": 0 },
+            { "type": "number", "exclusiveMinimum": 0 },
+            { "type": "number", "exclusiveMinimum": 0 }
+          ],
+          "items": false,
+          "const": [240.0, 280.0, 160.0]
+        }
+      }
+    },
+    "generationInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "seed",
+        "inputVersion"
+      ],
+      "properties": {
+        "seed": {
+          "type": "integer",
+          "const": 42
+        },
+        "inputVersion": {
+          "const": "gloamstead-cycle2-corruption-neglect.v1"
         }
       }
     },
@@ -168,10 +266,10 @@
       ],
       "properties": {
         "subjectId": {
-          "$ref": "#/$defs/identifier"
+          "const": "Cycle2_Garden"
         },
         "warningId": {
-          "$ref": "#/$defs/identifier"
+          "const": "GardenRot"
         },
         "ritualType": {
           "const": "GardenBed"
@@ -180,7 +278,7 @@
           "const": "GardenBed"
         },
         "surveyId": {
-          "$ref": "#/$defs/identifier"
+          "const": "cycle2-garden-subject"
         }
       }
     },
@@ -195,11 +293,40 @@
         "supportBindings": {
           "type": "array",
           "minItems": 3,
+          "maxItems": 3,
           "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/supportBinding"
           },
-          "$comment": "The deterministic Gloamstead validator binds the three approved GardenRot support IDs to environmental, object_reaction, and audio respectively."
+          "allOf": [
+            {
+              "contains": {
+                "properties": {
+                  "supportId": { "const": "GardenRot.WitheredVines" }
+                }
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "properties": {
+                  "supportId": { "const": "GardenRot.ColdSoil" }
+                }
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "properties": {
+                  "supportId": { "const": "GardenRot.BellMoths" }
+                }
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ]
         },
         "dawnReport": {
           "$ref": "#/$defs/dawnReport"
@@ -232,7 +359,27 @@
         "surfaceId": {
           "$ref": "#/$defs/identifier"
         }
-      }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "supportId": { "const": "GardenRot.WitheredVines" },
+            "surface": { "const": "environmental" }
+          }
+        },
+        {
+          "properties": {
+            "supportId": { "const": "GardenRot.ColdSoil" },
+            "surface": { "const": "object_reaction" }
+          }
+        },
+        {
+          "properties": {
+            "supportId": { "const": "GardenRot.BellMoths" },
+            "surface": { "const": "audio" }
+          }
+        }
+      ]
     },
     "dawnReport": {
       "type": "object",
@@ -252,6 +399,7 @@
         "supportIds": {
           "type": "array",
           "minItems": 3,
+          "maxItems": 3,
           "uniqueItems": true,
           "items": {
             "enum": [
@@ -306,6 +454,7 @@
         "scenarios": {
           "type": "array",
           "minItems": 2,
+          "maxItems": 2,
           "uniqueItems": true,
           "items": {
             "type": "number",

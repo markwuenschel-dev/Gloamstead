@@ -19,7 +19,14 @@ namespace
 	const FName RestorationLevelKey(TEXT("restoration_level"));
 	const FString GloamsteadMapAsset(TEXT("/Game/Maps/Lvl_Gloamstead"));
 	const FString Cycle2GardenAnchorId(TEXT("Cycle2_Garden.Anchor"));
+	const FString Cycle2GardenPoiId(TEXT("Cycle2_Garden"));
+	const FString SanctuaryBootstrapLocalCoordinateSpace(TEXT("sanctuary_bootstrap_local"));
+	const FString Cycle2GenerationInputVersion(TEXT("gloamstead-cycle2-corruption-neglect.v1"));
 	const TCHAR* const GeneratedOutputRoot = TEXT("/Game/Generated/WorldForge/Cycle2/");
+	constexpr int32 Cycle2GenerationSeed = 42;
+	const FVector SanctuaryBootstrapHalfExtent(800.0f, 800.0f, 400.0f);
+	const FVector Cycle2GardenAnchorTranslation(480.0f, 160.0f, 0.0f);
+	const FVector Cycle2GardenPoiHalfExtent(240.0f, 280.0f, 160.0f);
 
 	const FExperienceCyclePlan& GetCycle2GardenTargetContract()
 	{
@@ -135,6 +142,79 @@ namespace
 		}
 		OutObject = *ObjectValue;
 		return true;
+	}
+
+	bool ValidateExactObjectFields(
+		const TSharedPtr<FJsonObject>& Object,
+		const TCHAR* ObjectName,
+		const TSet<FString>& ExpectedFields,
+		FString* OutError)
+	{
+		if (!Object.IsValid())
+		{
+			return FailSpecificationValidation(OutError,
+				FString::Printf(TEXT("World specification %s must be an object."), ObjectName));
+		}
+
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : Object->Values)
+		{
+			if (!ExpectedFields.Contains(Field.Key))
+			{
+				return FailSpecificationValidation(OutError,
+					FString::Printf(TEXT("World specification %s has unknown property %s."), ObjectName, *Field.Key));
+			}
+		}
+
+		for (const FString& ExpectedField : ExpectedFields)
+		{
+			if (!Object->HasField(ExpectedField))
+			{
+				return FailSpecificationValidation(OutError,
+					FString::Printf(TEXT("World specification %s is missing property %s."), ObjectName, *ExpectedField));
+			}
+		}
+
+		return true;
+	}
+
+	bool TryGetFixedNumberArray(
+		const TSharedPtr<FJsonObject>& Object,
+		const TCHAR* FieldName,
+		int32 ExpectedCount,
+		TArray<double>& OutValues,
+		FString* OutError)
+	{
+		const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
+		if (!Object.IsValid()
+			|| !Object->TryGetArrayField(FieldName, Values)
+			|| !Values
+			|| Values->Num() != ExpectedCount)
+		{
+			return FailSpecificationValidation(OutError,
+				FString::Printf(TEXT("World specification requires %s to be a %d-value numeric array."), FieldName, ExpectedCount));
+		}
+
+		OutValues.Reset(ExpectedCount);
+		for (int32 Index = 0; Index < Values->Num(); ++Index)
+		{
+			double Value = 0.0;
+			if (!(*Values)[Index].IsValid() || !(*Values)[Index]->TryGetNumber(Value))
+			{
+				return FailSpecificationValidation(OutError,
+					FString::Printf(TEXT("World specification %s[%d] must be numeric."), FieldName, Index));
+			}
+			OutValues.Add(Value);
+		}
+
+		return true;
+	}
+
+	bool MatchesExpectedVector(const TArray<double>& Values, const FVector& Expected)
+	{
+		return Values.Num() == 3
+			&& FMath::IsNearlyEqual(static_cast<float>(Values[0]), Expected.X)
+			&& FMath::IsNearlyEqual(static_cast<float>(Values[1]), Expected.Y)
+			&& FMath::IsNearlyEqual(static_cast<float>(Values[2]), Expected.Z);
 	}
 
 }
@@ -254,6 +334,15 @@ bool UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(
 	{
 		return FailSpecificationValidation(OutError, TEXT("World specification is not a JSON object."));
 	}
+	static const TSet<FString> RootFields = {
+		TEXT("specVersion"), TEXT("worldId"), TEXT("map"), TEXT("output"),
+		TEXT("anchors"), TEXT("subjects"), TEXT("poi"), TEXT("generationInput"),
+		TEXT("evidence"), TEXT("reactiveCategories"), TEXT("worldState")
+	};
+	if (!ValidateExactObjectFields(Root, TEXT("root"), RootFields, OutError))
+	{
+		return false;
+	}
 
 	double SpecVersion = 0.0;
 	if (!Root->TryGetNumberField(TEXT("specVersion"), SpecVersion) || !FMath::IsNearlyEqual(SpecVersion, 1.0))
@@ -270,7 +359,9 @@ bool UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(
 
 	TSharedPtr<FJsonObject> Output;
 	FString OutputRoot;
+	static const TSet<FString> OutputFields = { TEXT("root") };
 	if (!TryGetRequiredObject(Root, TEXT("output"), Output, OutError)
+		|| !ValidateExactObjectFields(Output, TEXT("output"), OutputFields, OutError)
 		|| !TryGetRequiredNonEmptyString(Output, TEXT("root"), OutputRoot, OutError)
 		|| OutputRoot != GeneratedOutputRoot)
 	{
@@ -281,7 +372,9 @@ bool UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(
 	TSharedPtr<FJsonObject> Map;
 	FString MapAsset;
 	FString AnchorId;
+	static const TSet<FString> MapFields = { TEXT("asset"), TEXT("anchorId") };
 	if (!TryGetRequiredObject(Root, TEXT("map"), Map, OutError)
+		|| !ValidateExactObjectFields(Map, TEXT("map"), MapFields, OutError)
 		|| !TryGetRequiredNonEmptyString(Map, TEXT("asset"), MapAsset, OutError)
 		|| !TryGetRequiredNonEmptyString(Map, TEXT("anchorId"), AnchorId, OutError))
 	{
@@ -297,6 +390,11 @@ bool UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(
 	{
 		return false;
 	}
+	if (Anchors->Num() != 1)
+	{
+		return FailSpecificationValidation(OutError, TEXT("World specification requires exactly one Cycle II garden anchor."));
+	}
+	static const TSet<FString> AnchorFields = { TEXT("anchorId"), TEXT("mapAsset"), TEXT("surveyId") };
 	int32 MatchingMapAnchorCount = 0;
 	TSet<FString> SurveyIds;
 	TSet<FString> SeenAnchorIds;
@@ -307,6 +405,7 @@ bool UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(
 		FString CandidateMapAsset;
 		FString SurveyId;
 		if (!ReadObjectArrayEntry((*Anchors)[Index], TEXT("anchors"), Index, Anchor, OutError)
+			|| !ValidateExactObjectFields(Anchor, TEXT("anchors[]"), AnchorFields, OutError)
 			|| !TryGetRequiredNonEmptyString(Anchor, TEXT("anchorId"), CandidateAnchorId, OutError)
 			|| !TryGetRequiredNonEmptyString(Anchor, TEXT("mapAsset"), CandidateMapAsset, OutError)
 			|| !TryGetRequiredNonEmptyString(Anchor, TEXT("surveyId"), SurveyId, OutError))
@@ -330,11 +429,105 @@ bool UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(
 		return FailSpecificationValidation(OutError, TEXT("World specification map anchor is missing or mismatched."));
 	}
 
+	TSharedPtr<FJsonObject> Poi;
+	FString PoiId;
+	FString PoiAnchorId;
+	static const TSet<FString> PoiFields = {
+		TEXT("poiId"), TEXT("anchorId"), TEXT("anchorTransform"), TEXT("bounds")
+	};
+	if (!TryGetRequiredObject(Root, TEXT("poi"), Poi, OutError)
+		|| !ValidateExactObjectFields(Poi, TEXT("poi"), PoiFields, OutError)
+		|| !TryGetRequiredNonEmptyString(Poi, TEXT("poiId"), PoiId, OutError)
+		|| !TryGetRequiredNonEmptyString(Poi, TEXT("anchorId"), PoiAnchorId, OutError))
+	{
+		return false;
+	}
+	if (PoiId != Cycle2GardenPoiId || PoiAnchorId != Cycle2GardenAnchorId || PoiAnchorId != AnchorId)
+	{
+		return FailSpecificationValidation(OutError, TEXT("World specification POI must identify the one Cycle2_Garden anchor."));
+	}
+
+	TSharedPtr<FJsonObject> AnchorTransform;
+	FString CoordinateSpace;
+	TArray<double> TranslationValues;
+	static const TSet<FString> AnchorTransformFields = { TEXT("coordinateSpace"), TEXT("translation") };
+	if (!TryGetRequiredObject(Poi, TEXT("anchorTransform"), AnchorTransform, OutError)
+		|| !ValidateExactObjectFields(AnchorTransform, TEXT("poi.anchorTransform"), AnchorTransformFields, OutError)
+		|| !TryGetRequiredNonEmptyString(AnchorTransform, TEXT("coordinateSpace"), CoordinateSpace, OutError)
+		|| !TryGetFixedNumberArray(AnchorTransform, TEXT("translation"), 3, TranslationValues, OutError))
+	{
+		return false;
+	}
+	if (CoordinateSpace != SanctuaryBootstrapLocalCoordinateSpace
+		|| !MatchesExpectedVector(TranslationValues, Cycle2GardenAnchorTranslation))
+	{
+		return FailSpecificationValidation(OutError, TEXT("World specification POI anchor transform does not match the Cycle II sanctuary-local target."));
+	}
+
+	TSharedPtr<FJsonObject> PoiBounds;
+	FString BoundsShape;
+	TArray<double> HalfExtentValues;
+	static const TSet<FString> BoundsFields = { TEXT("shape"), TEXT("halfExtents") };
+	if (!TryGetRequiredObject(Poi, TEXT("bounds"), PoiBounds, OutError)
+		|| !ValidateExactObjectFields(PoiBounds, TEXT("poi.bounds"), BoundsFields, OutError)
+		|| !TryGetRequiredNonEmptyString(PoiBounds, TEXT("shape"), BoundsShape, OutError)
+		|| !TryGetFixedNumberArray(PoiBounds, TEXT("halfExtents"), 3, HalfExtentValues, OutError))
+	{
+		return false;
+	}
+	if (BoundsShape != TEXT("box")
+		|| HalfExtentValues[0] <= 0.0
+		|| HalfExtentValues[1] <= 0.0
+		|| HalfExtentValues[2] <= 0.0
+		|| !MatchesExpectedVector(HalfExtentValues, Cycle2GardenPoiHalfExtent))
+	{
+		return FailSpecificationValidation(OutError, TEXT("World specification POI bounds must be the positive authored Cycle II box."));
+	}
+
+	const FVector AnchorTranslation(
+		static_cast<float>(TranslationValues[0]),
+		static_cast<float>(TranslationValues[1]),
+		static_cast<float>(TranslationValues[2]));
+	const FVector HalfExtents(
+		static_cast<float>(HalfExtentValues[0]),
+		static_cast<float>(HalfExtentValues[1]),
+		static_cast<float>(HalfExtentValues[2]));
+	if (AnchorTranslation.X - HalfExtents.X < -SanctuaryBootstrapHalfExtent.X
+		|| AnchorTranslation.X + HalfExtents.X > SanctuaryBootstrapHalfExtent.X
+		|| AnchorTranslation.Y - HalfExtents.Y < -SanctuaryBootstrapHalfExtent.Y
+		|| AnchorTranslation.Y + HalfExtents.Y > SanctuaryBootstrapHalfExtent.Y
+		|| AnchorTranslation.Z - HalfExtents.Z < -SanctuaryBootstrapHalfExtent.Z
+		|| AnchorTranslation.Z + HalfExtents.Z > SanctuaryBootstrapHalfExtent.Z)
+	{
+		return FailSpecificationValidation(OutError, TEXT("World specification POI bounds escape the source-owned sanctuary bootstrap extent."));
+	}
+
+	TSharedPtr<FJsonObject> GenerationInput;
+	FString InputVersion;
+	double GenerationSeed = 0.0;
+	static const TSet<FString> GenerationInputFields = { TEXT("seed"), TEXT("inputVersion") };
+	if (!TryGetRequiredObject(Root, TEXT("generationInput"), GenerationInput, OutError)
+		|| !ValidateExactObjectFields(GenerationInput, TEXT("generationInput"), GenerationInputFields, OutError)
+		|| !GenerationInput->TryGetNumberField(TEXT("seed"), GenerationSeed)
+		|| !TryGetRequiredNonEmptyString(GenerationInput, TEXT("inputVersion"), InputVersion, OutError)
+		|| GenerationSeed != static_cast<double>(Cycle2GenerationSeed)
+		|| InputVersion != Cycle2GenerationInputVersion)
+	{
+		return FailSpecificationValidation(OutError, TEXT("World specification generation input is missing or invalid."));
+	}
+
 	const TArray<TSharedPtr<FJsonValue>>* Subjects = nullptr;
 	if (!TryGetRequiredArray(Root, TEXT("subjects"), Subjects, OutError))
 	{
 		return false;
 	}
+	if (Subjects->Num() != 1)
+	{
+		return FailSpecificationValidation(OutError, TEXT("World specification requires exactly one Cycle II garden subject."));
+	}
+	static const TSet<FString> SubjectFields = {
+		TEXT("subjectId"), TEXT("warningId"), TEXT("ritualType"), TEXT("restorationTag"), TEXT("surveyId")
+	};
 	int32 ExactGardenSubjectCount = 0;
 	TSet<FString> SeenSubjectIds;
 	for (int32 Index = 0; Index < Subjects->Num(); ++Index)
@@ -346,6 +539,7 @@ bool UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(
 		FString RestorationTag;
 		FString SurveyId;
 		if (!ReadObjectArrayEntry((*Subjects)[Index], TEXT("subjects"), Index, Subject, OutError)
+			|| !ValidateExactObjectFields(Subject, TEXT("subjects[]"), SubjectFields, OutError)
 			|| !TryGetRequiredNonEmptyString(Subject, TEXT("subjectId"), SubjectId, OutError)
 			|| !TryGetRequiredNonEmptyString(Subject, TEXT("warningId"), WarningId, OutError)
 			|| !TryGetRequiredNonEmptyString(Subject, TEXT("ritualType"), RitualType, OutError)
@@ -376,7 +570,9 @@ bool UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(
 
 	TSharedPtr<FJsonObject> Evidence;
 	const TArray<TSharedPtr<FJsonValue>>* SupportBindings = nullptr;
+	static const TSet<FString> EvidenceFields = { TEXT("supportBindings"), TEXT("dawnReport") };
 	if (!TryGetRequiredObject(Root, TEXT("evidence"), Evidence, OutError)
+		|| !ValidateExactObjectFields(Evidence, TEXT("evidence"), EvidenceFields, OutError)
 		|| !TryGetRequiredArray(Evidence, TEXT("supportBindings"), SupportBindings, OutError))
 	{
 		return false;
@@ -386,6 +582,11 @@ bool UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(
 		{ TEXT("GardenRot.ColdSoil"), TEXT("object_reaction") },
 		{ TEXT("GardenRot.BellMoths"), TEXT("audio") }
 	};
+	if (SupportBindings->Num() != RequiredSupportSurfaces.Num())
+	{
+		return FailSpecificationValidation(OutError, TEXT("World specification requires exactly the approved GardenRot support bindings."));
+	}
+	static const TSet<FString> SupportBindingFields = { TEXT("supportId"), TEXT("surface"), TEXT("surfaceId") };
 	TSet<FString> BoundSupportIds;
 	for (int32 Index = 0; Index < SupportBindings->Num(); ++Index)
 	{
@@ -394,6 +595,7 @@ bool UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(
 		FString Surface;
 		FString SurfaceId;
 		if (!ReadObjectArrayEntry((*SupportBindings)[Index], TEXT("evidence.supportBindings"), Index, Binding, OutError)
+			|| !ValidateExactObjectFields(Binding, TEXT("evidence.supportBindings[]"), SupportBindingFields, OutError)
 			|| !TryGetRequiredNonEmptyString(Binding, TEXT("supportId"), SupportId, OutError)
 			|| !TryGetRequiredNonEmptyString(Binding, TEXT("surface"), Surface, OutError)
 			|| !TryGetRequiredNonEmptyString(Binding, TEXT("surfaceId"), SurfaceId, OutError))
@@ -416,13 +618,19 @@ bool UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(
 	const TArray<TSharedPtr<FJsonValue>>* DawnSupportIds = nullptr;
 	FString DawnSurface;
 	FString DawnSurfaceId;
+	static const TSet<FString> DawnReportFields = { TEXT("surface"), TEXT("surfaceId"), TEXT("supportIds") };
 	if (!TryGetRequiredObject(Evidence, TEXT("dawnReport"), DawnReport, OutError)
+		|| !ValidateExactObjectFields(DawnReport, TEXT("evidence.dawnReport"), DawnReportFields, OutError)
 		|| !TryGetRequiredNonEmptyString(DawnReport, TEXT("surface"), DawnSurface, OutError)
 		|| !TryGetRequiredNonEmptyString(DawnReport, TEXT("surfaceId"), DawnSurfaceId, OutError)
 		|| !TryGetRequiredArray(DawnReport, TEXT("supportIds"), DawnSupportIds, OutError)
 		|| DawnSurface != TEXT("dawn_report"))
 	{
 		return FailSpecificationValidation(OutError, TEXT("World specification requires the GardenRot dawn-report surface."));
+	}
+	if (DawnSupportIds->Num() != RequiredSupportSurfaces.Num())
+	{
+		return FailSpecificationValidation(OutError, TEXT("World specification dawn report must name exactly the approved GardenRot supports."));
 	}
 	TSet<FString> DawnSupportSet;
 	for (const TSharedPtr<FJsonValue>& DawnSupportValue : *DawnSupportIds)
@@ -453,6 +661,11 @@ bool UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(
 	const TSet<FString> RequiredCategories = {
 		TEXT("foliage"), TEXT("ruins"), TEXT("paths"), TEXT("lighting_materials")
 	};
+	if (ReactiveCategories->Num() != RequiredCategories.Num())
+	{
+		return FailSpecificationValidation(OutError, TEXT("World specification requires exactly the four Cycle II reactive categories."));
+	}
+	static const TSet<FString> ReactiveCategoryFields = { TEXT("category"), TEXT("stateKey") };
 	TSet<FString> SeenCategories;
 	for (int32 Index = 0; Index < ReactiveCategories->Num(); ++Index)
 	{
@@ -460,6 +673,7 @@ bool UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(
 		FString CategoryName;
 		FString StateKey;
 		if (!ReadObjectArrayEntry((*ReactiveCategories)[Index], TEXT("reactiveCategories"), Index, Category, OutError)
+			|| !ValidateExactObjectFields(Category, TEXT("reactiveCategories[]"), ReactiveCategoryFields, OutError)
 			|| !TryGetRequiredNonEmptyString(Category, TEXT("category"), CategoryName, OutError)
 			|| !TryGetRequiredNonEmptyString(Category, TEXT("stateKey"), StateKey, OutError)
 			|| StateKey != RestorationLevelKey.ToString()
@@ -480,7 +694,9 @@ bool UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(
 	FString Scope;
 	FString ContextId;
 	FString Key;
+	static const TSet<FString> WorldStateFields = { TEXT("scope"), TEXT("contextId"), TEXT("key"), TEXT("scenarios") };
 	if (!TryGetRequiredObject(Root, TEXT("worldState"), WorldState, OutError)
+		|| !ValidateExactObjectFields(WorldState, TEXT("worldState"), WorldStateFields, OutError)
 		|| !TryGetRequiredNonEmptyString(WorldState, TEXT("scope"), Scope, OutError)
 		|| !TryGetRequiredNonEmptyString(WorldState, TEXT("contextId"), ContextId, OutError)
 		|| !TryGetRequiredNonEmptyString(WorldState, TEXT("key"), Key, OutError)
@@ -490,6 +706,10 @@ bool UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(
 		|| Key != RestorationLevelKey.ToString())
 	{
 		return FailSpecificationValidation(OutError, TEXT("World specification world-state address is invalid."));
+	}
+	if (StateScenarios->Num() != 2)
+	{
+		return FailSpecificationValidation(OutError, TEXT("World specification requires exactly untouched and restored state scenarios."));
 	}
 	bool bHasUntouchedScenario = false;
 	bool bHasRestoredScenario = false;

@@ -208,10 +208,11 @@ WorldForge's generated manifest must name the source spec hash, generator revisi
 - Add the direct runtime dependency on `WorldForgeCore` in `Source/Gloamstead/Gloamstead.Build.cs`; the dependency must remain Gloamstead -> WorldForgeCore only.
 - Extend `Source/Gloamstead/PCG/GloamsteadPCGSubsystem.h/.cpp` only with a read-only snapshot/query seam if required.
 - Add `Source/Gloamstead/Tests/WorldStateProjectionTests.cpp`.
+- In the clean WorldForge worktree, add a generic native state-write reservation/capability and its tests, then import its exact reviewed portable plugin-source diff into Gloamstead's `Plugins/WorldForge/`; no Gloamstead identifier may appear in WorldForge source.
 
-**Implementation:** on relevant `FRestorationEventPayload` and on reconstruction/load, calculate the garden area's `restoration_level` from Gloamstead PCG/restoration state and write it to `UWorldStateSubsystem`. Only this projection writes the generic mirror. A WorldForge state reset is recoverable by reconstructing from Gloamstead state; WorldForge never writes back a result or changes a night plan.
+**Implementation:** on every authoritative restoration-flag transition (including reclaim) and on reconstruction/load, calculate the garden area's `restoration_level` from Gloamstead PCG/restoration state and write it to `UWorldStateSubsystem` through a reserved native-only WorldForge write capability. Only this projection holds the capability for its address. A WorldForge state reset is recoverable by reconstructing from Gloamstead state; WorldForge never writes back a result or changes a night plan. The generic WorldForge implementation may reserve arbitrary addresses but may not name Gloamstead subjects, map, warning, or outcome.
 
-**System acceptance:** an untouched garden, a restored garden, and a reload/reconstruction produce deterministic values. Tests prove the projection cannot alter Gloamstead's snapshot, selected plan, or night outcome.
+**System acceptance:** an untouched garden, a restored garden, a reclaimed garden, and a reload/reconstruction produce deterministic values. Tests prove the projection cannot alter Gloamstead's snapshot, selected plan, or night outcome; normal WorldForge/native writes, Blueprint access, and console tracing cannot overwrite the reserved address.
 
 ### C2-06 — Author and validate the semantic WorldForge input
 

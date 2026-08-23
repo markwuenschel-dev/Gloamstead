@@ -607,6 +607,11 @@ bool UGloamsteadPCGSubsystem::RevertRestoration(int32 PointIndex)
     State.bIsRestored = false;
     State.LightLevel = FMath::Max(0.f, State.LightLevel * 0.5f); // the night takes back its light
     RestoredPointIndices.Remove(PointIndex);
+    // Reclaiming is an authoritative restoration-flag transition. Observers
+    // such as the one-way WorldForge projection must rebuild only after this
+    // mutation has completed; the early returns above deliberately publish
+    // nothing when there was no point or no restored state to reclaim.
+    NotifyAuthoritativeStateRebuilt();
     return true;
 }
 

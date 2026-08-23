@@ -15,6 +15,22 @@
       "surveyId": "cycle2-garden-anchor"
     }
   ],
+  "poi": {
+    "poiId": "Cycle2_Garden",
+    "anchorId": "Cycle2_Garden.Anchor",
+    "anchorTransform": {
+      "coordinateSpace": "sanctuary_bootstrap_local",
+      "translation": [480.0, 160.0, 0.0]
+    },
+    "bounds": {
+      "shape": "box",
+      "halfExtents": [240.0, 280.0, 160.0]
+    }
+  },
+  "generationInput": {
+    "seed": 42,
+    "inputVersion": "gloamstead-cycle2-corruption-neglect.v1"
+  },
   "subjects": [
     {
       "subjectId": "Cycle2_Garden",

@@ -180,6 +180,23 @@ bool FGloamWorldStateProjectionMirrorsOnlyExactCycle2GardenTargetTest::RunTest(c
 		Fixture.PCG->ApplyRestoration(0, MakeForgedRestorationPayload(0)));
 	TestEqual(TEXT("the restored exact Cycle II garden projects one"),
 		Fixture.GetMirroredRestorationLevel(), ExpectedRestoredRestorationLevel);
+	TestTrue(TEXT("a reclaimed exact Cycle II garden changes the authoritative restoration flag"),
+		Fixture.PCG->RevertRestoration(0));
+	TestEqual(TEXT("a real reclamation immediately projects the exact Cycle II garden back to zero"),
+		Fixture.GetMirroredRestorationLevel(), ExpectedUntouchedRestorationLevel);
+	Fixture.WorldState->SetStateValue(EWorldForgeStateScope::Region, Cycle2GardenRegionId,
+		RestorationLevelKey, ExpectedRestoredRestorationLevel);
+	TestFalse(TEXT("reclaiming an already-unrestored exact Cycle II garden makes no mutation"),
+		Fixture.PCG->RevertRestoration(0));
+	TestEqual(TEXT("a rejected reclamation does not broadcast a reconstruction or overwrite the generic mirror"),
+		Fixture.GetMirroredRestorationLevel(), ExpectedRestoredRestorationLevel);
+	Fixture.Projection->RebuildFromAuthoritativeState();
+	TestEqual(TEXT("the public projection rebuild still derives zero from the reclaimed authoritative target"),
+		Fixture.GetMirroredRestorationLevel(), ExpectedUntouchedRestorationLevel);
+	TestTrue(TEXT("a reclaimed exact Cycle II garden can be restored again through the actual restoration event"),
+		Fixture.PCG->ApplyRestoration(0, MakeForgedRestorationPayload(0)));
+	TestEqual(TEXT("the restored exact Cycle II garden returns to one after the new restoration"),
+		Fixture.GetMirroredRestorationLevel(), ExpectedRestoredRestorationLevel);
 	const TArray<FRitualPointState> AuthoritativeSnapshotBeforeRebuild = Fixture.PCG->Test_PeekPointStates();
 
 	Fixture.WorldState->SetStateValue(EWorldForgeStateScope::Region, Cycle2GardenRegionId,
@@ -240,11 +257,41 @@ bool FGloamWorldStateProjectionValidatesCycle2WorldSpecificationTest::RunTest(co
 	FString Error;
 	TestTrue(TEXT("the authored Cycle II world specification passes the deterministic semantic validator"),
 		UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(Specification, &Error));
+	TestTrue(TEXT("the authored Cycle II world specification names its bounded Gloamstead-owned POI"),
+		Specification.Contains(TEXT("\"poi\"")));
+	TestTrue(TEXT("the authored Cycle II world specification names its deterministic generation input"),
+		Specification.Contains(TEXT("\"generationInput\"")));
 
 	const FString OutputEscape = Specification.Replace(
 		TEXT("/Game/Generated/WorldForge/Cycle2/"), TEXT("/Game/Generated/WorldForge/Outside/"));
 	TestFalse(TEXT("an output-root escape is rejected"),
 		UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(OutputEscape, &Error));
+
+	const FString UnknownRootProperty = Specification.Replace(
+		TEXT("\n}"), TEXT(",\n  \"unexpectedRootProperty\": true\n}"), ESearchCase::CaseSensitive);
+	TestFalse(TEXT("an unknown root property is rejected"),
+		UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(UnknownRootProperty, &Error));
+
+	const FString UnknownNestedProperty = Specification.Replace(
+		TEXT("\"root\": \"/Game/Generated/WorldForge/Cycle2/\"\n  }"),
+		TEXT("\"root\": \"/Game/Generated/WorldForge/Cycle2/\",\n    \"unexpectedOutputProperty\": true\n  }"),
+		ESearchCase::CaseSensitive);
+	TestFalse(TEXT("an unknown nested object property is rejected"),
+		UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(UnknownNestedProperty, &Error));
+
+	const FString ExtraAnchor = Specification.Replace(
+		TEXT("    }\n  ],\n  \"poi\""),
+		TEXT("    },\n    {\n      \"anchorId\": \"Cycle2_Garden.DecoyAnchor\",\n      \"mapAsset\": \"/Game/Maps/Lvl_Gloamstead\",\n      \"surveyId\": \"cycle2-garden-decoy-anchor\"\n    }\n  ],\n  \"poi\""),
+		ESearchCase::CaseSensitive);
+	TestFalse(TEXT("an extra or decoy anchor is rejected instead of being ignored"),
+		UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(ExtraAnchor, &Error));
+
+	const FString ExtraSubject = Specification.Replace(
+		TEXT("    }\n  ],\n  \"evidence\""),
+		TEXT("    },\n    {\n      \"subjectId\": \"Cycle2_Garden.DecoySubject\",\n      \"warningId\": \"GardenRot.Decoy\",\n      \"ritualType\": \"GardenBed\",\n      \"restorationTag\": \"GardenBed\",\n      \"surveyId\": \"cycle2-garden-decoy-subject\"\n    }\n  ],\n  \"evidence\""),
+		ESearchCase::CaseSensitive);
+	TestFalse(TEXT("an extra or decoy subject is rejected instead of being ignored"),
+		UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(ExtraSubject, &Error));
 
 	const FString DuplicateSurveyId = Specification.Replace(
 		TEXT("cycle2-garden-subject"), TEXT("cycle2-garden-anchor"));
@@ -260,6 +307,38 @@ bool FGloamWorldStateProjectionValidatesCycle2WorldSpecificationTest::RunTest(co
 		TEXT("Cycle2_Garden.Anchor"), TEXT(""));
 	TestFalse(TEXT("a missing authored anchor is rejected"),
 		UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(MissingAnchor, &Error));
+
+	const FString MissingPoi = Specification.Replace(TEXT("\"poi\""), TEXT("\"missingPoi\""), ESearchCase::CaseSensitive);
+	TestFalse(TEXT("a missing bounded POI is rejected"),
+		UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(MissingPoi, &Error));
+
+	const FString MissingGenerationInput = Specification.Replace(TEXT("\"generationInput\""), TEXT("\"missingGenerationInput\""), ESearchCase::CaseSensitive);
+	TestFalse(TEXT("missing deterministic generation input is rejected"),
+		UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(MissingGenerationInput, &Error));
+
+	const FString InvalidGenerationSeed = Specification.Replace(TEXT("\"seed\": 42"), TEXT("\"seed\": 43"), ESearchCase::CaseSensitive);
+	TestFalse(TEXT("an invalid deterministic generation seed is rejected"),
+		UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(InvalidGenerationSeed, &Error));
+
+	const FString InvalidGenerationInputVersion = Specification.Replace(
+		TEXT("gloamstead-cycle2-corruption-neglect.v1"), TEXT("gloamstead-cycle2-corruption-neglect.v2"), ESearchCase::CaseSensitive);
+	TestFalse(TEXT("an invalid deterministic generation input version is rejected"),
+		UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(InvalidGenerationInputVersion, &Error));
+
+	const FString MalformedPoiTranslation = Specification.Replace(
+		TEXT("[480.0, 160.0, 0.0]"), TEXT("[480.0, 160.0]"), ESearchCase::CaseSensitive);
+	TestFalse(TEXT("a malformed POI anchor translation is rejected"),
+		UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(MalformedPoiTranslation, &Error));
+
+	const FString OutOfBoundsPoiTranslation = Specification.Replace(
+		TEXT("[480.0, 160.0, 0.0]"), TEXT("[640.0, 160.0, 0.0]"), ESearchCase::CaseSensitive);
+	TestFalse(TEXT("a POI that escapes the source-owned sanctuary bounds is rejected"),
+		UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(OutOfBoundsPoiTranslation, &Error));
+
+	const FString NonPositivePoiBounds = Specification.Replace(
+		TEXT("[240.0, 280.0, 160.0]"), TEXT("[0.0, 280.0, 160.0]"), ESearchCase::CaseSensitive);
+	TestFalse(TEXT("non-positive POI box half extents are rejected"),
+		UGloamsteadWorldStateProjectionSubsystem::ValidateWorldSpecificationJson(NonPositivePoiBounds, &Error));
 
 	const FString MissingEvidence = Specification.Replace(
 		TEXT("GardenRot.BellMoths"), TEXT("GardenRot.MissingEvidence"));
