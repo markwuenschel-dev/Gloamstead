@@ -1,0 +1,82 @@
+{
+  "specVersion": 1,
+  "worldId": "Cycle2_Garden",
+  "map": {
+    "asset": "/Game/Maps/Lvl_Gloamstead",
+    "anchorId": "Cycle2_Garden.Anchor"
+  },
+  "output": {
+    "root": "/Game/Generated/WorldForge/Cycle2/"
+  },
+  "anchors": [
+    {
+      "anchorId": "Cycle2_Garden.Anchor",
+      "mapAsset": "/Game/Maps/Lvl_Gloamstead",
+      "surveyId": "cycle2-garden-anchor"
+    }
+  ],
+  "subjects": [
+    {
+      "subjectId": "Cycle2_Garden",
+      "warningId": "GardenRot",
+      "ritualType": "GardenBed",
+      "restorationTag": "GardenBed",
+      "surveyId": "cycle2-garden-subject"
+    }
+  ],
+  "evidence": {
+    "supportBindings": [
+      {
+        "supportId": "GardenRot.WitheredVines",
+        "surface": "environmental",
+        "surfaceId": "Cycle2_Garden.Environment"
+      },
+      {
+        "supportId": "GardenRot.ColdSoil",
+        "surface": "object_reaction",
+        "surfaceId": "Cycle2_Garden.ObjectReaction"
+      },
+      {
+        "supportId": "GardenRot.BellMoths",
+        "surface": "audio",
+        "surfaceId": "Cycle2_Garden.Audio"
+      }
+    ],
+    "dawnReport": {
+      "surface": "dawn_report",
+      "surfaceId": "Cycle2_Garden.DawnReport",
+      "supportIds": [
+        "GardenRot.WitheredVines",
+        "GardenRot.ColdSoil",
+        "GardenRot.BellMoths"
+      ]
+    }
+  },
+  "reactiveCategories": [
+    {
+      "category": "foliage",
+      "stateKey": "restoration_level"
+    },
+    {
+      "category": "ruins",
+      "stateKey": "restoration_level"
+    },
+    {
+      "category": "paths",
+      "stateKey": "restoration_level"
+    },
+    {
+      "category": "lighting_materials",
+      "stateKey": "restoration_level"
+    }
+  ],
+  "worldState": {
+    "scope": "Region",
+    "contextId": "Cycle2_Garden",
+    "key": "restoration_level",
+    "scenarios": [
+      0.0,
+      1.0
+    ]
+  }
+}

@@ -176,6 +176,7 @@ void UGloamsteadPCGSubsystem::InitializeFromPCGComponent(UPCGComponent* PCGCompo
     BuildSpatialGrid();
 
     UE_LOG(LogTemp, Log, TEXT("UGloamsteadPCGSubsystem: Initialized with %d points (Hybrid State + Spatial Grid)"), CachedPoints.Num());
+    NotifyAuthoritativeStateRebuilt();
 }
 
 bool UGloamsteadPCGSubsystem::GetPointByIndex(int32 PointIndex, FPCGPoint& OutPoint) const
@@ -378,6 +379,19 @@ FNightSanctuarySnapshot UGloamsteadPCGSubsystem::BuildSanctuarySnapshot() const
     Snapshot.MirrorPillarRestored = GetRestoredCountByRitualType(ERitualType::MirrorPillar);
     Snapshot.BellShrineRestored = GetRestoredCountByRitualType(ERitualType::BellShrine);
     return Snapshot;
+}
+
+FDelegateHandle UGloamsteadPCGSubsystem::AddAuthoritativeStateRebuiltListener(const FSimpleDelegate& Listener)
+{
+    return AuthoritativeStateRebuilt.Add(Listener);
+}
+
+void UGloamsteadPCGSubsystem::RemoveAuthoritativeStateRebuiltListener(FDelegateHandle ListenerHandle)
+{
+    if (ListenerHandle.IsValid())
+    {
+        AuthoritativeStateRebuilt.Remove(ListenerHandle);
+    }
 }
 
 bool UGloamsteadPCGSubsystem::ApplyRestoration(int32 PointIndex, const FRestorationEventPayload& Payload)
@@ -639,6 +653,7 @@ void UGloamsteadPCGSubsystem::ReapplyRestoredState(const TSet<int32>& RestoredIn
     // entry behind it: GetRestoredPointCount() then over-reports against IsPointRestored(), and
     // CaptureToSaveGame() persists the phantom so it survives the save/load round trip.
     RebuildRestoredIndicesFromPointStates();
+    NotifyAuthoritativeStateRebuilt();
 }
 
 void UGloamsteadPCGSubsystem::CaptureToSaveGame(UGloamsteadSaveGame* SaveGame) const
@@ -692,6 +707,7 @@ bool UGloamsteadPCGSubsystem::RestoreFromSaveGame(UGloamsteadSaveGame* SaveGame)
             UnbackedCount, SaveGame->RestoredPointIndices.Num(), SaveGame->PointStates.Num());
     }
 
+    NotifyAuthoritativeStateRebuilt();
     return true;
 }
 
@@ -790,6 +806,11 @@ void UGloamsteadPCGSubsystem::DrawDebugSpatialGrid(float Duration) const
 void UGloamsteadPCGSubsystem::SetDrawSpatialGridDebug(bool bEnabled)
 {
     bDrawSpatialGridDebug = bEnabled;
+}
+
+void UGloamsteadPCGSubsystem::NotifyAuthoritativeStateRebuilt()
+{
+    AuthoritativeStateRebuilt.Broadcast();
 }
 
 void UGloamsteadPCGSubsystem::BuildSpatialGrid()

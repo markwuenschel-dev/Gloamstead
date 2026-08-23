@@ -1,0 +1,331 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gloamstead.local/specs/world/gloamstead_world_spec.schema.json",
+  "title": "Gloamstead semantic WorldForge input",
+  "description": "Game-owned semantic intent. WorldForge may execute it but may not infer narrative, select gameplay targets, or write results back to Gloamstead.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "specVersion",
+    "worldId",
+    "map",
+    "output",
+    "anchors",
+    "subjects",
+    "evidence",
+    "reactiveCategories",
+    "worldState"
+  ],
+  "properties": {
+    "specVersion": {
+      "const": 1
+    },
+    "worldId": {
+      "const": "Cycle2_Garden"
+    },
+    "map": {
+      "$ref": "#/$defs/map"
+    },
+    "output": {
+      "$ref": "#/$defs/output"
+    },
+    "anchors": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/anchor"
+      },
+      "$comment": "The deterministic Gloamstead validator additionally rejects duplicate surveyId values across anchors and subjects."
+    },
+    "subjects": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/subject"
+      },
+      "$comment": "The deterministic Gloamstead validator additionally requires exactly one Cycle2_Garden / GardenRot / GardenBed subject."
+    },
+    "evidence": {
+      "$ref": "#/$defs/evidence"
+    },
+    "reactiveCategories": {
+      "type": "array",
+      "minItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/reactiveCategory"
+      },
+      "allOf": [
+        {
+          "contains": {
+            "properties": {
+              "category": {
+                "const": "foliage"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "properties": {
+              "category": {
+                "const": "ruins"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "properties": {
+              "category": {
+                "const": "paths"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "properties": {
+              "category": {
+                "const": "lighting_materials"
+              }
+            }
+          }
+        }
+      ],
+      "$comment": "The deterministic Gloamstead validator rejects unknown, duplicate, or missing required categories."
+    },
+    "worldState": {
+      "$ref": "#/$defs/worldState"
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1
+    },
+    "map": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "asset",
+        "anchorId"
+      ],
+      "properties": {
+        "asset": {
+          "type": "string",
+          "pattern": "^/Game/"
+        },
+        "anchorId": {
+          "$ref": "#/$defs/identifier"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root"
+      ],
+      "properties": {
+        "root": {
+          "const": "/Game/Generated/WorldForge/Cycle2/"
+        }
+      }
+    },
+    "anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "anchorId",
+        "mapAsset",
+        "surveyId"
+      ],
+      "properties": {
+        "anchorId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "mapAsset": {
+          "type": "string",
+          "pattern": "^/Game/"
+        },
+        "surveyId": {
+          "$ref": "#/$defs/identifier"
+        }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subjectId",
+        "warningId",
+        "ritualType",
+        "restorationTag",
+        "surveyId"
+      ],
+      "properties": {
+        "subjectId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "warningId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "ritualType": {
+          "const": "GardenBed"
+        },
+        "restorationTag": {
+          "const": "GardenBed"
+        },
+        "surveyId": {
+          "$ref": "#/$defs/identifier"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "supportBindings",
+        "dawnReport"
+      ],
+      "properties": {
+        "supportBindings": {
+          "type": "array",
+          "minItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/supportBinding"
+          },
+          "$comment": "The deterministic Gloamstead validator binds the three approved GardenRot support IDs to environmental, object_reaction, and audio respectively."
+        },
+        "dawnReport": {
+          "$ref": "#/$defs/dawnReport"
+        }
+      }
+    },
+    "supportBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "supportId",
+        "surface",
+        "surfaceId"
+      ],
+      "properties": {
+        "supportId": {
+          "enum": [
+            "GardenRot.WitheredVines",
+            "GardenRot.ColdSoil",
+            "GardenRot.BellMoths"
+          ]
+        },
+        "surface": {
+          "enum": [
+            "environmental",
+            "object_reaction",
+            "audio"
+          ]
+        },
+        "surfaceId": {
+          "$ref": "#/$defs/identifier"
+        }
+      }
+    },
+    "dawnReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "surface",
+        "surfaceId",
+        "supportIds"
+      ],
+      "properties": {
+        "surface": {
+          "const": "dawn_report"
+        },
+        "surfaceId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "supportIds": {
+          "type": "array",
+          "minItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "GardenRot.WitheredVines",
+              "GardenRot.ColdSoil",
+              "GardenRot.BellMoths"
+            ]
+          }
+        }
+      }
+    },
+    "reactiveCategory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "category",
+        "stateKey"
+      ],
+      "properties": {
+        "category": {
+          "enum": [
+            "foliage",
+            "ruins",
+            "paths",
+            "lighting_materials"
+          ]
+        },
+        "stateKey": {
+          "const": "restoration_level"
+        }
+      }
+    },
+    "worldState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "contextId",
+        "key",
+        "scenarios"
+      ],
+      "properties": {
+        "scope": {
+          "const": "Region"
+        },
+        "contextId": {
+          "const": "Cycle2_Garden"
+        },
+        "key": {
+          "const": "restoration_level"
+        },
+        "scenarios": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "allOf": [
+            {
+              "contains": {
+                "const": 0.0
+              }
+            },
+            {
+              "contains": {
+                "const": 1.0
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

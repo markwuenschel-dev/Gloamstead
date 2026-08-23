@@ -205,6 +205,7 @@ WorldForge's generated manifest must name the source spec hash, generator revisi
 **Files:**
 
 - Add `Source/Gloamstead/Systems/GloamsteadWorldStateProjectionSubsystem.h/.cpp`.
+- Add the direct runtime dependency on `WorldForgeCore` in `Source/Gloamstead/Gloamstead.Build.cs`; the dependency must remain Gloamstead -> WorldForgeCore only.
 - Extend `Source/Gloamstead/PCG/GloamsteadPCGSubsystem.h/.cpp` only with a read-only snapshot/query seam if required.
 - Add `Source/Gloamstead/Tests/WorldStateProjectionTests.cpp`.
 

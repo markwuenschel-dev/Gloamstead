@@ -123,6 +123,16 @@ public:
     UFUNCTION(BlueprintPure, Category="PCG|Sanctuary")
     FNightSanctuarySnapshot BuildSanctuarySnapshot() const;
 
+    /**
+     * Subscribe to a completed authoritative PCG reconstruction. This is an
+     * observation-only native seam: listeners receive no payload and cannot
+     * broadcast, replace, or otherwise author PCG state through it.
+     */
+    FDelegateHandle AddAuthoritativeStateRebuiltListener(const FSimpleDelegate& Listener);
+
+    /** Remove only the listener represented by ListenerHandle. */
+    void RemoveAuthoritativeStateRebuiltListener(FDelegateHandle ListenerHandle);
+
     // === State Mutation (optimized hot path) ===
     /** Mend a ritual point and broadcast OnStructureRestored. Returns false — mutating and broadcasting
      *  nothing — when PointIndex is out of range, when Payload.PointIndex disagrees with PointIndex
@@ -286,6 +296,12 @@ private:
      *  is how an index with no point behind it gets into the set, and a second copy of this loop is
      *  how the two views drift apart again. */
     void RebuildRestoredIndicesFromPointStates();
+
+    /** Notifies observers only after this subsystem has reconstructed authoritative state. */
+    void NotifyAuthoritativeStateRebuilt();
+
+    /** Private so only this subsystem can broadcast its reconstruction notice. */
+    FSimpleMulticastDelegate AuthoritativeStateRebuilt;
 
     UPROPERTY()
     UPCGPointData* MutablePointData = nullptr;

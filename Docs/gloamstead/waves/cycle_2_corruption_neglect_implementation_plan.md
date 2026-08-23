@@ -199,6 +199,7 @@ For an authored plan with a complete target contract (including Cycle II GardenR
 
 - `Source/Gloamstead/Systems/GloamsteadWorldStateProjectionSubsystem.h`
 - `Source/Gloamstead/Systems/GloamsteadWorldStateProjectionSubsystem.cpp`
+- `Source/Gloamstead/Gloamstead.Build.cs`
 - `Source/Gloamstead/PCG/GloamsteadPCGSubsystem.h`
 - `Source/Gloamstead/PCG/GloamsteadPCGSubsystem.cpp`
 - `Source/Gloamstead/Tests/WorldStateProjectionTests.cpp`
