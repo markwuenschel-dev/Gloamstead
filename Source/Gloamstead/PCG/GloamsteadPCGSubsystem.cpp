@@ -1,5 +1,7 @@
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Components/GloamsteadRitualSiteComponent.h"
+#include "Data/GloamsteadRitualSiteCatalog.h"
+#include "Systems/VeilHeart.h"
 #include "EngineUtils.h"
 #include "Data/ExperienceCycleTypes.h"
 #include "PCGComponent.h"
@@ -603,6 +605,43 @@ bool UGloamsteadPCGSubsystem::WritePointContractMetadata(
     return true;
 }
 
+bool UGloamsteadPCGSubsystem::ResolveSiteAnchorLocation(uint8 Anchor, FVector& OutLocation) const
+{
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return false;
+    }
+
+    switch (static_cast<EGloamsteadSiteAnchor>(Anchor))
+    {
+    case EGloamsteadSiteAnchor::SanctuaryHeart:
+    {
+        for (TActorIterator<AVeilHeart> It(World); It; ++It)
+        {
+            OutLocation = It->GetActorLocation();
+            return true;
+        }
+        return false;
+    }
+    case EGloamsteadSiteAnchor::FirstLantern:
+    {
+        TArray<AActor*> Anchors;
+        UGameplayStatics::GetAllActorsWithTag(World, FirstLanternAnchorTag, Anchors);
+        if (Anchors.Num() == 0 || !Anchors[0])
+        {
+            return false;
+        }
+        OutLocation = Anchors[0]->GetActorLocation();
+        return true;
+    }
+    case EGloamsteadSiteAnchor::WorldOrigin:
+    default:
+        OutLocation = FVector::ZeroVector;
+        return true;
+    }
+}
+
 void UGloamsteadPCGSubsystem::ApplyAuthoredSiteContracts()
 {
     UWorld* World = GetWorld();
@@ -620,12 +659,6 @@ void UGloamsteadPCGSubsystem::ApplyAuthoredSiteContracts()
         }
     }
 
-    if (Sites.Num() == 0)
-    {
-        // No authored sites in this map. Not an error on its own - Cycle 1 is exempt from the semantic
-        // contract - but every semantically targeted night will refuse until a site declares its place.
-        return;
-    }
 
     TMap<FName, TWeakObjectPtr<AActor>> ClaimedSubjects;
     TSet<int32> ClaimedPoints;
@@ -757,9 +790,111 @@ void UGloamsteadPCGSubsystem::ApplyAuthoredSiteContracts()
             FMath::Sqrt(BestDistSq));
     }
 
+    // Content-declared sites. A place in Gloamstead is described relative to a landmark, so these carry an
+    // anchor rather than a transform - which also means they can be authored in the manifest without
+    // opening the editor. Same C++ writer, same refusals; only the source of the declaration differs.
+    int32 DeclaredCount = 0;
+    if (UGloamsteadRitualSiteCatalog* SiteCatalog = Cast<UGloamsteadRitualSiteCatalog>(StaticLoadObject(
+            UGloamsteadRitualSiteCatalog::StaticClass(), nullptr,
+            TEXT("/Game/Data/DA_RitualSiteCatalog.DA_RitualSiteCatalog"))))
+    {
+        for (const FGloamsteadRitualSiteDeclaration& Declaration : SiteCatalog->Sites)
+        {
+            ++DeclaredCount;
+
+            TArray<FString> Problems;
+            if (!Declaration.IsCompleteDeclaration(Problems))
+            {
+                for (const FString& Problem : Problems)
+                {
+                    UE_LOG(LogTemp, Error, TEXT("UGloamsteadPCGSubsystem: %s"), *Problem);
+                }
+                continue;
+            }
+
+            if (ClaimedSubjects.Contains(Declaration.SemanticSubject))
+            {
+                UE_LOG(LogTemp, Error,
+                    TEXT("UGloamsteadPCGSubsystem: semantic subject '%s' is already claimed by a placed actor; ")
+                    TEXT("refusing the authored declaration so one place has exactly one claimant."),
+                    *Declaration.SemanticSubject.ToString());
+                continue;
+            }
+
+            FVector AnchorLocation = FVector::ZeroVector;
+            if (!ResolveSiteAnchorLocation(static_cast<uint8>(Declaration.Anchor), AnchorLocation))
+            {
+                UE_LOG(LogTemp, Error,
+                    TEXT("UGloamsteadPCGSubsystem: authored site '%s' names a landmark this map does not contain, ")
+                    TEXT("so its place cannot be resolved. Place the landmark, or describe the site from one that exists."),
+                    *Declaration.SemanticSubject.ToString());
+                continue;
+            }
+
+            const double RadiusSq = Declaration.BindRadius * Declaration.BindRadius;
+            const double MinSq = Declaration.MinimumAnchorDistance * Declaration.MinimumAnchorDistance;
+
+            int32 BestIndex = INDEX_NONE;
+            double BestDistSq = TNumericLimits<double>::Max();
+            for (int32 Index = 0; Index < CachedPoints.Num(); ++Index)
+            {
+                if (ClaimedPoints.Contains(Index) || Index == AnchorSeatedPointIndex)
+                {
+                    continue;
+                }
+                const double DistSq = FVector::DistSquared(CachedPoints[Index].Transform.GetLocation(), AnchorLocation);
+                if (DistSq > RadiusSq || DistSq < MinSq)
+                {
+                    continue;
+                }
+                if (DistSq < BestDistSq)
+                {
+                    BestDistSq = DistSq;
+                    BestIndex = Index;
+                }
+            }
+
+            if (BestIndex == INDEX_NONE)
+            {
+                UE_LOG(LogTemp, Error,
+                    TEXT("UGloamsteadPCGSubsystem: authored site '%s' binds nothing - no unclaimed generated point ")
+                    TEXT("between %.0f and %.0f units of its anchor. Widen BindRadius, lower MinimumAnchorDistance, ")
+                    TEXT("or check whether the graph produced points near that landmark at all."),
+                    *Declaration.SemanticSubject.ToString(),
+                    Declaration.MinimumAnchorDistance,
+                    Declaration.BindRadius);
+                continue;
+            }
+
+            if (!WritePointContractMetadata(
+                    BestIndex,
+                    Declaration.RecommendedForWarning,
+                    Declaration.SemanticSubject,
+                    Declaration.RitualType,
+                    Declaration.RestorationTag))
+            {
+                UE_LOG(LogTemp, Error,
+                    TEXT("UGloamsteadPCGSubsystem: authored site '%s' matched point %d but its metadata could not be written."),
+                    *Declaration.SemanticSubject.ToString(), BestIndex);
+                continue;
+            }
+
+            ClaimedSubjects.Add(Declaration.SemanticSubject, nullptr);
+            ClaimedPoints.Add(BestIndex);
+            ++BoundCount;
+            UE_LOG(LogTemp, Log,
+                TEXT("UGloamsteadPCGSubsystem: bound authored site '%s' (%s/%s) to point %d at %.0f units from its anchor."),
+                *Declaration.SemanticSubject.ToString(),
+                *Declaration.RecommendedForWarning.ToString(),
+                *GetRitualTypeDisplayName(Declaration.RitualType),
+                BestIndex,
+                FMath::Sqrt(BestDistSq));
+        }
+    }
+
     UE_LOG(LogTemp, Log,
-        TEXT("UGloamsteadPCGSubsystem: bound %d of %d authored ritual site declaration(s)."),
-        BoundCount, Sites.Num());
+        TEXT("UGloamsteadPCGSubsystem: bound %d of %d authored ritual site declaration(s) (%d placed, %d authored)."),
+        BoundCount, Sites.Num() + DeclaredCount, Sites.Num(), DeclaredCount);
 }
 
 int32 UGloamsteadPCGSubsystem::FindRestoredPointIndex(bool bMostLit) const
