@@ -123,16 +123,35 @@ void UGloamsteadExperienceCycleSubsystem::EnsureCatalog()
 		TEXT("/Game/Data/DA_ExperienceCycleCatalog.DA_ExperienceCycleCatalog")));
 	if (ExperienceCatalog)
 	{
+		// Say which source won. Without this the authored asset and the code fallback are
+		// indistinguishable at runtime, which is precisely how code-as-content survives unnoticed.
+		UE_LOG(LogTemp, Log,
+			TEXT("ExperienceCycle: loaded the authored plan catalog from /Game/Data/DA_ExperienceCycleCatalog (%d plan(s))."),
+			ExperienceCatalog->AuthoredPlans.Num());
 		return;
 	}
 
 	ExperienceCatalog = NewObject<UExperienceCycleCatalog>(this, TEXT("DefaultExperienceCycleCatalog"));
 	PopulateDefaultExperienceCyclePlans(*ExperienceCatalog);
+	UE_LOG(LogTemp, Warning,
+		TEXT("ExperienceCycle: /Game/Data/DA_ExperienceCycleCatalog is absent - falling back to the in-code "
+			 "development plans (%d plan(s)). This fallback is NOT production content: author the plans in "
+			 "specs/data/vs-polish-starter.json and re-import with "
+			 "agent_collab/scripts/Invoke-GloamsteadDataAssetImport.ps1."),
+		ExperienceCatalog->AuthoredPlans.Num());
+}
+
+int32 UGloamsteadExperienceCycleSubsystem::GetAuthoredSlotCount() const
+{
+	return ExperienceCatalog ? ExperienceCatalog->AuthoredPlans.Num() : 0;
 }
 
 const FExperienceCyclePlan* UGloamsteadExperienceCycleSubsystem::FindCanonicalRequiredPlan(int32 Slot) const
 {
-	if (!ExperienceCatalog || Slot < 1 || Slot > 4)
+	// The ceiling is the authored catalog's size, not a literal. It was hardcoded to 4 in three places,
+	// which meant authoring a fifth cycle would have been silently ignored - the catalog would grow and the
+	// experience would still end after the fourth night.
+	if (!ExperienceCatalog || Slot < 1 || Slot > GetAuthoredSlotCount())
 	{
 		return nullptr;
 	}
@@ -187,16 +206,36 @@ bool UGloamsteadExperienceCycleSubsystem::EnsureUpcomingPlan()
 		return false;
 	}
 
-	if (UpcomingSlot > 4)
+	// Load the catalog BEFORE asking how many slots it authors, or the ceiling would always read zero.
+	EnsureCatalog();
+
+	if (UpcomingSlot > GetAuthoredSlotCount())
 	{
+		// The authored experience is finished. This is a terminal, player-meaningful state - not an error -
+		// and IsExperienceComplete() is what the rest of the game reads to present an ending rather than
+		// leaving the player beside a Heart that has silently stopped answering.
 		SetGenericHandoff(UpcomingSlot);
+		UE_LOG(LogTemp, Log,
+			TEXT("ExperienceCycle: the authored experience is complete - %d of %d cycles finished. No further "
+				 "authored plan exists; the Heart should now present an ending rather than a rest."),
+			PersistentState.CompletedCycleSlot, GetAuthoredSlotCount());
 		return false;
 	}
 
-	EnsureCatalog();
 	const FExperienceCyclePlan* CanonicalPlan = FindCanonicalRequiredPlan(UpcomingSlot);
 	if (!CanonicalPlan)
 	{
+		// The catalog authors a row for this slot, but it does not satisfy the canonical contract in
+		// MatchesRequiredContract. That gate is deliberate: the asset is transport, and C++ stays the
+		// authority on what an authored cycle IS, so an edited or forged catalog cannot invent a night.
+		// Refusing here is correct - but say why, because "authored a new cycle and nothing happened" is
+		// otherwise indistinguishable from the experience simply ending.
+		UE_LOG(LogTemp, Error,
+			TEXT("ExperienceCycle: slot %d has no authored row satisfying the canonical contract, so it is "
+				 "refused - the row is missing, duplicated, or does not match. The catalog is transport; C++ "
+				 "stays the authority on what a cycle IS, so adding one needs BOTH an authored row and a "
+				 "matching case in UGloamsteadExperienceCycleSubsystem::MatchesRequiredContract."),
+			UpcomingSlot);
 		SetInvalidPlan(UpcomingSlot);
 		return false;
 	}
@@ -208,13 +247,13 @@ bool UGloamsteadExperienceCycleSubsystem::EnsureUpcomingPlan()
 
 bool UGloamsteadExperienceCycleSubsystem::RestoreArmedPlan(FName ArmedPlanId, int32 ExpectedSlot)
 {
-	if (ExpectedSlot < 1 || ExpectedSlot > 4)
+	EnsureCatalog();
+	if (ExpectedSlot < 1 || ExpectedSlot > GetAuthoredSlotCount())
 	{
 		SetInvalidPlan(ExpectedSlot);
 		return false;
 	}
 
-	EnsureCatalog();
 	const FExperienceCyclePlan* CanonicalPlan = FindCanonicalRequiredPlan(ExpectedSlot);
 	if (!CanonicalPlan || CanonicalPlan->PlanId != ArmedPlanId)
 	{

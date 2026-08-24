@@ -142,6 +142,179 @@ namespace GloamsteadDataImport
 		return false;
 	}
 
+	static bool ImportExperienceCycleCatalog(
+		UExperienceCycleCatalog* Catalog,
+		const TSharedPtr<FJsonObject>& Properties,
+		int32& OutErrorCount)
+	{
+		if (!Catalog || !Properties.IsValid())
+		{
+			++OutErrorCount;
+			return false;
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* PlanValues = nullptr;
+		if (!Properties->TryGetArrayField(TEXT("AuthoredPlans"), PlanValues) || !PlanValues)
+		{
+			UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: ExperienceCycleCatalog needs an AuthoredPlans array."));
+			++OutErrorCount;
+			return false;
+		}
+
+		const UEnum* NightEnum = StaticEnum<ENightConsequenceType>();
+		const UEnum* RitualEnum = StaticEnum<ERitualType>();
+		const UEnum* ResolutionEnum = StaticEnum<EExperiencePlanResolution>();
+
+		TArray<FExperienceCyclePlan> Plans;
+		for (const TSharedPtr<FJsonValue>& Value : *PlanValues)
+		{
+			const TSharedPtr<FJsonObject>* PlanObjPtr = nullptr;
+			if (!Value.IsValid() || !Value->TryGetObject(PlanObjPtr) || !PlanObjPtr)
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: an AuthoredPlans entry is not an object."));
+				++OutErrorCount;
+				return false;
+			}
+			const TSharedPtr<FJsonObject>& PlanObj = *PlanObjPtr;
+
+			FExperienceCyclePlan Plan;
+
+			if (!ReadNumberField(PlanObj, TEXT("Slot"), Plan.Slot) || Plan.Slot < 1)
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: an authored plan needs a Slot >= 1."));
+				++OutErrorCount;
+				return false;
+			}
+
+			FString PlanId;
+			FString WarningId;
+			if (!PlanObj->TryGetStringField(TEXT("PlanId"), PlanId) || PlanId.IsEmpty()
+				|| !PlanObj->TryGetStringField(TEXT("WarningId"), WarningId) || WarningId.IsEmpty())
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: plan in slot %d needs a PlanId and a WarningId."), Plan.Slot);
+				++OutErrorCount;
+				return false;
+			}
+			Plan.PlanId = FName(*PlanId);
+			Plan.WarningId = FName(*WarningId);
+
+			FString NightTypeName;
+			int64 EnumValue = INDEX_NONE;
+			if (!PlanObj->TryGetStringField(TEXT("NightType"), NightTypeName)
+				|| !ParseEnumByName(NightEnum, NightTypeName, EnumValue))
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: plan %s has an unknown NightType."), *PlanId);
+				++OutErrorCount;
+				return false;
+			}
+			Plan.NightType = static_cast<ENightConsequenceType>(EnumValue);
+
+			FString SemanticSubject;
+			if (PlanObj->TryGetStringField(TEXT("SemanticSubject"), SemanticSubject) && !SemanticSubject.IsEmpty())
+			{
+				Plan.SemanticSubject = FName(*SemanticSubject);
+			}
+
+			const TArray<TSharedPtr<FJsonValue>>* TagValues = nullptr;
+			if (PlanObj->TryGetArrayField(TEXT("RequiredRestorationTags"), TagValues) && TagValues
+				&& !ParseStringArray(*TagValues, Plan.RequiredRestorationTags))
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: plan %s has a malformed RequiredRestorationTags."), *PlanId);
+				++OutErrorCount;
+				return false;
+			}
+
+			FString RitualTypeName;
+			if (PlanObj->TryGetStringField(TEXT("RequiredRitualType"), RitualTypeName) && !RitualTypeName.IsEmpty())
+			{
+				int64 RitualValue = INDEX_NONE;
+				if (!ParseEnumByName(RitualEnum, RitualTypeName, RitualValue))
+				{
+					UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: plan %s has an unknown RequiredRitualType."), *PlanId);
+					++OutErrorCount;
+					return false;
+				}
+				Plan.RequiredRitualType = static_cast<ERitualType>(RitualValue);
+			}
+
+			const TArray<TSharedPtr<FJsonValue>>* SupportIdValues = nullptr;
+			if (PlanObj->TryGetArrayField(TEXT("RequiredSupportIds"), SupportIdValues) && SupportIdValues
+				&& !ParseStringArray(*SupportIdValues, Plan.RequiredSupportIds))
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: plan %s has a malformed RequiredSupportIds."), *PlanId);
+				++OutErrorCount;
+				return false;
+			}
+
+			const TArray<TSharedPtr<FJsonValue>>* ChannelTypeValues = nullptr;
+			if (PlanObj->TryGetArrayField(TEXT("RequiredSupportChannelTypes"), ChannelTypeValues) && ChannelTypeValues
+				&& !ParseStringArray(*ChannelTypeValues, Plan.RequiredSupportChannelTypes))
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: plan %s has a malformed RequiredSupportChannelTypes."), *PlanId);
+				++OutErrorCount;
+				return false;
+			}
+
+			ReadNumberField(PlanObj, TEXT("MinimumDistinctSupportCount"), Plan.MinimumDistinctSupportCount);
+
+			FString ReceiptId;
+			if (PlanObj->TryGetStringField(TEXT("InterpretationReceiptId"), ReceiptId) && !ReceiptId.IsEmpty())
+			{
+				Plan.InterpretationReceiptId = FName(*ReceiptId);
+			}
+			FString VisualStateKey;
+			if (PlanObj->TryGetStringField(TEXT("VisualStateKey"), VisualStateKey) && !VisualStateKey.IsEmpty())
+			{
+				Plan.VisualStateKey = FName(*VisualStateKey);
+			}
+			FString OutcomeSummaryKey;
+			if (PlanObj->TryGetStringField(TEXT("OutcomeSummaryKey"), OutcomeSummaryKey) && !OutcomeSummaryKey.IsEmpty())
+			{
+				Plan.OutcomeSummaryKey = FName(*OutcomeSummaryKey);
+			}
+
+			// Resolution defaults to Authored: a plan written into the authored catalog IS an authored plan.
+			// Anything else must be stated explicitly, so an accidental omission cannot silently produce a row
+			// that IsAuthoredPlan() rejects and that therefore blocks its cycle forever.
+			FString ResolutionName;
+			if (PlanObj->TryGetStringField(TEXT("Resolution"), ResolutionName) && !ResolutionName.IsEmpty())
+			{
+				int64 ResolutionValue = INDEX_NONE;
+				if (!ParseEnumByName(ResolutionEnum, ResolutionName, ResolutionValue))
+				{
+					UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: plan %s has an unknown Resolution."), *PlanId);
+					++OutErrorCount;
+					return false;
+				}
+				Plan.Resolution = static_cast<EExperiencePlanResolution>(ResolutionValue);
+			}
+			else
+			{
+				Plan.Resolution = EExperiencePlanResolution::Authored;
+			}
+
+			Plans.Add(MoveTemp(Plan));
+		}
+
+		// Slots must be unique and contiguous from 1: EnsureUpcomingPlan walks CompletedCycleSlot + 1, so a
+		// gap silently ends the experience at the gap rather than at the last authored cycle.
+		Plans.Sort([](const FExperienceCyclePlan& A, const FExperienceCyclePlan& B) { return A.Slot < B.Slot; });
+		for (int32 Index = 0; Index < Plans.Num(); ++Index)
+		{
+			if (Plans[Index].Slot != Index + 1)
+			{
+				UE_LOG(LogTemp, Error,
+					TEXT("GloamsteadImportDataAssets: authored plan slots must be unique and contiguous from 1; expected %d but found %d."),
+					Index + 1, Plans[Index].Slot);
+				++OutErrorCount;
+				return false;
+			}
+		}
+
+		Catalog->AuthoredPlans = MoveTemp(Plans);
+		return true;
+	}
+
 	static bool SaveDataAsset(UObject* Asset, const FString& PackageName, int32& OutErrorCount)
 	{
 		if (!Asset)
@@ -539,6 +712,16 @@ int32 UGloamsteadImportDataAssetsCommandlet::Main(const FString& Params)
 			UVeilHeartWarningCatalog* Catalog = Cast<UVeilHeartWarningCatalog>(
 				GloamsteadDataImport::LoadOrCreateAsset(PackageName, AssetName, UVeilHeartWarningCatalog::StaticClass()));
 			if (!GloamsteadDataImport::ImportWarningCatalog(Catalog, *PropertiesPtr, ErrorCount))
+			{
+				continue;
+			}
+			GloamsteadDataImport::SaveDataAsset(Catalog, PackageName, ErrorCount);
+		}
+		else if (ClassName == TEXT("ExperienceCycleCatalog"))
+		{
+			UExperienceCycleCatalog* Catalog = Cast<UExperienceCycleCatalog>(
+				GloamsteadDataImport::LoadOrCreateAsset(PackageName, AssetName, UExperienceCycleCatalog::StaticClass()));
+			if (!GloamsteadDataImport::ImportExperienceCycleCatalog(Catalog, *PropertiesPtr, ErrorCount))
 			{
 				continue;
 			}

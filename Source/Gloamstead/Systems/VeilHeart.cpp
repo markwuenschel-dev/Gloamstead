@@ -1,4 +1,6 @@
 #include "Systems/VeilHeart.h"
+#include "Systems/GloamsteadExperienceCycleSubsystem.h"
+#include "Engine/GameInstance.h"
 #include "Actors/GloamsteadEvidenceSource.h"
 #include "Systems/GloamsteadDayNightSubsystem.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
@@ -30,6 +32,16 @@ namespace
 		const UWorld* World = Actor ? Actor->GetWorld() : nullptr;
 		return World ? World->GetSubsystem<UGloamsteadDayNightSubsystem>() : nullptr;
 	}
+
+	/** True once every authored cycle is finished and no further plan exists. */
+	bool IsExperienceComplete(const AActor* Actor)
+	{
+		const UWorld* World = Actor ? Actor->GetWorld() : nullptr;
+		const UGameInstance* GameInstance = World ? World->GetGameInstance() : nullptr;
+		const UGloamsteadExperienceCycleSubsystem* Experience =
+			GameInstance ? GameInstance->GetSubsystem<UGloamsteadExperienceCycleSubsystem>() : nullptr;
+		return Experience && Experience->IsExperienceComplete();
+	}
 }
 
 // ===== IGloamInteractable — the Heart as the player's rest point =====
@@ -37,12 +49,27 @@ namespace
 bool AVeilHeart::CanInteract_Implementation(AActor* /*Interactor*/) const
 {
 	// Interactable only during the resting phases (Day/Dawn); inert once dusk gathers.
+	//
+	// Once the authored experience is complete the Heart stays interactable on purpose. CanRestNow() is
+	// false forever at that point, and returning it unconditionally left the player standing beside the
+	// object the whole game is about with no prompt, no response and no explanation - a soft-lock dressed
+	// as an ending. The Heart still answers; it simply has no further night to bring.
+	if (IsExperienceComplete(this))
+	{
+		return true;
+	}
+
 	const UGloamsteadDayNightSubsystem* DayNight = GetDayNight(this);
 	return DayNight && DayNight->CanRestNow();
 }
 
 FText AVeilHeart::GetInteractionPrompt_Implementation() const
 {
+	if (IsExperienceComplete(this))
+	{
+		return NSLOCTEXT("Gloamstead", "HeartComplete", "Sit with what the sanctuary remembers");
+	}
+
 	const UGloamsteadDayNightSubsystem* DayNight = GetDayNight(this);
 	if (DayNight && DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dawn)
 	{
@@ -53,6 +80,18 @@ FText AVeilHeart::GetInteractionPrompt_Implementation() const
 
 void AVeilHeart::Interact_Implementation(AActor* /*Interactor*/)
 {
+	if (IsExperienceComplete(this))
+	{
+		// The ending seed. There is no authored night left to bring, so the Heart answers with the
+		// sanctuary's memory instead of refusing in silence. A completion screen belongs here when one
+		// exists (map.md Q3 / ticket T2); until then this is at least a legible terminal state rather
+		// than an unhandled boundary condition.
+		OnExperienceComplete();
+		OnExperienceCompleteDelegate.Broadcast();
+		UE_LOG(LogTemp, Log, TEXT("VeilHeart: the authored experience is complete; the Heart has no further night to bring."));
+		return;
+	}
+
 	UGloamsteadDayNightSubsystem* DayNight = GetDayNight(this);
 	if (!DayNight)
 	{
@@ -105,63 +144,64 @@ void AVeilHeart::BeginPlay()
 
 bool AVeilHeart::EnsureWarningCatalog()
 {
+	// An explicitly assigned catalog - authored on the Blueprint, or injected by a focused fixture - is the
+	// caller's declared authority. The fail-closed contract check below guards the SHIPPED auto-load path,
+	// which is the one a player build takes; applying it here would reject every fixture that deliberately
+	// supplies a narrow catalog for one scenario.
+	// A refusal is sticky and is checked FIRST: a catalog that failed the contract stays assigned so it can
+	// be inspected in a log or a debugger, but it must never become usable again on a later call.
+	if (bWarningCatalogLoadRefused)
+	{
+		return false;
+	}
+
 	if (WarningCatalog)
 	{
 		return true;
 	}
 
-	WarningCatalog = Cast<UVeilHeartWarningCatalog>(
-		StaticLoadObject(UVeilHeartWarningCatalog::StaticClass(), nullptr,
-			TEXT("/Game/Data/DA_VeilHeartWarningCatalog.DA_VeilHeartWarningCatalog")));
-	if (WarningCatalog)
-	{
-		// The authored Cycle 4 slice re-reads GardenRot as a different consequence: the same
-		// restored place goes unnaturally still. Older shipped warning assets predate that row, so
-		// materialize the exact fallback contract in memory rather than silently making the night
-		// unwarned. A newer asset with its own authored entry remains authoritative.
-		bool bHasPossessionWarning = false;
-		for (const FVeilHeartWarningFragment& Warning : WarningCatalog->Warnings)
-		{
-			if (Warning.WarningId == FName(TEXT("GardenRot"))
-				&& Warning.AssociatedNightType == ENightConsequenceType::SilencePossession)
-			{
-				bHasPossessionWarning = true;
-				break;
-			}
-		}
-		if (!bHasPossessionWarning)
-		{
-			FVeilHeartWarningFragment PossessionWarning;
-			PossessionWarning.WarningId = TEXT("GardenRot");
-			PossessionWarning.Fragment = NSLOCTEXT(
-				"Gloamstead",
-				"WarningGardenPossession",
-				"The garden goes silent beneath borrowed light. Break the hold before it roots.");
-			PossessionWarning.AssociatedNightType = ENightConsequenceType::SilencePossession;
-			PossessionWarning.SatisfiableTags = { TEXT("GardenBed") };
-			PossessionWarning.SemanticSubject = TEXT("Cycle2_Garden");
-			PossessionWarning.RequiredRitualType = ERitualType::GardenBed;
-			PossessionWarning.InterpretationReceiptId = TEXT("GardenRot.Possessed");
-			PossessionWarning.ClarityTier = 2;
+	static const TCHAR* const CatalogPath = TEXT("/Game/Data/DA_VeilHeartWarningCatalog.DA_VeilHeartWarningCatalog");
 
-			FVeilHeartWarningSupportChannel& Vines = PossessionWarning.SupportChannels.AddDefaulted_GetRef();
-			Vines.SupportId = TEXT("GardenRot.WitheredVines");
-			Vines.ChannelType = TEXT("Environmental");
-			Vines.EvidenceText = NSLOCTEXT("Gloamstead", "EvidenceGardenPossessionVines", "The restored vines stop moving when the light turns away.");
-			FVeilHeartWarningSupportChannel& Soil = PossessionWarning.SupportChannels.AddDefaulted_GetRef();
-			Soil.SupportId = TEXT("GardenRot.ColdSoil");
-			Soil.ChannelType = TEXT("ObjectReaction");
-			Soil.EvidenceText = NSLOCTEXT("Gloamstead", "EvidenceGardenPossessionSoil", "The soil stays cold beneath a bed that should be warm.");
-			FVeilHeartWarningSupportChannel& Moths = PossessionWarning.SupportChannels.AddDefaulted_GetRef();
-			Moths.SupportId = TEXT("GardenRot.BellMoths");
-			Moths.ChannelType = TEXT("Audio");
-			Moths.EvidenceText = NSLOCTEXT("Gloamstead", "EvidenceGardenPossessionMoths", "The bell moths fall silent when the garden is watched.");
-			WarningCatalog->Warnings.Add(MoveTemp(PossessionWarning));
-			UE_LOG(LogTemp, Log, TEXT("VeilHeart: Added the Cycle 4 possession warning fallback to the loaded catalog."));
-		}
-		UE_LOG(LogTemp, Log, TEXT("VeilHeart: Loaded warning catalog from /Game/Data/DA_VeilHeartWarningCatalog."));
+	WarningCatalog = Cast<UVeilHeartWarningCatalog>(
+		StaticLoadObject(UVeilHeartWarningCatalog::StaticClass(), nullptr, CatalogPath));
+	if (!WarningCatalog)
+	{
+		bWarningCatalogLoadRefused = true;
+		UE_LOG(LogTemp, Error,
+			TEXT("VeilHeart: FAIL-CLOSED - could not load the authored warning catalog at %s. No authored night can ")
+			TEXT("present its warning, so no night can begin. Re-import it with: pwsh -NoProfile -File ")
+			TEXT("agent_collab/scripts/Invoke-GloamsteadDataAssetImport.ps1 -Manifest specs/data/vs-polish-starter.json"),
+			CatalogPath);
+		return false;
 	}
-	return WarningCatalog != nullptr;
+
+	// Fail closed against the whole authored contract, in one central place. This deliberately does NOT
+	// synthesize missing rows: a runtime substitute lets the shipped asset stay wrong indefinitely while the
+	// game appears to work, which is exactly how the Cycle 1 tutorial row stayed missing through four cycles.
+	TArray<FString> Problems;
+	if (!ValidateWarningCatalogCoversAuthoredPlans(*WarningCatalog, Problems))
+	{
+		// The refusal flag - not a null pointer - is what makes this fail closed. Leaving the catalog assigned
+		// keeps the actual defective content inspectable; nulling it turned a precise contract defect into a
+		// misleading "no catalog at all" symptom.
+		bWarningCatalogLoadRefused = true;
+		for (const FString& Problem : Problems)
+		{
+			UE_LOG(LogTemp, Error, TEXT("VeilHeart: authored warning contract defect - %s"), *Problem);
+		}
+		UE_LOG(LogTemp, Error,
+			TEXT("VeilHeart: FAIL-CLOSED - %s does not cover the authored experience contract (%d defect(s) listed ")
+			TEXT("above). Add the missing row(s) to specs/data/vs-polish-starter.json and re-import with ")
+			TEXT("agent_collab/scripts/Invoke-GloamsteadDataAssetImport.ps1. The warning catalog is authored ")
+			TEXT("content, not runtime C++ content."),
+			CatalogPath, Problems.Num());
+		return false;
+	}
+
+	UE_LOG(LogTemp, Log,
+		TEXT("VeilHeart: Loaded warning catalog from %s; the authored contract is satisfied for every plan."),
+		CatalogPath);
+	return true;
 }
 
 bool AVeilHeart::RegisterWarningPresenter(UObject* Presenter, FName WarningHandlerFunction)

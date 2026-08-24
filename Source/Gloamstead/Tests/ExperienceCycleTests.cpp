@@ -256,6 +256,13 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FGloamExperiencePlanRequiredSlotsFailClosedTest::RunTest(const FString& /*Parameters*/)
 {
+	// Every refusal below now says why. Declaring it keeps this proof about the fail-closed BEHAVIOUR while
+	// still asserting the diagnostic reaches the log.
+	AddExpectedError(
+		TEXT("has no authored row satisfying the canonical contract"),
+		EAutomationExpectedErrorFlags::Contains,
+		0);
+
 	UExperienceCycleCatalog* Catalog = MakeAuthoredCatalog();
 	Catalog->AuthoredPlans.RemoveAll([](const FExperienceCyclePlan& Plan) { return Plan.Slot == 2; });
 	UGloamsteadExperienceCycleSubsystem* Subsystem = MakeSubsystem(Catalog);
@@ -348,6 +355,69 @@ bool FGloamExperiencePlanGenericHandoffIsExplicitTest::RunTest(const FString& /*
 	TestTrue(TEXT("later slot is an explicit generic handoff"), Plan.IsGenericHandoff());
 	TestEqual(TEXT("handoff owns no authored plan id"), Plan.PlanId, NAME_None);
 	TestEqual(TEXT("handoff owns no authored warning"), Plan.WarningId, NAME_None);
+
+	// The handoff must be READABLE, not merely explicit. It previously had no production reader at all,
+	// so the end of the authored experience surfaced as an unhandled boundary: rest refused forever and a
+	// permanently unresponsive Heart. IsExperienceComplete() is what an ending presents from.
+	TestTrue(TEXT("the subsystem reports the authored experience as complete"),
+		Subsystem->IsExperienceComplete());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamExperienceSlotCeilingIsAuthoredTest,
+	"Gloamstead.Experience.Plan.SlotCeilingFollowsTheAuthoredCatalog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamExperienceSlotCeilingIsAuthoredTest::RunTest(const FString& /*Parameters*/)
+{
+	// The ceiling was the literal 4, written in three places. Authoring a fifth cycle would have been
+	// silently ignored: the catalog would grow and the experience would still end after the fourth night.
+	// A catalog with a fifth authored plan must therefore reach slot 5.
+	UExperienceCycleCatalog* Catalog = MakeAuthoredCatalog();
+	const int32 AuthoredBefore = Catalog->AuthoredPlans.Num();
+
+	FExperienceCyclePlan Fifth;
+	Fifth.Slot = AuthoredBefore + 1;
+	Fifth.PlanId = TEXT("Cycle5_Mirror");
+	Fifth.WarningId = TEXT("HiddenReflection");
+	Fifth.NightType = ENightConsequenceType::Mirror;
+	Fifth.SemanticSubject = TEXT("Cycle5_Mirror");
+	Fifth.RequiredRestorationTags = { TEXT("MirrorPillar") };
+	Fifth.RequiredRitualType = ERitualType::MirrorPillar;
+	Fifth.VisualStateKey = TEXT("restoration_level");
+	Fifth.OutcomeSummaryKey = TEXT("Cycle5_Mirror");
+	Fifth.Resolution = EExperiencePlanResolution::Authored;
+	Catalog->AuthoredPlans.Add(Fifth);
+
+	UGloamsteadExperienceCycleSubsystem* Subsystem = MakeSubsystem(Catalog);
+	TestEqual(TEXT("the subsystem reports the authored slot count, not a literal"),
+		Subsystem->GetAuthoredSlotCount(), AuthoredBefore + 1);
+
+	FExperienceCyclePersistentState State;
+	State.CompletedCycleSlot = AuthoredBefore;
+	TestTrue(TEXT("state after the previously-final cycle restores"), Subsystem->RestorePersistentState(State));
+
+	// Content alone must NOT be able to introduce a night. MatchesRequiredContract has a case per authored
+	// slot and `default: return false`, so the asset is transport while C++ stays the authority on what a
+	// cycle IS - an edited or forged catalog cannot invent one. The row is therefore refused.
+	AddExpectedError(
+		TEXT("has no authored row satisfying the canonical contract"),
+		EAutomationExpectedErrorFlags::Contains,
+		1);
+	TestFalse(TEXT("an authored row with no canonical contract is refused"), Subsystem->EnsureUpcomingPlan());
+	TestFalse(TEXT("a refused row is not mistaken for the end of the experience"),
+		Subsystem->IsExperienceComplete());
+	TestEqual(TEXT("the refused slot arms no plan"), Subsystem->GetActivePlan().PlanId, NAME_None);
+
+	// And the genuine end of the experience is still reached once the catalog is exhausted - now measured
+	// against the authored count rather than the literal 4 it used to be compared to.
+	UGloamsteadExperienceCycleSubsystem* AtEnd = MakeSubsystem(MakeAuthoredCatalog());
+	FExperienceCyclePersistentState EndState;
+	EndState.CompletedCycleSlot = AtEnd->GetAuthoredSlotCount();
+	TestTrue(TEXT("state at the authored ceiling restores"), AtEnd->RestorePersistentState(EndState));
+	TestFalse(TEXT("no plan follows the final authored cycle"), AtEnd->EnsureUpcomingPlan());
+	TestTrue(TEXT("exhausting the authored catalog completes the experience"), AtEnd->IsExperienceComplete());
 	return true;
 }
 

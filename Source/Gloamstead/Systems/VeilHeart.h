@@ -28,6 +28,13 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVeilHeartWarning, const FVeilHear
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVeilHeartDawnReflection, const FNightRuntimeOutcome&, Outcome);
 
 /**
+ * Broadcast when the player rests at the Heart after the last authored cycle. This is the ending's hook:
+ * whatever presents a completion screen listens here rather than polling for a state that used to have
+ * no reader at all.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnVeilHeartExperienceComplete);
+
+/**
  * The Veil Heart - Central protected object and emotional core of Gloamstead.
  * Listens to restoration events to evaluate "I understood the warning".
  *
@@ -165,6 +172,14 @@ public:
     UPROPERTY(BlueprintAssignable, Category="Veil Heart")
     FOnVeilHeartDawnReflection OnDawnReflectionDelegate;
 
+    /** BP presentation hook for the end of the authored experience. */
+    UFUNCTION(BlueprintImplementableEvent, Category="Veil Heart")
+    void OnExperienceComplete();
+
+    /** Fires alongside OnExperienceComplete, for listeners that are not Blueprint subclasses of the Heart. */
+    UPROPERTY(BlueprintAssignable, Category="Veil Heart")
+    FOnVeilHeartExperienceComplete OnExperienceCompleteDelegate;
+
     /** Assign Content/Data/DA_VeilHeartWarningCatalog (auto-loaded at BeginPlay if left empty). */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil Heart")
     TObjectPtr<UVeilHeartWarningCatalog> WarningCatalog;
@@ -192,8 +207,20 @@ private:
 	bool RestoreInterpretationPersistentState(const FVeilHeartInterpretationPersistentState& State);
 	void ResetInterpretationPersistentState();
 
-	/** Lazily loads the assigned catalog for startup-order-safe exact emission. */
+	/**
+	 * Lazily loads the assigned catalog for startup-order-safe exact emission, then validates it against
+	 * the authored experience contract and FAILS CLOSED. Returns false - refusing every warning this Heart
+	 * could present - when the asset is missing or does not cover every authored plan. It never
+	 * synthesizes catalog rows: the catalog is authored content, and a runtime substitute would let the
+	 * authored asset stay wrong indefinitely while the game appeared to work.
+	 */
 	bool EnsureWarningCatalog();
+
+	/**
+	 * Sticky record that the shipped catalog was refused - missing, or failing the authored contract - so
+	 * every later caller gets the same closed answer without retrying and re-logging the load.
+	 */
+	bool bWarningCatalogLoadRefused = false;
 	const FVeilHeartWarningFragment* FindExactWarningById(FName WarningId, ENightConsequenceType ExpectedNightType) const;
 	const FExperienceCyclePlan* ResolveActivePlan() const;
 	UGloamsteadPCGSubsystem* ResolvePCGSubsystem() const;
