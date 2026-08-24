@@ -39,6 +39,36 @@ namespace
 		return true;
 	}
 
+	bool HasExactMirrorSupports(const FExperienceCyclePlan& Plan)
+	{
+		static const FName CanonicalIds[] = {
+			TEXT("MirrorDebt.StillWater"),
+			TEXT("MirrorDebt.DoubleShadow"),
+			TEXT("MirrorDebt.HeartWhisper")
+		};
+		static const FName CanonicalMedia[] = {
+			TEXT("Environmental"),
+			TEXT("ObjectReaction"),
+			TEXT("Audio")
+		};
+
+		if (Plan.RequiredSupportIds.Num() != UE_ARRAY_COUNT(CanonicalIds)
+			|| Plan.RequiredSupportChannelTypes.Num() != UE_ARRAY_COUNT(CanonicalMedia))
+		{
+			return false;
+		}
+
+		for (int32 Index = 0; Index < UE_ARRAY_COUNT(CanonicalIds); ++Index)
+		{
+			if (Plan.RequiredSupportIds[Index] != CanonicalIds[Index]
+				|| Plan.RequiredSupportChannelTypes[Index] != CanonicalMedia[Index])
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
 	bool MatchesRequiredContract(const FExperienceCyclePlan& Plan, int32 Slot)
 	{
 		if (!Plan.IsAuthoredPlan())
@@ -104,6 +134,20 @@ namespace
 				&& Plan.InterpretationReceiptId == FName(TEXT("GardenRot.Possessed"))
 				&& Plan.VisualStateKey == FName(TEXT("restoration_level"))
 				&& Plan.OutcomeSummaryKey == FName(TEXT("Cycle4_Possession"));
+
+		case 5:
+			return Plan.Slot == 5
+				&& Plan.PlanId == FName(TEXT("Cycle5_Mirror"))
+				&& Plan.WarningId == FName(TEXT("MirrorDebt"))
+				&& Plan.NightType == ENightConsequenceType::Mirror
+				&& Plan.SemanticSubject == FName(TEXT("Cycle2_Garden"))
+				&& HasOnlyTag(Plan, FName(TEXT("GardenBed")))
+				&& Plan.RequiredRitualType == ERitualType::GardenBed
+				&& HasExactMirrorSupports(Plan)
+				&& Plan.MinimumDistinctSupportCount == 2
+				&& Plan.InterpretationReceiptId == FName(TEXT("MirrorDebt.Interpreted"))
+				&& Plan.VisualStateKey == FName(TEXT("restoration_level"))
+				&& Plan.OutcomeSummaryKey == FName(TEXT("Cycle5_Mirror"));
 
 		default:
 			return false;

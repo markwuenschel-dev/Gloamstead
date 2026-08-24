@@ -695,3 +695,148 @@ FNightRuntimeOutcome UNightPossessionStrategy::ResolveNight_Implementation(UGloa
 		*GetNightOutcomeResultDisplayName(Out.Result), Out.TargetCorruptionDelta, Out.SanctuaryCorruptionDelta);
 	return Out;
 }
+
+// ===== UNightMirrorStrategy (Night Types III) =====
+
+void UNightMirrorStrategy::EnterNight_Implementation(const FNightRuntimeContext& InContext, UGloamsteadPCGSubsystem* PCG)
+{
+	Context = InContext;
+	StartAvgCorruption = SafeAvgCorruption(PCG);
+	bChoiceMade = false;
+	bBargainAccepted = false;
+	bBargainHeld = false;
+	bNoTargetFallback = false;
+
+	const int32 TargetIndex = (PCG && InContext.bRequiresExactSemanticTarget)
+		? ((InContext.TargetPointIndex >= 0 && PCG->IsPointRestored(InContext.TargetPointIndex))
+			? InContext.TargetPointIndex
+			: INDEX_NONE)
+		: (PCG ? PCG->FindRestoredPointIndex(/*bMostLit*/ true) : INDEX_NONE);
+
+	Objective = FNightObjective();
+	Objective.Kind = ENightObjectiveKind::MirrorBargain;
+	Objective.TargetPointIndex = TargetIndex;
+
+	if (TargetIndex < 0 || !PCG)
+	{
+		bNoTargetFallback = true;
+		Objective.Kind = ENightObjectiveKind::None;
+		Objective.bResolved = true;
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Mirror]: no restored authored target — quiet fallback."));
+		return;
+	}
+
+	Objective.StartCorruption = PCG->GetCorruptionLevel(TargetIndex);
+	Objective.ResolveAtOrBelow = FMath::Min(Objective.StartCorruption * 0.5f, 0.12f);
+	Objective.bResolved = false;
+	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Mirror]: reflection at point %d awaits a choice (corruption %.2f, hold<=%.2f)."),
+		TargetIndex, Objective.StartCorruption, Objective.ResolveAtOrBelow);
+}
+
+void UNightMirrorStrategy::ApplyPressureStep_Implementation(UGloamsteadPCGSubsystem* PCG)
+{
+	if (!PCG || bNoTargetFallback || Objective.bResolved || Objective.TargetPointIndex < 0)
+	{
+		return;
+	}
+
+	const float Delta = bChoiceMade && bBargainAccepted ? BargainPressureDelta : UnansweredPressureDelta;
+	const float NewLevel = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, Delta);
+	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Mirror]: reflection pressure at point %d now %.2f (choice=%s, accepted=%s)."),
+		Objective.TargetPointIndex, NewLevel, bChoiceMade ? TEXT("made") : TEXT("pending"), bBargainAccepted ? TEXT("yes") : TEXT("no"));
+}
+
+bool UNightMirrorStrategy::ChooseBargain(bool bAccept)
+{
+	if (bNoTargetFallback || bChoiceMade || Objective.TargetPointIndex < 0)
+	{
+		return false;
+	}
+
+	bChoiceMade = true;
+	bBargainAccepted = bAccept;
+	if (!bAccept)
+	{
+		// Refusal is the clear reading: the reflection was a false path, not a gift.
+		Objective.bResolved = true;
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Mirror]: player refused the reflection bargain."));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Mirror]: player accepted the reflection bargain; light must hold it."));
+	}
+	return true;
+}
+
+bool UNightMirrorStrategy::NotifyLightWard_Implementation(UGloamsteadPCGSubsystem* PCG)
+{
+	if (!PCG || bNoTargetFallback || !bChoiceMade || !bBargainAccepted || Objective.bResolved || Objective.TargetPointIndex < 0)
+	{
+		return false;
+	}
+
+	bBargainHeld = true;
+	const float NewLevel = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, -BargainWardDelta);
+	if (NewLevel <= Objective.ResolveAtOrBelow)
+	{
+		Objective.bResolved = true;
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Mirror]: light held the accepted truth at point %d (corruption %.2f)."),
+			Objective.TargetPointIndex, NewLevel);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Mirror]: light reached the mirror but did not hold it yet (corruption %.2f)."), NewLevel);
+	}
+	return true;
+}
+
+FNightRuntimeOutcome UNightMirrorStrategy::ResolveNight_Implementation(UGloamsteadPCGSubsystem* PCG)
+{
+	FNightRuntimeOutcome Out = MakeBaseOutcome(PCG);
+	Out.bObjectiveResolved = Objective.bResolved;
+
+	if (bNoTargetFallback || Objective.Kind == ENightObjectiveKind::None)
+	{
+		Out.Result = ENightOutcomeResult::Success;
+		Out.ResultTag = FName(TEXT("MirrorNoTarget"));
+		return Out;
+	}
+
+	float FinalCorruption = (PCG && Objective.TargetPointIndex >= 0)
+		? PCG->GetCorruptionLevel(Objective.TargetPointIndex)
+		: Objective.StartCorruption;
+
+	if (!bChoiceMade)
+	{
+		if (PCG && Objective.TargetPointIndex >= 0 && FinalCorruption <= Objective.StartCorruption + KINDA_SMALL_NUMBER)
+		{
+			FinalCorruption = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, BargainScarDelta);
+		}
+		Out.Result = ENightOutcomeResult::Failure;
+		Out.ResultTag = FName(TEXT("MirrorUnchosen"));
+	}
+	else if (!bBargainAccepted)
+	{
+		Out.Result = ENightOutcomeResult::Success;
+		Out.ResultTag = FName(TEXT("MirrorRefused"));
+	}
+	else if (Objective.bResolved && bBargainHeld)
+	{
+		Out.Result = ENightOutcomeResult::Success;
+		Out.ResultTag = FName(TEXT("MirrorTruthHeld"));
+	}
+	else
+	{
+		if (PCG && Objective.TargetPointIndex >= 0 && FinalCorruption <= Objective.StartCorruption + KINDA_SMALL_NUMBER)
+		{
+			FinalCorruption = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, BargainScarDelta);
+		}
+		Out.Result = ENightOutcomeResult::Partial;
+		Out.ResultTag = FName(TEXT("MirrorBargainPaid"));
+	}
+
+	Out.TargetCorruptionDelta = FinalCorruption - Objective.StartCorruption;
+	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Mirror]: outcome %s (target delta %.2f, sanctuary delta %.2f)."),
+		*GetNightOutcomeResultDisplayName(Out.Result), Out.TargetCorruptionDelta, Out.SanctuaryCorruptionDelta);
+	return Out;
+}

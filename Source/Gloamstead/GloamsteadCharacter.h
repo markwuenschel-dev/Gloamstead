@@ -102,6 +102,12 @@ protected:
 	/** Ward input: spend a deliberate light beat against a strategy-owned night threat. */
 	void OnWardInput();
 
+	/** Mirror input: refuse the false reflection. */
+	void OnMirrorRefuseInput();
+
+	/** Mirror input: accept the bargain, then hold it with light. */
+	void OnMirrorAcceptInput();
+
 public:
 
 	// === Automated-playtest console hooks ===
@@ -127,6 +133,14 @@ public:
 	/** Automated-playtest and accessibility hook for the light ward (also bound to Right Mouse). */
 	UFUNCTION(Exec)
 	void GloamWard() { OnWardInput(); }
+
+	/** Automated-playtest and accessibility hook for the Mirror/Bargain refusal choice. */
+	UFUNCTION(Exec)
+	void GloamMirrorRefuse() { OnMirrorRefuseInput(); }
+
+	/** Automated-playtest and accessibility hook for the Mirror/Bargain acceptance choice. */
+	UFUNCTION(Exec)
+	void GloamMirrorAccept() { OnMirrorAcceptInput(); }
 
 	/** Playtest positioning only: walking the plaza needs movement input the harness cannot simulate. */
 	UFUNCTION(Exec)

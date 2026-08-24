@@ -95,6 +95,35 @@ void PopulateDefaultExperienceCyclePlans(UExperienceCycleCatalog& Catalog)
 	Possession.OutcomeSummaryKey = TEXT("Cycle4_Possession");
 	Possession.Resolution = EExperiencePlanResolution::Authored;
 	Catalog.AuthoredPlans.Add(Possession);
+
+	FExperienceCyclePlan Mirror;
+	Mirror.Slot = 5;
+	Mirror.PlanId = TEXT("Cycle5_Mirror");
+	Mirror.WarningId = TEXT("MirrorDebt");
+	Mirror.NightType = ENightConsequenceType::Mirror;
+	// The current authored world has no materialized BellShrine point. Cycle V
+	// therefore reads the restored garden's still water as the first mirror:
+	// the semantic subject remains exact and the player is never sent to an
+	// unresolved procedural target.
+	Mirror.SemanticSubject = TEXT("Cycle2_Garden");
+	Mirror.RequiredRestorationTags = { TEXT("GardenBed") };
+	Mirror.RequiredRitualType = ERitualType::GardenBed;
+	Mirror.RequiredSupportIds = {
+		TEXT("MirrorDebt.StillWater"),
+		TEXT("MirrorDebt.DoubleShadow"),
+		TEXT("MirrorDebt.HeartWhisper")
+	};
+	Mirror.RequiredSupportChannelTypes = {
+		TEXT("Environmental"),
+		TEXT("ObjectReaction"),
+		TEXT("Audio")
+	};
+	Mirror.MinimumDistinctSupportCount = 2;
+	Mirror.InterpretationReceiptId = TEXT("MirrorDebt.Interpreted");
+	Mirror.VisualStateKey = TEXT("restoration_level");
+	Mirror.OutcomeSummaryKey = TEXT("Cycle5_Mirror");
+	Mirror.Resolution = EExperiencePlanResolution::Authored;
+	Catalog.AuthoredPlans.Add(Mirror);
 }
 
 void FExperienceCyclePersistentState::ResetForLegacyReconciliation()

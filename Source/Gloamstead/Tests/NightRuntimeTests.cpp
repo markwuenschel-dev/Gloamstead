@@ -228,10 +228,85 @@ bool FGloamNightRuntimeStrategyMappingTest::RunTest(const FString& /*Parameters*
 	TestTrue(TEXT("Omen -> UNightOmenStrategy"), Omen && Omen->IsA(UNightOmenStrategy::StaticClass()));
 	TestTrue(TEXT("Retrieval -> UNightRetrievalStrategy"), Retrieval && Retrieval->IsA(UNightRetrievalStrategy::StaticClass()));
 	TestTrue(TEXT("SilencePossession -> UNightPossessionStrategy"), Possession && Possession->IsA(UNightPossessionStrategy::StaticClass()));
-	TestTrue(TEXT("still-unimplemented (Mirror) -> benign base UNightStrategy"), Mirror && Mirror->GetClass() == UNightStrategy::StaticClass());
+	TestTrue(TEXT("Mirror -> UNightMirrorStrategy"), Mirror && Mirror->IsA(UNightMirrorStrategy::StaticClass()));
 
 	TestTrue(TEXT("no outcome before any night runs"), Runtime->GetLastOutcome().Result == ENightOutcomeResult::None);
 	Runtime->EndNight(); // safe no-op when no night is active
+	return true;
+}
+
+// Mirror night: the player can refuse the false path for a clean success, or accept it and hold it with light.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamNightMirrorRefusalIsSuccessTest,
+	"Gloamstead.NightRuntime.MirrorRefusalIsSuccess",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamNightMirrorRefusalIsSuccessTest::RunTest(const FString& /*Parameters*/)
+{
+	UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
+	PCG->Test_SeedPointStates(MakeRetrievalStates(0.1f, 0.6f));
+
+	UNightMirrorStrategy* Strategy = NewObject<UNightMirrorStrategy>();
+	FNightRuntimeContext Context = MakeContext(ENightConsequenceType::Mirror, PCG);
+	Strategy->EnterNight(Context, PCG);
+	TestTrue(TEXT("mirror exposes a choice objective"), Strategy->GetObjective().Kind == ENightObjectiveKind::MirrorBargain);
+	TestTrue(TEXT("mirror starts with a pending choice"), Strategy->IsChoicePending());
+
+	Strategy->ApplyPressureStep(PCG);
+	TestTrue(TEXT("refusal is accepted once"), Strategy->ChooseBargain(/*bAccept*/ false));
+	TestFalse(TEXT("choice is no longer pending after refusal"), Strategy->IsChoicePending());
+	TestTrue(TEXT("refusal resolves the objective"), Strategy->IsObjectiveResolved());
+
+	const FNightRuntimeOutcome Outcome = Strategy->ResolveNight(PCG);
+	TestTrue(TEXT("refusing the false reflection is Success"), Outcome.Result == ENightOutcomeResult::Success);
+	TestTrue(TEXT("refusal carries a concrete dawn tag"), Outcome.ResultTag == FName(TEXT("MirrorRefused")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamNightMirrorBargainHeldWithLightTest,
+	"Gloamstead.NightRuntime.MirrorBargainHeldWithLight",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamNightMirrorBargainHeldWithLightTest::RunTest(const FString& /*Parameters*/)
+{
+	UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
+	PCG->Test_SeedPointStates(MakeRetrievalStates(0.2f, 0.6f));
+
+	UNightMirrorStrategy* Strategy = NewObject<UNightMirrorStrategy>();
+	FNightRuntimeContext Context = MakeContext(ENightConsequenceType::Mirror, PCG);
+	Strategy->EnterNight(Context, PCG);
+	TestTrue(TEXT("acceptance is accepted once"), Strategy->ChooseBargain(/*bAccept*/ true));
+	TestTrue(TEXT("accepted bargain stays live until light holds it"), !Strategy->IsObjectiveResolved());
+	TestTrue(TEXT("light ward reaches the accepted bargain"), Strategy->NotifyLightWard(PCG));
+	TestTrue(TEXT("light holds the bargain"), Strategy->IsBargainHeld());
+	TestTrue(TEXT("held bargain resolves the objective"), Strategy->IsObjectiveResolved());
+
+	const FNightRuntimeOutcome Outcome = Strategy->ResolveNight(PCG);
+	TestTrue(TEXT("held bargain is Success"), Outcome.Result == ENightOutcomeResult::Success);
+	TestTrue(TEXT("held bargain carries a concrete dawn tag"), Outcome.ResultTag == FName(TEXT("MirrorTruthHeld")));
+	TestTrue(TEXT("holding the bargain cleanses the reflection"), Outcome.TargetCorruptionDelta < 0.f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamNightMirrorUnchosenLeavesScarTest,
+	"Gloamstead.NightRuntime.MirrorUnchosenLeavesScar",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamNightMirrorUnchosenLeavesScarTest::RunTest(const FString& /*Parameters*/)
+{
+	UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
+	PCG->Test_SeedPointStates(MakeRetrievalStates(0.1f, 0.6f));
+
+	UNightMirrorStrategy* Strategy = NewObject<UNightMirrorStrategy>();
+	Strategy->EnterNight(MakeContext(ENightConsequenceType::Mirror, PCG), PCG);
+	Strategy->ApplyPressureStep(PCG);
+
+	const FNightRuntimeOutcome Outcome = Strategy->ResolveNight(PCG);
+	TestTrue(TEXT("unanswered mirror is Failure"), Outcome.Result == ENightOutcomeResult::Failure);
+	TestTrue(TEXT("unanswered mirror carries a durable scar tag"), Outcome.ResultTag == FName(TEXT("MirrorUnchosen")));
+	TestTrue(TEXT("unanswered mirror worsens the target"), Outcome.TargetCorruptionDelta > 0.f);
 	return true;
 }
 

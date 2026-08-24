@@ -8,6 +8,7 @@
 #include "NightConsequenceRuntime.generated.h"
 
 class UNightStrategy;
+class UNightMirrorStrategy;
 class UGloamsteadPCGSubsystem;
 class ANightPressureActor;
 struct FExperienceCyclePlan;
@@ -44,6 +45,14 @@ public:
 	/** Ward the strategy-owned active threat with light; returns false when this night has no ward action. */
 	UFUNCTION(BlueprintCallable, Category = "Night")
 	bool WardActiveThreat();
+
+	/** Resolve the pending Mirror/Bargain choice; accepted bargains still need a light ward. */
+	UFUNCTION(BlueprintCallable, Category = "Night|Mirror")
+	bool ResolveMirrorChoice(bool bAccept);
+
+	/** True while a live Mirror night is waiting for the player's deliberate choice. */
+	UFUNCTION(BlueprintPure, Category = "Night|Mirror")
+	bool IsMirrorChoicePending() const;
 
 	/**
 	 * Drops a live night before a save payload restores its own PCG baseline.
@@ -108,6 +117,8 @@ public:
 	bool Test_IsPressureCadenceScheduled() const;
 	/** True when a cosmetic pressure actor from the active night still exists. */
 	bool Test_HasActivePressureActor() const { return !!ActivePressureActor; }
+	/** The active Mirror strategy, for focused strategy/runtime tests. */
+	UNightMirrorStrategy* Test_GetActiveMirrorStrategy() const;
 	/** Forces the next real BeginNight initial pressure beat to request early Dawn synchronously. */
 	void Test_ForceEarlyDawnDuringInitialPressureBeat() { bTestForceEarlyDawnDuringInitialPressureBeat = true; }
 
