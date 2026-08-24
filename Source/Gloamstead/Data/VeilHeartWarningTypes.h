@@ -159,3 +159,21 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Warning")
 	TArray<FVeilHeartWarningFragment> Warnings;
 };
+
+/**
+ * The single authority on whether an authored warning catalog satisfies the whole experience contract.
+ *
+ * Every authored plan must resolve EXACTLY one warning row for its (WarningId, NightType) pair, because
+ * AVeilHeart::FindExactWarningById refuses an ambiguous match exactly as it refuses a missing one - two
+ * rows fail identically to zero. A plan whose row is missing cannot present its warning, which means
+ * PresentedPlanId is never set, which means UGloamsteadDayNightSubsystem::CanRestNow denies rest and that
+ * night can never begin.
+ *
+ * This exists so the contract is checked in ONE place: the runtime load path fails closed against it, and
+ * the shipped-catalog automation test asserts against the same function rather than reimplementing the
+ * rule. Returns true when the catalog is complete; otherwise fills OutProblems with actionable defects
+ * naming the slot, the plan, and the missing pair.
+ */
+GLOAMSTEAD_API bool ValidateWarningCatalogCoversAuthoredPlans(
+	const UVeilHeartWarningCatalog& Catalog,
+	TArray<FString>& OutProblems);

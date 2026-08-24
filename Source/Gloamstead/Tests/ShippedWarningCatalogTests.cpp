@@ -8,9 +8,14 @@
 // UGloamsteadDayNightSubsystem::CanRestNow() denied rest forever - the first lantern could
 // be restored but the first night could never begin, with all other tests green.
 //
-// This test deliberately leaves WarningCatalog null so the real load path plus its in-memory
-// fallbacks run, then pins the invariant that actually matters: every authored plan can find
-// an exact warning row for its (WarningId, NightType) pair.
+// This test deliberately leaves WarningCatalog null so the REAL asset load path runs, then pins the
+// invariant that actually matters: every authored plan can find an exact warning row for its
+// (WarningId, NightType) pair. EnsureWarningCatalog no longer synthesizes any row, so this asserts the
+// shipped /Game/Data/DA_VeilHeartWarningCatalog itself - not a runtime substitute for it.
+//
+// It shares one authority with the runtime load path: both call
+// ValidateWarningCatalogCoversAuthoredPlans, so the rule cannot drift between what ships and what is
+// tested.
 #include "Misc/AutomationTest.h"
 #include "Data/ExperienceCycleTypes.h"
 #include "Data/NightConsequenceTypes.h"
@@ -18,6 +23,8 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Systems/VeilHeart.h"
+#include "Misc/PackageName.h"
+#include "UObject/UObjectGlobals.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -77,43 +84,60 @@ bool FGloamShippedWarningCatalogCoversAuthoredPlansTest::RunTest(const FString& 
 		return false;
 	}
 
+	// UWorld::CreateWorld test worlds are brought up manually, and actors spawned after that setup do not
+	// automatically receive BeginPlay in every editor automation configuration (same rationale as
+	// PlayableCycleTests.cpp:76-86). Without this the Heart never runs EnsureWarningCatalog, and the shipped
+	// asset is never actually exercised - the test would report "no catalog" while the content was fine.
+	if (!Heart->HasActorBegunPlay())
+	{
+		Heart->DispatchBeginPlay();
+	}
+
 	if (!Heart->WarningCatalog)
 	{
-		AddError(TEXT("BeginPlay resolved no warning catalog at all - /Game/Data/DA_VeilHeartWarningCatalog failed to load, so no authored night can present its warning."));
+		// Diagnose WHY rather than just reporting the symptom: a missing package, a package that exists but
+		// will not load, and a load that succeeds but casts to the wrong class are three different defects.
+		static const TCHAR* const PackageName = TEXT("/Game/Data/DA_VeilHeartWarningCatalog");
+		static const TCHAR* const ObjectPath = TEXT("/Game/Data/DA_VeilHeartWarningCatalog.DA_VeilHeartWarningCatalog");
+		const bool bPackageExists = FPackageName::DoesPackageExist(PackageName);
+		UObject* AnyClass = StaticLoadObject(UObject::StaticClass(), nullptr, ObjectPath);
+		UObject* TypedLoad = StaticLoadObject(UVeilHeartWarningCatalog::StaticClass(), nullptr, ObjectPath);
+		// Discriminate the two causes that both surface as a null catalog: the Heart refused an asset that
+		// loaded but failed the contract, versus the load itself returning null at BeginPlay time and only
+		// succeeding on a later attempt.
+		FString ContractVerdict = TEXT("could not re-load to check");
+		if (UVeilHeartWarningCatalog* Reloaded = Cast<UVeilHeartWarningCatalog>(TypedLoad))
+		{
+			TArray<FString> Problems;
+			if (ValidateWarningCatalogCoversAuthoredPlans(*Reloaded, Problems))
+			{
+				ContractVerdict = FString::Printf(
+					TEXT("the loaded catalog SATISFIES the contract (%d rows) - so the BeginPlay load itself returned null, not a contract refusal"),
+					Reloaded->Warnings.Num());
+			}
+			else
+			{
+				ContractVerdict = FString::Printf(TEXT("the loaded catalog FAILS the contract with %d defect(s): %s"),
+					Problems.Num(), *FString::Join(Problems, TEXT(" | ")));
+			}
+		}
+		AddError(FString::Printf(
+			TEXT("BeginPlay resolved no warning catalog. DoesPackageExist=%s; StaticLoadObject(UObject)=%s (class=%s); typed=%s. %s"),
+			bPackageExists ? TEXT("true") : TEXT("false"),
+			AnyClass ? TEXT("loaded") : TEXT("null"),
+			AnyClass ? *AnyClass->GetClass()->GetName() : TEXT("n/a"),
+			TypedLoad ? TEXT("loaded") : TEXT("null"),
+			*ContractVerdict));
 		return false;
 	}
 
-	UExperienceCycleCatalog* Plans = NewObject<UExperienceCycleCatalog>();
-	PopulateDefaultExperienceCyclePlans(*Plans);
-	TestTrue(TEXT("there is at least one authored plan to cover"), Plans->AuthoredPlans.Num() > 0);
-
-	for (const FExperienceCyclePlan& Plan : Plans->AuthoredPlans)
+	TArray<FString> Problems;
+	const bool bCovered = ValidateWarningCatalogCoversAuthoredPlans(*Heart->WarningCatalog, Problems);
+	for (const FString& Problem : Problems)
 	{
-		if (!Plan.IsAuthoredPlan())
-		{
-			continue;
-		}
-
-		int32 MatchCount = 0;
-		for (const FVeilHeartWarningFragment& Warning : Heart->WarningCatalog->Warnings)
-		{
-			if (Warning.WarningId == Plan.WarningId && Warning.AssociatedNightType == Plan.NightType)
-			{
-				++MatchCount;
-			}
-		}
-
-		// FindExactWarningById refuses an ambiguous match, so two rows fail exactly like zero.
-		TestEqual(
-			*FString::Printf(
-				TEXT("slot %d (%s) resolves exactly one shipped warning row for %s/%s"),
-				Plan.Slot,
-				*Plan.PlanId.ToString(),
-				*Plan.WarningId.ToString(),
-				*GetNightConsequenceTypeDisplayName(Plan.NightType)),
-			MatchCount,
-			1);
+		AddError(FString::Printf(TEXT("shipped warning catalog: %s"), *Problem));
 	}
+	TestTrue(TEXT("the shipped warning catalog covers every authored plan"), bCovered);
 
 	return true;
 }

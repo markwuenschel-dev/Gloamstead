@@ -65,6 +65,16 @@
       "properties": {
         "Warnings": [
           {
+            "_comment": "Cycle 1. Deliberately carries no SupportChannels and no InterpretationReceiptId: the opening tutorial predates fair-crypticism evidence and is exempted from MatchesExactPlanContract in AVeilHeart::CanPresentWarningForPlan. Cycle 1 cannot begin its first night without this exact row - CanRestNow requires PresentedPlanId == the armed plan, and presentation requires an exact TutorialLostPath/Tutorial match.",
+            "WarningId": "TutorialLostPath",
+            "Fragment": "The path has forgotten its light. Raise the lantern before the dark walks it.",
+            "AssociatedNightType": "Tutorial",
+            "SatisfiableTags": ["LanternPost"],
+            "SemanticSubject": "courtyard.lantern.first",
+            "RequiredRitualType": "LanternPost",
+            "ClarityTier": 2
+          },
+          {
             "WarningId": "PathBlocked",
             "Fragment": "The way is veiled until the light returns.",
             "AssociatedNightType": "Omen",
@@ -123,6 +133,34 @@
 			  }
 			],
 			"InterpretationReceiptId": "GardenRot.Retrieved",
+            "ClarityTier": 2
+          },
+          {
+            "_comment": "Cycle 4. Same garden subject re-read as SilencePossession: the restored place goes unnaturally still.",
+            "WarningId": "GardenRot",
+            "Fragment": "The garden goes silent beneath borrowed light. Break the hold before it roots.",
+            "AssociatedNightType": "SilencePossession",
+            "SatisfiableTags": ["GardenBed"],
+			"SemanticSubject": "Cycle2_Garden",
+			"RequiredRitualType": "GardenBed",
+			"SupportChannels": [
+			  {
+				"SupportId": "GardenRot.WitheredVines",
+				"EvidenceText": "The restored vines stop moving when the light turns away.",
+				"ChannelType": "Environmental"
+			  },
+			  {
+				"SupportId": "GardenRot.ColdSoil",
+				"EvidenceText": "The soil stays cold beneath a bed that should be warm.",
+				"ChannelType": "ObjectReaction"
+			  },
+			  {
+				"SupportId": "GardenRot.BellMoths",
+				"EvidenceText": "The bell moths fall silent when the garden is watched.",
+				"ChannelType": "Audio"
+			  }
+			],
+			"InterpretationReceiptId": "GardenRot.Possessed",
             "ClarityTier": 2
           },
           {
