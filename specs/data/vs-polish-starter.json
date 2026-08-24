@@ -192,6 +192,36 @@
               "Reflection"
             ],
             "ClarityTier": 1
+          },
+          {
+            "_comment": "Cycle 5. The garden read a fifth way: its restored water shows a second sanctuary that offers a bargain. Same subject as cycles 2-4 - the place the player mended is the place that tempts them.",
+            "WarningId": "MirrorDebt",
+            "Fragment": "The garden's water shows a second sanctuary. Refuse what it offers, or carry its truth in the light.",
+            "AssociatedNightType": "Mirror",
+            "SatisfiableTags": [
+              "GardenBed"
+            ],
+            "SemanticSubject": "Cycle2_Garden",
+            "RequiredRitualType": "GardenBed",
+            "SupportChannels": [
+              {
+                "SupportId": "MirrorDebt.StillWater",
+                "EvidenceText": "The restored water lies flat even when the sanctuary wind moves the reeds.",
+                "ChannelType": "Environmental"
+              },
+              {
+                "SupportId": "MirrorDebt.DoubleShadow",
+                "EvidenceText": "Your reflection turns toward the dark path a heartbeat before you do.",
+                "ChannelType": "ObjectReaction"
+              },
+              {
+                "SupportId": "MirrorDebt.HeartWhisper",
+                "EvidenceText": "The Heart's pulse answers from the reflection, not from the stone behind you.",
+                "ChannelType": "Audio"
+              }
+            ],
+            "InterpretationReceiptId": "MirrorDebt.Interpreted",
+            "ClarityTier": 2
           }
         ]
       }
@@ -362,6 +392,33 @@
             "OutcomeSummaryKey": "Cycle4_Possession",
             "Resolution": "Authored",
             "_comment": "Cycle 4. Third reading of the same garden: its unnatural silence is the new evidence."
+          },
+          {
+            "_comment": "Cycle 5. Mirror bargain: accept and hold it with light, or refuse and keep the sanctuary.",
+            "Slot": 5,
+            "PlanId": "Cycle5_Mirror",
+            "WarningId": "MirrorDebt",
+            "NightType": "Mirror",
+            "SemanticSubject": "Cycle2_Garden",
+            "RequiredRestorationTags": [
+              "GardenBed"
+            ],
+            "RequiredRitualType": "GardenBed",
+            "RequiredSupportIds": [
+              "MirrorDebt.StillWater",
+              "MirrorDebt.DoubleShadow",
+              "MirrorDebt.HeartWhisper"
+            ],
+            "RequiredSupportChannelTypes": [
+              "Environmental",
+              "ObjectReaction",
+              "Audio"
+            ],
+            "MinimumDistinctSupportCount": 2,
+            "InterpretationReceiptId": "MirrorDebt.Interpreted",
+            "VisualStateKey": "restoration_level",
+            "OutcomeSummaryKey": "Cycle5_Mirror",
+            "Resolution": "Authored"
           }
         ]
       }

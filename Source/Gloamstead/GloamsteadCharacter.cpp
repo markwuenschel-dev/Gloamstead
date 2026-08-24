@@ -91,6 +91,11 @@ void AGloamsteadCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 		// The ward is intentionally a key-level fallback: early character Blueprints do not yet carry
 		// a dedicated IA asset, but the possession night must still be playable without editor wiring.
 		PlayerInputComponent->BindKey(EKeys::RightMouseButton, IE_Pressed, this, &AGloamsteadCharacter::OnWardInput);
+
+		// Cycle 5's deliberate choice uses number keys so it remains playable even when
+		// a project's early input-mapping assets have no dedicated choice actions yet.
+		PlayerInputComponent->BindKey(EKeys::One, IE_Pressed, this, &AGloamsteadCharacter::OnMirrorRefuseInput);
+		PlayerInputComponent->BindKey(EKeys::Two, IE_Pressed, this, &AGloamsteadCharacter::OnMirrorAcceptInput);
 	}
 	else
 	{
@@ -244,6 +249,13 @@ FText AGloamsteadCharacter::GetPlayerPromptText() const
 		{
 			return NSLOCTEXT("Gloamstead", "PromptWardPossession", "[RMB]  Ward the possessed place with light");
 		}
+
+		if (const UNightConsequenceRuntime* Night = World->GetSubsystem<UNightConsequenceRuntime>();
+			Night
+			&& Night->IsMirrorChoicePending())
+		{
+			return NSLOCTEXT("Gloamstead", "PromptMirrorChoice", "[1]  Refuse the reflection        [2]  Accept the bargain");
+		}
 	}
 
 	return FText::GetEmpty();
@@ -296,4 +308,34 @@ void AGloamsteadCharacter::OnWardInput()
 	}
 
 	UE_LOG(LogTemp, Verbose, TEXT("GloamInput: Ward pressed with no night runtime."));
+}
+
+void AGloamsteadCharacter::OnMirrorRefuseInput()
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (UNightConsequenceRuntime* Night = World->GetSubsystem<UNightConsequenceRuntime>())
+		{
+			const bool bAccepted = Night->ResolveMirrorChoice(/*bAccept*/ false);
+			UE_LOG(LogTemp, Log, TEXT("GloamInput: Mirror refusal pressed (accepted=%s)."), bAccepted ? TEXT("yes") : TEXT("no"));
+			return;
+		}
+	}
+
+	UE_LOG(LogTemp, Verbose, TEXT("GloamInput: Mirror refusal pressed with no night runtime."));
+}
+
+void AGloamsteadCharacter::OnMirrorAcceptInput()
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (UNightConsequenceRuntime* Night = World->GetSubsystem<UNightConsequenceRuntime>())
+		{
+			const bool bAccepted = Night->ResolveMirrorChoice(/*bAccept*/ true);
+			UE_LOG(LogTemp, Log, TEXT("GloamInput: Mirror bargain pressed (accepted=%s)."), bAccepted ? TEXT("yes") : TEXT("no"));
+			return;
+		}
+	}
+
+	UE_LOG(LogTemp, Verbose, TEXT("GloamInput: Mirror bargain pressed with no night runtime."));
 }

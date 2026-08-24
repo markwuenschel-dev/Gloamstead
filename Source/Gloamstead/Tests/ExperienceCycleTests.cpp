@@ -250,6 +250,34 @@ bool FGloamExperiencePlanExactWarningAndNightPrepTest::RunTest(const FString& /*
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamExperiencePlanSlotFiveIsMirrorBargainTest,
+	"Gloamstead.Experience.Plan.SlotFiveIsMirrorBargain",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamExperiencePlanSlotFiveIsMirrorBargainTest::RunTest(const FString& /*Parameters*/)
+{
+	UGloamsteadExperienceCycleSubsystem* Subsystem = MakeSubsystem(MakeAuthoredCatalog());
+	FExperienceCyclePersistentState State;
+	State.CompletedCycleSlot = 4;
+	TestTrue(TEXT("completed possession state restores"), Subsystem->RestorePersistentState(State));
+
+	TestTrue(TEXT("the fifth authored plan resolves"), Subsystem->EnsureUpcomingPlan());
+	const FExperienceCyclePlan& Plan = Subsystem->GetActivePlan();
+	TestTrue(TEXT("the fifth plan is authored"), Plan.IsAuthoredPlan());
+	TestEqual(TEXT("slot five is selected"), Plan.Slot, 5);
+	TestEqual(TEXT("slot five uses Mirror"), Plan.NightType, ENightConsequenceType::Mirror);
+	TestEqual(TEXT("slot five uses the exact mirror warning"), Plan.WarningId, FName(TEXT("MirrorDebt")));
+	TestEqual(TEXT("slot five reads the restored garden subject"), Plan.SemanticSubject, FName(TEXT("Cycle2_Garden")));
+	TestEqual(TEXT("slot five uses the current authored GardenBed site"), Plan.RequiredRitualType, ERitualType::GardenBed);
+	TestEqual(TEXT("slot five requires two readable supports"), Plan.MinimumDistinctSupportCount, 2);
+	TestTrue(TEXT("slot five names the still-water clue"), Plan.RequiredSupportIds.Contains(FName(TEXT("MirrorDebt.StillWater"))));
+	TestTrue(TEXT("slot five names the double-shadow clue"), Plan.RequiredSupportIds.Contains(FName(TEXT("MirrorDebt.DoubleShadow"))));
+	TestTrue(TEXT("slot five names the Heart-whisper clue"), Plan.RequiredSupportIds.Contains(FName(TEXT("MirrorDebt.HeartWhisper"))));
+	TestEqual(TEXT("slot five records the exact interpretation receipt"), Plan.InterpretationReceiptId, FName(TEXT("MirrorDebt.Interpreted")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FGloamExperiencePlanRequiredSlotsFailClosedTest,
 	"Gloamstead.Experience.Plan.RequiredSlotsFailClosed",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -347,7 +375,7 @@ bool FGloamExperiencePlanGenericHandoffIsExplicitTest::RunTest(const FString& /*
 {
 	UGloamsteadExperienceCycleSubsystem* Subsystem = MakeSubsystem(MakeAuthoredCatalog());
 	FExperienceCyclePersistentState State;
-	State.CompletedCycleSlot = 4;
+	State.CompletedCycleSlot = 5;
 	TestTrue(TEXT("post-authored state restores"), Subsystem->RestorePersistentState(State));
 
 	TestFalse(TEXT("no later authored plan is claimed"), Subsystem->EnsureUpcomingPlan());

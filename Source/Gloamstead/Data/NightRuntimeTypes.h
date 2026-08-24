@@ -27,6 +27,8 @@ enum class ENightObjectiveKind : uint8
 	HoldRestored            = 4,
 	/** Disrupt a possession's hold with light, then purify the restored place before dawn. */
 	PurifyPossessed         = 5,
+	/** Choose whether to refuse a false reflection or accept its bargain and hold it with light. */
+	MirrorBargain           = 6,
 };
 
 /** How the night resolved, in ascending severity of failure. */

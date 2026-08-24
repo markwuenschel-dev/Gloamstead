@@ -21,6 +21,7 @@ UNightConsequenceRuntime::UNightConsequenceRuntime()
 	StrategyClasses.Add(ENightConsequenceType::Omen, UNightOmenStrategy::StaticClass());
 	StrategyClasses.Add(ENightConsequenceType::Retrieval, UNightRetrievalStrategy::StaticClass());
 	StrategyClasses.Add(ENightConsequenceType::SilencePossession, UNightPossessionStrategy::StaticClass());
+	StrategyClasses.Add(ENightConsequenceType::Mirror, UNightMirrorStrategy::StaticClass());
 }
 
 void UNightConsequenceRuntime::Initialize(FSubsystemCollectionBase& Collection)
@@ -156,6 +157,13 @@ int32 UNightConsequenceRuntime::ResolvePlanTargetToPoint(
 	return ResolvedIndex;
 }
 
+UNightMirrorStrategy* UNightConsequenceRuntime::Test_GetActiveMirrorStrategy() const
+{
+	return ActiveStrategy && ActiveStrategy->IsA(UNightMirrorStrategy::StaticClass())
+		? Cast<UNightMirrorStrategy>(ActiveStrategy)
+		: nullptr;
+}
+
 FNightRuntimeContext UNightConsequenceRuntime::BuildContext(UGloamsteadPCGSubsystem* PCG) const
 {
 	FNightRuntimeContext Ctx;
@@ -173,7 +181,8 @@ FNightRuntimeContext UNightConsequenceRuntime::BuildContext(UGloamsteadPCGSubsys
 		// to still be restored at dusk, because that is what the night is testing.
 		if ((PlannedNightType == ENightConsequenceType::Corruption
 			|| PlannedNightType == ENightConsequenceType::Retrieval
-			|| PlannedNightType == ENightConsequenceType::SilencePossession)
+			|| PlannedNightType == ENightConsequenceType::SilencePossession
+			|| PlannedNightType == ENightConsequenceType::Mirror)
 			&& ActivePlan)
 		{
 			Ctx.bRequiresExactSemanticTarget = true;
@@ -200,7 +209,8 @@ FNightRuntimeContext UNightConsequenceRuntime::BuildContext(UGloamsteadPCGSubsys
 					*ActivePlan,
 					PCG,
 					(PlannedNightType == ENightConsequenceType::Retrieval
-						|| PlannedNightType == ENightConsequenceType::SilencePossession));
+						|| PlannedNightType == ENightConsequenceType::SilencePossession
+						|| PlannedNightType == ENightConsequenceType::Mirror));
 			}
 		}
 		else
@@ -446,6 +456,39 @@ bool UNightConsequenceRuntime::WardActiveThreat()
 		OnNightShouldEnd.Broadcast();
 	}
 	return true;
+}
+
+bool UNightConsequenceRuntime::ResolveMirrorChoice(bool bAccept)
+{
+	if (!bNightActive || ActiveNightType != ENightConsequenceType::Mirror)
+	{
+		return false;
+	}
+
+	UNightMirrorStrategy* Mirror = Cast<UNightMirrorStrategy>(ActiveStrategy);
+	if (!Mirror || !Mirror->ChooseBargain(bAccept))
+	{
+		return false;
+	}
+
+	// Refusing the false path resolves immediately; accepting it leaves the night
+	// active so the player must bring light to the mirror and prove the choice.
+	if (Mirror->IsObjectiveResolved())
+	{
+		bEarlyDawnRequested = true;
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().ClearTimer(PressureTimer);
+		}
+		OnNightShouldEnd.Broadcast();
+	}
+	return true;
+}
+
+bool UNightConsequenceRuntime::IsMirrorChoicePending() const
+{
+	const UNightMirrorStrategy* Mirror = Cast<UNightMirrorStrategy>(ActiveStrategy);
+	return bNightActive && ActiveNightType == ENightConsequenceType::Mirror && Mirror && Mirror->IsChoicePending();
 }
 
 void UNightConsequenceRuntime::EndNight()

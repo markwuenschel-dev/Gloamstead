@@ -272,3 +272,59 @@ private:
 	bool bPossessionActive = false;
 	bool bPossessionDisrupted = false;
 };
+
+/**
+ * Mirror/Bargain night: the restored garden reflects a tempting shortcut.
+ * The player must read the evidence, choose to refuse the false path or accept
+ * the bargain, and then use light to hold an accepted truth. There is no wave:
+ * pressure is the mirror's growing corruption and the consequence of the choice.
+ */
+UCLASS(Blueprintable)
+class GLOAMSTEAD_API UNightMirrorStrategy : public UNightStrategy
+{
+	GENERATED_BODY()
+
+public:
+	virtual void EnterNight_Implementation(const FNightRuntimeContext& InContext, UGloamsteadPCGSubsystem* PCG) override;
+	virtual void ApplyPressureStep_Implementation(UGloamsteadPCGSubsystem* PCG) override;
+	virtual bool NotifyLightWard_Implementation(UGloamsteadPCGSubsystem* PCG) override;
+	virtual FNightRuntimeOutcome ResolveNight_Implementation(UGloamsteadPCGSubsystem* PCG) override;
+
+	/** Make the deliberate mirror choice. Returns false when no choice is pending. */
+	UFUNCTION(BlueprintCallable, Category = "Night|Mirror")
+	bool ChooseBargain(bool bAccept);
+
+	UFUNCTION(BlueprintPure, Category = "Night|Mirror")
+	bool IsChoicePending() const { return !bChoiceMade && !bNoTargetFallback; }
+
+	UFUNCTION(BlueprintPure, Category = "Night|Mirror")
+	bool HasChosenBargain() const { return bChoiceMade && bBargainAccepted; }
+
+	UFUNCTION(BlueprintPure, Category = "Night|Mirror")
+	bool IsBargainHeld() const { return bBargainHeld; }
+
+	/** Corruption added while the player leaves the reflection unanswered. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night|Mirror", meta = (ClampMin = "0", ClampMax = "1"))
+	float UnansweredPressureDelta = 0.06f;
+
+	/** Corruption added when the player accepts the bargain but has not held it with light. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night|Mirror", meta = (ClampMin = "0", ClampMax = "1"))
+	float BargainPressureDelta = 0.04f;
+
+	/** Corruption removed by the light ward that proves the accepted bargain is held. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night|Mirror", meta = (ClampMin = "0", ClampMax = "1"))
+	float BargainWardDelta = 0.18f;
+
+	/** Fail-forward scar when the player accepts but never brings light to the mirror. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night|Mirror", meta = (ClampMin = "0", ClampMax = "1"))
+	float BargainScarDelta = 0.12f;
+
+	/** True when the authored target is absent, so the mirror stays quiet rather than selecting a substitute. */
+	UPROPERTY(BlueprintReadOnly, Category = "Night|Mirror")
+	bool bNoTargetFallback = false;
+
+private:
+	bool bChoiceMade = false;
+	bool bBargainAccepted = false;
+	bool bBargainHeld = false;
+};
