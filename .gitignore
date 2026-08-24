@@ -115,3 +115,6 @@ Config/BroadcastDeviceProviderRegistry.json
 # Python bytecode
 __pycache__/
 *.pyc
+
+# WorldForge bridge output (generated; reproducible from spec + schema + compiler)
+/artifacts/
