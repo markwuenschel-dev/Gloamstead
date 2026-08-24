@@ -61,8 +61,11 @@ void UGloamsteadPCGSubsystem::ApplyAuthoredAnchorOverride()
     const FVector OldLocation = CachedPoints[BestIndex].Transform.GetLocation();
     if (OldLocation.Equals(AnchorLocation, 1.0))
     {
-        return; // Already there; nothing to say.
+        AnchorSeatedPointIndex = BestIndex; // Already there, but still the lantern's point.
+        return;
     }
+
+    AnchorSeatedPointIndex = BestIndex;
 
     // In-place: keep MetadataEntry (and therefore RitualType / RestorationRadius) intact.
     CachedPoints[BestIndex].Transform.SetLocation(AnchorLocation);
@@ -625,6 +628,7 @@ void UGloamsteadPCGSubsystem::ApplyAuthoredSiteContracts()
     }
 
     TMap<FName, TWeakObjectPtr<AActor>> ClaimedSubjects;
+    TSet<int32> ClaimedPoints;
     int32 BoundCount = 0;
 
     for (UGloamsteadRitualSiteComponent* Site : Sites)
@@ -654,35 +658,76 @@ void UGloamsteadPCGSubsystem::ApplyAuthoredSiteContracts()
         }
 
         const FVector SiteLocation = Owner->GetActorLocation();
-        int32 BestIndex = INDEX_NONE;
-        double BestDistSq = TNumericLimits<double>::Max();
+        const double RadiusSq = Site->BindRadius * Site->BindRadius;
+
+        // Prefer a point the graph already typed for this ritual. Failing that, an unclaimed point of any
+        // type is still a legitimate binding: the authored site is the AUTHORITY on what its place is, and
+        // the graph currently types every point with the attribute default. Re-typing is announced, never
+        // silent, and the first lantern's point is never eligible - Cycle 1 depends on it staying a
+        // LanternPost.
+        int32 TypedIndex = INDEX_NONE;
+        double TypedDistSq = TNumericLimits<double>::Max();
+        int32 AnyIndex = INDEX_NONE;
+        double AnyDistSq = TNumericLimits<double>::Max();
+
         for (int32 Index = 0; Index < CachedPoints.Num(); ++Index)
         {
-            if (GetRitualTypeFromPoint(CachedPoints[Index]) != Site->RitualType)
+            if (ClaimedPoints.Contains(Index))
             {
                 continue;
             }
             const double DistSq = FVector::DistSquared(CachedPoints[Index].Transform.GetLocation(), SiteLocation);
-            if (DistSq < BestDistSq)
+            if (DistSq > RadiusSq)
             {
-                BestDistSq = DistSq;
-                BestIndex = Index;
+                continue;
+            }
+            if (GetRitualTypeFromPoint(CachedPoints[Index]) == Site->RitualType)
+            {
+                if (DistSq < TypedDistSq)
+                {
+                    TypedDistSq = DistSq;
+                    TypedIndex = Index;
+                }
+            }
+            if (Index != AnchorSeatedPointIndex && DistSq < AnyDistSq)
+            {
+                AnyDistSq = DistSq;
+                AnyIndex = Index;
             }
         }
 
-        const double RadiusSq = Site->BindRadius * Site->BindRadius;
-        if (BestIndex == INDEX_NONE || BestDistSq > RadiusSq)
+        int32 BestIndex = TypedIndex;
+        double BestDistSq = TypedDistSq;
+        bool bRetyped = false;
+        if (BestIndex == INDEX_NONE)
+        {
+            BestIndex = AnyIndex;
+            BestDistSq = AnyDistSq;
+            bRetyped = (BestIndex != INDEX_NONE);
+        }
+
+        if (BestIndex == INDEX_NONE)
         {
             UE_LOG(LogTemp, Error,
-                TEXT("UGloamsteadPCGSubsystem: authored ritual site '%s' on '%s' binds nothing - no generated %s ")
-                TEXT("point within %.0f units (nearest was %.0f). That night can never resolve a target. Move the ")
-                TEXT("actor onto a generated point, widen BindRadius, or correct the declared RitualType."),
+                TEXT("UGloamsteadPCGSubsystem: authored ritual site '%s' on '%s' binds nothing - no unclaimed ")
+                TEXT("generated point within %.0f units. That night can never resolve a target. Move the actor ")
+                TEXT("nearer a generated point, widen BindRadius, or check whether another site already claimed it."),
                 *Site->SemanticSubject.ToString(),
                 *OwnerName,
-                *GetRitualTypeDisplayName(Site->RitualType),
-                Site->BindRadius,
-                BestIndex == INDEX_NONE ? -1.0 : FMath::Sqrt(BestDistSq));
+                Site->BindRadius);
             continue;
+        }
+
+        if (bRetyped)
+        {
+            UE_LOG(LogTemp, Warning,
+                TEXT("UGloamsteadPCGSubsystem: authored ritual site '%s' found no generated %s point in range, so ")
+                TEXT("point %d is being re-typed to %s from the site's declaration. The site is the authority on ")
+                TEXT("what this place is, but if the graph was meant to type it, that is the better fix."),
+                *Site->SemanticSubject.ToString(),
+                *GetRitualTypeDisplayName(Site->RitualType),
+                BestIndex,
+                *GetRitualTypeDisplayName(Site->RitualType));
         }
 
         if (!WritePointContractMetadata(
@@ -701,6 +746,7 @@ void UGloamsteadPCGSubsystem::ApplyAuthoredSiteContracts()
         }
 
         ClaimedSubjects.Add(Site->SemanticSubject, Owner);
+        ClaimedPoints.Add(BestIndex);
         ++BoundCount;
         UE_LOG(LogTemp, Log,
             TEXT("UGloamsteadPCGSubsystem: bound authored site '%s' (%s/%s) to point %d at %.0f units."),
