@@ -17,6 +17,7 @@
 #include "GameFramework/Actor.h"
 #include "Components/SceneComponent.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
+#include "Systems/NightConsequenceRuntime.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -154,6 +155,59 @@ bool FGloamAuthoredRitualSiteBindsContractTest::RunTest(const FString& /*Paramet
 		TestEqual(TEXT("the distant point keeps its empty subject"),
 			PCG->GetNameAttribute(Far, TEXT("SemanticSubject"), NAME_None), FName(NAME_None));
 	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamAuthoredRitualSiteResolvesForNightTest,
+	"Gloamstead.PCG.AuthoredSite.NightRuntimeResolvesTheSubjectItStamped",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamAuthoredRitualSiteResolvesForNightTest::RunTest(const FString& /*Parameters*/)
+{
+	// This closes the chain that was actually broken. Every other test of semantic targeting seeds the
+	// contract through Test_SetPointContractMetadata, which is compiled out of a player build - so the
+	// night could resolve its target under automation and find nothing in a real game. Here the ONLY thing
+	// that writes the subject is an authored site going through the shipping binding pass.
+	FScopedSiteWorld Scoped;
+	if (!Scoped.World)
+	{
+		AddError(TEXT("could not create a game world"));
+		return false;
+	}
+
+	UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>(Scoped.World);
+	PCG->Test_SeedPoints({ FVector(0.0, 0.0, 0.0), FVector(4000.0, 0.0, 0.0), FVector(9000.0, 0.0, 0.0) });
+
+	if (!SpawnSite(
+			Scoped.World,
+			FVector(4100.0, 0.0, 0.0),
+			TEXT("Cycle2_Garden"),
+			TEXT("GardenRot"),
+			ERitualType::GardenBed,
+			TEXT("GardenBed")))
+	{
+		AddError(TEXT("could not spawn the garden site"));
+		return false;
+	}
+
+	PCG->Test_ApplyAuthoredSiteContracts();
+
+	UNightConsequenceRuntime* Runtime = Scoped.World->GetSubsystem<UNightConsequenceRuntime>();
+	if (!Runtime)
+	{
+		AddError(TEXT("the world has no night consequence runtime"));
+		return false;
+	}
+
+	const int32 Resolved = Runtime->ResolveSemanticSubjectToPoint(TEXT("Cycle2_Garden"), PCG);
+	TestEqual(TEXT("the night runtime resolves the authored subject to the point the site claimed"), Resolved, 1);
+
+	// An unauthored subject must still resolve to nothing - the binding pass grants exactly one place.
+	AddExpectedError(TEXT("has no PCG mapping"), EAutomationExpectedErrorFlags::Contains, 1);
+	TestEqual(TEXT("an unauthored subject resolves to nothing"),
+		Runtime->ResolveSemanticSubjectToPoint(TEXT("Cycle9_Nowhere"), PCG), INDEX_NONE);
 
 	return true;
 }
