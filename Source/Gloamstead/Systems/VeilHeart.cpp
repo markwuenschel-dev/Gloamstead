@@ -119,6 +119,40 @@ bool AVeilHeart::EnsureWarningCatalog()
 		// restored place goes unnaturally still. Older shipped warning assets predate that row, so
 		// materialize the exact fallback contract in memory rather than silently making the night
 		// unwarned. A newer asset with its own authored entry remains authoritative.
+		// Cycle 1 is gated on its warning actually reaching the player: Day rest requires
+		// PresentedPlanId == the armed plan (UGloamsteadDayNightSubsystem::CanRestNow), and
+		// presentation requires an exact TutorialLostPath/Tutorial row here. The shipped
+		// DA_VeilHeartWarningCatalog predates that gate and carries no such row, so without
+		// this fallback the first lantern can be restored but the first night can never begin.
+		// Deliberately carries no support channels: the opening tutorial predates fair-crypticism
+		// evidence and is exempted from MatchesExactPlanContract in CanPresentWarningForPlan.
+		bool bHasTutorialWarning = false;
+		for (const FVeilHeartWarningFragment& Warning : WarningCatalog->Warnings)
+		{
+			if (Warning.WarningId == FName(TEXT("TutorialLostPath"))
+				&& Warning.AssociatedNightType == ENightConsequenceType::Tutorial)
+			{
+				bHasTutorialWarning = true;
+				break;
+			}
+		}
+		if (!bHasTutorialWarning)
+		{
+			FVeilHeartWarningFragment TutorialWarning;
+			TutorialWarning.WarningId = TEXT("TutorialLostPath");
+			TutorialWarning.Fragment = NSLOCTEXT(
+				"Gloamstead",
+				"WarningTutorialLostPath",
+				"The path has forgotten its light. Raise the lantern before the dark walks it.");
+			TutorialWarning.AssociatedNightType = ENightConsequenceType::Tutorial;
+			TutorialWarning.SatisfiableTags = { TEXT("LanternPost") };
+			TutorialWarning.SemanticSubject = TEXT("courtyard.lantern.first");
+			TutorialWarning.RequiredRitualType = ERitualType::LanternPost;
+			TutorialWarning.ClarityTier = 2;
+			WarningCatalog->Warnings.Add(MoveTemp(TutorialWarning));
+			UE_LOG(LogTemp, Log, TEXT("VeilHeart: Added the Cycle 1 tutorial warning fallback to the loaded catalog."));
+		}
+
 		bool bHasPossessionWarning = false;
 		for (const FVeilHeartWarningFragment& Warning : WarningCatalog->Warnings)
 		{
