@@ -381,9 +381,14 @@ bool FGloamForgeEmitEvidenceTest::RunTest(const FString& /*Parameters*/)
 		Ctx.TargetStartCorruption = S->GetObjective().StartCorruption;
 		S->ApplyPressureStep(PCG);
 		S->ApplyPressureStep(PCG);
-		// Same reclaim-then-re-light shape as retrieval_success: the report's Restoration block below claims
-		// a restoration was applied, so the call must actually be accepted, not silently rejected.
-		TestTrue(TEXT("retrieval_partial reclaim clears the restored flag"), PCG->RevertRestoration(Target));
+		// Unlike retrieval_success, this scenario crosses the seam: two pressure steps take the target from
+		// 0.1 to RetrievalReclaimThreshold (0.3), so ApplyPressureStep has ALREADY called RevertRestoration
+		// itself (NightStrategy.cpp:482-486) - that automatic reclaim is what earns the RetrievalSeam tag.
+		// Asserting it here (rather than reclaiming again, which correctly returns false on an
+		// already-reclaimed point) pins the mechanism and still guarantees the precondition the report needs:
+		// the point must not be flagged restored, or ApplyRestoration below would be rejected
+		// (GloamsteadPCGSubsystem.cpp:303-307) and the report would claim a restoration that never landed.
+		TestFalse(TEXT("retrieval_partial seam pressure already reclaimed the point"), PCG->IsPointRestored(Target));
 		FRestorationEventPayload Partial; Partial.PointIndex = Target; Partial.CorruptionCleared = 0.15f;
 		TestTrue(TEXT("retrieval_partial restoration is accepted"), PCG->ApplyRestoration(Target, Partial));
 		S->NotifyRestoration(Partial, PCG);
