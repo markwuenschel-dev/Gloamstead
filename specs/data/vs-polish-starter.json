@@ -25,7 +25,9 @@
             "MaxAverageLight": 0.6,
             "MinAverageCorruption": 0.15,
             "MaxAverageCorruption": 1,
-            "FavoredRitualTypes": ["LanternPost"],
+            "FavoredRitualTypes": [
+              "LanternPost"
+            ],
             "OmenClueTag": ""
           },
           {
@@ -35,7 +37,9 @@
             "MaxAverageLight": 1,
             "MinAverageCorruption": 0,
             "MaxAverageCorruption": 0.5,
-            "FavoredRitualTypes": ["GardenBed"],
+            "FavoredRitualTypes": [
+              "GardenBed"
+            ],
             "OmenClueTag": "GardenRot"
           },
           {
@@ -45,7 +49,9 @@
             "MaxAverageLight": 1,
             "MinAverageCorruption": 0,
             "MaxAverageCorruption": 0.4,
-            "FavoredRitualTypes": ["MirrorPillar"]
+            "FavoredRitualTypes": [
+              "MirrorPillar"
+            ]
           },
           {
             "NightType": "Mirror",
@@ -54,7 +60,10 @@
             "MaxAverageLight": 1,
             "MinAverageCorruption": 0,
             "MaxAverageCorruption": 0.35,
-            "FavoredRitualTypes": ["MirrorPillar", "BellShrine"]
+            "FavoredRitualTypes": [
+              "MirrorPillar",
+              "BellShrine"
+            ]
           }
         ]
       }
@@ -69,7 +78,9 @@
             "WarningId": "TutorialLostPath",
             "Fragment": "The path has forgotten its light. Raise the lantern before the dark walks it.",
             "AssociatedNightType": "Tutorial",
-            "SatisfiableTags": ["LanternPost"],
+            "SatisfiableTags": [
+              "LanternPost"
+            ],
             "SemanticSubject": "courtyard.lantern.first",
             "RequiredRitualType": "LanternPost",
             "ClarityTier": 2
@@ -78,61 +89,68 @@
             "WarningId": "PathBlocked",
             "Fragment": "The way is veiled until the light returns.",
             "AssociatedNightType": "Omen",
-            "SatisfiableTags": ["LightPath", "LanternPost"],
+            "SatisfiableTags": [
+              "LightPath",
+              "LanternPost"
+            ],
             "ClarityTier": 0
           },
           {
             "WarningId": "GardenRot",
             "Fragment": "What grows in darkness must be tended before the bell tolls.",
             "AssociatedNightType": "Corruption",
-            "SatisfiableTags": ["GardenBed"],
-			"SemanticSubject": "Cycle2_Garden",
-			"RequiredRitualType": "GardenBed",
-			"SupportChannels": [
-			  {
-				"SupportId": "GardenRot.WitheredVines",
-				"EvidenceText": "The vines curl inward toward the eastern bed, their leaves dusted grey.",
-				"ChannelType": "Environmental"
-			  },
-			  {
-				"SupportId": "GardenRot.ColdSoil",
-				"EvidenceText": "A root-chime answers only beside the cracked garden bed.",
-				"ChannelType": "ObjectReaction"
-			  },
-			  {
-				"SupportId": "GardenRot.BellMoths",
-				"EvidenceText": "Moths gather where the soil whispers beneath the bell.",
-				"ChannelType": "Audio"
-			  }
-			],
-			"InterpretationReceiptId": "GardenRot.Interpreted",
+            "SatisfiableTags": [
+              "GardenBed"
+            ],
+            "SemanticSubject": "Cycle2_Garden",
+            "RequiredRitualType": "GardenBed",
+            "SupportChannels": [
+              {
+                "SupportId": "GardenRot.WitheredVines",
+                "EvidenceText": "The vines curl inward toward the eastern bed, their leaves dusted grey.",
+                "ChannelType": "Environmental"
+              },
+              {
+                "SupportId": "GardenRot.ColdSoil",
+                "EvidenceText": "A root-chime answers only beside the cracked garden bed.",
+                "ChannelType": "ObjectReaction"
+              },
+              {
+                "SupportId": "GardenRot.BellMoths",
+                "EvidenceText": "Moths gather where the soil whispers beneath the bell.",
+                "ChannelType": "Audio"
+              }
+            ],
+            "InterpretationReceiptId": "GardenRot.Interpreted",
             "ClarityTier": 1
           },
           {
             "WarningId": "GardenRot",
             "Fragment": "The bell remembers what you mended; tend the same bed when its root-chime falters.",
             "AssociatedNightType": "Retrieval",
-            "SatisfiableTags": ["GardenBed"],
-			"SemanticSubject": "Cycle2_Garden",
-			"RequiredRitualType": "GardenBed",
-			"SupportChannels": [
-			  {
-				"SupportId": "GardenRot.WitheredVines",
-				"EvidenceText": "The restored vines draw inward toward the eastern bed as the bell goes dark.",
-				"ChannelType": "Environmental"
-			  },
-			  {
-				"SupportId": "GardenRot.ColdSoil",
-				"EvidenceText": "The root-chime answers only beside the same cracked garden bed.",
-				"ChannelType": "ObjectReaction"
-			  },
-			  {
-				"SupportId": "GardenRot.BellMoths",
-				"EvidenceText": "Moths return beneath the bell when the mended soil begins to whisper.",
-				"ChannelType": "Audio"
-			  }
-			],
-			"InterpretationReceiptId": "GardenRot.Retrieved",
+            "SatisfiableTags": [
+              "GardenBed"
+            ],
+            "SemanticSubject": "Cycle2_Garden",
+            "RequiredRitualType": "GardenBed",
+            "SupportChannels": [
+              {
+                "SupportId": "GardenRot.WitheredVines",
+                "EvidenceText": "The restored vines draw inward toward the eastern bed as the bell goes dark.",
+                "ChannelType": "Environmental"
+              },
+              {
+                "SupportId": "GardenRot.ColdSoil",
+                "EvidenceText": "The root-chime answers only beside the same cracked garden bed.",
+                "ChannelType": "ObjectReaction"
+              },
+              {
+                "SupportId": "GardenRot.BellMoths",
+                "EvidenceText": "Moths return beneath the bell when the mended soil begins to whisper.",
+                "ChannelType": "Audio"
+              }
+            ],
+            "InterpretationReceiptId": "GardenRot.Retrieved",
             "ClarityTier": 2
           },
           {
@@ -140,34 +158,39 @@
             "WarningId": "GardenRot",
             "Fragment": "The garden goes silent beneath borrowed light. Break the hold before it roots.",
             "AssociatedNightType": "SilencePossession",
-            "SatisfiableTags": ["GardenBed"],
-			"SemanticSubject": "Cycle2_Garden",
-			"RequiredRitualType": "GardenBed",
-			"SupportChannels": [
-			  {
-				"SupportId": "GardenRot.WitheredVines",
-				"EvidenceText": "The restored vines stop moving when the light turns away.",
-				"ChannelType": "Environmental"
-			  },
-			  {
-				"SupportId": "GardenRot.ColdSoil",
-				"EvidenceText": "The soil stays cold beneath a bed that should be warm.",
-				"ChannelType": "ObjectReaction"
-			  },
-			  {
-				"SupportId": "GardenRot.BellMoths",
-				"EvidenceText": "The bell moths fall silent when the garden is watched.",
-				"ChannelType": "Audio"
-			  }
-			],
-			"InterpretationReceiptId": "GardenRot.Possessed",
+            "SatisfiableTags": [
+              "GardenBed"
+            ],
+            "SemanticSubject": "Cycle2_Garden",
+            "RequiredRitualType": "GardenBed",
+            "SupportChannels": [
+              {
+                "SupportId": "GardenRot.WitheredVines",
+                "EvidenceText": "The restored vines stop moving when the light turns away.",
+                "ChannelType": "Environmental"
+              },
+              {
+                "SupportId": "GardenRot.ColdSoil",
+                "EvidenceText": "The soil stays cold beneath a bed that should be warm.",
+                "ChannelType": "ObjectReaction"
+              },
+              {
+                "SupportId": "GardenRot.BellMoths",
+                "EvidenceText": "The bell moths fall silent when the garden is watched.",
+                "ChannelType": "Audio"
+              }
+            ],
+            "InterpretationReceiptId": "GardenRot.Possessed",
             "ClarityTier": 2
           },
           {
             "WarningId": "HiddenReflection",
             "Fragment": "Reflections that reveal the hidden stir when the mirror stands unbroken.",
             "AssociatedNightType": "Mirror",
-            "SatisfiableTags": ["MirrorPillar", "Reflection"],
+            "SatisfiableTags": [
+              "MirrorPillar",
+              "Reflection"
+            ],
             "ClarityTier": 1
           }
         ]
@@ -181,7 +204,9 @@
         "DefaultLightContribution": 0.4,
         "DefaultCorruptionClearance": 0.15,
         "RestorationRadius": 600,
-        "SatisfiableWarningTags": ["LightPath"]
+        "SatisfiableWarningTags": [
+          "LightPath"
+        ]
       }
     },
     {
@@ -192,7 +217,9 @@
         "DefaultLightContribution": 0.35,
         "DefaultCorruptionClearance": 0.15,
         "RestorationRadius": 600,
-        "SatisfiableWarningTags": ["LightPath"]
+        "SatisfiableWarningTags": [
+          "LightPath"
+        ]
       }
     },
     {
@@ -203,7 +230,9 @@
         "DefaultLightContribution": 0.25,
         "DefaultCorruptionClearance": 0.3,
         "RestorationRadius": 500,
-        "SatisfiableWarningTags": ["GardenBed"]
+        "SatisfiableWarningTags": [
+          "GardenBed"
+        ]
       }
     },
     {
@@ -214,7 +243,10 @@
         "DefaultLightContribution": 0.3,
         "DefaultCorruptionClearance": 0.1,
         "RestorationRadius": 400,
-        "SatisfiableWarningTags": ["Reflection", "Hidden"]
+        "SatisfiableWarningTags": [
+          "Reflection",
+          "Hidden"
+        ]
       }
     },
     {
@@ -225,7 +257,113 @@
         "DefaultLightContribution": 0.2,
         "DefaultCorruptionClearance": 0.25,
         "RestorationRadius": 700,
-        "SatisfiableWarningTags": ["Resonance", "Call"]
+        "SatisfiableWarningTags": [
+          "Resonance",
+          "Call"
+        ]
+      }
+    },
+    {
+      "_comment": "Authored production source for the experience cycle plans. Runtime loads this asset first (GloamsteadExperienceCycleSubsystem::EnsureCatalog) and only falls back to PopulateDefaultExperienceCyclePlans when it is absent.",
+      "asset_name": "DA_ExperienceCycleCatalog",
+      "class": "ExperienceCycleCatalog",
+      "properties": {
+        "AuthoredPlans": [
+          {
+            "_comment": "Cycle 1. No RequiredRitualType, no receipt and no support channels by design: the opening tutorial predates fair-crypticism evidence and is exempted from MatchesExactPlanContract.",
+            "Slot": 1,
+            "PlanId": "Cycle1_Tutorial",
+            "WarningId": "TutorialLostPath",
+            "NightType": "Tutorial",
+            "SemanticSubject": "courtyard.lantern.first",
+            "RequiredRestorationTags": [
+              "LanternPost"
+            ],
+            "VisualStateKey": "restoration_level",
+            "OutcomeSummaryKey": "Cycle1_Tutorial",
+            "Resolution": "Authored"
+          },
+          {
+            "Slot": 2,
+            "PlanId": "Cycle2_Garden",
+            "WarningId": "GardenRot",
+            "NightType": "Corruption",
+            "SemanticSubject": "Cycle2_Garden",
+            "RequiredRestorationTags": [
+              "GardenBed"
+            ],
+            "RequiredRitualType": "GardenBed",
+            "RequiredSupportIds": [
+              "GardenRot.WitheredVines",
+              "GardenRot.ColdSoil",
+              "GardenRot.BellMoths"
+            ],
+            "RequiredSupportChannelTypes": [
+              "Environmental",
+              "ObjectReaction",
+              "Audio"
+            ],
+            "MinimumDistinctSupportCount": 2,
+            "InterpretationReceiptId": "GardenRot.Interpreted",
+            "VisualStateKey": "restoration_level",
+            "OutcomeSummaryKey": "Cycle2_Garden",
+            "Resolution": "Authored"
+          },
+          {
+            "Slot": 3,
+            "PlanId": "Cycle3_Retrieval",
+            "WarningId": "GardenRot",
+            "NightType": "Retrieval",
+            "SemanticSubject": "Cycle2_Garden",
+            "RequiredRestorationTags": [
+              "GardenBed"
+            ],
+            "RequiredRitualType": "GardenBed",
+            "RequiredSupportIds": [
+              "GardenRot.WitheredVines",
+              "GardenRot.ColdSoil",
+              "GardenRot.BellMoths"
+            ],
+            "RequiredSupportChannelTypes": [
+              "Environmental",
+              "ObjectReaction",
+              "Audio"
+            ],
+            "MinimumDistinctSupportCount": 2,
+            "InterpretationReceiptId": "GardenRot.Retrieved",
+            "VisualStateKey": "restoration_level",
+            "OutcomeSummaryKey": "Cycle3_Retrieval",
+            "Resolution": "Authored",
+            "_comment": "Cycle 3. Second reading of the same garden: the night tests what the player mended."
+          },
+          {
+            "Slot": 4,
+            "PlanId": "Cycle4_Possession",
+            "WarningId": "GardenRot",
+            "NightType": "SilencePossession",
+            "SemanticSubject": "Cycle2_Garden",
+            "RequiredRestorationTags": [
+              "GardenBed"
+            ],
+            "RequiredRitualType": "GardenBed",
+            "RequiredSupportIds": [
+              "GardenRot.WitheredVines",
+              "GardenRot.ColdSoil",
+              "GardenRot.BellMoths"
+            ],
+            "RequiredSupportChannelTypes": [
+              "Environmental",
+              "ObjectReaction",
+              "Audio"
+            ],
+            "MinimumDistinctSupportCount": 2,
+            "InterpretationReceiptId": "GardenRot.Possessed",
+            "VisualStateKey": "restoration_level",
+            "OutcomeSummaryKey": "Cycle4_Possession",
+            "Resolution": "Authored",
+            "_comment": "Cycle 4. Third reading of the same garden: its unnatural silence is the new evidence."
+          }
+        ]
       }
     }
   ]

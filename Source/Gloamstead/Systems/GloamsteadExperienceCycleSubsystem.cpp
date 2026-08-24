@@ -123,11 +123,22 @@ void UGloamsteadExperienceCycleSubsystem::EnsureCatalog()
 		TEXT("/Game/Data/DA_ExperienceCycleCatalog.DA_ExperienceCycleCatalog")));
 	if (ExperienceCatalog)
 	{
+		// Say which source won. Without this the authored asset and the code fallback are
+		// indistinguishable at runtime, which is precisely how code-as-content survives unnoticed.
+		UE_LOG(LogTemp, Log,
+			TEXT("ExperienceCycle: loaded the authored plan catalog from /Game/Data/DA_ExperienceCycleCatalog (%d plan(s))."),
+			ExperienceCatalog->AuthoredPlans.Num());
 		return;
 	}
 
 	ExperienceCatalog = NewObject<UExperienceCycleCatalog>(this, TEXT("DefaultExperienceCycleCatalog"));
 	PopulateDefaultExperienceCyclePlans(*ExperienceCatalog);
+	UE_LOG(LogTemp, Warning,
+		TEXT("ExperienceCycle: /Game/Data/DA_ExperienceCycleCatalog is absent - falling back to the in-code "
+			 "development plans (%d plan(s)). This fallback is NOT production content: author the plans in "
+			 "specs/data/vs-polish-starter.json and re-import with "
+			 "agent_collab/scripts/Invoke-GloamsteadDataAssetImport.ps1."),
+		ExperienceCatalog->AuthoredPlans.Num());
 }
 
 const FExperienceCyclePlan* UGloamsteadExperienceCycleSubsystem::FindCanonicalRequiredPlan(int32 Slot) const
