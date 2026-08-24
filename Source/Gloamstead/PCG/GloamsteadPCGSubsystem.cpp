@@ -156,6 +156,11 @@ void UGloamsteadPCGSubsystem::InitializeFromPCGComponent(UPCGComponent* PCGCompo
     {
         MutablePointData->Metadata->Flatten(); // ensure the owned copy is fully self-contained
     }
+
+    // The graph supplies geometry and RitualType; the semantic contract is ours to carry. Create any
+    // missing attribute here so an authored site can be stamped onto real generated points at all.
+    EnsureContractMetadataAttributes();
+
     CachedPoints = MutablePointData->GetPoints();
 
     // Build fast parallel state
@@ -575,6 +580,34 @@ bool UGloamsteadPCGSubsystem::Test_SetPointContractMetadata(
 }
 #endif // WITH_DEV_AUTOMATION_TESTS
 
+void UGloamsteadPCGSubsystem::EnsureContractMetadataAttributes()
+{
+    if (!MutablePointData || !MutablePointData->Metadata)
+    {
+        return;
+    }
+
+    UPCGMetadata* Metadata = MutablePointData->Metadata;
+
+    if (!Metadata->GetMutableTypedAttribute<int32>(TEXT("RitualType")))
+    {
+        Metadata->CreateAttribute<int32>(TEXT("RitualType"), static_cast<int32>(ERitualType::LanternPost),
+            /*bAllowsInterpolation*/ false, /*bOverrideParent*/ false);
+    }
+    if (!Metadata->GetMutableTypedAttribute<FName>(TEXT("RecommendedForWarning")))
+    {
+        Metadata->CreateAttribute<FName>(TEXT("RecommendedForWarning"), NAME_None, false, false);
+    }
+    if (!Metadata->GetMutableTypedAttribute<FName>(TEXT("SemanticSubject")))
+    {
+        Metadata->CreateAttribute<FName>(TEXT("SemanticSubject"), NAME_None, false, false);
+    }
+    if (!Metadata->GetMutableTypedAttribute<FName>(TEXT("RestorationTag")))
+    {
+        Metadata->CreateAttribute<FName>(TEXT("RestorationTag"), NAME_None, false, false);
+    }
+}
+
 bool UGloamsteadPCGSubsystem::WritePointContractMetadata(
     int32 PointIndex,
     FName WarningId,
@@ -597,7 +630,15 @@ bool UGloamsteadPCGSubsystem::WritePointContractMetadata(
         return false;
     }
 
-    const int64 Entry = CachedPoints[PointIndex].MetadataEntry;
+    // A duplicated graph point can share (or lack) a metadata entry. Give this point its own before
+    // writing, or the stamp would land on every point sharing that entry - one site claiming the map.
+    FPCGPoint& MutablePoint = CachedPoints[PointIndex];
+    if (MutablePoint.MetadataEntry == PCGInvalidEntryKey)
+    {
+        Metadata->InitializeOnSet(MutablePoint.MetadataEntry);
+    }
+
+    const int64 Entry = MutablePoint.MetadataEntry;
     RitualAttribute->SetValue(Entry, static_cast<int32>(RitualType));
     WarningAttribute->SetValue(Entry, WarningId);
     SubjectAttribute->SetValue(Entry, SemanticSubject);

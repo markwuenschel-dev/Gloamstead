@@ -255,6 +255,16 @@ private:
      * asserts by reflection that no Blueprint route to PCG metadata exists, and this must not become one.
      * Content declares a contract on a placed UGloamsteadRitualSiteComponent; only this writes it.
      */
+    /**
+     * Guarantee the semantic-contract attribute block exists on the owned point data.
+     *
+     * The PCG graph declares only RitualType, so a real session's duplicated point data has no
+     * SemanticSubject / RecommendedForWarning / RestorationTag attribute at all - every write failed and
+     * every read answered NAME_None. Test_SeedPoints created them by hand, which is precisely why this
+     * survived being tested: the fixture built a schema production never had.
+     */
+    void EnsureContractMetadataAttributes();
+
     bool WritePointContractMetadata(
         int32 PointIndex,
         FName WarningId,
