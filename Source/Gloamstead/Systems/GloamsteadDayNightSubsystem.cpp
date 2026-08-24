@@ -262,6 +262,38 @@ const FExperienceCyclePlan* UGloamsteadDayNightSubsystem::GetUpcomingPlan() cons
 	return nullptr;
 }
 
+void UGloamsteadDayNightSubsystem::NotifyWarningPresenterChanged()
+{
+	if (bRepresentingForNewPresenter)
+	{
+		return;
+	}
+
+	const FExperienceCyclePlan* Plan = GetUpcomingPlan();
+	if (!Plan || !Plan->IsAuthoredPlan())
+	{
+		return;
+	}
+
+	TGuardValue<bool> Guard(bRepresentingForNewPresenter, true);
+
+	// Clearing the presented id first is what makes this a RE-presentation rather than a no-op: the plan
+	// was already shown, but to a presenter that is going away. PrepareUpcomingCycle restores the id when
+	// the new presenter accepts it, so rest eligibility is unchanged for anyone who was already able to rest.
+	const FName PreviouslyPresented = PresentedPlanId;
+	PresentedPlanId = NAME_None;
+	if (!PrepareUpcomingCycle())
+	{
+		// The new presenter could not take it. Leave the previous state alone rather than silently
+		// downgrading a player who had already been warned.
+		PresentedPlanId = PreviouslyPresented;
+		return;
+	}
+
+	UE_LOG(LogTemp, Log,
+		TEXT("DayNight: re-presented the armed warning to a newly registered presenter."));
+}
+
 bool UGloamsteadDayNightSubsystem::PrepareUpcomingCycle()
 {
 	if (bInProgressSaveReconciliation)
@@ -1115,6 +1147,25 @@ void UGloamsteadDayNightSubsystem::HandleEnterDawn()
 				if (!Experience->RecordActivePlanOutcome(NightOutcome))
 				{
 					UE_LOG(LogTemp, Warning, TEXT("DayNight: dawn outcome did not match the active authored plan; progression was not advanced."));
+				}
+				else
+				{
+					// Dawn is the payoff: surviving the night EARNS the Heart's warning about the next one.
+					// Arming it here rather than waiting for Day means the player wakes already holding the
+					// question the coming day is meant to answer - investigate, interpret, prepare - instead
+					// of wandering until something happens to fire. It is armed before the autosave below,
+					// so a reload resumes holding the same warning.
+					if (PrepareUpcomingCycle())
+					{
+						UE_LOG(LogTemp, Log,
+							TEXT("DayNight: dawn earned the next warning; the coming night is already named."));
+					}
+					else
+					{
+						// Not an error on its own - the authored experience may simply be complete.
+						UE_LOG(LogTemp, Log,
+							TEXT("DayNight: dawn armed no further warning (the authored experience may be complete)."));
+					}
 				}
 			}
 		}

@@ -220,6 +220,18 @@ bool AVeilHeart::RegisterWarningPresenter(UObject* Presenter, FName WarningHandl
 
 	RegisteredWarningPresenter = Presenter;
 	RegisteredWarningPresenterFunction = WarningHandlerFunction;
+
+	// Show the new presenter what the player is currently owed. Without this, a warning earned at dawn is
+	// delivered to whoever happened to be presenting THEN - and if that presenter detaches before day, the
+	// player is left holding a night they were never warned about.
+	if (UWorld* World = GetWorld())
+	{
+		if (UGloamsteadDayNightSubsystem* DayNight = World->GetSubsystem<UGloamsteadDayNightSubsystem>())
+		{
+			DayNight->NotifyWarningPresenterChanged();
+		}
+	}
+
 	return true;
 }
 
