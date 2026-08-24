@@ -1,4 +1,7 @@
 #include "Systems/GloamsteadFirstNightDirector.h"
+#include "Blueprint/UserWidget.h"
+#include "GameFramework/PlayerController.h"
+#include "UObject/TextProperty.h"
 
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Systems/NightConsequenceRuntime.h"
@@ -283,6 +286,7 @@ void AGloamsteadFirstNightDirector::HandleHeartWarning(const FVeilHeartWarningFr
 	}
 	UE_LOG(LogTemp, Log, TEXT("FirstNightDirector: captioning Heart warning [%s]."), *WarningFragment.WarningId.ToString());
 	OnHeartWarning(WarningFragment.Fragment);
+	PresentCaptionIfBlueprintDoesNot(TEXT("OnHeartWarning"), WarningFragment.Fragment);
 }
 
 FText AGloamsteadFirstNightDirector::BuildDawnReflectionText(const FNightRuntimeOutcome& Outcome) const
@@ -331,6 +335,7 @@ void AGloamsteadFirstNightDirector::HandleHeartDawnReflection(const FNightRuntim
 	UE_LOG(LogTemp, Log, TEXT("FirstNightDirector: dawn reflection — %s"), *Reflection.ToString());
 	++Test_HeartReflectionCount;
 	OnHeartReflection(Reflection);
+	PresentCaptionIfBlueprintDoesNot(TEXT("OnHeartReflection"), Reflection);
 }
 
 void AGloamsteadFirstNightDirector::PresentLanternTarget()
@@ -492,4 +497,98 @@ void AGloamsteadFirstNightDirector::RequestAdvanceToDawn()
 	// Kept for Blueprint ABI compatibility only. DayNight owns the deadline and
 	// runtime early-objective path, including its exactly-once Dawn guard.
 	UE_LOG(LogTemp, Verbose, TEXT("FirstNightDirector: ignoring legacy Night->Dawn request; DayNight owns cadence."));
+}
+
+bool AGloamsteadFirstNightDirector::IsPresentationEventImplemented(FName EventName) const
+{
+	const UFunction* Function = GetClass()->FindFunctionByName(EventName);
+	if (!Function)
+	{
+		return false;
+	}
+
+	// A BlueprintImplementableEvent stub is owned by this native class. A Blueprint child that actually
+	// implements it owns its own UFunction on the generated class, so a different outer means real
+	// Blueprint code exists and should keep presentation authority.
+	return Function->GetOuter() != AGloamsteadFirstNightDirector::StaticClass();
+}
+
+void AGloamsteadFirstNightDirector::PresentCaptionIfBlueprintDoesNot(FName EventName, const FText& CaptionText)
+{
+	if (IsPresentationEventImplemented(EventName))
+	{
+		return; // The Blueprint presents this beat; do not caption it twice.
+	}
+
+	if (CaptionText.IsEmpty())
+	{
+		return;
+	}
+
+	// A caption needs a screen. Synthetic automation worlds have no local player, and there is nothing to
+	// present to - that is not a defect, so it stays quiet rather than erroring on every fixture.
+	APlayerController* Viewer = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+	if (!Viewer)
+	{
+		return;
+	}
+
+	if (!FallbackCaptionWidget)
+	{
+		static const TCHAR* CaptionPath = TEXT("/Game/FirstNight/WBP_FirstNightCaption.WBP_FirstNightCaption_C");
+		UClass* CaptionClass = LoadClass<UUserWidget>(nullptr, CaptionPath);
+		if (!CaptionClass)
+		{
+			UE_LOG(LogTemp, Error,
+				TEXT("FirstNightDirector: %s is not implemented by this Blueprint and the project caption widget "
+					 "at %s could not be loaded, so the Heart's words reach no one. Implement the event, or restore "
+					 "the widget."),
+				*EventName.ToString(), CaptionPath);
+			return;
+		}
+
+		FallbackCaptionWidget = CreateWidget<UUserWidget>(Viewer, CaptionClass);
+		if (!FallbackCaptionWidget)
+		{
+			UE_LOG(LogTemp, Error, TEXT("FirstNightDirector: could not create the fallback caption widget."));
+			return;
+		}
+		FallbackCaptionWidget->AddToPlayerScreen(20);
+	}
+
+	// Verify the widget's caption entry point rather than assuming its shape: one FText parameter. A
+	// mismatch is an authoring change, and saying so beats silently showing nothing all over again.
+	UFunction* Display = FallbackCaptionWidget->FindFunction(TEXT("DisplayCaption"));
+	FTextProperty* TextParam = nullptr;
+	int32 ParamCount = 0;
+	if (Display)
+	{
+		for (TFieldIterator<FProperty> It(Display); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+		{
+			++ParamCount;
+			TextParam = CastField<FTextProperty>(*It);
+		}
+	}
+
+	if (!Display || ParamCount != 1 || !TextParam)
+	{
+		UE_LOG(LogTemp, Error,
+			TEXT("FirstNightDirector: the caption widget has no DisplayCaption(FText) entry point, so the Heart's "
+				 "words for %s cannot be shown. Either implement %s on the director Blueprint, or give the caption "
+				 "widget a single-FText DisplayCaption."),
+			*EventName.ToString(), *EventName.ToString());
+		return;
+	}
+
+	void* Parms = FMemory::Malloc(Display->ParmsSize);
+	FMemory::Memzero(Parms, Display->ParmsSize);
+	TextParam->InitializeValue_InContainer(Parms);
+	TextParam->SetPropertyValue_InContainer(Parms, CaptionText);
+	FallbackCaptionWidget->ProcessEvent(Display, Parms);
+	TextParam->DestroyValue_InContainer(Parms);
+	FMemory::Free(Parms);
+
+	UE_LOG(LogTemp, Log,
+		TEXT("FirstNightDirector: captioned %s natively (the Blueprint implements no handler): \"%s\""),
+		*EventName.ToString(), *CaptionText.ToString());
 }
