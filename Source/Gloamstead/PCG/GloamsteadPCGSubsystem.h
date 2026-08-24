@@ -247,6 +247,26 @@ public:
     static const FName FirstLanternAnchorTag;
 
 private:
+    /**
+     * The production writer for a point's semantic contract. Deliberately NOT a UFUNCTION: FairCrypticism
+     * asserts by reflection that no Blueprint route to PCG metadata exists, and this must not become one.
+     * Content declares a contract on a placed UGloamsteadRitualSiteComponent; only this writes it.
+     */
+    bool WritePointContractMetadata(
+        int32 PointIndex,
+        FName WarningId,
+        FName SemanticSubject,
+        ERitualType RitualType,
+        FName RestorationTag);
+
+    /**
+     * Stamps every authored ritual-site declaration in the level onto the nearest eligible generated
+     * point. This is what gives SemanticSubject a shipping authority at all: without it the attribute
+     * keeps its NAME_None default in a player build and no semantically-targeted night can resolve.
+     * Fail-loud - incomplete declarations, unbindable sites, and duplicate subjects are all reported.
+     */
+    void ApplyAuthoredSiteContracts();
+
     // PCG metadata is the root of Gloamstead semantic target authority. Only
     // the placed bootstrap may duplicate generated output into this subsystem;
     // a Blueprint or arbitrary runtime component cannot supply a forged graph.
