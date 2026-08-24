@@ -43,11 +43,28 @@ never delete unmerged local or remote branches unless the human explicitly asks 
 Applies to every agent and runtime (Claude Code, Grok, Codex, etc.). This is the GitHub
 integration flow to `main`; it complements — does not replace — the agent_collab promotion rules below.
 
-**Standing order — agents own the full lifecycle.** For a change you are authorized to make, take
-it all the way without waiting for a human to click buttons: **commit → push → open PR → merge (merge commit) →
-delete the branch (local + remote) → prune**. The human has pre-authorized the merge-and-delete
-policy (step 6). The only hard stops are: (a) `./gate.ps1` is red, (b) a branch-protection / required-check
-gate would need `--admin` (step 7), or (c) a conflict you cannot cleanly resolve — in those cases **stop and
+> **ENFORCED REALITY (2026-08-24): remote git operations are BLOCKED for every agent.**
+> `agent_collab/context/command_policy.json` blocks the pattern
+> `git\s+(push|pull|fetch\s+origin|remote|pr)\b` with the reason *"No remote mutations or PRs from any
+> agent. Orchestrator coordinates branches locally only."* The pre-bash policy hook enforces this at the
+> tool-call layer — it refuses even a read-only `gh auth status`. **`command_policy.json` and the hook are
+> authoritative; this document is not.** The standing order below described a lifecycle no agent could
+> actually execute, which cost a full ship attempt to discover.
+>
+> **What an agent can actually do:** commit locally on a task branch, and run `./gate.ps1`. That is the
+> end of an agent's landing authority. Push, PR, merge, branch deletion and prune are the human's to run.
+> An agent that believes it "landed" a change has not — verify with `git log`, never with an assumption.
+>
+> To change this, change `command_policy.json` (and its spec + smoke corpus) deliberately. Do not
+> "fix" the contradiction by editing this paragraph back.
+
+**Standing order — agents own the local lifecycle.** For a change you are authorized to make, take it as
+far as an agent may: **commit → `./gate.ps1` green → report the branch and SHA for the human to push**.
+Historically this order read *commit → push → open PR → merge → delete the branch → prune*; the human's
+pre-authorization of the merge-and-delete policy still stands in principle, but the enforced policy above
+means an agent cannot perform those steps. The hard stops are: (a) `./gate.ps1` is red, (b) a
+branch-protection / required-check gate would need `--admin` (step 7), (c) a conflict you cannot cleanly
+resolve, or (d) any step requiring a remote operation — in those cases **stop and
 report**. Doc/config-only changes with no build impact (e.g. Markdown, `.gitignore`) do not require a UE5
 build; say so in the PR body instead of skipping silently.
 
