@@ -73,6 +73,16 @@ public:
 
 	/** Arms and presents the exact authored plan for the next rest during Day. */
 	UFUNCTION(BlueprintCallable, Category = "DayNight|Experience")
+	/**
+	 * Re-deliver the warning the player is currently owed to a newly registered presenter.
+	 *
+	 * Dawn earns the coming night's warning, but the presenter can change between dawn and day - the
+	 * first-night director detaches once the tutorial resolves and a generic presenter takes over. A
+	 * warning delivered to a presenter that is about to disappear is a warning the player never sees, so
+	 * whoever presents now is shown the currently armed warning.
+	 */
+	void NotifyWarningPresenterChanged();
+
 	bool PrepareUpcomingCycle();
 
 	/** Returns the active exact authored plan, or nullptr when no safe plan is armed. */
@@ -191,6 +201,9 @@ private:
 
 	/** True only after Dusk prepared the exact active authored plan for runtime. */
 	bool bDuskPlanPrepared = false;
+
+	/** Reentrancy guard: emitting a warning must not recurse if a presenter registers while handling it. */
+	bool bRepresentingForNewPresenter = false;
 
 	/** The authored warning successfully exposed during the current Day. */
 	FName PresentedPlanId = NAME_None;
