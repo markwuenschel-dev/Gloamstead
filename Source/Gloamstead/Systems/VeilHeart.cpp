@@ -1,4 +1,6 @@
 #include "Systems/VeilHeart.h"
+#include "Systems/GloamsteadExperienceCycleSubsystem.h"
+#include "Engine/GameInstance.h"
 #include "Actors/GloamsteadEvidenceSource.h"
 #include "Systems/GloamsteadDayNightSubsystem.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
@@ -30,6 +32,16 @@ namespace
 		const UWorld* World = Actor ? Actor->GetWorld() : nullptr;
 		return World ? World->GetSubsystem<UGloamsteadDayNightSubsystem>() : nullptr;
 	}
+
+	/** True once every authored cycle is finished and no further plan exists. */
+	bool IsExperienceComplete(const AActor* Actor)
+	{
+		const UWorld* World = Actor ? Actor->GetWorld() : nullptr;
+		const UGameInstance* GameInstance = World ? World->GetGameInstance() : nullptr;
+		const UGloamsteadExperienceCycleSubsystem* Experience =
+			GameInstance ? GameInstance->GetSubsystem<UGloamsteadExperienceCycleSubsystem>() : nullptr;
+		return Experience && Experience->IsExperienceComplete();
+	}
 }
 
 // ===== IGloamInteractable — the Heart as the player's rest point =====
@@ -37,12 +49,27 @@ namespace
 bool AVeilHeart::CanInteract_Implementation(AActor* /*Interactor*/) const
 {
 	// Interactable only during the resting phases (Day/Dawn); inert once dusk gathers.
+	//
+	// Once the authored experience is complete the Heart stays interactable on purpose. CanRestNow() is
+	// false forever at that point, and returning it unconditionally left the player standing beside the
+	// object the whole game is about with no prompt, no response and no explanation - a soft-lock dressed
+	// as an ending. The Heart still answers; it simply has no further night to bring.
+	if (IsExperienceComplete(this))
+	{
+		return true;
+	}
+
 	const UGloamsteadDayNightSubsystem* DayNight = GetDayNight(this);
 	return DayNight && DayNight->CanRestNow();
 }
 
 FText AVeilHeart::GetInteractionPrompt_Implementation() const
 {
+	if (IsExperienceComplete(this))
+	{
+		return NSLOCTEXT("Gloamstead", "HeartComplete", "Sit with what the sanctuary remembers");
+	}
+
 	const UGloamsteadDayNightSubsystem* DayNight = GetDayNight(this);
 	if (DayNight && DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dawn)
 	{
@@ -53,6 +80,18 @@ FText AVeilHeart::GetInteractionPrompt_Implementation() const
 
 void AVeilHeart::Interact_Implementation(AActor* /*Interactor*/)
 {
+	if (IsExperienceComplete(this))
+	{
+		// The ending seed. There is no authored night left to bring, so the Heart answers with the
+		// sanctuary's memory instead of refusing in silence. A completion screen belongs here when one
+		// exists (map.md Q3 / ticket T2); until then this is at least a legible terminal state rather
+		// than an unhandled boundary condition.
+		OnExperienceComplete();
+		OnExperienceCompleteDelegate.Broadcast();
+		UE_LOG(LogTemp, Log, TEXT("VeilHeart: the authored experience is complete; the Heart has no further night to bring."));
+		return;
+	}
+
 	UGloamsteadDayNightSubsystem* DayNight = GetDayNight(this);
 	if (!DayNight)
 	{

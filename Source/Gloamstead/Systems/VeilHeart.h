@@ -28,6 +28,13 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVeilHeartWarning, const FVeilHear
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVeilHeartDawnReflection, const FNightRuntimeOutcome&, Outcome);
 
 /**
+ * Broadcast when the player rests at the Heart after the last authored cycle. This is the ending's hook:
+ * whatever presents a completion screen listens here rather than polling for a state that used to have
+ * no reader at all.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnVeilHeartExperienceComplete);
+
+/**
  * The Veil Heart - Central protected object and emotional core of Gloamstead.
  * Listens to restoration events to evaluate "I understood the warning".
  *
@@ -164,6 +171,14 @@ public:
     /** Fires alongside OnDawnReflection, for listeners that are not Blueprint subclasses of the Heart. */
     UPROPERTY(BlueprintAssignable, Category="Veil Heart")
     FOnVeilHeartDawnReflection OnDawnReflectionDelegate;
+
+    /** BP presentation hook for the end of the authored experience. */
+    UFUNCTION(BlueprintImplementableEvent, Category="Veil Heart")
+    void OnExperienceComplete();
+
+    /** Fires alongside OnExperienceComplete, for listeners that are not Blueprint subclasses of the Heart. */
+    UPROPERTY(BlueprintAssignable, Category="Veil Heart")
+    FOnVeilHeartExperienceComplete OnExperienceCompleteDelegate;
 
     /** Assign Content/Data/DA_VeilHeartWarningCatalog (auto-loaded at BeginPlay if left empty). */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil Heart")
