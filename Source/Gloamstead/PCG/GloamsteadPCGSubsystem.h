@@ -271,6 +271,12 @@ private:
     void ApplyAuthoredSiteContracts();
 
     /**
+     * Resolve a content-declared site's anchor to a world location. Returns false when the landmark it
+     * names is absent, which is an authoring error rather than a reason to guess a position.
+     */
+    bool ResolveSiteAnchorLocation(uint8 Anchor, FVector& OutLocation) const;
+
+    /**
      * Point index re-seated onto the authored first-lantern anchor, or INDEX_NONE. Tracked so an authored
      * ritual site can never re-type the opening lantern out from under Cycle 1 while looking for a place
      * to bind.

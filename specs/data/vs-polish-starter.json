@@ -422,6 +422,25 @@
           }
         ]
       }
+    },
+    {
+      "_comment": "Authored ritual sites. A place is described relative to a sanctuary landmark rather than as a raw transform, so it keeps meaning if the courtyard is re-authored and can be written without opening the editor. UGloamsteadPCGSubsystem::ApplyAuthoredSiteContracts stamps the contract.",
+      "asset_name": "DA_RitualSiteCatalog",
+      "class": "RitualSiteCatalog",
+      "properties": {
+        "Sites": [
+          {
+            "_comment": "The garden lies between the ruins and around the Veil Heart. Anchored to the Heart, with a minimum distance so it settles in the ground AROUND the centre rather than on the Heart's own point. Cycles 2, 3, 4 and 5 all read this one place.",
+            "SemanticSubject": "Cycle2_Garden",
+            "RecommendedForWarning": "GardenRot",
+            "RitualType": "GardenBed",
+            "RestorationTag": "GardenBed",
+            "Anchor": "SanctuaryHeart",
+            "MinimumAnchorDistance": 300.0,
+            "BindRadius": 6000.0
+          }
+        ]
+      }
     }
   ]
 }

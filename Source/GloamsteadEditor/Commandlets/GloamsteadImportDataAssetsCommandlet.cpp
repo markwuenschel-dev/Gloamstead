@@ -1,4 +1,5 @@
 #include "Commandlets/GloamsteadImportDataAssetsCommandlet.h"
+#include "Data/GloamsteadRitualSiteCatalog.h"
 
 #include "Data/NightConsequenceTypes.h"
 #include "Data/ExperienceCycleTypes.h"
@@ -312,6 +313,110 @@ namespace GloamsteadDataImport
 		}
 
 		Catalog->AuthoredPlans = MoveTemp(Plans);
+		return true;
+	}
+
+	static bool ImportRitualSiteCatalog(
+		UGloamsteadRitualSiteCatalog* Catalog,
+		const TSharedPtr<FJsonObject>& Properties,
+		int32& OutErrorCount)
+	{
+		if (!Catalog || !Properties.IsValid())
+		{
+			++OutErrorCount;
+			return false;
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* SiteValues = nullptr;
+		if (!Properties->TryGetArrayField(TEXT("Sites"), SiteValues) || !SiteValues)
+		{
+			UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: RitualSiteCatalog needs a Sites array."));
+			++OutErrorCount;
+			return false;
+		}
+
+		const UEnum* RitualEnum = StaticEnum<ERitualType>();
+		const UEnum* AnchorEnum = StaticEnum<EGloamsteadSiteAnchor>();
+
+		TArray<FGloamsteadRitualSiteDeclaration> Sites;
+		for (const TSharedPtr<FJsonValue>& Value : *SiteValues)
+		{
+			const TSharedPtr<FJsonObject>* SiteObjPtr = nullptr;
+			if (!Value.IsValid() || !Value->TryGetObject(SiteObjPtr) || !SiteObjPtr)
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: a Sites entry is not an object."));
+				++OutErrorCount;
+				return false;
+			}
+			const TSharedPtr<FJsonObject>& SiteObj = *SiteObjPtr;
+
+			FGloamsteadRitualSiteDeclaration Site;
+
+			FString SemanticSubject;
+			FString WarningId;
+			FString RestorationTag;
+			if (!SiteObj->TryGetStringField(TEXT("SemanticSubject"), SemanticSubject) || SemanticSubject.IsEmpty()
+				|| !SiteObj->TryGetStringField(TEXT("RecommendedForWarning"), WarningId) || WarningId.IsEmpty()
+				|| !SiteObj->TryGetStringField(TEXT("RestorationTag"), RestorationTag) || RestorationTag.IsEmpty())
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: a ritual site needs SemanticSubject, RecommendedForWarning and RestorationTag."));
+				++OutErrorCount;
+				return false;
+			}
+			Site.SemanticSubject = FName(*SemanticSubject);
+			Site.RecommendedForWarning = FName(*WarningId);
+			Site.RestorationTag = FName(*RestorationTag);
+
+			FString RitualTypeName;
+			int64 RitualValue = INDEX_NONE;
+			if (!SiteObj->TryGetStringField(TEXT("RitualType"), RitualTypeName)
+				|| !ParseEnumByName(RitualEnum, RitualTypeName, RitualValue))
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: ritual site %s has an unknown RitualType."), *SemanticSubject);
+				++OutErrorCount;
+				return false;
+			}
+			Site.RitualType = static_cast<ERitualType>(RitualValue);
+
+			FString AnchorName;
+			if (SiteObj->TryGetStringField(TEXT("Anchor"), AnchorName) && !AnchorName.IsEmpty())
+			{
+				int64 AnchorValue = INDEX_NONE;
+				if (!ParseEnumByName(AnchorEnum, AnchorName, AnchorValue))
+				{
+					UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: ritual site %s has an unknown Anchor '%s'."), *SemanticSubject, *AnchorName);
+					++OutErrorCount;
+					return false;
+				}
+				Site.Anchor = static_cast<EGloamsteadSiteAnchor>(AnchorValue);
+			}
+
+			float Radius = 0.f;
+			if (ReadNumberField(SiteObj, TEXT("BindRadius"), Radius) && Radius > 0.f)
+			{
+				Site.BindRadius = Radius;
+			}
+			float MinDistance = 0.f;
+			if (ReadNumberField(SiteObj, TEXT("MinimumAnchorDistance"), MinDistance) && MinDistance >= 0.f)
+			{
+				Site.MinimumAnchorDistance = MinDistance;
+			}
+
+			TArray<FString> Problems;
+			if (!Site.IsCompleteDeclaration(Problems))
+			{
+				for (const FString& Problem : Problems)
+				{
+					UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: %s"), *Problem);
+				}
+				++OutErrorCount;
+				return false;
+			}
+
+			Sites.Add(MoveTemp(Site));
+		}
+
+		Catalog->Sites = MoveTemp(Sites);
 		return true;
 	}
 
@@ -722,6 +827,16 @@ int32 UGloamsteadImportDataAssetsCommandlet::Main(const FString& Params)
 			UExperienceCycleCatalog* Catalog = Cast<UExperienceCycleCatalog>(
 				GloamsteadDataImport::LoadOrCreateAsset(PackageName, AssetName, UExperienceCycleCatalog::StaticClass()));
 			if (!GloamsteadDataImport::ImportExperienceCycleCatalog(Catalog, *PropertiesPtr, ErrorCount))
+			{
+				continue;
+			}
+			GloamsteadDataImport::SaveDataAsset(Catalog, PackageName, ErrorCount);
+		}
+		else if (ClassName == TEXT("RitualSiteCatalog"))
+		{
+			UGloamsteadRitualSiteCatalog* Catalog = Cast<UGloamsteadRitualSiteCatalog>(
+				GloamsteadDataImport::LoadOrCreateAsset(PackageName, AssetName, UGloamsteadRitualSiteCatalog::StaticClass()));
+			if (!GloamsteadDataImport::ImportRitualSiteCatalog(Catalog, *PropertiesPtr, ErrorCount))
 			{
 				continue;
 			}
