@@ -441,6 +441,17 @@
           }
         ]
       }
+    },
+    {
+      "_comment": "The sanctuary kit shipped with a BodySetup but no collision primitives and no trace flag, so a player walked through every wall, column and arch. Complex-as-simple makes the render geometry collidable. Authored convex hulls remain the better shipping answer; this is the repair. The mesh forge contract still has no collision concept, so regeneration would reintroduce the gap.",
+      "asset_name": "SanctuaryKitCollision",
+      "class": "StaticMeshCollisionPolicy",
+      "properties": {
+        "Folders": [
+          "/Game/Gloamstead/Kit/Meshes"
+        ],
+        "CollisionTraceFlag": "UseComplexAsSimple"
+      }
     }
   ]
 }
