@@ -1,4 +1,8 @@
 #include "Commandlets/GloamsteadImportDataAssetsCommandlet.h"
+#include "Engine/StaticMesh.h"
+#include "PhysicsEngine/BodySetup.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetRegistry/ARFilter.h"
 #include "Data/GloamsteadRitualSiteCatalog.h"
 
 #include "Data/NightConsequenceTypes.h"
@@ -463,6 +467,110 @@ namespace GloamsteadDataImport
 		return NewObject<UObject>(Package, AssetClass, *AssetName, RF_Public | RF_Standalone);
 	}
 
+	/**
+	 * Give authored meshes working collision.
+	 *
+	 * The sanctuary kit ships 27 meshes with a BodySetup but ZERO collision primitives and no trace flag,
+	 * so simple-collision tracing finds nothing and the player walks through every wall and column. The
+	 * mesh forge contract has no collision concept at all, so regenerating reintroduces it - this is the
+	 * repair, not the cure.
+	 *
+	 * Sets CollisionTraceFlag so the render geometry is used as collision. Complex-as-simple is the honest
+	 * choice for greybox ruins: authored convex hulls are better for a shipping build, but a wall you
+	 * cannot walk through today beats a perfect hull nobody has authored.
+	 */
+	static bool ImportStaticMeshCollisionPolicy(const TSharedPtr<FJsonObject>& Properties, int32& OutErrorCount)
+	{
+		if (!Properties.IsValid())
+		{
+			++OutErrorCount;
+			return false;
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* FolderValues = nullptr;
+		if (!Properties->TryGetArrayField(TEXT("Folders"), FolderValues) || !FolderValues)
+		{
+			UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: StaticMeshCollisionPolicy needs a Folders array."));
+			++OutErrorCount;
+			return false;
+		}
+
+		FString FlagName;
+		Properties->TryGetStringField(TEXT("CollisionTraceFlag"), FlagName);
+		ECollisionTraceFlag Flag = CTF_UseComplexAsSimple;
+		if (!FlagName.IsEmpty())
+		{
+			if (FlagName == TEXT("UseComplexAsSimple")) { Flag = CTF_UseComplexAsSimple; }
+			else if (FlagName == TEXT("UseSimpleAsComplex")) { Flag = CTF_UseSimpleAsComplex; }
+			else if (FlagName == TEXT("UseDefault")) { Flag = CTF_UseDefault; }
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: unknown CollisionTraceFlag '%s'."), *FlagName);
+				++OutErrorCount;
+				return false;
+			}
+		}
+
+		IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+		AssetRegistry.SearchAllAssets(/*bSynchronousSearch*/ true);
+
+		int32 Changed = 0;
+		int32 Inspected = 0;
+		for (const TSharedPtr<FJsonValue>& Value : *FolderValues)
+		{
+			if (!Value.IsValid() || Value->Type != EJson::String)
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: a Folders entry is not a string."));
+				++OutErrorCount;
+				return false;
+			}
+
+			const FString Folder = Value->AsString();
+			FARFilter Filter;
+			Filter.bRecursivePaths = true;
+			Filter.PackagePaths.Add(FName(*Folder));
+			Filter.ClassPaths.Add(UStaticMesh::StaticClass()->GetClassPathName());
+
+			TArray<FAssetData> Assets;
+			AssetRegistry.GetAssets(Filter, Assets);
+			if (Assets.Num() == 0)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("GloamsteadImportDataAssets: no static meshes found under %s."), *Folder);
+			}
+
+			for (const FAssetData& AssetData : Assets)
+			{
+				UStaticMesh* Mesh = Cast<UStaticMesh>(AssetData.GetAsset());
+				if (!Mesh || !Mesh->GetBodySetup())
+				{
+					continue;
+				}
+				++Inspected;
+
+				if (Mesh->GetBodySetup()->CollisionTraceFlag == Flag)
+				{
+					continue;
+				}
+
+				Mesh->GetBodySetup()->Modify();
+				Mesh->GetBodySetup()->CollisionTraceFlag = Flag;
+				Mesh->GetBodySetup()->InvalidatePhysicsData();
+				Mesh->GetBodySetup()->CreatePhysicsMeshes();
+				Mesh->MarkPackageDirty();
+
+				if (SaveDataAsset(Mesh, Mesh->GetPackage()->GetName(), OutErrorCount))
+				{
+					++Changed;
+				}
+			}
+		}
+
+		UE_LOG(LogTemp, Display,
+			TEXT("GloamsteadImportDataAssets: collision policy applied to %d of %d static mesh(es)."),
+			Changed, Inspected);
+		return true;
+	}
+
 	static bool ImportNightCatalog(UNightConsequenceCatalog* Catalog, const TSharedPtr<FJsonObject>& Properties, int32& OutErrorCount)
 	{
 		if (!Catalog || !Properties.IsValid())
@@ -831,6 +939,10 @@ int32 UGloamsteadImportDataAssetsCommandlet::Main(const FString& Params)
 				continue;
 			}
 			GloamsteadDataImport::SaveDataAsset(Catalog, PackageName, ErrorCount);
+		}
+		else if (ClassName == TEXT("StaticMeshCollisionPolicy"))
+		{
+			GloamsteadDataImport::ImportStaticMeshCollisionPolicy(*PropertiesPtr, ErrorCount);
 		}
 		else if (ClassName == TEXT("RitualSiteCatalog"))
 		{
