@@ -110,11 +110,11 @@ bool FGloamExperiencePlanDawnOutcomeAdvancesCycleTest::RunTest(const FString& /*
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FGloamExperiencePlanSlotThreeIsExactRetrievalTest,
+	FGloamExperiencePlanSlotThreeIsBrokenRoadTest,
 	"Gloamstead.Experience.Plan.SlotThreeIsExactRetrieval",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FGloamExperiencePlanSlotThreeIsExactRetrievalTest::RunTest(const FString& /*Parameters*/)
+bool FGloamExperiencePlanSlotThreeIsBrokenRoadTest::RunTest(const FString& /*Parameters*/)
 {
 	UGloamsteadExperienceCycleSubsystem* Subsystem = MakeSubsystem(MakeAuthoredCatalog());
 	FExperienceCyclePersistentState State;
@@ -126,25 +126,37 @@ bool FGloamExperiencePlanSlotThreeIsExactRetrievalTest::RunTest(const FString& /
 	TestTrue(TEXT("the third plan is authored"), Plan.IsAuthoredPlan());
 	TestEqual(TEXT("slot three is selected"), Plan.Slot, 3);
 	TestEqual(TEXT("slot three uses Retrieval"), Plan.NightType, ENightConsequenceType::Retrieval);
-	TestEqual(TEXT("slot three reuses the garden warning identity"), Plan.WarningId, FName(TEXT("GardenRot")));
-	TestEqual(TEXT("slot three binds to the restored garden subject"), Plan.SemanticSubject, FName(TEXT("Cycle2_Garden")));
-	TestEqual(TEXT("slot three keeps its stable id"), Plan.PlanId, FName(TEXT("Cycle3_Retrieval")));
-	TestEqual(TEXT("slot three requires the canonical GardenBed ritual"), Plan.RequiredRitualType, ERitualType::GardenBed);
+	TestEqual(TEXT("slot three owns the broken-road warning"), Plan.WarningId, FName(TEXT("RoadUnbound")));
+	TestEqual(TEXT("slot three names its own place, not the garden"), Plan.SemanticSubject, FName(TEXT("Cycle3_Road")));
+	TestEqual(TEXT("slot three keeps its stable id"), Plan.PlanId, FName(TEXT("Cycle3_Road")));
+	TestEqual(TEXT("slot three asks for the PathPoint ritual"), Plan.RequiredRitualType, ERitualType::PathPoint);
 	TestEqual(TEXT("slot three requires two distinct readable supports"), Plan.MinimumDistinctSupportCount, 2);
-	TestEqual(TEXT("slot three records a retrieval-specific interpretation receipt"), Plan.InterpretationReceiptId, FName(TEXT("GardenRot.Retrieved")));
-	TestEqual(TEXT("slot three keeps the garden support set"), Plan.RequiredSupportIds.Num(), 3);
-	TestTrue(TEXT("slot three retains the environmental vines clue"), Plan.RequiredSupportIds.Contains(FName(TEXT("GardenRot.WitheredVines"))));
-	TestTrue(TEXT("slot three retains the object-reaction soil clue"), Plan.RequiredSupportIds.Contains(FName(TEXT("GardenRot.ColdSoil"))));
-	TestTrue(TEXT("slot three retains the audio moth clue"), Plan.RequiredSupportIds.Contains(FName(TEXT("GardenRot.BellMoths"))));
+	TestEqual(TEXT("slot three records a road-specific interpretation receipt"), Plan.InterpretationReceiptId, FName(TEXT("RoadUnbound.Interpreted")));
+	TestEqual(TEXT("slot three offers three authored support ids"), Plan.RequiredSupportIds.Num(), 3);
+	TestTrue(TEXT("slot three names the broken-flagstones clue"), Plan.RequiredSupportIds.Contains(FName(TEXT("RoadUnbound.BrokenFlagstones"))));
+	TestTrue(TEXT("slot three names the leaning-waymark clue"), Plan.RequiredSupportIds.Contains(FName(TEXT("RoadUnbound.LeaningWaymark"))));
+	TestTrue(TEXT("slot three names the dragging-step clue"), Plan.RequiredSupportIds.Contains(FName(TEXT("RoadUnbound.DraggingStep"))));
+
+	// The second clause: loops guard, dead ends invite hands.
+	TestTrue(TEXT("slot three offers a second reading"), Plan.OffersSecondReading());
+	TestTrue(TEXT("its reading set is coherent"), Plan.HasCoherentSecondReadings());
+	const FExperienceCycleSecondReading* Loop = Plan.FindSecondReading(FName(TEXT("RoadUnbound.CloseTheLoop")));
+	const FExperienceCycleSecondReading* DeadEnd = Plan.FindSecondReading(FName(TEXT("RoadUnbound.ReachTheOuterGate")));
+	if (TestNotNull(TEXT("closing the loop is authored"), Loop)
+		&& TestNotNull(TEXT("running the road to the outer gate is authored"), DeadEnd))
+	{
+		TestEqual(TEXT("closing the loop is the sharper read"), Loop->Grade, EExperienceReadingGrade::Insight);
+		TestEqual(TEXT("the outer-gate spur is the overread"), DeadEnd->Grade, EExperienceReadingGrade::Overreach);
+	}
 	return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FGloamExperiencePlanSlotFourIsExactPossessionTest,
+	FGloamExperiencePlanSlotFourIsOverlookMirrorTest,
 	"Gloamstead.Experience.Plan.SlotFourIsExactPossession",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FGloamExperiencePlanSlotFourIsExactPossessionTest::RunTest(const FString& /*Parameters*/)
+bool FGloamExperiencePlanSlotFourIsOverlookMirrorTest::RunTest(const FString& /*Parameters*/)
 {
 	UGloamsteadExperienceCycleSubsystem* Subsystem = MakeSubsystem(MakeAuthoredCatalog());
 	FExperienceCyclePersistentState State;
@@ -156,13 +168,25 @@ bool FGloamExperiencePlanSlotFourIsExactPossessionTest::RunTest(const FString& /
 	TestTrue(TEXT("the fourth plan is authored"), Plan.IsAuthoredPlan());
 	TestEqual(TEXT("slot four is selected"), Plan.Slot, 4);
 	TestEqual(TEXT("slot four uses SilencePossession"), Plan.NightType, ENightConsequenceType::SilencePossession);
-	TestEqual(TEXT("slot four re-reads the garden warning"), Plan.WarningId, FName(TEXT("GardenRot")));
-	TestEqual(TEXT("slot four binds to the restored garden subject"), Plan.SemanticSubject, FName(TEXT("Cycle2_Garden")));
-	TestEqual(TEXT("slot four keeps its stable id"), Plan.PlanId, FName(TEXT("Cycle4_Possession")));
-	TestEqual(TEXT("slot four requires the canonical GardenBed ritual"), Plan.RequiredRitualType, ERitualType::GardenBed);
+	TestEqual(TEXT("slot four owns the stolen-light warning"), Plan.WarningId, FName(TEXT("StolenLight")));
+	TestEqual(TEXT("slot four climbs to the overlook"), Plan.SemanticSubject, FName(TEXT("Cycle4_Overlook")));
+	TestEqual(TEXT("slot four keeps its stable id"), Plan.PlanId, FName(TEXT("Cycle4_Mirror")));
+	TestEqual(TEXT("slot four asks for the MirrorPillar ritual"), Plan.RequiredRitualType, ERitualType::MirrorPillar);
 	TestEqual(TEXT("slot four requires two readable supports"), Plan.MinimumDistinctSupportCount, 2);
-	TestEqual(TEXT("slot four records a possession-specific receipt"), Plan.InterpretationReceiptId, FName(TEXT("GardenRot.Possessed")));
-	TestEqual(TEXT("slot four keeps the garden support set"), Plan.RequiredSupportIds.Num(), 3);
+	TestEqual(TEXT("slot four records a stolen-light receipt"), Plan.InterpretationReceiptId, FName(TEXT("StolenLight.Interpreted")));
+	TestEqual(TEXT("slot four offers three authored support ids"), Plan.RequiredSupportIds.Num(), 3);
+
+	// The second clause: face stolen light, never show it the Heart.
+	const FExperienceCycleSecondReading* FaceLantern = Plan.FindSecondReading(FName(TEXT("StolenLight.FaceTheLantern")));
+	const FExperienceCycleSecondReading* FaceHeart = Plan.FindSecondReading(FName(TEXT("StolenLight.FaceTheHeart")));
+	if (TestNotNull(TEXT("facing the lantern is authored"), FaceLantern)
+		&& TestNotNull(TEXT("facing the Heart is authored"), FaceHeart))
+	{
+		TestEqual(TEXT("facing the stolen light is the sharper read"), FaceLantern->Grade, EExperienceReadingGrade::Insight);
+		TestEqual(TEXT("facing the Heart is the overread"), FaceHeart->Grade, EExperienceReadingGrade::Overreach);
+		TestEqual(TEXT("the sharper read exposes the tether"), FaceLantern->ConsequenceTag, FName(TEXT("Boon.TetherExposed")));
+		TestEqual(TEXT("the overread reveals the centre"), FaceHeart->ConsequenceTag, FName(TEXT("Scar.HeartRevealed")));
+	}
 	return true;
 }
 
@@ -250,11 +274,11 @@ bool FGloamExperiencePlanExactWarningAndNightPrepTest::RunTest(const FString& /*
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FGloamExperiencePlanSlotFiveIsMirrorBargainTest,
+	FGloamExperiencePlanSlotFiveIsBellBargainTest,
 	"Gloamstead.Experience.Plan.SlotFiveIsMirrorBargain",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FGloamExperiencePlanSlotFiveIsMirrorBargainTest::RunTest(const FString& /*Parameters*/)
+bool FGloamExperiencePlanSlotFiveIsBellBargainTest::RunTest(const FString& /*Parameters*/)
 {
 	UGloamsteadExperienceCycleSubsystem* Subsystem = MakeSubsystem(MakeAuthoredCatalog());
 	FExperienceCyclePersistentState State;
@@ -265,15 +289,116 @@ bool FGloamExperiencePlanSlotFiveIsMirrorBargainTest::RunTest(const FString& /*P
 	const FExperienceCyclePlan& Plan = Subsystem->GetActivePlan();
 	TestTrue(TEXT("the fifth plan is authored"), Plan.IsAuthoredPlan());
 	TestEqual(TEXT("slot five is selected"), Plan.Slot, 5);
-	TestEqual(TEXT("slot five uses Mirror"), Plan.NightType, ENightConsequenceType::Mirror);
-	TestEqual(TEXT("slot five uses the exact mirror warning"), Plan.WarningId, FName(TEXT("MirrorDebt")));
-	TestEqual(TEXT("slot five reads the restored garden subject"), Plan.SemanticSubject, FName(TEXT("Cycle2_Garden")));
-	TestEqual(TEXT("slot five uses the current authored GardenBed site"), Plan.RequiredRitualType, ERitualType::GardenBed);
+	TestEqual(TEXT("slot five uses Bargain"), Plan.NightType, ENightConsequenceType::Bargain);
+	TestEqual(TEXT("slot five owns the bell-bargain warning"), Plan.WarningId, FName(TEXT("BellBargain")));
+	TestEqual(TEXT("slot five crosses to the bell shrine"), Plan.SemanticSubject, FName(TEXT("Cycle5_BellShrine")));
+	TestEqual(TEXT("slot five keeps its stable id"), Plan.PlanId, FName(TEXT("Cycle5_Bell")));
+	TestEqual(TEXT("slot five asks for the BellShrine ritual"), Plan.RequiredRitualType, ERitualType::BellShrine);
 	TestEqual(TEXT("slot five requires two readable supports"), Plan.MinimumDistinctSupportCount, 2);
-	TestTrue(TEXT("slot five names the still-water clue"), Plan.RequiredSupportIds.Contains(FName(TEXT("MirrorDebt.StillWater"))));
-	TestTrue(TEXT("slot five names the double-shadow clue"), Plan.RequiredSupportIds.Contains(FName(TEXT("MirrorDebt.DoubleShadow"))));
-	TestTrue(TEXT("slot five names the Heart-whisper clue"), Plan.RequiredSupportIds.Contains(FName(TEXT("MirrorDebt.HeartWhisper"))));
-	TestEqual(TEXT("slot five records the exact interpretation receipt"), Plan.InterpretationReceiptId, FName(TEXT("MirrorDebt.Interpreted")));
+	TestTrue(TEXT("slot five names the worn inscription"), Plan.RequiredSupportIds.Contains(FName(TEXT("BellBargain.WornInscription"))));
+	TestTrue(TEXT("slot five names the cracked clapper"), Plan.RequiredSupportIds.Contains(FName(TEXT("BellBargain.CrackedClapper"))));
+	TestTrue(TEXT("slot five names the answering toll"), Plan.RequiredSupportIds.Contains(FName(TEXT("BellBargain.AnsweringToll"))));
+	TestEqual(TEXT("slot five records the exact interpretation receipt"), Plan.InterpretationReceiptId, FName(TEXT("BellBargain.Interpreted")));
+
+	// The second clause: one answer frees, three answers invite company.
+	const FExperienceCycleSecondReading* Once = Plan.FindSecondReading(FName(TEXT("BellBargain.RingOnce")));
+	const FExperienceCycleSecondReading* Thrice = Plan.FindSecondReading(FName(TEXT("BellBargain.RingThrice")));
+	if (TestNotNull(TEXT("ringing once is authored"), Once)
+		&& TestNotNull(TEXT("ringing three times is authored"), Thrice))
+	{
+		TestEqual(TEXT("one answer is the sharper read"), Once->Grade, EExperienceReadingGrade::Insight);
+		TestEqual(TEXT("three answers is the overread"), Thrice->Grade, EExperienceReadingGrade::Overreach);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamExperiencePlanSlotSixIsWholeSanctuaryTest,
+	"Gloamstead.Experience.Plan.SlotSixIsWholeSanctuarySiege",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamExperiencePlanSlotSixIsWholeSanctuaryTest::RunTest(const FString& /*Parameters*/)
+{
+	UGloamsteadExperienceCycleSubsystem* Subsystem = MakeSubsystem(MakeAuthoredCatalog());
+	FExperienceCyclePersistentState State;
+	State.CompletedCycleSlot = 5;
+	TestTrue(TEXT("completed bell state restores"), Subsystem->RestorePersistentState(State));
+
+	TestTrue(TEXT("the sixth authored plan resolves"), Subsystem->EnsureUpcomingPlan());
+	const FExperienceCyclePlan& Plan = Subsystem->GetActivePlan();
+	TestTrue(TEXT("the sixth plan is authored"), Plan.IsAuthoredPlan());
+	TestEqual(TEXT("slot six is selected"), Plan.Slot, 6);
+	TestEqual(TEXT("slot six is the true siege"), Plan.NightType, ENightConsequenceType::TrueSiege);
+	TestEqual(TEXT("slot six owns the three-lights warning"), Plan.WarningId, FName(TEXT("ThreeLights")));
+	TestEqual(TEXT("slot six reads the whole sanctuary"), Plan.SemanticSubject, FName(TEXT("Cycle6_Sanctuary")));
+	TestEqual(TEXT("slot six keeps its stable id"), Plan.PlanId, FName(TEXT("Cycle6_Siege")));
+	TestEqual(TEXT("slot six binds rather than builds"), Plan.RequiredRitualType, ERitualType::AnchorStone);
+	TestEqual(TEXT("slot six records the exact interpretation receipt"), Plan.InterpretationReceiptId, FName(TEXT("ThreeLights.Interpreted")));
+
+	// The second clause: a closed ring holds, a crown breaks.
+	const FExperienceCycleSecondReading* Ring = Plan.FindSecondReading(FName(TEXT("ThreeLights.ClosedRing")));
+	const FExperienceCycleSecondReading* Crown = Plan.FindSecondReading(FName(TEXT("ThreeLights.CrownOnHeart")));
+	if (TestNotNull(TEXT("the closed ring is authored"), Ring)
+		&& TestNotNull(TEXT("the crown is authored"), Crown))
+	{
+		TestEqual(TEXT("the closed ring is the sharper read"), Ring->Grade, EExperienceReadingGrade::Insight);
+		TestEqual(TEXT("crowning the Heart is the overread"), Crown->Grade, EExperienceReadingGrade::Overreach);
+		TestEqual(TEXT("the ring holds"), Ring->ConsequenceTag, FName(TEXT("Boon.RingHeld")));
+		TestEqual(TEXT("the crown breaks"), Crown->ConsequenceTag, FName(TEXT("Scar.CrownBroken")));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamExperiencePlanEveryCycleFromTwoOffersReadingsTest,
+	"Gloamstead.Experience.Plan.EveryCycleAfterTheTutorialOffersACoherentSecondReading",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamExperiencePlanEveryCycleFromTwoOffersReadingsTest::RunTest(const FString& /*Parameters*/)
+{
+	// The structural promise of the whole arc, asserted once over the catalog rather than five times
+	// by hand: Cycle I asks only for the minimum, and every cycle after it carries a complete
+	// Insight / Plain / Overreach set with distinct durable tags.
+	UExperienceCycleCatalog* Catalog = MakeAuthoredCatalog();
+	TestEqual(TEXT("the authored arc is six cycles long"), Catalog->AuthoredPlans.Num(), 6);
+
+	TSet<FName> AllConsequenceTags;
+	for (const FExperienceCyclePlan& Plan : Catalog->AuthoredPlans)
+	{
+		FString ReadingError;
+		if (!TestTrue(*FString::Printf(TEXT("%s has a coherent reading set (%s)"),
+				*Plan.PlanId.ToString(), *ReadingError), Plan.HasCoherentSecondReadings(&ReadingError)))
+		{
+			continue;
+		}
+
+		if (Plan.Slot == 1)
+		{
+			TestFalse(TEXT("the tutorial asks only for the minimum"), Plan.OffersSecondReading());
+			continue;
+		}
+
+		TestTrue(*FString::Printf(TEXT("%s offers a second reading"), *Plan.PlanId.ToString()),
+			Plan.OffersSecondReading());
+
+		int32 InsightCount = 0;
+		int32 OverreachCount = 0;
+		for (const FExperienceCycleSecondReading& Reading : Plan.SecondReadings)
+		{
+			if (Reading.Grade == EExperienceReadingGrade::Insight) { ++InsightCount; }
+			if (Reading.Grade == EExperienceReadingGrade::Overreach) { ++OverreachCount; }
+			if (Reading.ConsequenceTag != NAME_None)
+			{
+				// A tag shared across two cycles would make a boon or scar ambiguous the moment the
+				// persisted set is read back, so uniqueness is checked across the whole arc.
+				TestFalse(*FString::Printf(TEXT("%s is a unique durable tag"), *Reading.ConsequenceTag.ToString()),
+					AllConsequenceTags.Contains(Reading.ConsequenceTag));
+				AllConsequenceTags.Add(Reading.ConsequenceTag);
+			}
+		}
+		TestEqual(*FString::Printf(TEXT("%s has exactly one sharper read"), *Plan.PlanId.ToString()), InsightCount, 1);
+		TestEqual(*FString::Printf(TEXT("%s has exactly one overread"), *Plan.PlanId.ToString()), OverreachCount, 1);
+	}
 	return true;
 }
 
@@ -373,9 +498,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FGloamExperiencePlanGenericHandoffIsExplicitTest::RunTest(const FString& /*Parameters*/)
 {
-	UGloamsteadExperienceCycleSubsystem* Subsystem = MakeSubsystem(MakeAuthoredCatalog());
+	UExperienceCycleCatalog* Catalog = MakeAuthoredCatalog();
+	UGloamsteadExperienceCycleSubsystem* Subsystem = MakeSubsystem(Catalog);
 	FExperienceCyclePersistentState State;
-	State.CompletedCycleSlot = 5;
+	// Read the ceiling from the catalog rather than writing it down. The literal 5 here is what made
+	// authoring a sixth cycle turn this test red for no reason a reader could act on.
+	State.CompletedCycleSlot = Catalog->AuthoredPlans.Num();
 	TestTrue(TEXT("post-authored state restores"), Subsystem->RestorePersistentState(State));
 
 	TestFalse(TEXT("no later authored plan is claimed"), Subsystem->EnsureUpcomingPlan());

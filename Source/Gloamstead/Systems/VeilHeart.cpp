@@ -2,6 +2,7 @@
 #include "Systems/GloamsteadExperienceCycleSubsystem.h"
 #include "Engine/GameInstance.h"
 #include "Actors/GloamsteadEvidenceSource.h"
+#include "Actors/GloamsteadReadingChoice.h"
 #include "Systems/GloamsteadDayNightSubsystem.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Components/SphereComponent.h"
@@ -497,6 +498,124 @@ bool AVeilHeart::Test_RecordSupportEncounter(FName WarningId, FName SupportId, F
 }
 #endif
 
+// ===== The second reading: what the player did with the rest of the sentence =====
+
+bool AVeilHeart::DoesVerdictProveExactPlan(
+	const FExperienceSecondReadingVerdict& Verdict,
+	const FExperienceCyclePlan& Plan) const
+{
+	if (!Plan.IsAuthoredPlan() || !Verdict.IsValid())
+	{
+		return false;
+	}
+
+	const FExperienceCycleSecondReading* Reading = Plan.FindSecondReading(Verdict.ReadingId);
+	// Every fact is re-derived from the plan rather than trusted from the verdict. A persisted or
+	// forged verdict claiming a grade the plan does not author would otherwise let a night hand out
+	// a boon the player never earned.
+	return Reading
+		&& Verdict.PlanId == Plan.PlanId
+		&& Verdict.WarningId == Plan.WarningId
+		&& Verdict.Grade == Reading->Grade
+		&& Verdict.ConsequenceTag == Reading->ConsequenceTag;
+}
+
+bool AVeilHeart::RecordSecondReadingFromChoice(const AGloamsteadReadingChoice* Choice)
+{
+	if (!IsValid(Choice) || Choice->GetWorld() == nullptr || Choice->GetWorld() != GetWorld())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("VeilHeart: rejected a reading choice from a foreign or non-world actor."));
+		return false;
+	}
+
+	return RecordSecondReadingInternal(Choice->GetWarningId(), Choice->GetReadingId());
+}
+
+bool AVeilHeart::RecordSecondReadingInternal(FName WarningId, FName ReadingId)
+{
+	if (!EnsureWarningCatalog())
+	{
+		return false;
+	}
+
+	const FExperienceCyclePlan* ActivePlan = ResolveActivePlan();
+	if (!ActivePlan || !IsExactWarningPresentedForPlan(*ActivePlan) || WarningId != ActivePlan->WarningId)
+	{
+		UE_LOG(LogTemp, Verbose,
+			TEXT("VeilHeart: reading %s rejected because it does not name the currently presented authored warning."),
+			*ReadingId.ToString());
+		return false;
+	}
+
+	const FExperienceCycleSecondReading* Reading = ActivePlan->FindSecondReading(ReadingId);
+	if (!Reading || !Reading->IsAuthored())
+	{
+		UE_LOG(LogTemp, Verbose,
+			TEXT("VeilHeart: reading %s is not authored by plan %s and was not recorded."),
+			*ReadingId.ToString(), *ActivePlan->PlanId.ToString());
+		return false;
+	}
+
+	// The ordering that makes this a SECOND reading. Without the receipt the player has not proved
+	// they read the warning and restored the place, and a configuration of nothing is not a choice.
+	if (!HasExactInterpretationForPlan(*ActivePlan))
+	{
+		UE_LOG(LogTemp, Log,
+			TEXT("VeilHeart: reading %s refused - plan %s has no interpretation receipt yet, so there is "
+				 "nothing for this reading to configure."),
+			*ReadingId.ToString(), *ActivePlan->PlanId.ToString());
+		return false;
+	}
+
+	// One reading per cycle. Letting the player re-take it would turn a decision into a menu, and
+	// the whole point of the second clause is that it is answered once, in the world, before dusk.
+	// Scoped to the ACTIVE plan, not to "any verdict exists". A verdict that no longer proves this
+	// plan is stale state, and stale state must not be able to refuse a legitimate commit.
+	if (DoesVerdictProveExactPlan(SecondReadingVerdict, *ActivePlan))
+	{
+		UE_LOG(LogTemp, Log,
+			TEXT("VeilHeart: reading %s refused - %s was already committed for plan %s."),
+			*ReadingId.ToString(), *SecondReadingVerdict.ReadingId.ToString(), *ActivePlan->PlanId.ToString());
+		return false;
+	}
+
+	FExperienceSecondReadingVerdict Verdict;
+	Verdict.ReadingId = Reading->ReadingId;
+	Verdict.PlanId = ActivePlan->PlanId;
+	Verdict.WarningId = ActivePlan->WarningId;
+	Verdict.Grade = Reading->Grade;
+	Verdict.ConsequenceTag = Reading->ConsequenceTag;
+
+	if (!DoesVerdictProveExactPlan(Verdict, *ActivePlan))
+	{
+		return false;
+	}
+
+	SecondReadingVerdict = MoveTemp(Verdict);
+	UE_LOG(LogTemp, Log, TEXT("VeilHeart: second reading %s committed for %s - graded %s (tag %s)."),
+		*SecondReadingVerdict.ReadingId.ToString(),
+		*ActivePlan->PlanId.ToString(),
+		*GetExperienceReadingGradeDisplayName(SecondReadingVerdict.Grade),
+		*SecondReadingVerdict.ConsequenceTag.ToString());
+	return true;
+}
+
+EExperienceReadingGrade AVeilHeart::GetSecondReadingGradeForPlan(const FExperienceCyclePlan& Plan) const
+{
+	// Unread is the honest answer both for a plan that offers no readings and for a verdict that
+	// does not survive re-derivation. Both mean the same thing to the night: apply no modifier.
+	return DoesVerdictProveExactPlan(SecondReadingVerdict, Plan)
+		? SecondReadingVerdict.Grade
+		: EExperienceReadingGrade::Unread;
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+bool AVeilHeart::Test_RecordSecondReading(FName WarningId, FName ReadingId)
+{
+	return RecordSecondReadingInternal(WarningId, ReadingId);
+}
+#endif
+
 bool AVeilHeart::EvaluateRestorationAgainstActivePlan(const FRestorationEventPayload& Payload)
 {
 	if (!EnsureWarningCatalog())
@@ -565,6 +684,7 @@ FVeilHeartInterpretationPersistentState AVeilHeart::CaptureInterpretationPersist
 	State.PresentedWarningId = LastEmittedWarningId;
 	State.EncounteredSupportIds = EncounteredSupportIds.Array();
 	State.InterpretationReceipt = LastInterpretationReceipt;
+	State.SecondReadingVerdict = SecondReadingVerdict;
 
 	// A receipt is created from this exact set in EvaluateRestorationAgainstActivePlan.
 	// If memory corruption or a future caller violates that invariant, do not
@@ -575,6 +695,17 @@ FVeilHeartInterpretationPersistentState AVeilHeart::CaptureInterpretationPersist
 			|| !DoesReceiptProveExactPlan(LastInterpretationReceipt, *ActivePlan, EncounteredSupportIds)))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("VeilHeart: refusing to capture a receipt whose support set does not exactly match encountered evidence."));
+		State.Reset();
+		return State;
+	}
+
+	// The verdict is held to the same standard: a snapshot that cannot re-derive its own grade from
+	// the active plan is self-contradictory state, and persisting it would let a later load hand out
+	// a boon nothing proves the player earned.
+	if (SecondReadingVerdict.HasAnyFacts()
+		&& (!ActivePlan || !DoesVerdictProveExactPlan(SecondReadingVerdict, *ActivePlan)))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("VeilHeart: refusing to capture a second reading that its active plan does not author."));
 		State.Reset();
 	}
 	return State;
@@ -589,6 +720,7 @@ void AVeilHeart::ResetInterpretationPersistentState()
 {
 	EncounteredSupportIds.Empty();
 	LastInterpretationReceipt = FExperienceInterpretationReceipt();
+	SecondReadingVerdict.Reset();
 	LastEmittedPlanId = NAME_None;
 	LastEmittedWarningId = NAME_None;
 	LastEmittedWarningNightType = ENightConsequenceType::Invalid;
@@ -649,11 +781,24 @@ bool AVeilHeart::RestoreInterpretationPersistentState(const FVeilHeartInterpreta
 		}
 	}
 
+	// A verdict may only be restored alongside the receipt that entitles it. Restoring one without
+	// the other would resume a save into a state the live rules can never produce.
+	if (State.SecondReadingVerdict.HasAnyFacts())
+	{
+		if (!DoesVerdictProveExactPlan(State.SecondReadingVerdict, *ActivePlan)
+			|| !State.InterpretationReceipt.HasAnyFacts())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("VeilHeart: refusing a persisted second reading that its active plan does not author."));
+			return false;
+		}
+	}
+
 	LastEmittedPlanId = State.PresentedPlanId;
 	LastEmittedWarningId = State.PresentedWarningId;
 	LastEmittedWarningNightType = ActivePlan->NightType;
 	EncounteredSupportIds = MoveTemp(RestoredSupportIds);
 	LastInterpretationReceipt = State.InterpretationReceipt;
+	SecondReadingVerdict = State.SecondReadingVerdict;
 	return true;
 }
 
@@ -763,8 +908,13 @@ bool AVeilHeart::EmitWarningForPlan(const FExperienceCyclePlan& Plan)
 	{
 		// A new authored plan starts a new interpretation ledger. This matters
 		// when a later night deliberately reuses a warning identity.
+		//
+		// The verdict is cleared here for a sharper reason than tidiness: the one-reading-per-cycle
+		// guard refuses a commit while a verdict for this plan stands, so a verdict left over from
+		// the previous cycle would silently lock the player out of THIS cycle second clause.
 		EncounteredSupportIds.Reset();
 		LastInterpretationReceipt = FExperienceInterpretationReceipt();
+		SecondReadingVerdict.Reset();
 	}
 	UE_LOG(LogTemp, Log, TEXT("VeilHeart: authored Day warning [%s] for night %s."),
 		*ExactWarning->WarningId.ToString(), *GetNightConsequenceTypeDisplayName(Plan.NightType));
@@ -784,6 +934,7 @@ void AVeilHeart::EmitWarningForNight(ENightConsequenceType NightType)
 			*Warning->WarningId.ToString(), *GetNightConsequenceTypeDisplayName(NightType));
 		EncounteredSupportIds.Reset();
 		LastInterpretationReceipt = FExperienceInterpretationReceipt();
+		SecondReadingVerdict.Reset();
 		LastEmittedPlanId = NAME_None;
 		LastEmittedWarningId = Warning->WarningId;
 		LastEmittedWarningNightType = NightType;
@@ -821,6 +972,7 @@ bool AVeilHeart::EmitWarningById(FName WarningId, ENightConsequenceType Expected
 		*ExactWarning->WarningId.ToString(), *GetNightConsequenceTypeDisplayName(ExpectedNightType));
 	EncounteredSupportIds.Reset();
 	LastInterpretationReceipt = FExperienceInterpretationReceipt();
+	SecondReadingVerdict.Reset();
 	LastEmittedPlanId = NAME_None;
 	LastEmittedWarningId = ExactWarning->WarningId;
 	LastEmittedWarningNightType = ExpectedNightType;

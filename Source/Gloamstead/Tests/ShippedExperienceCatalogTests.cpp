@@ -92,6 +92,31 @@ bool FGloamShippedExperienceCatalogTest::RunTest(const FString& /*Parameters*/)
 			Actual->InterpretationReceiptId, Expected.InterpretationReceiptId);
 		TestEqual(*FString::Printf(TEXT("%s OutcomeSummaryKey"), *Where),
 			Actual->OutcomeSummaryKey, Expected.OutcomeSummaryKey);
+
+		// The second clause is content too, and it is content the night acts on. A shipped plan whose
+		// readings had drifted from the code would let a player commit a reading the runtime grades
+		// differently - the single worst failure this mechanic can have.
+		TestEqual(*FString::Printf(TEXT("%s SecondReadings count"), *Where),
+			Actual->SecondReadings.Num(), Expected.SecondReadings.Num());
+		for (const FExperienceCycleSecondReading& ExpectedReading : Expected.SecondReadings)
+		{
+			const FExperienceCycleSecondReading* ActualReading = Actual->FindSecondReading(ExpectedReading.ReadingId);
+			if (!ActualReading)
+			{
+				AddError(FString::Printf(TEXT("%s is missing second reading %s"),
+					*Where, *ExpectedReading.ReadingId.ToString()));
+				continue;
+			}
+			TestEqual(*FString::Printf(TEXT("%s %s grade"), *Where, *ExpectedReading.ReadingId.ToString()),
+				GetExperienceReadingGradeDisplayName(ActualReading->Grade),
+				GetExperienceReadingGradeDisplayName(ExpectedReading.Grade));
+			TestEqual(*FString::Printf(TEXT("%s %s consequence tag"), *Where, *ExpectedReading.ReadingId.ToString()),
+				ActualReading->ConsequenceTag, ExpectedReading.ConsequenceTag);
+			TestEqual(*FString::Printf(TEXT("%s %s choice prompt"), *Where, *ExpectedReading.ReadingId.ToString()),
+				ActualReading->ChoicePrompt.ToString(), ExpectedReading.ChoicePrompt.ToString());
+			TestEqual(*FString::Printf(TEXT("%s %s outcome summary"), *Where, *ExpectedReading.ReadingId.ToString()),
+				ActualReading->OutcomeSummary.ToString(), ExpectedReading.OutcomeSummary.ToString());
+		}
 	}
 
 	return true;

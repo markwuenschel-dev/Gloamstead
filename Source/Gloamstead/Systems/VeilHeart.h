@@ -11,6 +11,7 @@
 
 class USphereComponent;
 class AGloamsteadEvidenceSource;
+class AGloamsteadReadingChoice;
 class UGloamsteadPCGSubsystem;
 class UGloamsteadDayNightSubsystem;
 
@@ -66,6 +67,24 @@ public:
 	 * deliberately a C++ authority seam rather than a Blueprint payload API.
 	 */
 	bool RecordSupportEncounterFromEvidenceSource(const AGloamsteadEvidenceSource* Source);
+
+	/**
+	 * Commits the player second reading of the active warning, from one live authored choice actor.
+	 *
+	 * Same authority shape as the evidence seam above, and the same reason: the Heart reads the
+	 * authored identity off the live actor and validates it against the active plan, so neither
+	 * Blueprint nor a generic caller can forge which reading was taken. The commit is refused until
+	 * the plan interpretation receipt exists - a second reading is a configuration of a restoration
+	 * the player already earned, never a substitute for earning it.
+	 */
+	bool RecordSecondReadingFromChoice(const AGloamsteadReadingChoice* Choice);
+
+	/** The reading committed for the active plan, or an empty verdict. */
+	UFUNCTION(BlueprintPure, Category="Veil Heart|Interpretation")
+	FExperienceSecondReadingVerdict GetSecondReadingVerdict() const { return SecondReadingVerdict; }
+
+	/** How the night should treat the player reading of this exact plan second clause. */
+	EExperienceReadingGrade GetSecondReadingGradeForPlan(const FExperienceCyclePlan& Plan) const;
 
 	UFUNCTION(BlueprintCallable, Category="Veil Heart")
 	void EmitWarningForNight(ENightConsequenceType NightType);
@@ -141,6 +160,9 @@ public:
 
 	/** Test-only controlled route for source/media validation without exposing a Blueprint write API. */
 	bool Test_RecordSupportEncounter(FName WarningId, FName SupportId, FName ChannelType);
+
+	/** Test-only controlled route for reading-choice validation without a Blueprint write API. */
+	bool Test_RecordSecondReading(FName WarningId, FName ReadingId);
 
 	/** Test-only wrappers for durable state assertions; production restore authority is DayNight-only. */
 	FVeilHeartInterpretationPersistentState Test_CaptureInterpretationPersistentState() const
@@ -233,6 +255,9 @@ private:
 		const FExperienceCyclePlan& Plan,
 		const TSet<FName>& SupportIds) const;
 	bool RecordSupportEncounterInternal(FName WarningId, FName SupportId, FName ChannelType);
+	bool RecordSecondReadingInternal(FName WarningId, FName ReadingId);
+	/** True only when this verdict names a reading the given plan actually authors. */
+	bool DoesVerdictProveExactPlan(const FExperienceSecondReadingVerdict& Verdict, const FExperienceCyclePlan& Plan) const;
 	/** Native-only completion emitted by the placement authority, never by generic PCG mutation. */
 	void OnPlacementAuthorizedRestoration(const FRestorationEventPayload& Payload);
 	bool EvaluateRestorationAgainstActivePlan(const FRestorationEventPayload& Payload);
@@ -242,6 +267,9 @@ private:
 
 	UPROPERTY()
 	FExperienceInterpretationReceipt LastInterpretationReceipt;
+
+	UPROPERTY()
+	FExperienceSecondReadingVerdict SecondReadingVerdict;
 
     UPROPERTY()
     FNightRuntimeOutcome LastNightOutcome;

@@ -50,7 +50,7 @@
             "MinAverageCorruption": 0,
             "MaxAverageCorruption": 0.4,
             "FavoredRitualTypes": [
-              "MirrorPillar"
+              "PathPoint"
             ]
           },
           {
@@ -64,6 +64,28 @@
               "MirrorPillar",
               "BellShrine"
             ]
+          },
+          {
+            "NightType": "Bargain",
+            "Weight": 2,
+            "MinAverageLight": 0.4,
+            "MaxAverageLight": 1,
+            "MinAverageCorruption": 0,
+            "MaxAverageCorruption": 0.35,
+            "FavoredRitualTypes": [
+              "BellShrine"
+            ]
+          },
+          {
+            "NightType": "TrueSiege",
+            "Weight": 1,
+            "MinAverageLight": 0.5,
+            "MaxAverageLight": 1,
+            "MinAverageCorruption": 0,
+            "MaxAverageCorruption": 0.3,
+            "FavoredRitualTypes": [
+              "AnchorStone"
+            ]
           }
         ]
       }
@@ -74,7 +96,7 @@
       "properties": {
         "Warnings": [
           {
-            "_comment": "Cycle 1. Deliberately carries no SupportChannels and no InterpretationReceiptId: the opening tutorial predates fair-crypticism evidence and is exempted from MatchesExactPlanContract in AVeilHeart::CanPresentWarningForPlan. Cycle 1 cannot begin its first night without this exact row - CanRestNow requires PresentedPlanId == the armed plan, and presentation requires an exact TutorialLostPath/Tutorial match.",
+            "_comment": "Cycle I. Deliberately carries no ritual type, no support channels, no receipt and no second reading: the opening tutorial predates the fair-crypticism evidence contract and is exempted from MatchesExactPlanContract in AVeilHeart::CanPresentWarningForPlan. Night 1 teaches only that what you restore matters.",
             "WarningId": "TutorialLostPath",
             "Fragment": "The path has forgotten its light. Raise the lantern before the dark walks it.",
             "AssociatedNightType": "Tutorial",
@@ -86,18 +108,9 @@
             "ClarityTier": 2
           },
           {
-            "WarningId": "PathBlocked",
-            "Fragment": "The way is veiled until the light returns.",
-            "AssociatedNightType": "Omen",
-            "SatisfiableTags": [
-              "LightPath",
-              "LanternPost"
-            ],
-            "ClarityTier": 0
-          },
-          {
+            "_comment": "Cycle II. The garden off the plaza. The lesson is that the warning carries more than the minimum: restoring the bed survives the night, watering it is the sharper read, ashing it is the plausible wrong one. No true enemy yet.",
             "WarningId": "GardenRot",
-            "Fragment": "What grows in darkness must be tended before the bell tolls.",
+            "Fragment": "Wake the roots. Wet earth shelters; bare ash feeds the Gloam.",
             "AssociatedNightType": "Corruption",
             "SatisfiableTags": [
               "GardenBed"
@@ -125,63 +138,134 @@
             "ClarityTier": 1
           },
           {
-            "WarningId": "GardenRot",
-            "Fragment": "The bell remembers what you mended; tend the same bed when its root-chime falters.",
+            "_comment": "Cycle III. The approach road, recontextualised: what was the route to the Heart is now a system to repair. First night where the thing in danger is something the player made. Night pressure: one Gatherer, an objective thief rather than a combatant.",
+            "WarningId": "RoadUnbound",
+            "Fragment": "Give the lantern a road. Loops guard; dead ends invite hands.",
             "AssociatedNightType": "Retrieval",
             "SatisfiableTags": [
-              "GardenBed"
+              "PathPoint"
             ],
-            "SemanticSubject": "Cycle2_Garden",
-            "RequiredRitualType": "GardenBed",
+            "SemanticSubject": "Cycle3_Road",
+            "RequiredRitualType": "PathPoint",
             "SupportChannels": [
               {
-                "SupportId": "GardenRot.WitheredVines",
-                "EvidenceText": "The restored vines draw inward toward the eastern bed as the bell goes dark.",
+                "SupportId": "RoadUnbound.BrokenFlagstones",
+                "EvidenceText": "The flagstones give out where the lantern light stops reaching.",
                 "ChannelType": "Environmental"
               },
               {
-                "SupportId": "GardenRot.ColdSoil",
-                "EvidenceText": "The root-chime answers only beside the same cracked garden bed.",
+                "SupportId": "RoadUnbound.LeaningWaymark",
+                "EvidenceText": "The waymark leans toward the old gate, worn smooth on one side only.",
                 "ChannelType": "ObjectReaction"
               },
               {
-                "SupportId": "GardenRot.BellMoths",
-                "EvidenceText": "Moths return beneath the bell when the mended soil begins to whisper.",
+                "SupportId": "RoadUnbound.DraggingStep",
+                "EvidenceText": "Something long-limbed drags a step along the broken span, then stops.",
                 "ChannelType": "Audio"
               }
             ],
-            "InterpretationReceiptId": "GardenRot.Retrieved",
+            "InterpretationReceiptId": "RoadUnbound.Interpreted",
+            "ClarityTier": 1
+          },
+          {
+            "_comment": "Cycle IV. The overlook above the plaza, where plaza, lantern, garden and road are all visible at once - which is what makes 'point it at the right one' a readable question. Night pressure: The Borrowed, the first true combat pressure.",
+            "WarningId": "StolenLight",
+            "Fragment": "Raise the mirror. Face stolen light; never show it the Heart.",
+            "AssociatedNightType": "SilencePossession",
+            "SatisfiableTags": [
+              "MirrorPillar"
+            ],
+            "SemanticSubject": "Cycle4_Overlook",
+            "RequiredRitualType": "MirrorPillar",
+            "SupportChannels": [
+              {
+                "SupportId": "StolenLight.TwinnedGlow",
+                "EvidenceText": "From the overlook the lantern below burns twice, a half-step apart.",
+                "ChannelType": "Environmental"
+              },
+              {
+                "SupportId": "StolenLight.ColdPillarFace",
+                "EvidenceText": "The pillar's broken face stays cold on the side the light should warm.",
+                "ChannelType": "ObjectReaction"
+              },
+              {
+                "SupportId": "StolenLight.BorrowedVoice",
+                "EvidenceText": "A voice the sanctuary used to know repeats one word, slightly wrong.",
+                "ChannelType": "Audio"
+              }
+            ],
+            "InterpretationReceiptId": "StolenLight.Interpreted",
             "ClarityTier": 2
           },
           {
-            "_comment": "Cycle 4. Same garden subject re-read as SilencePossession: the restored place goes unnaturally still.",
-            "WarningId": "GardenRot",
-            "Fragment": "The garden goes silent beneath borrowed light. Break the hold before it roots.",
-            "AssociatedNightType": "SilencePossession",
+            "_comment": "Cycle V. The bell shrine at the sanctuary's far edge. The first restoration that is an ACTIVE night tool rather than preparation, which is why the overread is the intuitive one: louder feels safer. Night pressure: The Bargainer, plus an Echo when overrung.",
+            "WarningId": "BellBargain",
+            "Fragment": "Wake the bell. One answer frees; three answers invite company.",
+            "AssociatedNightType": "Bargain",
             "SatisfiableTags": [
-              "GardenBed"
+              "BellShrine"
             ],
-            "SemanticSubject": "Cycle2_Garden",
-            "RequiredRitualType": "GardenBed",
+            "SemanticSubject": "Cycle5_BellShrine",
+            "RequiredRitualType": "BellShrine",
             "SupportChannels": [
               {
-                "SupportId": "GardenRot.WitheredVines",
-                "EvidenceText": "The restored vines stop moving when the light turns away.",
+                "SupportId": "BellBargain.WornInscription",
+                "EvidenceText": "The shrine's inscription is worn to one legible line: answer once.",
                 "ChannelType": "Environmental"
               },
               {
-                "SupportId": "GardenRot.ColdSoil",
-                "EvidenceText": "The soil stays cold beneath a bed that should be warm.",
+                "SupportId": "BellBargain.CrackedClapper",
+                "EvidenceText": "The clapper swings true on the first strike and rattles on the third.",
                 "ChannelType": "ObjectReaction"
               },
               {
-                "SupportId": "GardenRot.BellMoths",
-                "EvidenceText": "The bell moths fall silent when the garden is watched.",
+                "SupportId": "BellBargain.AnsweringToll",
+                "EvidenceText": "Something out past the light tolls back, half a beat late, every time.",
                 "ChannelType": "Audio"
               }
             ],
-            "InterpretationReceiptId": "GardenRot.Possessed",
+            "InterpretationReceiptId": "BellBargain.Interpreted",
             "ClarityTier": 2
+          },
+          {
+            "_comment": "Cycle VI. No new spoke of the map: the sanctuary the player repaired for five cycles becomes the puzzle. The climax recombines the Gatherer, the Borrowed and an Echo - all rules the player already knows - rather than introducing a sixth arbitrary monster.",
+            "WarningId": "ThreeLights",
+            "Fragment": "Bind three lights apart. A closed ring holds; a crown breaks.",
+            "AssociatedNightType": "TrueSiege",
+            "SatisfiableTags": [
+              "AnchorStone"
+            ],
+            "SemanticSubject": "Cycle6_Sanctuary",
+            "RequiredRitualType": "AnchorStone",
+            "SupportChannels": [
+              {
+                "SupportId": "ThreeLights.FractureSeams",
+                "EvidenceText": "Hairline seams run between everything you mended, and they are widening.",
+                "ChannelType": "Environmental"
+              },
+              {
+                "SupportId": "ThreeLights.LeaningKeystone",
+                "EvidenceText": "The outer keystone tilts away from the Heart, as if pushed from inside.",
+                "ChannelType": "ObjectReaction"
+              },
+              {
+                "SupportId": "ThreeLights.RingingSilence",
+                "EvidenceText": "The whole sanctuary rings once, together, and then says nothing at all.",
+                "ChannelType": "Audio"
+              }
+            ],
+            "InterpretationReceiptId": "ThreeLights.Interpreted",
+            "ClarityTier": 2
+          },
+          {
+            "WarningId": "PathBlocked",
+            "Fragment": "The way is veiled until the light returns.",
+            "AssociatedNightType": "Omen",
+            "SatisfiableTags": [
+              "LightPath",
+              "LanternPost"
+            ],
+            "ClarityTier": 0
           },
           {
             "WarningId": "HiddenReflection",
@@ -192,36 +276,6 @@
               "Reflection"
             ],
             "ClarityTier": 1
-          },
-          {
-            "_comment": "Cycle 5. The garden read a fifth way: its restored water shows a second sanctuary that offers a bargain. Same subject as cycles 2-4 - the place the player mended is the place that tempts them.",
-            "WarningId": "MirrorDebt",
-            "Fragment": "The garden's water shows a second sanctuary. Refuse what it offers, or carry its truth in the light.",
-            "AssociatedNightType": "Mirror",
-            "SatisfiableTags": [
-              "GardenBed"
-            ],
-            "SemanticSubject": "Cycle2_Garden",
-            "RequiredRitualType": "GardenBed",
-            "SupportChannels": [
-              {
-                "SupportId": "MirrorDebt.StillWater",
-                "EvidenceText": "The restored water lies flat even when the sanctuary wind moves the reeds.",
-                "ChannelType": "Environmental"
-              },
-              {
-                "SupportId": "MirrorDebt.DoubleShadow",
-                "EvidenceText": "Your reflection turns toward the dark path a heartbeat before you do.",
-                "ChannelType": "ObjectReaction"
-              },
-              {
-                "SupportId": "MirrorDebt.HeartWhisper",
-                "EvidenceText": "The Heart's pulse answers from the reflection, not from the stone behind you.",
-                "ChannelType": "Audio"
-              }
-            ],
-            "InterpretationReceiptId": "MirrorDebt.Interpreted",
-            "ClarityTier": 2
           }
         ]
       }
@@ -294,13 +348,28 @@
       }
     },
     {
-      "_comment": "Authored production source for the experience cycle plans. Runtime loads this asset first (GloamsteadExperienceCycleSubsystem::EnsureCatalog) and only falls back to PopulateDefaultExperienceCyclePlans when it is absent.",
+      "_comment": "Cycle VI. An anchor stone binds lights the player already raised rather than making a new one, so its own light contribution is deliberately the smallest of the six.",
+      "asset_name": "DA_Ritual_AnchorStone",
+      "class": "RitualDefinition",
+      "properties": {
+        "RitualType": "AnchorStone",
+        "DefaultLightContribution": 0.1,
+        "DefaultCorruptionClearance": 0.15,
+        "RestorationRadius": 800,
+        "SatisfiableWarningTags": [
+          "Anchor",
+          "Binding"
+        ]
+      }
+    },
+    {
+      "_comment": "Authored production source for the six-cycle experience. Runtime loads this asset first (GloamsteadExperienceCycleSubsystem::EnsureCatalog) and falls back to PopulateDefaultExperienceCyclePlans only when it is absent. Every field is compared against that canonical in-code plan before a cycle is armed, so this file is transport, not authority.",
       "asset_name": "DA_ExperienceCycleCatalog",
       "class": "ExperienceCycleCatalog",
       "properties": {
         "AuthoredPlans": [
           {
-            "_comment": "Cycle 1. No RequiredRitualType, no receipt and no support channels by design: the opening tutorial predates fair-crypticism evidence and is exempted from MatchesExactPlanContract.",
+            "_comment": "Cycle I. Deliberately carries no ritual type, no support channels, no receipt and no second reading: the opening tutorial predates the fair-crypticism evidence contract and is exempted from MatchesExactPlanContract in AVeilHeart::CanPresentWarningForPlan. Night 1 teaches only that what you restore matters.",
             "Slot": 1,
             "PlanId": "Cycle1_Tutorial",
             "WarningId": "TutorialLostPath",
@@ -314,6 +383,7 @@
             "Resolution": "Authored"
           },
           {
+            "_comment": "Cycle II. The garden off the plaza. The lesson is that the warning carries more than the minimum: restoring the bed survives the night, watering it is the sharper read, ashing it is the plausible wrong one. No true enemy yet.",
             "Slot": 2,
             "PlanId": "Cycle2_Garden",
             "WarningId": "GardenRot",
@@ -335,24 +405,47 @@
             ],
             "MinimumDistinctSupportCount": 2,
             "InterpretationReceiptId": "GardenRot.Interpreted",
+            "SecondReadings": [
+              {
+                "ReadingId": "GardenRot.OpenTheSluice",
+                "Grade": "Insight",
+                "ChoicePrompt": "Reopen the old sluice and let the bed drink",
+                "OutcomeSummary": "You let the water back in. Wet earth sheltered the roots, and the rot spread slower for it.",
+                "ConsequenceTag": "Boon.GardenAura"
+              },
+              {
+                "ReadingId": "GardenRot.ClearByHand",
+                "Grade": "Plain",
+                "ChoicePrompt": "Clear the dead growth by hand",
+                "OutcomeSummary": "You cleared what was dead and left the soil as you found it. The bed held, and no more."
+              },
+              {
+                "ReadingId": "GardenRot.AshPurification",
+                "Grade": "Overreach",
+                "ChoicePrompt": "Empty the ash brazier over the bed to purify it",
+                "OutcomeSummary": "You covered the bed in ash. Bare earth fed the Gloam, and the rot ran ahead of you.",
+                "ConsequenceTag": "Scar.AshFed"
+              }
+            ],
             "VisualStateKey": "restoration_level",
             "OutcomeSummaryKey": "Cycle2_Garden",
             "Resolution": "Authored"
           },
           {
+            "_comment": "Cycle III. The approach road, recontextualised: what was the route to the Heart is now a system to repair. First night where the thing in danger is something the player made. Night pressure: one Gatherer, an objective thief rather than a combatant.",
             "Slot": 3,
-            "PlanId": "Cycle3_Retrieval",
-            "WarningId": "GardenRot",
+            "PlanId": "Cycle3_Road",
+            "WarningId": "RoadUnbound",
             "NightType": "Retrieval",
-            "SemanticSubject": "Cycle2_Garden",
+            "SemanticSubject": "Cycle3_Road",
             "RequiredRestorationTags": [
-              "GardenBed"
+              "PathPoint"
             ],
-            "RequiredRitualType": "GardenBed",
+            "RequiredRitualType": "PathPoint",
             "RequiredSupportIds": [
-              "GardenRot.WitheredVines",
-              "GardenRot.ColdSoil",
-              "GardenRot.BellMoths"
+              "RoadUnbound.BrokenFlagstones",
+              "RoadUnbound.LeaningWaymark",
+              "RoadUnbound.DraggingStep"
             ],
             "RequiredSupportChannelTypes": [
               "Environmental",
@@ -360,26 +453,48 @@
               "Audio"
             ],
             "MinimumDistinctSupportCount": 2,
-            "InterpretationReceiptId": "GardenRot.Retrieved",
+            "InterpretationReceiptId": "RoadUnbound.Interpreted",
+            "SecondReadings": [
+              {
+                "ReadingId": "RoadUnbound.CloseTheLoop",
+                "Grade": "Insight",
+                "ChoicePrompt": "Lay the last stones so the lit path closes on itself",
+                "OutcomeSummary": "You closed the road into a loop. The circuit relit a segment the dark had taken.",
+                "ConsequenceTag": "Boon.PathLoop"
+              },
+              {
+                "ReadingId": "RoadUnbound.MendTheBreak",
+                "Grade": "Plain",
+                "ChoicePrompt": "Mend only the broken span",
+                "OutcomeSummary": "You mended the break and stopped there. The lantern kept its road, and nothing more."
+              },
+              {
+                "ReadingId": "RoadUnbound.ReachTheOuterGate",
+                "Grade": "Overreach",
+                "ChoicePrompt": "Carry the road on toward the abandoned outer gate",
+                "OutcomeSummary": "You ran the road out to the old gate and left it open-ended. Something used it to come in.",
+                "ConsequenceTag": "Scar.DeadEnd"
+              }
+            ],
             "VisualStateKey": "restoration_level",
-            "OutcomeSummaryKey": "Cycle3_Retrieval",
-            "Resolution": "Authored",
-            "_comment": "Cycle 3. Second reading of the same garden: the night tests what the player mended."
+            "OutcomeSummaryKey": "Cycle3_Road",
+            "Resolution": "Authored"
           },
           {
+            "_comment": "Cycle IV. The overlook above the plaza, where plaza, lantern, garden and road are all visible at once - which is what makes 'point it at the right one' a readable question. Night pressure: The Borrowed, the first true combat pressure.",
             "Slot": 4,
-            "PlanId": "Cycle4_Possession",
-            "WarningId": "GardenRot",
+            "PlanId": "Cycle4_Mirror",
+            "WarningId": "StolenLight",
             "NightType": "SilencePossession",
-            "SemanticSubject": "Cycle2_Garden",
+            "SemanticSubject": "Cycle4_Overlook",
             "RequiredRestorationTags": [
-              "GardenBed"
+              "MirrorPillar"
             ],
-            "RequiredRitualType": "GardenBed",
+            "RequiredRitualType": "MirrorPillar",
             "RequiredSupportIds": [
-              "GardenRot.WitheredVines",
-              "GardenRot.ColdSoil",
-              "GardenRot.BellMoths"
+              "StolenLight.TwinnedGlow",
+              "StolenLight.ColdPillarFace",
+              "StolenLight.BorrowedVoice"
             ],
             "RequiredSupportChannelTypes": [
               "Environmental",
@@ -387,27 +502,48 @@
               "Audio"
             ],
             "MinimumDistinctSupportCount": 2,
-            "InterpretationReceiptId": "GardenRot.Possessed",
+            "InterpretationReceiptId": "StolenLight.Interpreted",
+            "SecondReadings": [
+              {
+                "ReadingId": "StolenLight.FaceTheLantern",
+                "Grade": "Insight",
+                "ChoicePrompt": "Turn the mirror to face the lantern below",
+                "OutcomeSummary": "You faced the mirror at the stolen light. Its tether stayed visible long enough to cut.",
+                "ConsequenceTag": "Boon.TetherExposed"
+              },
+              {
+                "ReadingId": "StolenLight.FaceTheRoad",
+                "Grade": "Plain",
+                "ChoicePrompt": "Turn the mirror along the road",
+                "OutcomeSummary": "You faced the mirror down the road. It showed you the way out, and nothing that mattered."
+              },
+              {
+                "ReadingId": "StolenLight.FaceTheHeart",
+                "Grade": "Overreach",
+                "ChoicePrompt": "Turn the mirror inward, toward the Heart",
+                "OutcomeSummary": "You showed the mirror the Heart. Whatever borrows light now knows where the centre is.",
+                "ConsequenceTag": "Scar.HeartRevealed"
+              }
+            ],
             "VisualStateKey": "restoration_level",
-            "OutcomeSummaryKey": "Cycle4_Possession",
-            "Resolution": "Authored",
-            "_comment": "Cycle 4. Third reading of the same garden: its unnatural silence is the new evidence."
+            "OutcomeSummaryKey": "Cycle4_Mirror",
+            "Resolution": "Authored"
           },
           {
-            "_comment": "Cycle 5. Mirror bargain: accept and hold it with light, or refuse and keep the sanctuary.",
+            "_comment": "Cycle V. The bell shrine at the sanctuary's far edge. The first restoration that is an ACTIVE night tool rather than preparation, which is why the overread is the intuitive one: louder feels safer. Night pressure: The Bargainer, plus an Echo when overrung.",
             "Slot": 5,
-            "PlanId": "Cycle5_Mirror",
-            "WarningId": "MirrorDebt",
-            "NightType": "Mirror",
-            "SemanticSubject": "Cycle2_Garden",
+            "PlanId": "Cycle5_Bell",
+            "WarningId": "BellBargain",
+            "NightType": "Bargain",
+            "SemanticSubject": "Cycle5_BellShrine",
             "RequiredRestorationTags": [
-              "GardenBed"
+              "BellShrine"
             ],
-            "RequiredRitualType": "GardenBed",
+            "RequiredRitualType": "BellShrine",
             "RequiredSupportIds": [
-              "MirrorDebt.StillWater",
-              "MirrorDebt.DoubleShadow",
-              "MirrorDebt.HeartWhisper"
+              "BellBargain.WornInscription",
+              "BellBargain.CrackedClapper",
+              "BellBargain.AnsweringToll"
             ],
             "RequiredSupportChannelTypes": [
               "Environmental",
@@ -415,9 +551,80 @@
               "Audio"
             ],
             "MinimumDistinctSupportCount": 2,
-            "InterpretationReceiptId": "MirrorDebt.Interpreted",
+            "InterpretationReceiptId": "BellBargain.Interpreted",
+            "SecondReadings": [
+              {
+                "ReadingId": "BellBargain.RingOnce",
+                "Grade": "Insight",
+                "ChoicePrompt": "Strike the bell once, on the answering beat",
+                "OutcomeSummary": "You answered once. The resonance carried, repelled what stood in it, and relit what had gone out.",
+                "ConsequenceTag": "Boon.Resonance"
+              },
+              {
+                "ReadingId": "BellBargain.RingTwice",
+                "Grade": "Plain",
+                "ChoicePrompt": "Strike the bell twice",
+                "OutcomeSummary": "You struck twice. The shrine woke, and the night neither helped nor hindered you for it."
+              },
+              {
+                "ReadingId": "BellBargain.RingThrice",
+                "Grade": "Overreach",
+                "ChoicePrompt": "Strike the bell three times, to be certain",
+                "OutcomeSummary": "You rang three times to be safe. Something answered that had not been invited.",
+                "ConsequenceTag": "Scar.CompanyCalled"
+              }
+            ],
             "VisualStateKey": "restoration_level",
-            "OutcomeSummaryKey": "Cycle5_Mirror",
+            "OutcomeSummaryKey": "Cycle5_Bell",
+            "Resolution": "Authored"
+          },
+          {
+            "_comment": "Cycle VI. No new spoke of the map: the sanctuary the player repaired for five cycles becomes the puzzle. The climax recombines the Gatherer, the Borrowed and an Echo - all rules the player already knows - rather than introducing a sixth arbitrary monster.",
+            "Slot": 6,
+            "PlanId": "Cycle6_Siege",
+            "WarningId": "ThreeLights",
+            "NightType": "TrueSiege",
+            "SemanticSubject": "Cycle6_Sanctuary",
+            "RequiredRestorationTags": [
+              "AnchorStone"
+            ],
+            "RequiredRitualType": "AnchorStone",
+            "RequiredSupportIds": [
+              "ThreeLights.FractureSeams",
+              "ThreeLights.LeaningKeystone",
+              "ThreeLights.RingingSilence"
+            ],
+            "RequiredSupportChannelTypes": [
+              "Environmental",
+              "ObjectReaction",
+              "Audio"
+            ],
+            "MinimumDistinctSupportCount": 2,
+            "InterpretationReceiptId": "ThreeLights.Interpreted",
+            "SecondReadings": [
+              {
+                "ReadingId": "ThreeLights.ClosedRing",
+                "Grade": "Insight",
+                "ChoicePrompt": "Bind the garden, the road and the bell - the far three",
+                "OutcomeSummary": "You bound the outer three into a closed ring. Their light linked and held the fracture seams shut.",
+                "ConsequenceTag": "Boon.RingHeld"
+              },
+              {
+                "ReadingId": "ThreeLights.WideArc",
+                "Grade": "Plain",
+                "ChoicePrompt": "Bind three lights in a wide arc",
+                "OutcomeSummary": "You bound an arc, not a ring. It held one flank of the sanctuary and left the other open."
+              },
+              {
+                "ReadingId": "ThreeLights.CrownOnHeart",
+                "Grade": "Overreach",
+                "ChoicePrompt": "Bind the three nearest lights, close around the Heart",
+                "OutcomeSummary": "You crowned the Heart with all three. The outer sanctuary collapsed and funnelled everything inward.",
+                "ConsequenceTag": "Scar.CrownBroken"
+              }
+            ],
+            "VisualStateKey": "restoration_level",
+            "OutcomeSummaryKey": "Cycle6_Siege",
             "Resolution": "Authored"
           }
         ]
@@ -430,7 +637,7 @@
       "properties": {
         "Sites": [
           {
-            "_comment": "The garden lies between the ruins and around the Veil Heart. Anchored to the Heart, with a minimum distance so it settles in the ground AROUND the centre rather than on the Heart's own point. Cycles 2, 3, 4 and 5 all read this one place.",
+            "_comment": "The garden lies between the ruins and around the Veil Heart. The minimum distance keeps it settling AROUND the centre rather than on the Heart's own point.",
             "SemanticSubject": "Cycle2_Garden",
             "RecommendedForWarning": "GardenRot",
             "RitualType": "GardenBed",
@@ -438,6 +645,46 @@
             "Anchor": "SanctuaryHeart",
             "MinimumAnchorDistance": 300.0,
             "BindRadius": 6000.0
+          },
+          {
+            "_comment": "The broken road is described from the first lantern outward, because that is what it has to reach. Anchoring it to the lantern rather than the Heart is the whole point of Cycle III: the road exists to serve a light the player already raised.",
+            "SemanticSubject": "Cycle3_Road",
+            "RecommendedForWarning": "RoadUnbound",
+            "RitualType": "PathPoint",
+            "RestorationTag": "PathPoint",
+            "Anchor": "FirstLantern",
+            "MinimumAnchorDistance": 400.0,
+            "BindRadius": 7000.0
+          },
+          {
+            "_comment": "The overlook is high and set back, far enough that plaza, lantern, garden and road read as one arrangement rather than as separate places.",
+            "SemanticSubject": "Cycle4_Overlook",
+            "RecommendedForWarning": "StolenLight",
+            "RitualType": "MirrorPillar",
+            "RestorationTag": "MirrorPillar",
+            "Anchor": "SanctuaryHeart",
+            "MinimumAnchorDistance": 1200.0,
+            "BindRadius": 8000.0
+          },
+          {
+            "_comment": "The bell shrine sits at the sanctuary's opposite edge. By Cycle V the island should feel known, so the novelty is what the player must infer, not where they must go.",
+            "SemanticSubject": "Cycle5_BellShrine",
+            "RecommendedForWarning": "BellBargain",
+            "RitualType": "BellShrine",
+            "RestorationTag": "BellShrine",
+            "Anchor": "SanctuaryHeart",
+            "MinimumAnchorDistance": 2000.0,
+            "BindRadius": 9000.0
+          },
+          {
+            "_comment": "The keystone the player binds the ring from. It is not a sixth spoke of the map - it is the act of configuring the five that already exist.",
+            "SemanticSubject": "Cycle6_Sanctuary",
+            "RecommendedForWarning": "ThreeLights",
+            "RitualType": "AnchorStone",
+            "RestorationTag": "AnchorStone",
+            "Anchor": "SanctuaryHeart",
+            "MinimumAnchorDistance": 800.0,
+            "BindRadius": 9000.0
           }
         ]
       }

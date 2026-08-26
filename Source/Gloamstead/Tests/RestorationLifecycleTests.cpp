@@ -186,9 +186,24 @@ bool FGloamRestoreMissingDefinitionFallbackTest::RunTest(const FString& /*Parame
     TestTrue(TEXT("GardenBed fallback is non-zero light"), GetDefaultLightContribution(ERitualType::GardenBed) > 0.f);
 
     // Types that are not directly restorable in Phase 1 contribute nothing, by design.
-    TestEqual(TEXT("PathPoint contributes no light"), GetDefaultLightContribution(ERitualType::PathPoint), 0.f, KINDA_SMALL_NUMBER);
+    // Cycle III is the cycle that asks for a road, so PathPoint is now a real restorable ritual. It
+    // carries light rather than making it: enough to link two lanterns, less than either of them.
+    TestTrue(TEXT("PathPoint carries some light"), GetDefaultLightContribution(ERitualType::PathPoint) > 0.f);
+    TestTrue(TEXT("a road carries less light than the lantern it serves"),
+        GetDefaultLightContribution(ERitualType::PathPoint) < GetDefaultLightContribution(ERitualType::LanternPost));
     TestEqual(TEXT("Invalid contributes no light"), GetDefaultLightContribution(ERitualType::Invalid), 0.f, KINDA_SMALL_NUMBER);
-    TestFalse(TEXT("PathPoint is not directly restorable"), IsDirectlyRestorable(ERitualType::PathPoint));
+
+    // Every authored ritual form the arc asks for must be placeable by the player, or its own cycle
+    // could never resolve its objective.
+    TestTrue(TEXT("PathPoint is directly restorable"), IsDirectlyRestorable(ERitualType::PathPoint));
+    TestTrue(TEXT("MirrorPillar is directly restorable"), IsDirectlyRestorable(ERitualType::MirrorPillar));
+    TestTrue(TEXT("BellShrine is directly restorable"), IsDirectlyRestorable(ERitualType::BellShrine));
+    TestTrue(TEXT("AnchorStone is directly restorable"), IsDirectlyRestorable(ERitualType::AnchorStone));
+    TestFalse(TEXT("Invalid is never restorable"), IsDirectlyRestorable(ERitualType::Invalid));
+
+    // An anchor binds lights that already exist, so it is authored as the smallest contribution.
+    TestTrue(TEXT("AnchorStone contributes the least light of the six"),
+        GetDefaultLightContribution(ERitualType::AnchorStone) < GetDefaultLightContribution(ERitualType::PathPoint));
     return true;
 }
 

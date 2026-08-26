@@ -5,6 +5,7 @@
 #include "Engine/World.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Systems/GloamsteadDayNightSubsystem.h"
+#include "Systems/GloamsteadInterpretationSiteBuilder.h"
 #include "PCGComponent.h"
 #include "PCGData.h"
 
@@ -111,6 +112,17 @@ bool AGloamsteadSanctuaryBootstrap::TryInitializeSanctuary()
 	}
 
 	bInitializedSanctuary = true;
+
+	// The authored clues and choices are placed only now, because both need the PCG points that the
+	// call above created and the authored site contracts it stamped onto them. Doing it here rather
+	// than in the builder's own Initialize is what guarantees that ordering.
+	if (bMaterializeInterpretationSites)
+	{
+		if (UGloamsteadInterpretationSiteBuilder* SiteBuilder = World->GetSubsystem<UGloamsteadInterpretationSiteBuilder>())
+		{
+			SiteBuilder->MaterializeAuthoredInterpretationSites();
+		}
+	}
 
 	UE_LOG(LogTemp, Log, TEXT("GloamsteadSanctuaryBootstrap '%s': initialized sanctuary PCG state with seed %d."), *GetName(), WorldSeed);
 	return true;

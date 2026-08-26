@@ -291,12 +291,23 @@ float ACombatEnemy::TakeDamage(float Damage, struct FDamageEvent const& DamageEv
 	}
 	else
 	{
-		// update the life bar
-		LifeBarWidget->SetLifePercentage(CurrentHP / MaxHP);
+		// update the life bar (absent on natively spawned enemies; see BeginPlay)
+		if (LifeBarWidget)
+		{
+			LifeBarWidget->SetLifePercentage(CurrentHP / MaxHP);
+		}
 
-		// enable partial ragdoll physics, but keep the pelvis vertical
-		GetMesh()->SetPhysicsBlendWeight(0.5f);
-		GetMesh()->SetBodySimulatePhysics(PelvisBoneName, false);
+		// enable partial ragdoll physics, but keep the pelvis vertical.
+		// PelvisBoneName is empty until a subclass names it for its own skeleton, and
+		// SetBodySimulatePhysics on an unnamed bone warns every hit.
+		if (USkeletalMeshComponent* MeshComponent = GetMesh())
+		{
+			MeshComponent->SetPhysicsBlendWeight(0.5f);
+			if (PelvisBoneName != NAME_None)
+			{
+				MeshComponent->SetBodySimulatePhysics(PelvisBoneName, false);
+			}
+		}
 	}
 
 	// return the received damage amount
@@ -311,7 +322,10 @@ void ACombatEnemy::Landed(const FHitResult& Hit)
 	if (CurrentHP >= 0.0f)
 	{
 		// disable ragdoll physics
-		GetMesh()->SetPhysicsBlendWeight(0.0f);
+		if (USkeletalMeshComponent* MeshComponent = GetMesh())
+		{
+			MeshComponent->SetPhysicsBlendWeight(0.0f);
+		}
 	}
 
 	// call the landed Delegate for StateTree
@@ -327,11 +341,24 @@ void ACombatEnemy::BeginPlay()
 	Super::BeginPlay();
 
 	// get the life bar widget from the widget comp
+	//
+	// This used to be check(LifeBarWidget), which made the class unusable from C++: the widget only
+	// exists when a Blueprint subclass assigns a widget class to the LifeBar component, so any
+	// natively spawned subclass asserted on spawn. The Gloamstead night threats are exactly that
+	// case. A missing life bar is a presentation gap, not a corrupt game state - warn once and run.
 	LifeBarWidget = Cast<UCombatLifeBar>(LifeBar->GetUserWidgetObject());
-	check(LifeBarWidget);
-
-	// fill the life bar
-	LifeBarWidget->SetLifePercentage(1.0f);
+	if (LifeBarWidget)
+	{
+		// fill the life bar
+		LifeBarWidget->SetLifePercentage(1.0f);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Verbose,
+			TEXT("%s has no life bar widget; running without one. Assign a widget class to the LifeBar ")
+			TEXT("component if this enemy is meant to show health."),
+			*GetName());
+	}
 }
 
 void ACombatEnemy::EndPlay(EEndPlayReason::Type EndPlayReason)

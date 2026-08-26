@@ -4,34 +4,60 @@
 
 namespace
 {
-	bool HasOnlyTag(const FExperienceCyclePlan& Plan, FName Tag)
+	/**
+	 * The canonical authored cycles, built once from the in-code definition.
+	 *
+	 * C++ stays the authority on what an authored cycle IS; the shipped DA_ExperienceCycleCatalog is
+	 * transport. This used to be six hand-written `case` blocks, each listing whichever fields its
+	 * author remembered - which meant a field nobody listed (a second reading, a support medium)
+	 * could drift between the asset and the code forever without anything noticing. Comparing
+	 * against the canonical plan checks EVERY field by construction, and adding a cycle now needs
+	 * only the authored row plus its entry in PopulateDefaultExperienceCyclePlans.
+	 */
+	const UExperienceCycleCatalog& GetCanonicalCatalog()
 	{
-		return Plan.RequiredRestorationTags.Num() == 1 && Plan.RequiredRestorationTags[0] == Tag;
+		static UExperienceCycleCatalog* Canonical = []()
+		{
+			UExperienceCycleCatalog* Built = NewObject<UExperienceCycleCatalog>(
+				GetTransientPackage(), TEXT("GloamsteadCanonicalExperienceCycleCatalog"));
+			PopulateDefaultExperienceCyclePlans(*Built);
+			Built->AddToRoot();
+			return Built;
+		}();
+		return *Canonical;
 	}
 
-	bool HasExactGardenSupports(const FExperienceCyclePlan& Plan)
+	const FExperienceCyclePlan* FindCanonicalPlanForSlot(int32 Slot)
 	{
-		static const FName CanonicalIds[] = {
-			TEXT("GardenRot.WitheredVines"),
-			TEXT("GardenRot.ColdSoil"),
-			TEXT("GardenRot.BellMoths")
-		};
-		static const FName CanonicalMedia[] = {
-			TEXT("Environmental"),
-			TEXT("ObjectReaction"),
-			TEXT("Audio")
-		};
+		const UExperienceCycleCatalog& Canonical = GetCanonicalCatalog();
+		const FExperienceCyclePlan* Match = nullptr;
+		for (const FExperienceCyclePlan& Candidate : Canonical.AuthoredPlans)
+		{
+			if (Candidate.Slot != Slot || !Candidate.IsAuthoredPlan())
+			{
+				continue;
+			}
+			if (Match)
+			{
+				// The canonical source itself is malformed. Refuse rather than pick one.
+				return nullptr;
+			}
+			Match = &Candidate;
+		}
+		return Match;
+	}
 
-		if (Plan.RequiredSupportIds.Num() != UE_ARRAY_COUNT(CanonicalIds)
-			|| Plan.RequiredSupportChannelTypes.Num() != UE_ARRAY_COUNT(CanonicalMedia))
+	bool NameArraysMatchInOrder(const TArray<FName>& Left, const TArray<FName>& Right)
+	{
+		if (Left.Num() != Right.Num())
 		{
 			return false;
 		}
-
-		for (int32 Index = 0; Index < UE_ARRAY_COUNT(CanonicalIds); ++Index)
+		for (int32 Index = 0; Index < Left.Num(); ++Index)
 		{
-			if (Plan.RequiredSupportIds[Index] != CanonicalIds[Index]
-				|| Plan.RequiredSupportChannelTypes[Index] != CanonicalMedia[Index])
+			// Order is part of the contract: RequiredSupportChannelTypes[i] declares the medium of
+			// RequiredSupportIds[i], so a reordered pair silently reassigns every clue's medium.
+			if (Left[Index] != Right[Index])
 			{
 				return false;
 			}
@@ -39,29 +65,23 @@ namespace
 		return true;
 	}
 
-	bool HasExactMirrorSupports(const FExperienceCyclePlan& Plan)
+	bool SecondReadingsMatch(
+		const TArray<FExperienceCycleSecondReading>& Left,
+		const TArray<FExperienceCycleSecondReading>& Right)
 	{
-		static const FName CanonicalIds[] = {
-			TEXT("MirrorDebt.StillWater"),
-			TEXT("MirrorDebt.DoubleShadow"),
-			TEXT("MirrorDebt.HeartWhisper")
-		};
-		static const FName CanonicalMedia[] = {
-			TEXT("Environmental"),
-			TEXT("ObjectReaction"),
-			TEXT("Audio")
-		};
-
-		if (Plan.RequiredSupportIds.Num() != UE_ARRAY_COUNT(CanonicalIds)
-			|| Plan.RequiredSupportChannelTypes.Num() != UE_ARRAY_COUNT(CanonicalMedia))
+		if (Left.Num() != Right.Num())
 		{
 			return false;
 		}
-
-		for (int32 Index = 0; Index < UE_ARRAY_COUNT(CanonicalIds); ++Index)
+		for (int32 Index = 0; Index < Left.Num(); ++Index)
 		{
-			if (Plan.RequiredSupportIds[Index] != CanonicalIds[Index]
-				|| Plan.RequiredSupportChannelTypes[Index] != CanonicalMedia[Index])
+			const FExperienceCycleSecondReading& A = Left[Index];
+			const FExperienceCycleSecondReading& B = Right[Index];
+			if (A.ReadingId != B.ReadingId
+				|| A.Grade != B.Grade
+				|| A.ConsequenceTag != B.ConsequenceTag
+				|| !A.ChoicePrompt.ToString().Equals(B.ChoicePrompt.ToString(), ESearchCase::CaseSensitive)
+				|| !A.OutcomeSummary.ToString().Equals(B.OutcomeSummary.ToString(), ESearchCase::CaseSensitive))
 			{
 				return false;
 			}
@@ -69,89 +89,48 @@ namespace
 		return true;
 	}
 
+	/** Every authored field must agree with the canonical plan for that slot. */
 	bool MatchesRequiredContract(const FExperienceCyclePlan& Plan, int32 Slot)
 	{
-		if (!Plan.IsAuthoredPlan())
+		if (!Plan.IsAuthoredPlan() || Plan.Slot != Slot)
 		{
 			return false;
 		}
 
-		switch (Slot)
+		const FExperienceCyclePlan* Canonical = FindCanonicalPlanForSlot(Slot);
+		if (!Canonical)
 		{
-		case 1:
-			return Plan.Slot == 1
-				&& Plan.PlanId == FName(TEXT("Cycle1_Tutorial"))
-				&& Plan.WarningId == FName(TEXT("TutorialLostPath"))
-				&& Plan.NightType == ENightConsequenceType::Tutorial
-				&& Plan.SemanticSubject == FName(TEXT("courtyard.lantern.first"))
-				&& HasOnlyTag(Plan, FName(TEXT("LanternPost")))
-				&& Plan.RequiredRitualType == ERitualType::Invalid
-				&& Plan.RequiredSupportIds.IsEmpty()
-				&& Plan.RequiredSupportChannelTypes.IsEmpty()
-				&& Plan.MinimumDistinctSupportCount == 0
-				&& Plan.InterpretationReceiptId == NAME_None
-				&& Plan.VisualStateKey == FName(TEXT("restoration_level"))
-				&& Plan.OutcomeSummaryKey == FName(TEXT("Cycle1_Tutorial"));
-
-		case 2:
-			return Plan.Slot == 2
-				&& Plan.PlanId == FName(TEXT("Cycle2_Garden"))
-				&& Plan.WarningId == FName(TEXT("GardenRot"))
-				&& Plan.NightType == ENightConsequenceType::Corruption
-				&& Plan.SemanticSubject == FName(TEXT("Cycle2_Garden"))
-				&& HasOnlyTag(Plan, FName(TEXT("GardenBed")))
-				&& Plan.RequiredRitualType == ERitualType::GardenBed
-				&& HasExactGardenSupports(Plan)
-				&& Plan.MinimumDistinctSupportCount == 2
-				&& Plan.InterpretationReceiptId == FName(TEXT("GardenRot.Interpreted"))
-				&& Plan.VisualStateKey == FName(TEXT("restoration_level"))
-				&& Plan.OutcomeSummaryKey == FName(TEXT("Cycle2_Garden"));
-
-		case 3:
-			return Plan.Slot == 3
-				&& Plan.PlanId == FName(TEXT("Cycle3_Retrieval"))
-				&& Plan.WarningId == FName(TEXT("GardenRot"))
-				&& Plan.NightType == ENightConsequenceType::Retrieval
-				&& Plan.SemanticSubject == FName(TEXT("Cycle2_Garden"))
-				&& HasOnlyTag(Plan, FName(TEXT("GardenBed")))
-				&& Plan.RequiredRitualType == ERitualType::GardenBed
-				&& HasExactGardenSupports(Plan)
-				&& Plan.MinimumDistinctSupportCount == 2
-				&& Plan.InterpretationReceiptId == FName(TEXT("GardenRot.Retrieved"))
-				&& Plan.VisualStateKey == FName(TEXT("restoration_level"))
-				&& Plan.OutcomeSummaryKey == FName(TEXT("Cycle3_Retrieval"));
-
-		case 4:
-			return Plan.Slot == 4
-				&& Plan.PlanId == FName(TEXT("Cycle4_Possession"))
-				&& Plan.WarningId == FName(TEXT("GardenRot"))
-				&& Plan.NightType == ENightConsequenceType::SilencePossession
-				&& Plan.SemanticSubject == FName(TEXT("Cycle2_Garden"))
-				&& HasOnlyTag(Plan, FName(TEXT("GardenBed")))
-				&& Plan.RequiredRitualType == ERitualType::GardenBed
-				&& HasExactGardenSupports(Plan)
-				&& Plan.MinimumDistinctSupportCount == 2
-				&& Plan.InterpretationReceiptId == FName(TEXT("GardenRot.Possessed"))
-				&& Plan.VisualStateKey == FName(TEXT("restoration_level"))
-				&& Plan.OutcomeSummaryKey == FName(TEXT("Cycle4_Possession"));
-
-		case 5:
-			return Plan.Slot == 5
-				&& Plan.PlanId == FName(TEXT("Cycle5_Mirror"))
-				&& Plan.WarningId == FName(TEXT("MirrorDebt"))
-				&& Plan.NightType == ENightConsequenceType::Mirror
-				&& Plan.SemanticSubject == FName(TEXT("Cycle2_Garden"))
-				&& HasOnlyTag(Plan, FName(TEXT("GardenBed")))
-				&& Plan.RequiredRitualType == ERitualType::GardenBed
-				&& HasExactMirrorSupports(Plan)
-				&& Plan.MinimumDistinctSupportCount == 2
-				&& Plan.InterpretationReceiptId == FName(TEXT("MirrorDebt.Interpreted"))
-				&& Plan.VisualStateKey == FName(TEXT("restoration_level"))
-				&& Plan.OutcomeSummaryKey == FName(TEXT("Cycle5_Mirror"));
-
-		default:
 			return false;
 		}
+
+		if (Plan.PlanId != Canonical->PlanId
+			|| Plan.WarningId != Canonical->WarningId
+			|| Plan.NightType != Canonical->NightType
+			|| Plan.SemanticSubject != Canonical->SemanticSubject
+			|| Plan.RequiredRitualType != Canonical->RequiredRitualType
+			|| Plan.MinimumDistinctSupportCount != Canonical->MinimumDistinctSupportCount
+			|| Plan.InterpretationReceiptId != Canonical->InterpretationReceiptId
+			|| Plan.VisualStateKey != Canonical->VisualStateKey
+			|| Plan.OutcomeSummaryKey != Canonical->OutcomeSummaryKey)
+		{
+			return false;
+		}
+
+		if (!NameArraysMatchInOrder(Plan.RequiredRestorationTags, Canonical->RequiredRestorationTags)
+			|| !NameArraysMatchInOrder(Plan.RequiredSupportIds, Canonical->RequiredSupportIds)
+			|| !NameArraysMatchInOrder(Plan.RequiredSupportChannelTypes, Canonical->RequiredSupportChannelTypes))
+		{
+			return false;
+		}
+
+		if (!SecondReadingsMatch(Plan.SecondReadings, Canonical->SecondReadings))
+		{
+			return false;
+		}
+
+		// A canonical plan that cannot pass its own authoring rule is a defect in this file, not in
+		// the asset - but it must still refuse, or a half-authored reading set would ship.
+		return Plan.HasCoherentSecondReadings();
 	}
 }
 
@@ -278,7 +257,7 @@ bool UGloamsteadExperienceCycleSubsystem::EnsureUpcomingPlan()
 			TEXT("ExperienceCycle: slot %d has no authored row satisfying the canonical contract, so it is "
 				 "refused - the row is missing, duplicated, or does not match. The catalog is transport; C++ "
 				 "stays the authority on what a cycle IS, so adding one needs BOTH an authored row and a "
-				 "matching case in UGloamsteadExperienceCycleSubsystem::MatchesRequiredContract."),
+				 "matching entry in PopulateDefaultExperienceCyclePlans."),
 			UpcomingSlot);
 		SetInvalidPlan(UpcomingSlot);
 		return false;
@@ -364,6 +343,17 @@ bool UGloamsteadExperienceCycleSubsystem::RecordActivePlanOutcome(const FNightRu
 		&& !PersistentState.ScarTags.Contains(Outcome.ResultTag))
 	{
 		PersistentState.ScarTags.Add(Outcome.ResultTag);
+	}
+
+	// A second reading leaves a durable mark regardless of how the night scored, because the mark IS
+	// the payoff: a player who opened the sluice should still carry Boon.GardenAura into Cycle III
+	// even on a night that only went partly right, and a player who ashed the bed carries Scar.AshFed
+	// even on one they survived. Tying it to the result would make the sharper reading matter only
+	// when the night was already going well.
+	if (Outcome.SecondReadingTag != NAME_None
+		&& !PersistentState.ScarTags.Contains(Outcome.SecondReadingTag))
+	{
+		PersistentState.ScarTags.Add(Outcome.SecondReadingTag);
 	}
 
 	PersistentState.ArmedPlanId = NAME_None;

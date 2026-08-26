@@ -140,10 +140,27 @@ struct FVeilHeartWarningFragment
 			EncounterableIds.Add(Channel.SupportId);
 		}
 
-		if (EncounterableIds.Num() != RequiredChannels.Num()
-			|| (WarningId == FName(TEXT("GardenRot")) && EncounterableIds.Num() != 3))
+		if (EncounterableIds.Num() != RequiredChannels.Num())
 		{
 			return Fail(TEXT("warning support channels do not provide the exact authored evidence set"));
+		}
+
+		// Fair crypticism needs slack, not just a minimum. Two encountered channels are required to
+		// interpret, so three must be AVAILABLE: otherwise one occluded or missed clue turns a fair
+		// warning into an unanswerable one. This was previously spelled as a literal exemption for
+		// the GardenRot identity, which meant every warning authored after it was unguarded.
+		if (RequiredChannels.Num() < 3)
+		{
+			return Fail(TEXT("an authored warning must offer at least three readable support channels so two can be found"));
+		}
+
+		// The second clause of the warning is part of the same contract as the first. A plan whose
+		// readings are half-authored would let a night grade the player against a reading they were
+		// never offered, so the warning refuses to present at all.
+		FString ReadingError;
+		if (!Plan.HasCoherentSecondReadings(&ReadingError))
+		{
+			return Fail(TEXT("the plan second-reading set is incoherent, so its warning cannot be presented fairly"));
 		}
 
 		return true;

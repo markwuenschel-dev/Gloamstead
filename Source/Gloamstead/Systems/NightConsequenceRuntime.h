@@ -4,6 +4,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "Data/NightConsequenceTypes.h"
 #include "Data/NightRuntimeTypes.h"
+#include "Data/NightThreatTypes.h"
 #include "Data/RitualTypes.h"
 #include "NightConsequenceRuntime.generated.h"
 
@@ -11,6 +12,7 @@ class UNightStrategy;
 class UNightMirrorStrategy;
 class UGloamsteadPCGSubsystem;
 class ANightPressureActor;
+class AGloamsteadNightThreat;
 struct FExperienceCyclePlan;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNightConsequenceStarted, ENightConsequenceType, NightType);
@@ -49,6 +51,27 @@ public:
 	/** Resolve the pending Mirror/Bargain choice; accepted bargains still need a light ward. */
 	UFUNCTION(BlueprintCallable, Category = "Night|Mirror")
 	bool ResolveMirrorChoice(bool bAccept);
+
+	/**
+	 * Strikes the nearest live threat: interrupts its work without resolving it.
+	 *
+	 * Deliberately separate from WardActiveThreat. A ward is light spent on the night's objective; a
+	 * strike is time bought against a body. Keeping them apart is what stops the combat layer from
+	 * becoming the way the night is won.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Night|Threat")
+	bool DisruptNearestThreat(const FVector& FromLocation, float MaxRange = 600.f);
+
+	/** Cleanses the nearest live threat, if this archetype can be cleansed right now. */
+	UFUNCTION(BlueprintCallable, Category = "Night|Threat")
+	bool CleanseNearestThreat(const FVector& FromLocation, float MaxRange = 600.f);
+
+	/** How many threats this night still has standing. */
+	UFUNCTION(BlueprintPure, Category = "Night|Threat")
+	int32 GetLiveThreatCount() const;
+
+	/** The roster the night composed at BeginNight, for presentation and assertions. */
+	const FNightThreatRoster& GetThreatRoster() const { return ActiveThreatRoster; }
 
 	/** True while a live Mirror night is waiting for the player's deliberate choice. */
 	UFUNCTION(BlueprintPure, Category = "Night|Mirror")
@@ -104,6 +127,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night")
 	TSubclassOf<ANightPressureActor> PressureActorClass;
 
+	/** How far outside the objective threats arrive, in centimetres. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night|Threat", meta = (ClampMin = "0.0"))
+	float ThreatSpawnRingRadius = 1800.f;
+
 	// === Test seams (headless; no world/timer required) ===
 	/** Force the planned night type before BeginNight (bypasses the manager). */
 	void Test_SetPlannedNightType(ENightConsequenceType Type) { PlannedNightType = Type; }
@@ -117,6 +144,10 @@ public:
 	bool Test_IsPressureCadenceScheduled() const;
 	/** True when a cosmetic pressure actor from the active night still exists. */
 	bool Test_HasActivePressureActor() const { return !!ActivePressureActor; }
+	/** The threats spawned for the active night (empty in automation worlds, which never spawn). */
+	const TArray<TObjectPtr<AGloamsteadNightThreat>>& Test_GetActiveThreats() const { return ActiveThreats; }
+	/** Composes the roster the way BeginNight would, without needing a world. */
+	FNightThreatRoster Test_BuildThreatRosterForContext() const { return BuildThreatRosterForContext(); }
 	/** The active Mirror strategy, for focused strategy/runtime tests. */
 	UNightMirrorStrategy* Test_GetActiveMirrorStrategy() const;
 	/** Forces the next real BeginNight initial pressure beat to request early Dawn synchronously. */
@@ -150,6 +181,12 @@ private:
 	void BroadcastOmenClueIfNeeded();
 	void MaybeSpawnPressureActor(UGloamsteadPCGSubsystem* PCG);
 	void DestroyPressureActor();
+	/** Composes this night's roster from its type, the receipt, and the second reading. */
+	FNightThreatRoster BuildThreatRosterForContext() const;
+	void MaybeSpawnNightThreats(UGloamsteadPCGSubsystem* PCG);
+	void DestroyNightThreats();
+	/** Nearest live threat within range, or nullptr. */
+	AGloamsteadNightThreat* FindNearestLiveThreat(const FVector& FromLocation, float MaxRange) const;
 
 	UPROPERTY()
 	TMap<ENightConsequenceType, TSubclassOf<UNightStrategy>> StrategyClasses;
@@ -181,6 +218,12 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<ANightPressureActor> ActivePressureActor = nullptr;
+
+	UPROPERTY()
+	FNightThreatRoster ActiveThreatRoster;
+
+	UPROPERTY()
+	TArray<TObjectPtr<AGloamsteadNightThreat>> ActiveThreats;
 
 	FTimerHandle PressureTimer;
 };

@@ -57,13 +57,17 @@ namespace
 
 	const FString GloamGeneratedPackageRoot = TEXT("/Game/Gloamstead/Generated");
 
-	bool IsPackageUnderRoot(const FString& PackageName, const FString& Root)
+	// Prefixed because an identically named helper lives in GloamsteadGeneratedAssetCatalog.cpp.
+	// Both are file-local, so they are legal apart - but unity builds merge translation units, and
+	// which files share a blob changes whenever a file is added anywhere in the module. That made a
+	// latent one-definition collision that only appeared on an unrelated edit.
+	bool ProviderIsPackageUnderRoot(const FString& PackageName, const FString& Root)
 	{
 		return PackageName.Equals(Root, ESearchCase::IgnoreCase)
 			|| PackageName.StartsWith(Root + TEXT("/"), ESearchCase::IgnoreCase);
 	}
 
-	bool IsTerminalPlatformPackage(
+	bool ProviderIsTerminalPlatformPackage(
 		const FString& PackageName,
 		const TArray<FString>& ExactPackages,
 		const TArray<FString>& SafeRoots)
@@ -77,7 +81,7 @@ namespace
 		}
 		for (const FString& Root : SafeRoots)
 		{
-			if (IsPackageUnderRoot(PackageName, Root))
+			if (ProviderIsPackageUnderRoot(PackageName, Root))
 			{
 				return true;
 			}
@@ -1081,7 +1085,7 @@ TArray<FString> UGloamsteadGeneratedAssetMeshForgeProvider::ValidateCatalogDepen
 		const int32* ExternalIndex = ExternalByPackage.Find(PackageName);
 		if ((!EntryIndex && !ExternalIndex) || AmbiguousPackages.Contains(PackageName))
 		{
-			Codes.AddUnique(IsPackageUnderRoot(PackageName.ToString(), GloamGeneratedPackageRoot)
+			Codes.AddUnique(ProviderIsPackageUnderRoot(PackageName.ToString(), GloamGeneratedPackageRoot)
 				? TEXT("GAC029") : TEXT("GAC033"));
 			return;
 		}
@@ -1142,13 +1146,13 @@ TArray<FString> UGloamsteadGeneratedAssetMeshForgeProvider::ValidateCatalogDepen
 				Codes.AddUnique(TEXT("GAC033"));
 				continue;
 			}
-			if (IsTerminalPlatformPackage(DependencyName,
+			if (ProviderIsTerminalPlatformPackage(DependencyName,
 				LoadedCatalog->TerminalPlatformPackages,
 				LoadedCatalog->TerminalPlatformPackageRoots))
 			{
 				continue;
 			}
-			if (IsPackageUnderRoot(DependencyName, LoadedCatalog->VersionRoot))
+			if (ProviderIsPackageUnderRoot(DependencyName, LoadedCatalog->VersionRoot))
 			{
 				if (!EntryByPackage.Contains(DependencyPackage)
 					|| AmbiguousPackages.Contains(DependencyPackage))
@@ -1160,7 +1164,7 @@ TArray<FString> UGloamsteadGeneratedAssetMeshForgeProvider::ValidateCatalogDepen
 					Visit(DependencyPackage);
 				}
 			}
-			else if (IsPackageUnderRoot(DependencyName, GloamGeneratedPackageRoot))
+			else if (ProviderIsPackageUnderRoot(DependencyName, GloamGeneratedPackageRoot))
 			{
 				Codes.AddUnique(TEXT("GAC028"));
 			}

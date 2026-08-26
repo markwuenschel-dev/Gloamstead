@@ -130,21 +130,45 @@ namespace GloamsteadDataImport
 		return true;
 	}
 
-	static bool ValidateCanonicalGardenRotContract(const FVeilHeartWarningFragment& Fragment, FString& OutError)
+	/**
+	 * Holds an imported warning row to the contract of the authored plan it answers.
+	 *
+	 * A row that answers no authored plan is not a defect - the catalog may carry flavour warnings
+	 * for night types the experience does not currently author - so OutHasCanonicalPlan tells the
+	 * caller which case it is. The opening tutorial is the one authored plan deliberately exempted:
+	 * it predates the fair-crypticism evidence contract, exactly as AVeilHeart::CanPresentWarningForPlan
+	 * exempts it at runtime.
+	 */
+	static bool ValidateAgainstCanonicalPlan(
+		const FVeilHeartWarningFragment& Fragment,
+		bool& OutHasCanonicalPlan,
+		FString& OutError)
 	{
+		OutHasCanonicalPlan = false;
+
 		UExperienceCycleCatalog* Catalog = NewObject<UExperienceCycleCatalog>(GetTransientPackage());
 		PopulateDefaultExperienceCyclePlans(*Catalog);
 		for (const FExperienceCyclePlan& Plan : Catalog->AuthoredPlans)
 		{
-			if (Plan.WarningId == Fragment.WarningId && Plan.NightType == Fragment.AssociatedNightType)
+			if (!Plan.IsAuthoredPlan()
+				|| Plan.WarningId != Fragment.WarningId
+				|| Plan.NightType != Fragment.AssociatedNightType)
 			{
-				return Fragment.MatchesExactPlanContract(Plan, &OutError);
+				continue;
 			}
+
+			OutHasCanonicalPlan = true;
+
+			if (Plan.NightType == ENightConsequenceType::Tutorial
+				&& Plan.WarningId == FName(TEXT("TutorialLostPath")))
+			{
+				return true;
+			}
+
+			return Fragment.MatchesExactPlanContract(Plan, &OutError);
 		}
 
-		OutError = FString::Printf(TEXT("the canonical plan for %s/%d is unavailable"),
-			*Fragment.WarningId.ToString(), static_cast<int32>(Fragment.AssociatedNightType));
-		return false;
+		return true;
 	}
 
 	static bool ImportExperienceCycleCatalog(
@@ -276,6 +300,70 @@ namespace GloamsteadDataImport
 			if (PlanObj->TryGetStringField(TEXT("OutcomeSummaryKey"), OutcomeSummaryKey) && !OutcomeSummaryKey.IsEmpty())
 			{
 				Plan.OutcomeSummaryKey = FName(*OutcomeSummaryKey);
+			}
+
+			// Second readings: the authored ways to act on the warning's second clause.
+			const TArray<TSharedPtr<FJsonValue>>* ReadingValues = nullptr;
+			if (PlanObj->TryGetArrayField(TEXT("SecondReadings"), ReadingValues) && ReadingValues)
+			{
+				const UEnum* GradeEnum = StaticEnum<EExperienceReadingGrade>();
+				for (const TSharedPtr<FJsonValue>& ReadingValue : *ReadingValues)
+				{
+					const TSharedPtr<FJsonObject>* ReadingObjPtr = nullptr;
+					if (!ReadingValue.IsValid() || !ReadingValue->TryGetObject(ReadingObjPtr) || !ReadingObjPtr)
+					{
+						UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: plan %s has a malformed SecondReadings entry."), *PlanId);
+						++OutErrorCount;
+						return false;
+					}
+					const TSharedPtr<FJsonObject>& ReadingObj = *ReadingObjPtr;
+
+					FExperienceCycleSecondReading Reading;
+
+					FString ReadingId;
+					FString GradeName;
+					FString ChoicePrompt;
+					FString OutcomeSummary;
+					int64 GradeValue = INDEX_NONE;
+					if (!ReadingObj->TryGetStringField(TEXT("ReadingId"), ReadingId) || ReadingId.IsEmpty()
+						|| !ReadingObj->TryGetStringField(TEXT("Grade"), GradeName)
+						|| !ParseEnumByName(GradeEnum, GradeName, GradeValue)
+						|| !ReadingObj->TryGetStringField(TEXT("ChoicePrompt"), ChoicePrompt) || ChoicePrompt.IsEmpty()
+						|| !ReadingObj->TryGetStringField(TEXT("OutcomeSummary"), OutcomeSummary) || OutcomeSummary.IsEmpty())
+					{
+						UE_LOG(LogTemp, Error,
+							TEXT("GloamsteadImportDataAssets: plan %s has a second reading missing its id, grade, prompt, or outcome summary."),
+							*PlanId);
+						++OutErrorCount;
+						return false;
+					}
+
+					Reading.ReadingId = FName(*ReadingId);
+					Reading.Grade = static_cast<EExperienceReadingGrade>(GradeValue);
+					Reading.ChoicePrompt = FText::FromString(ChoicePrompt);
+					Reading.OutcomeSummary = FText::FromString(OutcomeSummary);
+
+					FString ConsequenceTag;
+					if (ReadingObj->TryGetStringField(TEXT("ConsequenceTag"), ConsequenceTag) && !ConsequenceTag.IsEmpty())
+					{
+						Reading.ConsequenceTag = FName(*ConsequenceTag);
+					}
+
+					Plan.SecondReadings.Add(MoveTemp(Reading));
+				}
+			}
+
+			// Half-authored readings are rejected at import rather than at runtime. A night that grades
+			// a player against a reading they were never offered is the worst possible failure mode for
+			// this mechanic, and the earliest place to make it impossible is here.
+			FString ReadingError;
+			if (!Plan.HasCoherentSecondReadings(&ReadingError))
+			{
+				UE_LOG(LogTemp, Error,
+					TEXT("GloamsteadImportDataAssets: plan %s has an incoherent second-reading set: %s"),
+					*PlanId, *ReadingError);
+				++OutErrorCount;
+				return false;
 			}
 
 			// Resolution defaults to Authored: a plan written into the authored catalog IS an authored plan.
@@ -765,12 +853,20 @@ namespace GloamsteadDataImport
 				Fragment.InterpretationReceiptId = FName(*ReceiptId);
 			}
 
-			if (Fragment.WarningId == FName(TEXT("GardenRot")))
+			// Every row that claims an authored plan is checked, not only the one identity that
+			// happened to exist when this gate was written. Gating on "GardenRot" meant each new
+			// cycle shipped unvalidated, which is precisely when a support medium or a half-authored
+			// reading set would slip through.
 			{
+				bool bHasCanonicalPlan = false;
 				FString ContractError;
-				if (!ValidateCanonicalGardenRotContract(Fragment, ContractError))
+				if (!ValidateAgainstCanonicalPlan(Fragment, bHasCanonicalPlan, ContractError))
 				{
-					UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: GardenRot contract rejected: %s"), *ContractError);
+					UE_LOG(LogTemp, Error,
+						TEXT("GloamsteadImportDataAssets: warning %s/%s rejected: %s"),
+						*Fragment.WarningId.ToString(),
+						*GetNightConsequenceTypeDisplayName(Fragment.AssociatedNightType),
+						*ContractError);
 					++OutErrorCount;
 					return false;
 				}
@@ -1023,7 +1119,7 @@ bool FGloamsteadImportGardenRotSparseSupportRejectedTest::RunTest(const FString&
 
 	UVeilHeartWarningCatalog* Catalog = NewObject<UVeilHeartWarningCatalog>();
 	int32 ErrorCount = 0;
-	AddExpectedErrorPlain(TEXT("GloamsteadImportDataAssets: GardenRot contract rejected"), EAutomationExpectedErrorFlags::Contains, 1);
+	AddExpectedErrorPlain(TEXT("GloamsteadImportDataAssets: warning GardenRot/Corruption rejected"), EAutomationExpectedErrorFlags::Contains, 1);
 	TestFalse(TEXT("import rejects a sparse GardenRot support array"),
 		GloamsteadDataImport::ImportWarningCatalog(Catalog, Properties, ErrorCount));
 	TestTrue(TEXT("import reports the rejected contract"), ErrorCount > 0);
@@ -1068,7 +1164,7 @@ bool FGloamsteadImportGardenRotWrongMediumRejectedTest::RunTest(const FString& /
 
 	UVeilHeartWarningCatalog* Catalog = NewObject<UVeilHeartWarningCatalog>();
 	int32 ErrorCount = 0;
-	AddExpectedErrorPlain(TEXT("GloamsteadImportDataAssets: GardenRot contract rejected"), EAutomationExpectedErrorFlags::Contains, 1);
+	AddExpectedErrorPlain(TEXT("GloamsteadImportDataAssets: warning GardenRot/Corruption rejected"), EAutomationExpectedErrorFlags::Contains, 1);
 	TestFalse(TEXT("import rejects a wrong-medium GardenRot support"),
 		GloamsteadDataImport::ImportWarningCatalog(Catalog, Properties, ErrorCount));
 	TestTrue(TEXT("import reports the wrong-medium contract rejection"), ErrorCount > 0);

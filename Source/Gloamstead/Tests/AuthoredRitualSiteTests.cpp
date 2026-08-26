@@ -98,6 +98,10 @@ bool FGloamAuthoredRitualSiteBindsContractTest::RunTest(const FString& /*Paramet
 	// Heart, and these synthetic worlds contain no Heart, so it refuses - which is the correct fail-closed
 	// answer, not a defect. Declaring both refusals keeps each test about its own subject.
 	AddExpectedError(TEXT("is already claimed by a placed actor"), EAutomationExpectedErrorFlags::Contains, 0);
+	// The shipped catalog now authors a site per cycle, and the later ones are described from
+	// landmarks these synthetic worlds do not contain. Refusing is the correct fail-closed answer -
+	// a site that guessed a location would put the Heart's evidence in the wrong place.
+	AddExpectedError(TEXT("names a landmark this map does not contain"), EAutomationExpectedErrorFlags::Contains, 0);
 
 	FScopedSiteWorld Scoped;
 	if (!Scoped.World)
@@ -175,6 +179,10 @@ bool FGloamAuthoredRitualSiteResolvesForNightTest::RunTest(const FString& /*Para
 	// Heart, and these synthetic worlds contain no Heart, so it refuses - which is the correct fail-closed
 	// answer, not a defect. Declaring both refusals keeps each test about its own subject.
 	AddExpectedError(TEXT("is already claimed by a placed actor"), EAutomationExpectedErrorFlags::Contains, 0);
+	// The shipped catalog now authors a site per cycle, and the later ones are described from
+	// landmarks these synthetic worlds do not contain. Refusing is the correct fail-closed answer -
+	// a site that guessed a location would put the Heart's evidence in the wrong place.
+	AddExpectedError(TEXT("names a landmark this map does not contain"), EAutomationExpectedErrorFlags::Contains, 0);
 
 	// This closes the chain that was actually broken. Every other test of semantic targeting seeds the
 	// contract through Test_SetPointContractMetadata, which is compiled out of a player build - so the

@@ -3,6 +3,7 @@
 #include "Systems/GloamsteadExperienceCycleSubsystem.h"
 #include "Systems/NightStrategy.h"
 #include "Systems/NightPressureActor.h"
+#include "Actors/GloamsteadNightThreat.h"
 #include "Systems/VeilHeart.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Data/PCGPointData.h"
@@ -22,6 +23,12 @@ UNightConsequenceRuntime::UNightConsequenceRuntime()
 	StrategyClasses.Add(ENightConsequenceType::Retrieval, UNightRetrievalStrategy::StaticClass());
 	StrategyClasses.Add(ENightConsequenceType::SilencePossession, UNightPossessionStrategy::StaticClass());
 	StrategyClasses.Add(ENightConsequenceType::Mirror, UNightMirrorStrategy::StaticClass());
+	StrategyClasses.Add(ENightConsequenceType::Bargain, UNightBargainStrategy::StaticClass());
+	// Fracture and True Siege are the same night at two intensities: the sixth cycle opens as a
+	// fracture and becomes a siege. One strategy owns both so the climax cannot drift apart from the
+	// beat that sets it up.
+	StrategyClasses.Add(ENightConsequenceType::Fracture, UNightSiegeStrategy::StaticClass());
+	StrategyClasses.Add(ENightConsequenceType::TrueSiege, UNightSiegeStrategy::StaticClass());
 }
 
 void UNightConsequenceRuntime::Initialize(FSubsystemCollectionBase& Collection)
@@ -182,7 +189,10 @@ FNightRuntimeContext UNightConsequenceRuntime::BuildContext(UGloamsteadPCGSubsys
 		if ((PlannedNightType == ENightConsequenceType::Corruption
 			|| PlannedNightType == ENightConsequenceType::Retrieval
 			|| PlannedNightType == ENightConsequenceType::SilencePossession
-			|| PlannedNightType == ENightConsequenceType::Mirror)
+			|| PlannedNightType == ENightConsequenceType::Mirror
+			|| PlannedNightType == ENightConsequenceType::Bargain
+			|| PlannedNightType == ENightConsequenceType::Fracture
+			|| PlannedNightType == ENightConsequenceType::TrueSiege)
 			&& ActivePlan)
 		{
 			Ctx.bRequiresExactSemanticTarget = true;
@@ -205,12 +215,18 @@ FNightRuntimeContext UNightConsequenceRuntime::BuildContext(UGloamsteadPCGSubsys
 			}
 			else
 			{
-				Ctx.TargetPointIndex = ResolvePlanTargetToPoint(
-					*ActivePlan,
-					PCG,
-					(PlannedNightType == ENightConsequenceType::Retrieval
-						|| PlannedNightType == ENightConsequenceType::SilencePossession
-						|| PlannedNightType == ENightConsequenceType::Mirror));
+				// Nights that test what the player MADE require the place to still be restored at
+				// dusk; nights that test whether they will restore it do not. Bargain and the siege
+				// join the first group: both are answered with a structure, so a structure that was
+				// never raised has to fail closed to a quiet night rather than an unwinnable one.
+				const bool bRequiresRestoredTarget =
+					PlannedNightType == ENightConsequenceType::Retrieval
+					|| PlannedNightType == ENightConsequenceType::SilencePossession
+					|| PlannedNightType == ENightConsequenceType::Mirror
+					|| PlannedNightType == ENightConsequenceType::Bargain
+					|| PlannedNightType == ENightConsequenceType::Fracture
+					|| PlannedNightType == ENightConsequenceType::TrueSiege;
+				Ctx.TargetPointIndex = ResolvePlanTargetToPoint(*ActivePlan, PCG, bRequiresRestoredTarget);
 			}
 		}
 		else
@@ -236,6 +252,18 @@ FNightRuntimeContext UNightConsequenceRuntime::BuildContext(UGloamsteadPCGSubsys
 			if (const AVeilHeart* Heart = Cast<AVeilHeart>(Hearts[0]))
 			{
 				Ctx.bWarningHeeded = ActivePlan && Heart->HasExactInterpretationForPlan(*ActivePlan);
+
+				// The second reading enters the night here and nowhere else. It is re-derived from
+				// the Heart against the live plan rather than carried in the plan, so a night can
+				// never act on a grade the active plan does not currently author.
+				if (ActivePlan)
+				{
+					Ctx.SecondReadingGrade = Heart->GetSecondReadingGradeForPlan(*ActivePlan);
+					if (Ctx.SecondReadingGrade != EExperienceReadingGrade::Unread)
+					{
+						Ctx.SecondReadingTag = Heart->GetSecondReadingVerdict().ConsequenceTag;
+					}
+				}
 			}
 		}
 	}
@@ -310,6 +338,7 @@ void UNightConsequenceRuntime::BeginNight()
 	OnNightStarted.Broadcast(ActiveNightType);
 	BroadcastOmenClueIfNeeded();
 	MaybeSpawnPressureActor(PCG);
+	MaybeSpawnNightThreats(PCG);
 
 	// Immediate first pressure beat, then a repeating cadence for the rest of the night.
 	bInitialPressureBeatInProgress = true;
@@ -529,6 +558,7 @@ void UNightConsequenceRuntime::EndNight()
 	OnNightEnded.Broadcast(EndedType);
 
 	DestroyPressureActor();
+	DestroyNightThreats();
 
 	bNightActive = false;
 	bEarlyDawnRequested = false;
@@ -553,6 +583,7 @@ void UNightConsequenceRuntime::AbortNightForRestore()
 	// every listener it does not own; clearing runtime state below prevents any
 	// abandoned run from broadcasting another early-dawn event.
 	DestroyPressureActor();
+	DestroyNightThreats();
 	bNightActive = false;
 	bEarlyDawnRequested = false;
 	bInitialPressureBeatInProgress = false;
@@ -638,4 +669,167 @@ void UNightConsequenceRuntime::DestroyPressureActor()
 		ActivePressureActor->Destroy();
 		ActivePressureActor = nullptr;
 	}
+}
+
+
+// ===== Night threats =====
+
+FNightThreatRoster UNightConsequenceRuntime::BuildThreatRosterForContext() const
+{
+	return BuildNightThreatRoster(
+		ActiveNightType,
+		ActiveContext.SecondReadingGrade,
+		ActiveContext.bWarningHeeded);
+}
+
+void UNightConsequenceRuntime::MaybeSpawnNightThreats(UGloamsteadPCGSubsystem* PCG)
+{
+	ActiveThreatRoster = BuildThreatRosterForContext();
+	if (ActiveThreatRoster.IsEmpty())
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	// Threats are a live-world presence. Automation worlds compose the roster - which is the part
+	// worth asserting on - but never spawn characters into a headless map.
+	if (!World || !World->IsGameWorld())
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("NightRuntime: composed a %d-threat roster but this is not a game world; nothing spawned."),
+			ActiveThreatRoster.TotalCount());
+		return;
+	}
+
+	// Bind to the strategy's chosen target when it has one, for the same reason the pressure actor
+	// does: Retrieval's target is a restored point, not the context's most-corrupted one.
+	int32 BoundIndex = ActiveContext.TargetPointIndex;
+	if (ActiveStrategy)
+	{
+		const int32 ObjectiveTarget = ActiveStrategy->GetObjective().TargetPointIndex;
+		if (ObjectiveTarget >= 0)
+		{
+			BoundIndex = ObjectiveTarget;
+		}
+	}
+
+	FVector TargetLocation = FVector::ZeroVector;
+	if (PCG && BoundIndex >= 0)
+	{
+		FPCGPoint TargetPoint;
+		if (PCG->GetPointByIndex(BoundIndex, TargetPoint))
+		{
+			TargetLocation = TargetPoint.Transform.GetLocation();
+		}
+	}
+
+	// A correctly faced mirror is what makes The Borrowed resolvable at all. The grade is the only
+	// thing consulted, so a new authored mirror rotation stays a content change.
+	const bool bTetherExposed = ActiveContext.HasInsightReading();
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	int32 SpawnedCount = 0;
+	for (const FNightThreatSpec& Spec : ActiveThreatRoster.Specs)
+	{
+		for (int32 Instance = 0; Instance < Spec.Count; ++Instance)
+		{
+			// Threats arrive from outside the sanctuary, not on top of what they came for. The ring
+			// is deterministic so a night is reproducible from its own inputs.
+			const float AngleRadians = 2.0f * PI * static_cast<float>(SpawnedCount)
+				/ static_cast<float>(FMath::Max(1, ActiveThreatRoster.TotalCount()));
+			const FVector Offset(
+				FMath::Cos(AngleRadians) * ThreatSpawnRingRadius,
+				FMath::Sin(AngleRadians) * ThreatSpawnRingRadius,
+				0.0f);
+
+			AGloamsteadNightThreat* Threat = World->SpawnActor<AGloamsteadNightThreat>(
+				AGloamsteadNightThreat::StaticClass(),
+				TargetLocation + Offset,
+				FRotator::ZeroRotator,
+				SpawnParams);
+			if (!Threat)
+			{
+				continue;
+			}
+
+			Threat->ConfigureThreat(Spec, BoundIndex);
+			Threat->SetTetherExposed(bTetherExposed);
+			ActiveThreats.Add(Threat);
+			++SpawnedCount;
+
+			UE_LOG(LogTemp, Log, TEXT("NightRuntime: %s takes the field (repelled at light %.2f, target %d)."),
+				*GetNightThreatArchetypeDisplayName(Spec.Archetype), Spec.RepelledAtLightLevel, BoundIndex);
+		}
+	}
+}
+
+void UNightConsequenceRuntime::DestroyNightThreats()
+{
+	for (TObjectPtr<AGloamsteadNightThreat>& Threat : ActiveThreats)
+	{
+		if (Threat)
+		{
+			Threat->Destroy();
+		}
+	}
+	ActiveThreats.Reset();
+	ActiveThreatRoster = FNightThreatRoster();
+}
+
+int32 UNightConsequenceRuntime::GetLiveThreatCount() const
+{
+	int32 Live = 0;
+	for (const TObjectPtr<AGloamsteadNightThreat>& Threat : ActiveThreats)
+	{
+		if (Threat && Threat->GetThreatState() != ENightThreatState::Resolved)
+		{
+			++Live;
+		}
+	}
+	return Live;
+}
+
+AGloamsteadNightThreat* UNightConsequenceRuntime::FindNearestLiveThreat(const FVector& FromLocation, float MaxRange) const
+{
+	AGloamsteadNightThreat* Best = nullptr;
+	float BestDistanceSquared = MaxRange * MaxRange;
+
+	for (const TObjectPtr<AGloamsteadNightThreat>& Threat : ActiveThreats)
+	{
+		if (!Threat || Threat->GetThreatState() == ENightThreatState::Resolved)
+		{
+			continue;
+		}
+
+		const float DistanceSquared = FVector::DistSquared(FromLocation, Threat->GetActorLocation());
+		if (DistanceSquared <= BestDistanceSquared)
+		{
+			BestDistanceSquared = DistanceSquared;
+			Best = Threat;
+		}
+	}
+	return Best;
+}
+
+bool UNightConsequenceRuntime::DisruptNearestThreat(const FVector& FromLocation, float MaxRange)
+{
+	if (!bNightActive)
+	{
+		return false;
+	}
+
+	AGloamsteadNightThreat* Threat = FindNearestLiveThreat(FromLocation, MaxRange);
+	return Threat && Threat->Disrupt();
+}
+
+bool UNightConsequenceRuntime::CleanseNearestThreat(const FVector& FromLocation, float MaxRange)
+{
+	if (!bNightActive)
+	{
+		return false;
+	}
+
+	AGloamsteadNightThreat* Threat = FindNearestLiveThreat(FromLocation, MaxRange);
+	return Threat && Threat->Cleanse();
 }

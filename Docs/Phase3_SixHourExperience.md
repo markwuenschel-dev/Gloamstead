@@ -2,9 +2,11 @@
 
 _Plan of record for turning the shipped C++ loop into a ~6-hour playable first experience._
 
-**Status: active implementation (2026-08-23).** Cycles 1–4 now have authored runtime contracts; Cycles
-5–6, the full presentation pass, and human playtest approval remain planned. This is a *map and a
-sequence*, like `ROADMAP.md` — each item carries a trigger and an acceptance check.
+**Status: active implementation (2026-08-26).** All six cycles now have authored runtime contracts,
+each with its own place, ritual form, evidence set and second reading; the threat roster (Gatherer,
+Borrowed, Bargainer, Echo) is implemented and light-vulnerable. The full presentation pass, the
+authored geometry for the later sites, and human playtest approval remain planned. This is a *map and
+a sequence*, like `ROADMAP.md` — each item carries a trigger and an acceptance check.
 
 Two design decisions are **locked** for this phase (they change the build, not just the polish):
 
@@ -13,6 +15,11 @@ Two design decisions are **locked** for this phase (they change the build, not j
    light-vulnerable enemies acting as *pressure while you cleanse or activate*, never an action game.
    The non-goals in `production/06_scope_cuts_and_non_goals.md` (no combos, no weapon trees, no horde)
    are the guardrails.
+   *As implemented:* `AGloamsteadNightThreat` derives from `ACombatEnemy` — so a threat is a real
+   damageable, strikeable thing and Strike costs nothing new to build — but it does **not** possess the
+   Combat AI controller. These threats want restored structures rather than the player, and their whole
+   behaviour is a handful of rules in `StepBehaviour`, kept in C++ so the light relationship (the part
+   that ties combat to the restoration fantasy) is testable headless and lives in one readable place.
 2. **Phase cadence — player-driven rest at the Heart.** Day→Dusk and Dusk→Night advance when the player
    chooses to *rest / commune* at the Heart (agency + a natural autosave point). Night→Dawn resolves
    on the night's win-condition or a fallback timer. No wall-clock day timer.
@@ -59,14 +66,73 @@ Six day→night cycles, ~45–60 min each, escalating along the existing `ENight
 `ERitualType` values. Act 1 teaches, Act 2 complicates + introduces light combat pressure, Act 3 is
 mastery + climax + one ending.
 
-| Cycle | Night type (enum) | Ritual unlocked | Teaches |
+The spine is spatial: each cycle opens one more part of the same small island, and the sixth opens
+none — it turns everything already opened into the puzzle. Night 1 is the explicit tutorial; the five
+cycles after it are the five actual interpretation tests.
+
+| Cycle | Place | Night type (enum) | Ritual | Warning | Teaches |
+|---|---|---|---|---|---|
+| 1 | Corridor + Heart plaza | `Tutorial` | LanternPost | "The path has forgotten its light…" | what I restore matters |
+| 2 | The garden, off the plaza | `Corruption` | GardenBed | "Wake the roots. Wet earth shelters; bare ash feeds the Gloam." | the warning holds more than the minimum |
+| 3 | The broken road | `Retrieval` | PathPoint | "Give the lantern a road. Loops guard; dead ends invite hands." | geometry between restorations matters |
+| 4 | The mirror overlook | `SilencePossession` | MirrorPillar | "Raise the mirror. Face stolen light; never show it the Heart." | how a restoration is *configured* matters |
+| 5 | The bell shrine | `Bargain` | BellShrine | "Wake the bell. One answer frees; three answers invite company." | timing and restraint matter |
+| 6 | The whole sanctuary | `Fracture` → `TrueSiege` | AnchorStone | "Bind three lights apart. A closed ring holds; a crown breaks." | read the whole sanctuary as the answer |
+
+Cycle 3 recontextualises ground the player has already walked: on Day 1 the approach road was merely
+the route to the Heart; now its broken path network is a system to repair, and it is the first night
+where the thing in danger is something the player made. Cycle 4 climbs, so plaza, lantern, garden and
+road are all visible at once — which is what makes "point the mirror at the right one" a readable
+question. Cycle 6 deliberately reveals no new spoke of the map.
+
+### The second reading
+
+Every warning from Cycle II onward is one sentence in two halves: an imperative naming the minimum
+restoration, then a contrastive pair naming a sharper reading and a plausible-but-wrong overreading.
+The minimum gets the player through the night. The sharper reading earns an advantage. The overread
+makes the night worse.
+
+These are **not** secret collectibles. They are second-order interpretations of the same warning the
+Heart already spoke aloud, backed by the same evidence, and they are authored data
+(`FExperienceCycleSecondReading` on the plan) rather than bespoke quest logic:
+
+| Cycle | Sharper reading (Insight) | Plausible overread (Overreach) |
+|---|---|---|
+| 2 | reopen the sluice and water the bed → `Boon.GardenAura` | empty the ash brazier over it → `Scar.AshFed` |
+| 3 | close the lit path into a loop → `Boon.PathLoop` | run the road out to the abandoned gate → `Scar.DeadEnd` |
+| 4 | face the mirror at the stolen light → `Boon.TetherExposed` | face it inward, at the Heart → `Scar.HeartRevealed` |
+| 5 | ring once, on the answering beat → `Boon.Resonance` | ring three times to be certain → `Scar.CompanyCalled` |
+| 6 | bind the far three into a closed ring → `Boon.RingHeld` | crown the Heart with all three → `Scar.CrownBroken` |
+
+The authoring rule is enforced, not conventional: a plan either offers **no** readings or offers
+exactly one Insight, exactly one Overreach, and at least one defensible Plain middle, each graded
+reading carrying a unique durable tag. Without the middle, the sharper read is a coin flip between
+reward and scar — which is the "random-feeling punishment" Pillar 7 exists to prevent.
+`FExperienceCyclePlan::HasCoherentSecondReadings` refuses anything else, at import and at runtime.
+
+A reading is a **configuration of a restoration the player already earned**, never a substitute for
+earning it: `AVeilHeart::RecordSecondReadingInternal` refuses to record one until the plan's
+interpretation receipt exists, and the verdict it mints is re-derived from the plan rather than
+trusted, so a forged or stale grade cannot survive.
+
+### The enemy roster
+
+Four archetypes, each teaching a different relationship to restoration, and the climax recombines
+three the player already knows rather than introducing a fifth.
+
+| Archetype | Enters | What it wants | How it is answered |
 |---|---|---|---|
-| 1 | `Tutorial` | LanternPost | action → prepare → consequence → dawn (cause & effect) |
-| 2 | `Corruption` | GardenBed | neglect spreads; restore to hold ground |
-| 3 | `Omen` → `Retrieval` | PathPoint (light propagation) | warnings point to *places*; a restored thing is targeted |
-| 4 | `SilencePossession` | MirrorPillar | a restored thing turns; disrupt → purify; **combat pressure enters** |
-| 5 | `Mirror` → `Bargain` | BellShrine | interpretation under temptation; call / repel |
-| 6 | `Fracture` → `TrueSiege` (climax) | — | mastery test + **ending decision seed** at the final dawn |
+| **The Gatherer** | Cycle 3 | walks to a restored structure and takes the light out of it; ignores the player unless obstructed | connected light slows it and enough stops it; maintain the route and force it back into the light |
+| **The Borrowed** | Cycle 4 | the Gloam wearing the shape of something the sanctuary knew | Strike interrupts; a correctly faced mirror exposes the tether; **Cleanse** resolves it, and only once exposed |
+| **The Bargainer** | Cycle 5 | stands at the edge of the light offering shortcuts — false prompts, false safe ground | the restored bell's resonance dismisses it |
+| **The Echo** | as company | repeats what it just saw, late and in the wrong place | costs attention, not light; it drains nothing and deals nothing |
+
+The 1–3 ceiling is enforced in code, not review: `BuildNightThreatRoster` clamps to
+`FNightThreatRoster::MaxSimultaneousThreats` and drops from the *end* of the list, so an over-full
+roster loses the extra manifestation rather than the enemy that teaches the lesson. Cycles 1–2 field
+no threat at all. An Insight reading does **not** delete the night's threat — that would make the
+sharper read a skip button; it removes the extra one and lowers the light level at which the rest are
+held off, so the sanctuary the player configured does the work.
 
 This matches the "discoverable adaptation" curve in `game/02_gameplay_loop.md` (Night 1 = clear cause/effect;
 Nights 2–3 = neglect/wrong restoration changes pressure; later = darkness responds to patterns).
@@ -205,8 +271,8 @@ data; the headless integration test Track B has been waiting for goes green in `
 |---|---|---|
 | **0 — Make it run** | A1 bootstrap + A2 director + A3 display-name fix | End-to-end loop runs on real PCG data in PIE; Track B integration test green in `gate.ps1` |
 | **1 — One playable cycle** | B (player+verbs) + D (lantern restored + preview + `BP_VeilHeart`) + minimal G (HUD + whisper + dawn summary) + E (basic day/night) + I (autosave at dawn) | Cycle 1 (Tutorial night) fully playable to dawn |
-| **2 — Real nights** | F (threat director on Combat tech) + Corruption/Retrieval/Possession + C (PCG: path light + Mirror/Bell branches) + J (catalog authoring + `DA_Ritual_PathPoint`) | Cycles 2–4 playable; threats tied to night rules |
-| **3 — Full arc + climax** | Mirror/Bargain/Fracture/TrueSiege + BellShrine + ending decision seed + Journal + menus | All 6 cycles + one ending, ~6 hr |
+| **2 — Real nights** | ✅ threat roster + Corruption/Retrieval/Possession + J (catalog authoring, `DA_Ritual_PathPoint`) — remaining: C (PCG path light + Mirror/Bell branches) | Cycles 2–4 playable; threats tied to night rules |
+| **3 — Full arc + climax** | ✅ Bargain + Fracture/TrueSiege strategies, BellShrine + AnchorStone rituals, second readings — remaining: ending decision seed, Journal, menus, authored geometry for the later sites | All 6 cycles + one ending, ~6 hr |
 | **4 — Fair crypticism + polish** | J support-channels + validator, audio, VFX, per-night atmosphere, accessibility, naming pass, perf | Gate green + clean playtest + captions in |
 
 ---
@@ -219,4 +285,12 @@ data; the headless integration test Track B has been waiting for goes green in `
   `systems/05_progression_and_endings.md`); do not let branching pull scope from the loop.
 - **Naming:** ✅ **resolved 2026-06-18** — everyday "the Heart", proper name **"the Gloamheart"**, Gloam = the unremembering, Heart = wounded memory-engine; full voice guide in [`world/02_naming_and_voice_decision.md`](world/02_naming_and_voice_decision.md). G + J are unblocked.
 - **Combat drift:** the locked decision reuses `Variant_Combat`; guard against it growing into an action
-  game — enforce the 1–3 enemy, light-vulnerable, "pressure not kill-count" constraint in review.
+  game — the 1–3 enemy, light-vulnerable, "pressure not kill-count" constraint is now enforced by
+  `Gloamstead.NightThreat.NoNightEverExceedsThreeSimultaneousThreats`, which is exhaustive over every
+  night type × reading grade × warning-heeded combination rather than over the cases the arc happens to
+  author. Review still owns whether a *new* archetype earns its place; the count no longer needs it.
+- **Authored geometry for Cycles 3–6:** the sites for the road, overlook, bell shrine and sanctuary
+  keystone are authored in `DA_RitualSiteCatalog` and anchored to landmarks, but the map still needs the
+  greybox that gives them somewhere to bind. Until it exists those sites refuse to bind — which is the
+  correct fail-closed answer (a site that guessed would put the Heart's evidence in the wrong place),
+  and it is visible in the log as "names a landmark this map does not contain". **H/N.**

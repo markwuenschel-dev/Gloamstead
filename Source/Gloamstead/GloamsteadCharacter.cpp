@@ -301,8 +301,15 @@ void AGloamsteadCharacter::OnWardInput()
 	{
 		if (UNightConsequenceRuntime* Night = World->GetSubsystem<UNightConsequenceRuntime>())
 		{
-			const bool bAccepted = Night->WardActiveThreat();
-			UE_LOG(LogTemp, Log, TEXT("GloamInput: Ward pressed (accepted=%s)."), bAccepted ? TEXT("yes") : TEXT("no"));
+			// One beat of light answers both things it can answer: the night's objective, and
+			// whatever is standing in front of the player. Splitting them across two keys would make
+			// the player choose between the threat and the night, and the whole design is that the
+			// threat IS answered by the same light that answers the night.
+			const bool bWarded = Night->WardActiveThreat();
+			const bool bCleansed = Night->CleanseNearestThreat(GetActorLocation());
+			UE_LOG(LogTemp, Log, TEXT("GloamInput: Ward pressed (objective=%s, threat=%s)."),
+				bWarded ? TEXT("answered") : TEXT("no"),
+				bCleansed ? TEXT("cleansed") : TEXT("no"));
 			return;
 		}
 	}

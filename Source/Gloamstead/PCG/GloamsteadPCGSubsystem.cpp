@@ -394,6 +394,7 @@ FNightSanctuarySnapshot UGloamsteadPCGSubsystem::BuildSanctuarySnapshot() const
     Snapshot.PathPointRestored = GetRestoredCountByRitualType(ERitualType::PathPoint);
     Snapshot.MirrorPillarRestored = GetRestoredCountByRitualType(ERitualType::MirrorPillar);
     Snapshot.BellShrineRestored = GetRestoredCountByRitualType(ERitualType::BellShrine);
+    Snapshot.AnchorStoneRestored = GetRestoredCountByRitualType(ERitualType::AnchorStone);
     return Snapshot;
 }
 
