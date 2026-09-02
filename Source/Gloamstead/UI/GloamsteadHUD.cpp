@@ -131,6 +131,13 @@ void AGloamsteadHUD::BeginPlay()
 	{
 		PhaseEnteredWorldTime = World->GetTimeSeconds();
 	}
+
+	// Says out loud that the readout reached the player. HUDClass is set on AGloamsteadGameMode in
+	// C++, and the shipped game-mode Blueprint overrides its pawn and controller but not its HUD -
+	// which is a claim about a binary asset, and therefore one worth confirming from a real boot
+	// rather than inferring. A map that logs nothing here is a map with no readout.
+	UE_LOG(LogTemp, Log, TEXT("GloamsteadHUD: the sanctuary readout is live (phase authority %s)."),
+		DayNight.IsValid() ? TEXT("found") : TEXT("MISSING"));
 }
 
 void AGloamsteadHUD::EndPlay(const EEndPlayReason::Type Reason)
