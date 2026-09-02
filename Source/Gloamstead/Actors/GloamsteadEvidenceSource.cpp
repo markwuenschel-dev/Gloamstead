@@ -1,6 +1,9 @@
 #include "Actors/GloamsteadEvidenceSource.h"
 
 #include "Components/SphereComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "UObject/ConstructorHelpers.h"
 #include "Kismet/GameplayStatics.h"
 #include "Systems/VeilHeart.h"
 
@@ -15,6 +18,19 @@ AGloamsteadEvidenceSource::AGloamsteadEvidenceSource()
 	InteractionVolume->SetCollisionObjectType(ECC_WorldStatic);
 	InteractionVolume->SetCollisionResponseToAllChannels(ECR_Overlap);
 	InteractionVolume->SetGenerateOverlapEvents(false);
+
+	// A visible body for the sign. The interaction volume stays the authority on focus; this only
+	// makes the thing findable. Kit art, so it reads as sanctuary debris rather than a debug shape.
+	MarkerMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MarkerMesh"));
+	MarkerMesh->SetupAttachment(InteractionVolume);
+	MarkerMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	MarkerMesh->SetGenerateOverlapEvents(false);
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MarkerMeshAsset(
+		TEXT("/Game/Gloamstead/Kit/Meshes/SM_Rubble_1.SM_Rubble_1"));
+	if (MarkerMeshAsset.Succeeded())
+	{
+		MarkerMesh->SetStaticMesh(MarkerMeshAsset.Object);
+	}
 
 	InteractionPrompt = NSLOCTEXT("Gloamstead", "EvidenceSourceExamine", "Study the sign");
 }

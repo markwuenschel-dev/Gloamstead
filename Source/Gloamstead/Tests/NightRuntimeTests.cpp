@@ -11,6 +11,11 @@
 #include "Data/NightConsequenceTypes.h"
 #include "Data/NightRuntimeTypes.h"
 #include "Data/RitualTypes.h"
+#include "Systems/GloamsteadCycleFeedbackSubsystem.h"
+#include "Actors/GloamsteadEvidenceSource.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/SphereComponent.h"
+#include "HAL/IConsoleManager.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -692,6 +697,190 @@ bool FGloamNightRetrievalContinuityTest::RunTest(const FString& /*Parameters*/)
 	TestFalse(TEXT("reclaim (un-restore) survived save/load"), PCG->IsPointRestored(0));
 	TestEqual(TEXT("restored count survived save/load"), PCG->GetRestoredPointCount(), PostCount);
 	TestEqual(TEXT("reclaim corruption survived save/load"), PCG->GetCorruptionLevel(0), PostCorruption, KINDA_SMALL_NUMBER);
+	return true;
+}
+
+
+// ---------------------------------------------------------------------------------------------
+// Regression: the Corruption night must be winnable from the shipped seed.
+//
+// A playtest reached Cycle II with the bloom at 0.66 and could not win by any sequence of actions.
+// The gate was FMath::Min(Start * 0.5f, 0.2f), which INVERTED as the bloom grew: at 0.66 it demanded
+// 0.46 of removal, while the night's only lever (a GardenBed restoration, 0.35) fired once and
+// pressure added 0.08 every two seconds. These lock the arithmetic that made it unwinnable.
+// ---------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamNightCorruptionGateScalesWithBloomTest,
+	"Gloamstead.NightRuntime.CorruptionGateScalesWithBloom",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamNightCorruptionGateScalesWithBloomTest::RunTest(const FString& /*Parameters*/)
+{
+	UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
+	PCG->Test_SeedPointStates(MakeStates({ 0.66f, 0.1f, 0.1f }, /*Light*/ 0.3f, /*bRestored*/ false));
+
+	UNightCorruptionStrategy* Strategy = NewObject<UNightCorruptionStrategy>();
+	Strategy->EnterNight(MakeContext(ENightConsequenceType::Corruption, PCG), PCG);
+
+	const FNightObjective Obj = Strategy->GetObjective();
+	TestEqual(TEXT("the bloom starts where the shipped seed put it"), Obj.StartCorruption, 0.66f, 0.001f);
+	// The old formula produced 0.20 here. Halving is the stated intent and stays reachable.
+	TestEqual(TEXT("cleanse gate is half the starting bloom"), Obj.ResolveAtOrBelow, 0.33f, 0.001f);
+	TestTrue(TEXT("the gate is not the old inverted floor"), Obj.ResolveAtOrBelow > 0.2f + KINDA_SMALL_NUMBER);
+
+	// A worse bloom must be harder in absolute terms, never impossible.
+	UGloamsteadPCGSubsystem* Worse = NewObject<UGloamsteadPCGSubsystem>();
+	Worse->Test_SeedPointStates(MakeStates({ 0.9f, 0.1f }, 0.3f, false));
+	UNightCorruptionStrategy* WorseStrategy = NewObject<UNightCorruptionStrategy>();
+	WorseStrategy->EnterNight(MakeContext(ENightConsequenceType::Corruption, Worse), Worse);
+	TestTrue(TEXT("a worse bloom raises the gate rather than lowering it"),
+		WorseStrategy->GetObjective().ResolveAtOrBelow > Obj.ResolveAtOrBelow);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamNightCorruptionIsWinnableTest,
+	"Gloamstead.NightRuntime.CorruptionShippedSeedIsWinnable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamNightCorruptionIsWinnableTest::RunTest(const FString& /*Parameters*/)
+{
+	UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
+	PCG->Test_SeedPointStates(MakeStates({ 0.66f, 0.1f, 0.1f }, /*Light*/ 0.3f, /*bRestored*/ false));
+
+	UNightCorruptionStrategy* Strategy = NewObject<UNightCorruptionStrategy>();
+	// Spread picks random points; zero it so this asserts the target's arithmetic and nothing else.
+	Strategy->SpreadStepDelta = 0.f;
+	Strategy->EnterNight(MakeContext(ENightConsequenceType::Corruption, PCG), PCG);
+	TestFalse(TEXT("objective starts unresolved"), Strategy->IsObjectiveResolved());
+
+	// The night presses first - the player never gets to act before at least one beat.
+	Strategy->ApplyPressureStep(PCG);
+	TestEqual(TEXT("one beat of pressure"), PCG->GetCorruptionLevel(0), 0.74f, 0.001f);
+
+	// Corruption was the only threatened night with no light ward at all. Now it has one.
+	TestTrue(TEXT("the light ward answers on a corruption night"), Strategy->NotifyLightWard(PCG));
+	TestEqual(TEXT("the ward tends the bloom"), PCG->GetCorruptionLevel(0), 0.62f, 0.001f);
+	TestFalse(TEXT("one ward alone does not cleanse"), Strategy->IsObjectiveResolved());
+
+	// Restoring the authored bed is still the decisive act.
+	const FRestorationEventPayload Cleanse = MakeRestore(0, /*CorruptionCleared*/ 0.35f);
+	PCG->ApplyRestoration(0, Cleanse);
+	Strategy->NotifyRestoration(Cleanse, PCG);
+
+	TestEqual(TEXT("ward plus restoration clears the gate"), PCG->GetCorruptionLevel(0), 0.27f, 0.001f);
+	TestTrue(TEXT("an engaged player cleanses the bloom"), Strategy->IsObjectiveResolved());
+
+	const FNightRuntimeOutcome Outcome = Strategy->ResolveNight(PCG);
+	TestTrue(TEXT("the winnable night resolves as Success"), Outcome.Result == ENightOutcomeResult::Success);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamNightCorruptionNeglectStillFailsTest,
+	"Gloamstead.NightRuntime.CorruptionNeglectStillFails",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamNightCorruptionNeglectStillFailsTest::RunTest(const FString& /*Parameters*/)
+{
+	// Making the night winnable must not make it free: doing nothing still loses.
+	UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
+	PCG->Test_SeedPointStates(MakeStates({ 0.66f, 0.1f, 0.1f }, 0.3f, false));
+
+	UNightCorruptionStrategy* Strategy = NewObject<UNightCorruptionStrategy>();
+	Strategy->SpreadStepDelta = 0.f;
+	Strategy->EnterNight(MakeContext(ENightConsequenceType::Corruption, PCG), PCG);
+
+	for (int32 Beat = 0; Beat < 6; ++Beat)
+	{
+		Strategy->ApplyPressureStep(PCG);
+	}
+	TestFalse(TEXT("neglect never resolves the objective"), Strategy->IsObjectiveResolved());
+	TestEqual(TEXT("an untended bloom saturates"), PCG->GetCorruptionLevel(0), 1.0f, 0.001f);
+	TestTrue(TEXT("an untended corruption night is not a Success"),
+		Strategy->ResolveNight(PCG).Result != ENightOutcomeResult::Success);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamCorruptionChangeIsBroadcastTest,
+	"Gloamstead.NightRuntime.CorruptionChangeIsBroadcast",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamCorruptionChangeIsBroadcastTest::RunTest(const FString& /*Parameters*/)
+{
+	// Corruption mutated silently, so no presentation layer could ever react to it and the world
+	// looked identical while the bloom climbed to 1.00. The signal is what makes it renderable.
+	UGloamsteadPCGSubsystem* PCG = NewObject<UGloamsteadPCGSubsystem>();
+	PCG->Test_SeedPointStates(MakeStates({ 0.4f, 0.1f }, 0.3f, false));
+
+	int32 Notifications = 0;
+	PCG->OnCorruptionChanged.AddLambda([&Notifications]() { ++Notifications; });
+
+	PCG->AddCorruptionAtIndex(0, 0.1f);
+	TestEqual(TEXT("adding corruption announces itself"), Notifications, 1);
+
+	// A clamped no-op changes nothing and must stay silent.
+	PCG->AddCorruptionAtIndex(0, 0.0f);
+	TestEqual(TEXT("a no-op change stays silent"), Notifications, 1);
+
+	PCG->ApplyCorruptionSpread(0.05f, 2);
+	TestEqual(TEXT("spread announces itself"), Notifications, 2);
+	return true;
+}
+
+
+// The cycle-feedback subsystem self-describes as "a debug surface, not a HUD" yet narrated every
+// phase/night/outcome beat that the director Blueprint and the caption widget ALSO narrate in prose,
+// so a live game showed each beat twice - the overlap a playtest reported between the messages a
+// player triggers and the automatic ones. The prose captions are the player-facing voice now.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamCycleFeedbackIsOffScreenByDefaultTest,
+	"Gloamstead.NightRuntime.CycleFeedbackDebugNarrationIsOffByDefault",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamCycleFeedbackIsOffScreenByDefaultTest::RunTest(const FString& /*Parameters*/)
+{
+	IConsoleVariable* Var = IConsoleManager::Get().FindConsoleVariable(TEXT("gloam.CycleFeedback.OnScreen"));
+	if (!TestNotNull(TEXT("the cycle-feedback screen switch is registered"), Var))
+	{
+		return false;
+	}
+	TestFalse(TEXT("debug narration does not draw on screen by default"), Var->GetBool());
+
+	// The formatters stay intact - this silences a duplicate channel, it does not delete the messages.
+	TestFalse(TEXT("phase text is still produced for the log"),
+		UGloamsteadCycleFeedbackSubsystem::FormatPhase(EGloamsteadDayPhase::Dusk).IsEmpty());
+	return true;
+}
+
+
+// The interpretation sites place evidence around each cycle's subject point, but the actors were a
+// query-only sphere with nothing to see - so the only way to find the Garden was to walk within 3.5 m
+// of invisible air facing the right way. A sign the player cannot see is not a sign.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamEvidenceSourceIsVisibleTest,
+	"Gloamstead.NightRuntime.EvidenceSourceHasAVisibleBody",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamEvidenceSourceIsVisibleTest::RunTest(const FString& /*Parameters*/)
+{
+	const AGloamsteadEvidenceSource* Defaults = GetDefault<AGloamsteadEvidenceSource>();
+	if (!TestNotNull(TEXT("evidence source class defaults resolve"), Defaults))
+	{
+		return false;
+	}
+	if (!TestTrue(TEXT("the sign carries a marker mesh component"), Defaults->MarkerMesh.Get() != nullptr))
+	{
+		return false;
+	}
+	TestTrue(TEXT("the marker mesh has geometry assigned, so the sign is findable"),
+		Defaults->MarkerMesh->GetStaticMesh() != nullptr);
+	TestTrue(TEXT("the marker never blocks the player"),
+		Defaults->MarkerMesh->GetCollisionEnabled() == ECollisionEnabled::NoCollision);
+	TestTrue(TEXT("the focus volume still exists for the interaction trace"),
+		Defaults->InteractionVolume.Get() != nullptr);
 	return true;
 }
 

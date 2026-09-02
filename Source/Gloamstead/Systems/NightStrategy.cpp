@@ -88,9 +88,18 @@ void UNightCorruptionStrategy::EnterNight_Implementation(const FNightRuntimeCont
 	}
 
 	Objective.StartCorruption = PCG->GetCorruptionLevel(TargetIndex);
-	// "Cleansed" = corruption at least halved and below a low floor.
-	Objective.ResolveAtOrBelow = FMath::Min(Objective.StartCorruption * 0.5f, 0.2f);
+	// "Cleansed" = corruption at least halved, relative to where the bloom actually started.
+	//
+	// This used to be FMath::Min(Start * 0.5f, 0.2f), which inverted the test: the worse the bloom, the
+	// SMALLER the absolute target became. At the shipped seed the gate sat at 0.20 against a start of
+	// 0.66, demanding 0.46 of removal from a night whose single lever (a GardenBed restoration) clears
+	// 0.35 - and whose pressure added 0.08 every two seconds. The night was arithmetically unwinnable
+	// before the player could move. Halving is the stated intent and scales the way a cleanse should:
+	// a worse bloom is harder in absolute terms, not impossible. The small floor keeps a near-zero
+	// bloom from resolving on rounding alone.
+	Objective.ResolveAtOrBelow = FMath::Max(Objective.StartCorruption * 0.5f, 0.05f);
 	Objective.bResolved = false;
+	WardsUsed = 0;
 
 	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Corruption]: bloom at point %d (corruption %.2f, cleanse<=%.2f)."),
 		TargetIndex, Objective.StartCorruption, Objective.ResolveAtOrBelow);
@@ -103,10 +112,23 @@ void UNightCorruptionStrategy::ApplyPressureStep_Implementation(UGloamsteadPCGSu
 		return;
 	}
 
+	const float PreviousLevel = PCG->GetCorruptionLevel(Objective.TargetPointIndex);
 	const float NewLevel = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, PressureStepDelta);
 	const int32 Spread = PCG->ApplyCorruptionSpread(SpreadStepDelta, SpreadStepPoints);
-	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Corruption]: pressure step — bloom %d now %.2f (+%d spread)."),
-		Objective.TargetPointIndex, NewLevel, Spread);
+
+	// Once the bloom saturates at 1.00 the step is a no-op, and repeating the identical line every two
+	// seconds buried the one number that mattered under fifteen copies of itself. Say it once, then say
+	// only that it is still saturated.
+	if (!FMath::IsNearlyEqual(PreviousLevel, NewLevel))
+	{
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Corruption]: pressure step — bloom %d now %.2f (+%d spread)."),
+			Objective.TargetPointIndex, NewLevel, Spread);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("NightStrategy[Corruption]: bloom %d saturated at %.2f; pressure step had no further effect."),
+			Objective.TargetPointIndex, NewLevel);
+	}
 }
 
 void UNightCorruptionStrategy::NotifyRestoration_Implementation(const FRestorationEventPayload& Payload, UGloamsteadPCGSubsystem* PCG)
@@ -136,6 +158,32 @@ void UNightCorruptionStrategy::NotifyRestoration_Implementation(const FRestorati
 		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Corruption]: bloom cleansed (point %d, corruption %.2f)."),
 			Objective.TargetPointIndex, TargetCorruption);
 	}
+}
+
+bool UNightCorruptionStrategy::NotifyLightWard_Implementation(UGloamsteadPCGSubsystem* PCG)
+{
+	if (!PCG || Objective.bResolved || Objective.TargetPointIndex < 0)
+	{
+		return false;
+	}
+
+	// Every other threatened night lets the player push back during the night; Corruption did not, so
+	// its only answer was a once-per-point restoration that pressure had already outrun. Tending the
+	// bloom is repeatable and out-paces one pressure beat, with a falloff so neglect still costs.
+	const float Effective = FMath::Max(WardCorruptionDelta - (WardFalloffPerUse * WardsUsed), 0.02f);
+	++WardsUsed;
+
+	const float NewLevel = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, -Effective);
+	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Corruption]: light ward tended the bloom at point %d (-%.2f, corruption %.2f, cleanse<=%.2f)."),
+		Objective.TargetPointIndex, Effective, NewLevel, Objective.ResolveAtOrBelow);
+
+	if (NewLevel <= Objective.ResolveAtOrBelow)
+	{
+		Objective.bResolved = true;
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Corruption]: bloom cleansed by light ward (point %d, corruption %.2f)."),
+			Objective.TargetPointIndex, NewLevel);
+	}
+	return true;
 }
 
 FNightRuntimeOutcome UNightCorruptionStrategy::ResolveNight_Implementation(UGloamsteadPCGSubsystem* PCG)

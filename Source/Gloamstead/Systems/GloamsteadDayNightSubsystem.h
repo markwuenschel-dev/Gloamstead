@@ -29,7 +29,15 @@ class GLOAMSTEAD_API UGloamsteadDayNightSubsystem : public UWorldSubsystem
 	GENERATED_BODY()
 
 public:
-	/** Seconds Dusk remains readable before this phase authority starts the prepared night. */
+	/**
+	 * When true, Dusk waits for the player to bring the night at the Heart instead of expiring on
+	 * DuskToNightDelaySeconds. That makes every transition the player controls a deliberate act:
+	 * Day -> Dusk -> Night by hand, and Night -> Dawn by completing the night's objective.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DayNight|Cadence")
+	bool bPlayerAdvancesDuskToNight = true;
+
+	/** Seconds Dusk remains readable before this phase authority starts the prepared night. Ignored while bPlayerAdvancesDuskToNight. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DayNight|Cadence", meta = (ClampMin = "0.0"))
 	float DuskToNightDelaySeconds = 6.0f;
 
@@ -63,6 +71,14 @@ public:
 	 * once the scripted first-night director has gone dormant. */
 	UFUNCTION(BlueprintCallable, Category = "DayNight")
 	bool RequestRest();
+
+	/**
+	 * True when Dusk is prepared and waiting for the player to bring the night by hand. Kept separate from
+	 * CanRestNow() on purpose: "rest" means the Day/Dawn resting phases, and that meaning is asserted across
+	 * the suite. This is the Dusk-only gate that RequestRest consults first.
+	 */
+	UFUNCTION(BlueprintPure, Category = "DayNight")
+	bool CanBeginNightNow() const;
 
 	/** Controls only the dawn disk write; phase progression and reflection remain unchanged. */
 	UFUNCTION(BlueprintCallable, Category = "DayNight|Persistence")

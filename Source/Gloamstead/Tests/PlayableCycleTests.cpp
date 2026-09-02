@@ -377,13 +377,17 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			TestTrue(TEXT("the Heart offers rest after the explicit lantern event"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));
 			TestTrue(TEXT("RequestRest takes the normal guarded first-rest route"), DayNight->RequestRest());
 			TestTrue(TEXT("guarded first rest advances to Dusk"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk);
-			TestTrue(TEXT("DayNight schedules the first Dusk-to-Night cadence"), DayNight->Test_IsDuskToNightCadenceScheduled());
+			// Dusk no longer expires on a countdown: the player brings the night at the Heart, so no
+			// cadence is armed and the Heart stays answerable through Dusk.
+			TestFalse(TEXT("Dusk arms no countdown while the player owns the transition"), DayNight->Test_IsDuskToNightCadenceScheduled());
+			TestTrue(TEXT("Dusk is ready for the player to bring the night"), DayNight->CanBeginNightNow());
 
 			// Run the first night through the exact plan path. Dusk must broadcast Tutorial without score selection.
 			TestEqual(TEXT("manager received the exact Tutorial plan type"), Manager->GetLastSelectedNightType(), ENightConsequenceType::Tutorial);
 			TestEqual(TEXT("runtime received the manager's exact delegate type"), Runtime->GetPlannedNightType(), ENightConsequenceType::Tutorial);
-			TestFalse(TEXT("the Heart is inert at Dusk"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));
-			DayNight->AdvanceToNextPhase(); // Dusk -> Night (presentation, then deferred BeginNight)
+			TestTrue(TEXT("the Heart answers at Dusk so the player can bring the night"),
+				IGloamInteractable::Execute_CanInteract(Heart, nullptr));
+			TestTrue(TEXT("resting at Dusk brings the night"), DayNight->RequestRest()); // Dusk -> Night
 			TestTrue(TEXT("advanced to Night"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Night);
 			TestFalse(TEXT("entering Night clears the completed Dusk cadence"), DayNight->Test_IsDuskToNightCadenceScheduled());
 			TestTrue(TEXT("Night presentation queues the runtime start"), DayNight->Test_IsNightRuntimeStartScheduled());
@@ -606,7 +610,10 @@ bool FGloamPlayableCycleWorldTest::RunTest(const FString& /*Parameters*/)
 			TestTrue(TEXT("the Heart offers rest on the recurring day"), IGloamInteractable::Execute_CanInteract(Heart, nullptr));
 			IGloamInteractable::Execute_Interact(Heart, nullptr);
 			TestTrue(TEXT("resting advanced to Dusk on the recurring loop"), DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dusk);
-			TestTrue(TEXT("Cycle II Dusk cadence belongs to DayNight after tutorial teardown"), DayNight->Test_IsDuskToNightCadenceScheduled());
+			// Same player-driven Dusk as Cycle I: DayNight owns the transition, but it waits for the
+			// player rather than arming a countdown behind them.
+			TestFalse(TEXT("Cycle II Dusk arms no countdown after tutorial teardown"), DayNight->Test_IsDuskToNightCadenceScheduled());
+			TestTrue(TEXT("Cycle II Dusk waits for the player at the Heart"), DayNight->CanBeginNightNow());
 			TestTrue(TEXT("Cycle II still cannot revive the detached tutorial actor"),
 				FirstNightDirector && FirstNightDirector->IsTutorialDetached());
 			const FExperienceCyclePlan* CycleTwoAtDusk = DayNight->GetUpcomingPlan();
@@ -1047,6 +1054,32 @@ bool FGloamPlayableCycleResumeQuiescenceWorldTest::RunTest(const FString& /*Para
 		if (SkyPresenter)
 		{
 			TestEqual(TEXT("SkyPresenter receives exactly GardenRot after resume"), SkyPresenter->Test_GetLastPresentedWarningId(), FName(TEXT("GardenRot")));
+
+			// From Cycle II on, OnHeartWarning is an unimplemented BlueprintImplementableEvent and no
+			// Blueprint subclass of this actor exists, so every post-tutorial warning was received and
+			// then dropped - the player saw nothing. The native caption fallback must accept it.
+			TestEqual(TEXT("SkyPresenter accepts GardenRot for captioning instead of dropping it"),
+				SkyPresenter->Test_GetLastCaptionedWarningId(), FName(TEXT("GardenRot")));
+			TestEqual(TEXT("the armed warning is captioned exactly once despite DayNight's re-broadcast"),
+				SkyPresenter->Test_GetCaptionAcceptedCount(), 1);
+
+			// DayNight deliberately clears its dedup key and re-emits when a presenter registers. Prove a
+			// second identical broadcast still captions once - that double-emit is the duplicate the
+			// playtest saw, and it must not reach the screen twice.
+			FVeilHeartWarningFragment Repeat;
+			Repeat.WarningId = FName(TEXT("GardenRot"));
+			Repeat.Fragment = NSLOCTEXT("Gloamstead", "RepeatGardenRot", "The bed is rotting.");
+			SkyPresenter->HandleHeartWarning(Repeat);
+			TestEqual(TEXT("a repeated identical warning does not caption a second time"),
+				SkyPresenter->Test_GetCaptionAcceptedCount(), 1);
+
+			// A genuinely different warning must still get through - dedup, not suppression.
+			FVeilHeartWarningFragment Other;
+			Other.WarningId = FName(TEXT("RoadUnbound"));
+			Other.Fragment = NSLOCTEXT("Gloamstead", "RepeatRoadUnbound", "The road forgets its bounds.");
+			SkyPresenter->HandleHeartWarning(Other);
+			TestEqual(TEXT("a different warning still captions"),
+				SkyPresenter->Test_GetCaptionAcceptedCount(), 2);
 		}
 		TestTrue(TEXT("rest opens only after the generic GardenRot presentation"), DayNight->CanRestNow());
 

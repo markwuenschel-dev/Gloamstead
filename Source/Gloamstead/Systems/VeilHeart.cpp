@@ -61,7 +61,8 @@ bool AVeilHeart::CanInteract_Implementation(AActor* /*Interactor*/) const
 	}
 
 	const UGloamsteadDayNightSubsystem* DayNight = GetDayNight(this);
-	return DayNight && DayNight->CanRestNow();
+	// Dusk is answerable too now: the player brings the night here rather than waiting out a timer.
+	return DayNight && (DayNight->CanRestNow() || DayNight->CanBeginNightNow());
 }
 
 FText AVeilHeart::GetInteractionPrompt_Implementation() const
@@ -75,6 +76,10 @@ FText AVeilHeart::GetInteractionPrompt_Implementation() const
 	if (DayNight && DayNight->GetCurrentPhase() == EGloamsteadDayPhase::Dawn)
 	{
 		return NSLOCTEXT("Gloamstead", "HeartWake", "Greet the dawn");
+	}
+	if (DayNight && DayNight->CanBeginNightNow())
+	{
+		return NSLOCTEXT("Gloamstead", "HeartBringNight", "Let the night come");
 	}
 	return NSLOCTEXT("Gloamstead", "HeartRest", "Rest at the Heart");
 }

@@ -6,6 +6,7 @@
 #include "GloamsteadEvidenceSource.generated.h"
 
 class USphereComponent;
+class UStaticMeshComponent;
 
 /**
  * A placed, authored source of one readable warning support channel.
@@ -51,4 +52,12 @@ public:
 	/** Query-only focus volume so the normal player interaction trace can discover this source. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Evidence Source")
 	TObjectPtr<USphereComponent> InteractionVolume;
+
+	/**
+	 * The sign's body. Evidence sources were placed correctly and were completely invisible - a
+	 * query-only sphere and nothing to see - so the only way to find one was to walk within 3.5 m of
+	 * empty air facing the right way. A sign the player cannot see is not a sign.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Evidence Source")
+	TObjectPtr<UStaticMeshComponent> MarkerMesh;
 };

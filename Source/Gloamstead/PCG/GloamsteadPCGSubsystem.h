@@ -23,6 +23,13 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStructureRestored, const FRestora
  */
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnPlacementAuthorizedRestoration, const FRestorationEventPayload&);
 
+/**
+ * Native-only notice that per-point corruption changed. The night's pressure mutates
+ * CorruptionLevel every beat, but nothing used to say so, which is why a bloom could
+ * climb to 1.00 while the world looked identical. Presentation layers bind here.
+ */
+DECLARE_MULTICAST_DELEGATE(FOnCorruptionChanged);
+
 USTRUCT()
 struct FRitualPointState
 {
@@ -210,6 +217,13 @@ public:
     UPROPERTY(BlueprintAssignable, Category="PCG|Ritual")
     FOnStructureRestored OnStructureRestored;
 
+    /**
+     * Native-only: fires whenever any point's CorruptionLevel actually changed.
+     * Not BlueprintAssignable on purpose - corruption is runtime state owned here,
+     * and a Blueprint must not be able to fake the signal that drives its visuals.
+     */
+    FOnCorruptionChanged OnCorruptionChanged;
+
 #if WITH_DEV_AUTOMATION_TESTS
     // === Automation-only synthetic-world seams ===
     // These declarations intentionally disappear from non-automation builds.
@@ -285,6 +299,13 @@ private:
      * names is absent, which is an authoring error rather than a reason to guess a position.
      */
     bool ResolveSiteAnchorLocation(uint8 Anchor, FVector& OutLocation) const;
+
+    /**
+     * Names the anchor-seated first-lantern point with the Slot 1 plan's semantic subject. The site
+     * catalog declares Cycle2-Cycle6 only, so without this the tutorial's own subject resolved to
+     * nothing and its interpretation site was never built.
+     */
+    void StampAnchorSeatedSubject();
 
     /**
      * Point index re-seated onto the authored first-lantern anchor, or INDEX_NONE. Tracked so an authored

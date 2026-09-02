@@ -64,6 +64,7 @@ void UGloamsteadPCGSubsystem::ApplyAuthoredAnchorOverride()
     if (OldLocation.Equals(AnchorLocation, 1.0))
     {
         AnchorSeatedPointIndex = BestIndex; // Already there, but still the lantern's point.
+        StampAnchorSeatedSubject();
         return;
     }
 
@@ -76,6 +77,58 @@ void UGloamsteadPCGSubsystem::ApplyAuthoredAnchorOverride()
     UE_LOG(LogTemp, Log,
         TEXT("UGloamsteadPCGSubsystem: re-seated first lantern (point %d) from %s onto authored anchor '%s' at %s."),
         BestIndex, *OldLocation.ToCompactString(), *Anchor->GetName(), *AnchorLocation.ToCompactString());
+
+    StampAnchorSeatedSubject();
+}
+
+void UGloamsteadPCGSubsystem::StampAnchorSeatedSubject()
+{
+    if (!CachedPoints.IsValidIndex(AnchorSeatedPointIndex))
+    {
+        return;
+    }
+
+    // The tutorial lantern's point exists and is seated on its authored anchor, but nothing ever wrote
+    // its NAME onto it: the site catalog declares Cycle2-Cycle6 only, and the placed-actor route is
+    // empty in the shipping map. So ResolveSemanticSubjectToPoint could not find the one subject the
+    // first cycle is entirely about - "authored subject courtyard.lantern.first has no PCG mapping" -
+    // and Cycle1_Tutorial's evidence and reading choices were never placed. The anchor override is the
+    // one place that knows which point IS the first lantern, so it is the place that names it.
+    UExperienceCycleCatalog* Catalog = NewObject<UExperienceCycleCatalog>(this);
+    if (!Catalog)
+    {
+        return;
+    }
+    PopulateDefaultExperienceCyclePlans(*Catalog);
+
+    const FExperienceCyclePlan* Tutorial = Catalog->AuthoredPlans.FindByPredicate(
+        [](const FExperienceCyclePlan& Plan) { return Plan.Slot == 1; });
+    if (!Tutorial || Tutorial->SemanticSubject.IsNone())
+    {
+        return;
+    }
+
+    // Never overwrite a stamp an authored site declaration already placed here.
+    if (GetNameAttribute(CachedPoints[AnchorSeatedPointIndex], TEXT("SemanticSubject")) != NAME_None)
+    {
+        return;
+    }
+
+    const FName RestorationTag = Tutorial->RequiredRestorationTags.Num() > 0
+        ? Tutorial->RequiredRestorationTags[0]
+        : NAME_None;
+
+    if (WritePointContractMetadata(
+            AnchorSeatedPointIndex,
+            Tutorial->WarningId,
+            Tutorial->SemanticSubject,
+            ERitualType::LanternPost,
+            RestorationTag))
+    {
+        UE_LOG(LogTemp, Log,
+            TEXT("UGloamsteadPCGSubsystem: named the anchor-seated first lantern (point %d) '%s' for plan %s."),
+            AnchorSeatedPointIndex, *Tutorial->SemanticSubject.ToString(), *Tutorial->PlanId.ToString());
+    }
 }
 
 void UGloamsteadPCGSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -449,6 +502,11 @@ bool UGloamsteadPCGSubsystem::ApplyRestoration(int32 PointIndex, const FRestorat
     // Call SyncPointToMetadata() explicitly only when needed (debug, save, VFX binding).
 
     OnStructureRestored.Broadcast(Payload);
+    // Mending a point lowers its corruption; the visual layer must recede with it.
+    if (Payload.CorruptionCleared > 0.0f)
+    {
+        OnCorruptionChanged.Broadcast();
+    }
     return true;
 }
 
@@ -487,6 +545,11 @@ int32 UGloamsteadPCGSubsystem::ApplyCorruptionSpread(float Delta, int32 MaxPoint
     UE_LOG(LogTemp, Log, TEXT("PCG: ApplyCorruptionSpread delta=%.2f mutated=%d avg corruption now=%.2f"),
         Delta, Mutated, GetSanctuaryAverageCorruptionLevel());
 
+    if (Mutated > 0)
+    {
+        OnCorruptionChanged.Broadcast();
+    }
+
     return Mutated;
 }
 
@@ -497,7 +560,12 @@ float UGloamsteadPCGSubsystem::AddCorruptionAtIndex(int32 PointIndex, float Delt
         return -1.f;
     }
     FRitualPointState& State = PointStates[PointIndex];
+    const float Previous = State.CorruptionLevel;
     State.CorruptionLevel = FMath::Clamp(State.CorruptionLevel + Delta, 0.f, 1.f);
+    if (!FMath::IsNearlyEqual(Previous, State.CorruptionLevel))
+    {
+        OnCorruptionChanged.Broadcast();
+    }
     return State.CorruptionLevel;
 }
 

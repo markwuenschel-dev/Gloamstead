@@ -11,6 +11,9 @@
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 #include "Systems/VeilHeart.h"
+#include "Blueprint/UserWidget.h"
+#include "GameFramework/PlayerController.h"
+#include "UObject/UnrealType.h"
 
 namespace
 {
@@ -230,6 +233,105 @@ void AGloamsteadSkyPresenter::HandleHeartWarning(const FVeilHeartWarningFragment
 {
 	LastPresentedWarningId = WarningFragment.WarningId;
 	OnHeartWarning(WarningFragment.Fragment);
+	PresentWarningCaption(WarningFragment);
+}
+
+bool AGloamsteadSkyPresenter::IsPresentationEventImplemented(FName EventName) const
+{
+	const UFunction* Function = GetClass()->FindFunctionByName(EventName);
+	if (!Function)
+	{
+		return false;
+	}
+	return Function->GetOuter() != AGloamsteadSkyPresenter::StaticClass();
+}
+
+void AGloamsteadSkyPresenter::PresentWarningCaption(const FVeilHeartWarningFragment& WarningFragment)
+{
+	// A Blueprint child that implements OnHeartWarning owns presentation; do not caption twice.
+	if (IsPresentationEventImplemented(TEXT("OnHeartWarning")))
+	{
+		return;
+	}
+
+	// DayNight clears its dedup key and re-broadcasts the armed warning whenever a presenter registers
+	// (GloamsteadDayNightSubsystem.cpp:284), so the identical fragment arrives twice milliseconds apart.
+	// That was harmless while nothing presented it. Now that it reaches a screen, it must caption once.
+	if (!WarningFragment.WarningId.IsNone() && WarningFragment.WarningId == LastCaptionedWarningId)
+	{
+		return;
+	}
+
+	const FText& CaptionText = WarningFragment.Fragment;
+	if (CaptionText.IsEmpty())
+	{
+		return;
+	}
+
+	// Latch here, not after the widget call: the dedup must hold even in a world with no screen, or a
+	// re-broadcast would be "accepted" twice the moment one appears.
+	LastCaptionedWarningId = WarningFragment.WarningId;
+	++CaptionAcceptedCount;
+
+	// A caption needs a screen. Synthetic automation worlds have no local player; that is not a defect.
+	APlayerController* Viewer = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+	if (!Viewer)
+	{
+		return;
+	}
+
+	if (!FallbackCaptionWidget)
+	{
+		static const TCHAR* CaptionPath = TEXT("/Game/FirstNight/WBP_FirstNightCaption.WBP_FirstNightCaption_C");
+		UClass* CaptionClass = LoadClass<UUserWidget>(nullptr, CaptionPath);
+		if (!CaptionClass)
+		{
+			UE_LOG(LogTemp, Error,
+				TEXT("SkyPresenter: no Blueprint implements OnHeartWarning and the caption widget at %s could not "
+					 "be loaded, so the Heart's words reach no one from Cycle II on."), CaptionPath);
+			return;
+		}
+
+		FallbackCaptionWidget = CreateWidget<UUserWidget>(Viewer, CaptionClass);
+		if (!FallbackCaptionWidget)
+		{
+			UE_LOG(LogTemp, Error, TEXT("SkyPresenter: could not create the fallback caption widget."));
+			return;
+		}
+		FallbackCaptionWidget->AddToPlayerScreen(20);
+	}
+
+	// Verify the widget's entry point rather than assuming its shape: exactly one FText parameter.
+	UFunction* Display = FallbackCaptionWidget->FindFunction(TEXT("DisplayCaption"));
+	FTextProperty* TextParam = nullptr;
+	int32 ParamCount = 0;
+	if (Display)
+	{
+		for (TFieldIterator<FProperty> It(Display); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+		{
+			++ParamCount;
+			TextParam = CastField<FTextProperty>(*It);
+		}
+	}
+
+	if (!Display || ParamCount != 1 || !TextParam)
+	{
+		UE_LOG(LogTemp, Error,
+			TEXT("SkyPresenter: the caption widget has no DisplayCaption(FText) entry point, so the Heart's warning "
+				 "cannot be shown. Implement OnHeartWarning on a Blueprint child, or give the widget that entry point."));
+		return;
+	}
+
+	void* Parms = FMemory::Malloc(Display->ParmsSize);
+	FMemory::Memzero(Parms, Display->ParmsSize);
+	TextParam->InitializeValue_InContainer(Parms);
+	TextParam->SetPropertyValue_InContainer(Parms, CaptionText);
+	FallbackCaptionWidget->ProcessEvent(Display, Parms);
+	TextParam->DestroyValue_InContainer(Parms);
+	FMemory::Free(Parms);
+
+	UE_LOG(LogTemp, Log, TEXT("SkyPresenter: captioned Heart warning [%s] natively: \"%s\""),
+		*WarningFragment.WarningId.ToString(), *CaptionText.ToString());
 }
 
 void AGloamsteadSkyPresenter::Tick(float DeltaSeconds)

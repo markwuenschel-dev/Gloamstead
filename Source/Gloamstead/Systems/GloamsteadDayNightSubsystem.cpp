@@ -153,6 +153,14 @@ void UGloamsteadDayNightSubsystem::ScheduleDuskToNightCadence()
 		return;
 	}
 
+	// The player brings the night at the Heart. Arming the countdown as well would race them for a
+	// transition they were told is theirs, so the deadline simply does not exist in this mode.
+	if (bPlayerAdvancesDuskToNight)
+	{
+		UE_LOG(LogTemp, Log, TEXT("DayNight: dusk holds — the night waits for the player at the Heart."));
+		return;
+	}
+
 	if (UWorld* World = GetWorld())
 	{
 		// A zero authoring value still advances on the next timer tick rather than
@@ -920,6 +928,15 @@ bool UGloamsteadDayNightSubsystem::CanAdvanceFromDayToDusk()
 	return CanRestNow();
 }
 
+bool UGloamsteadDayNightSubsystem::CanBeginNightNow() const
+{
+	// Dusk only, and only once the plan that Dusk armed is actually prepared - HandleEnterNight hard-
+	// refuses without it. Kept out of CanRestNow() so "rest" keeps meaning the Day/Dawn resting phases.
+	return bPlayerAdvancesDuskToNight
+		&& CurrentPhase == EGloamsteadDayPhase::Dusk
+		&& bDuskPlanPrepared;
+}
+
 bool UGloamsteadDayNightSubsystem::CanRestNow() const
 {
 	// Dawn is always wake-able (including the FIRST dawn — nothing else advances Dawn->Day in-game).
@@ -966,7 +983,17 @@ void UGloamsteadDayNightSubsystem::UnlockFirstRest()
 
 bool UGloamsteadDayNightSubsystem::RequestRest()
 {
-	// Only the resting phases are player-advanceable; Dusk/Night resolve on their own.
+	// Dusk is now the player's step too: they bring the night deliberately instead of watching a
+	// six-second timer take the decision away from them.
+	if (CanBeginNightNow())
+	{
+		UE_LOG(LogTemp, Log, TEXT("DayNight: the player brings the night at the Heart (phase=%d)."),
+			static_cast<int32>(CurrentPhase));
+		AdvanceToNextPhase();
+		return true;
+	}
+
+	// Night is not player-advanceable: it ends by completing its objective, not by resting through it.
 	if (!CanRestNow())
 	{
 		UE_LOG(LogTemp, Log, TEXT("DayNight: rest requested but the night is already upon us (phase=%d)."),

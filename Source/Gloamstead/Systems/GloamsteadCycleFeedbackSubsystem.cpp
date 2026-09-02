@@ -3,9 +3,22 @@
 #include "Systems/NightConsequenceRuntime.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "HAL/IConsoleManager.h"
 
 namespace
 {
+	// This subsystem self-describes as "a debug surface, not a HUD" (see the header). It narrates
+	// every phase/night/outcome beat that the director Blueprint and the native caption widget ALSO
+	// narrate in prose, so a live game showed each beat twice - once as terse debug text, once as
+	// the authored line. The prose captions are the player-facing voice; this stays as a diagnostic
+	// overlay you can switch on with `gloam.CycleFeedback.OnScreen 1`. The UE_LOG is unconditional
+	// either way, so logs and automation are unchanged.
+	static TAutoConsoleVariable<bool> CVarCycleFeedbackOnScreen(
+		TEXT("gloam.CycleFeedback.OnScreen"),
+		false,
+		TEXT("Draw the cycle-feedback debug narration on screen (default off; the authored captions narrate the loop)."),
+		ECVF_Default);
+
 	FString PhaseName(EGloamsteadDayPhase Phase)
 	{
 		switch (Phase)
@@ -147,6 +160,9 @@ void UGloamsteadCycleFeedbackSubsystem::Show(int32 Key, float Duration, const FC
 	{
 		return; // debug HUD only in a live game world; automation/editor-preview stay clean
 	}
-	GEngine->AddOnScreenDebugMessage(Key, Duration, Color, Text);
+	if (CVarCycleFeedbackOnScreen.GetValueOnGameThread())
+	{
+		GEngine->AddOnScreenDebugMessage(Key, Duration, Color, Text);
+	}
 	UE_LOG(LogTemp, Log, TEXT("CycleFeedback: %s"), *Text);
 }

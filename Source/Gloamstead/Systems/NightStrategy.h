@@ -100,6 +100,23 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night", meta = (ClampMin = "1"))
 	int32 SpreadStepPoints = 3;
+
+	/**
+	 * Corruption removed by one light ward. Deliberately larger than PressureStepDelta: a ward that
+	 * cannot out-pace a single beat of pressure is not a lever, and Corruption was the only threatened
+	 * night with no ward at all - leaving the once-per-point restoration as its sole answer.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night", meta = (ClampMin = "0", ClampMax = "1"))
+	float WardCorruptionDelta = 0.12f;
+
+	/** Tending the bloom is repeatable, but not free: each ward past the first gives a little less. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night", meta = (ClampMin = "0", ClampMax = "1"))
+	float WardFalloffPerUse = 0.02f;
+
+	virtual bool NotifyLightWard_Implementation(UGloamsteadPCGSubsystem* PCG) override;
+
+private:
+	int32 WardsUsed = 0;
 };
 
 /**
