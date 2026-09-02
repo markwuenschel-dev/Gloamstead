@@ -20,7 +20,11 @@ public class Gloamstead : ModuleRules
 			"GameplayStateTreeModule",
 			"UMG",
 			"Slate",
-			"PCG"
+			"PCG",
+			// The sanctuary has no sound assets of any kind - not one cue, wave or MetaSound - so its
+			// soundscape is synthesised in C++ from USynthComponent instead. Public because
+			// GloamsteadSanctuarySynth.h exposes that base class.
+			"AudioMixer"
 		});
 
 		// Gloamstead's Cycle II projection is the one-way gameplay-owned caller
