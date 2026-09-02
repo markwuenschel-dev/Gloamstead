@@ -40,8 +40,10 @@ nothing visible, night threats had no body, there was no HUD, and Cycle V's auth
 edge of the map so one sixth of the game could not be played. See
 [Docs/Phase3_SixHourExperience.md](Docs/Phase3_SixHourExperience.md).
 
-**Known gaps:** no audio assets exist anywhere in the project; no journal, dawn-summary screen or
-menus; night threats wear the stock mannequin pending bespoke silhouettes.
+**Known gaps:** no journal or dawn-summary screen (pause and a controls overlay exist); night
+threats wear the stock mannequin pending bespoke silhouettes; the audio bed is synthesised in C++
+because the project ships no sound assets, so real music and a recorded whisper for the Heart are
+still owed.
 
 | Phase | Focus | Status |
 |-------|-------|--------|

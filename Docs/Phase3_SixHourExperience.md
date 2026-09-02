@@ -69,7 +69,7 @@ the content + integration layer.
 | Gloamstead Blueprints (player, Heart, restored actors, threats, game mode) | Player/Heart/lantern authored; the other five restored forms and the threats are code-owned so they need no Blueprint |
 | UI / UMG (HUD, whisper, journal, dawn summary, menus) | Canvas HUD + prompt + caption widgets shipped; journal, dawn-summary screen and menus still absent |
 | Day/night **visuals** | `AGloamsteadSkyPresenter` blends sun/sky/fog/exposure per phase; corruption stains via `UGloamsteadCorruptionVisualizer` |
-| VFX / audio / first ending | Ending seed present; VFX one Niagara system; **audio: zero assets exist** |
+| VFX / audio / first ending | Ending seed present; VFX one Niagara system; audio synthesised in C++ (no assets), music still owed |
 
 **That blocking fact is retired.** `AGloamsteadSanctuaryBootstrap` calls `InitializeFromPCGComponent`
 from `BeginPlay`, and a headless boot of `Lvl_Gloamstead` on 2026-09-02 logged the whole chain:
@@ -323,9 +323,14 @@ data; the headless integration test Track B has been waiting for goes green in `
   distance, and states that the binder takes the *nearest* point in band. Two latent instances of the
   same bug were retired at the same time: Cycle IV's 1200 floor was binding its point at 1201, on one
   unit of margin.
-- **Audio is still entirely absent.** There are zero sound assets in `Content/` of any kind — no
-  cues, no waves, no MetaSounds. Workstream H cannot start from inside the repo; it needs source
-  material first.
+- **Audio: the bed is synthesised, the content is still owed.** There are still zero sound assets in
+  `Content/` — no cues, waves or MetaSounds — but the game is no longer silent.
+  `UGloamsteadSanctuarySynth` generates the sanctuary's bed from `USynthComponent` and
+  `UGloamsteadSoundscapeSubsystem` drives it from the loop: the voicing descends and darkens into
+  Night, opens at Dawn, its noise floor tracks corruption, and the Heart's warnings strike a low
+  tone. Verified live — a headless boot logs `FAudioMixerWasapi initialized: SampleRate=48000` and
+  `Soundscape: the sanctuary has a voice`. Workstream H still owns real music and a recorded
+  whisper for the Heart; what it no longer owns is the difference between sound and no sound.
 - **The night threats wear the stock mannequin.** That is the body that makes the night legible
   today, and it is thematically defensible for the Gloam wearing a shape the sanctuary knew, but a
   bespoke silhouette per archetype is real art work and is still owed. Archetypes are currently told
