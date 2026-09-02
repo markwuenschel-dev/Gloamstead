@@ -92,6 +92,12 @@ void AGloamsteadCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 		// a dedicated IA asset, but the possession night must still be playable without editor wiring.
 		PlayerInputComponent->BindKey(EKeys::RightMouseButton, IE_Pressed, this, &AGloamsteadCharacter::OnWardInput);
 
+		// Strike, on the same key-level footing and for the same reason. Ward answers a threat; strike
+		// only buys the seconds needed to reach the light or the mirror that will. Without it a player
+		// watching a Gatherer drain the lantern they raised has nothing to do about it at all - the
+		// runtime's DisruptNearestThreat was fully implemented and had no caller anywhere.
+		PlayerInputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &AGloamsteadCharacter::OnStrikeInput);
+
 		// Cycle 5's deliberate choice uses number keys so it remains playable even when
 		// a project's early input-mapping assets have no dedicated choice actions yet.
 		PlayerInputComponent->BindKey(EKeys::One, IE_Pressed, this, &AGloamsteadCharacter::OnMirrorRefuseInput);
@@ -315,6 +321,24 @@ void AGloamsteadCharacter::OnWardInput()
 	}
 
 	UE_LOG(LogTemp, Verbose, TEXT("GloamInput: Ward pressed with no night runtime."));
+}
+
+void AGloamsteadCharacter::OnStrikeInput()
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (UNightConsequenceRuntime* Night = World->GetSubsystem<UNightConsequenceRuntime>())
+		{
+			// Deliberately never resolves anything - only Cleanse does that, and only for archetypes
+			// that can be cleansed at all. Striking is the way to spend time instead of light.
+			const bool bStruck = Night->DisruptNearestThreat(GetActorLocation());
+			UE_LOG(LogTemp, Log, TEXT("GloamInput: Strike pressed (threat=%s)."),
+				bStruck ? TEXT("interrupted") : TEXT("nothing in reach"));
+			return;
+		}
+	}
+
+	UE_LOG(LogTemp, Verbose, TEXT("GloamInput: Strike pressed with no night runtime."));
 }
 
 void AGloamsteadCharacter::OnMirrorRefuseInput()

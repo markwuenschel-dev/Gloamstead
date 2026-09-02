@@ -102,6 +102,9 @@ protected:
 	/** Ward input: spend a deliberate light beat against a strategy-owned night threat. */
 	void OnWardInput();
 
+	/** Strike input: interrupt the nearest threat's work. Buys seconds; resolves nothing. */
+	void OnStrikeInput();
+
 	/** Mirror input: refuse the false reflection. */
 	void OnMirrorRefuseInput();
 
@@ -133,6 +136,10 @@ public:
 	/** Automated-playtest and accessibility hook for the light ward (also bound to Right Mouse). */
 	UFUNCTION(Exec)
 	void GloamWard() { OnWardInput(); }
+
+	/** Automated-playtest and accessibility hook for the strike (also bound to Left Mouse). */
+	UFUNCTION(Exec)
+	void GloamStrike() { OnStrikeInput(); }
 
 	/** Automated-playtest and accessibility hook for the Mirror/Bargain refusal choice. */
 	UFUNCTION(Exec)

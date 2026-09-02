@@ -23,6 +23,7 @@
 #include "Engine/GameInstance.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "GloamsteadCharacter.h"
 #include "GloamsteadGameMode.h"
 #include "Materials/MaterialInterface.h"
 #include "UI/GloamsteadHUD.h"
@@ -351,6 +352,83 @@ bool FGloamHUDHoldsTheWarningTest::RunTest(const FString& /*Parameters*/)
 		// counting down to nothing.
 		TestTrue(TEXT("there is no night countdown outside the night"),
 			HUD->Test_GetNightSecondsRemaining() < 0.f);
+	}
+
+	GEngine->DestroyWorldContext(World);
+	World->DestroyWorld(false);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// 6. Every night verb the runtime implements is reachable by the player.
+// ---------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamNightVerbsAreReachableTest,
+	"Gloamstead.NightVerbs.EveryImplementedNightVerbHasAPlayerHook",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamNightVerbsAreReachableTest::RunTest(const FString& /*Parameters*/)
+{
+	// UNightConsequenceRuntime::DisruptNearestThreat was fully implemented, BlueprintCallable, and
+	// called by nothing anywhere in Source/. Strike is the only thing a player can do about a
+	// Gatherer already draining the lantern they raised, so the whole verb existed and could not be
+	// performed - the same shape of defect as an enemy with no mesh.
+	//
+	// Both night verbs are bound at key level rather than through an input-mapping asset, so an
+	// asset-side check cannot see them. The exec hooks are the seam that is checkable headless, and
+	// each is documented as calling the identical handler the key binding calls.
+	UClass* CharacterClass = AGloamsteadCharacter::StaticClass();
+	if (!TestNotNull(TEXT("the Gloamstead character class exists"), CharacterClass))
+	{
+		return false;
+	}
+
+	for (const TCHAR* VerbHook : { TEXT("GloamStrike"), TEXT("GloamWard"),
+								   TEXT("GloamRestore"), TEXT("GloamInteract"), TEXT("GloamExamine") })
+	{
+		TestNotNull(
+			*FString::Printf(TEXT("the player can reach the %s verb"), VerbHook),
+			CharacterClass->FindFunctionByName(FName(VerbHook)));
+	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamStrikeInterruptsTest,
+	"Gloamstead.NightVerbs.StrikeInterruptsWithoutResolving",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamStrikeInterruptsTest::RunTest(const FString& /*Parameters*/)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld*/ false);
+	if (!TestNotNull(TEXT("strike test world created"), World))
+	{
+		return false;
+	}
+	FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
+	WorldContext.SetCurrentWorld(World);
+
+	AGloamsteadNightThreat* Threat = World->SpawnActor<AGloamsteadNightThreat>();
+	if (TestNotNull(TEXT("threat spawned"), Threat))
+	{
+		FNightThreatSpec Spec;
+		Spec.Archetype = ENightThreatArchetype::Gatherer;
+		Threat->ConfigureThreat(Spec, /*BoundPointIndex*/ INDEX_NONE);
+
+		Threat->Test_SetThreatState(ENightThreatState::Working);
+		TestTrue(TEXT("a working threat can be struck"), Threat->Disrupt());
+		TestEqual(TEXT("striking interrupts the work"),
+			Threat->GetThreatState(), ENightThreatState::Disrupted);
+
+		// The line the design is built on: striking buys seconds and never wins the night. A strike
+		// that resolved a threat would turn every night into a damage race.
+		TestNotEqual(TEXT("striking never resolves a threat"),
+			Threat->GetThreatState(), ENightThreatState::Resolved);
+
+		Threat->Test_SetThreatState(ENightThreatState::Resolved);
+		TestFalse(TEXT("an already-answered threat cannot be struck again"), Threat->Disrupt());
 	}
 
 	GEngine->DestroyWorldContext(World);

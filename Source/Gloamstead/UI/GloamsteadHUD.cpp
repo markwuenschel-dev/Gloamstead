@@ -69,14 +69,19 @@ namespace GloamsteadHUDDraw
 	{
 		switch (Phase)
 		{
+		// The keys are named here because this game has no tutorial and no control screen, and its
+		// two night verbs are bound at key level rather than through an input-mapping asset - so
+		// nothing else in the build ever tells the player that Strike and Ward exist.
 		case EGloamsteadDayPhase::Day:
-			return TEXT("Read the warning. Find its evidence. Restore the place it names.");
+			return TEXT("Read the warning. Find its evidence. Restore the place it names.   "
+						"[R] restore   [E] interact   [Q] examine");
 		case EGloamsteadDayPhase::Dusk:
-			return TEXT("Bring the night at the Heart when you are ready.");
+			return TEXT("Bring the night at the Heart when you are ready.   [E] at the Heart");
 		case EGloamsteadDayPhase::Night:
-			return TEXT("Hold what you built. Light answers what walks.");
+			return TEXT("Hold what you built. Light answers what walks.   "
+						"[LMB] strike to buy seconds   [RMB] ward and cleanse");
 		case EGloamsteadDayPhase::Dawn:
-			return TEXT("Rest at the Heart to see what the night cost.");
+			return TEXT("Rest at the Heart to see what the night cost.   [E] at the Heart");
 		default:
 			return FString();
 		}
