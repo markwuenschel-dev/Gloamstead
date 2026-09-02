@@ -946,15 +946,32 @@ void UGloamsteadPCGSubsystem::ApplyAuthoredSiteContracts()
 
             int32 BestIndex = INDEX_NONE;
             double BestDistSq = TNumericLimits<double>::Max();
+
+            // Tracked purely so a failure can name the band that WOULD have worked. Without it the
+            // error says "widen BindRadius" and stops, which is the advice that costs an author a
+            // build to act on - and it cost this project the whole of Cycle V, whose 2000-unit floor
+            // sat past the far edge of a sanctuary only ~1500 units across.
+            int32 NearestRejectedIndex = INDEX_NONE;
+            double NearestRejectedDistSq = TNumericLimits<double>::Max();
+            int32 UnclaimedCount = 0;
+            TArray<TPair<int32, double>> UnclaimedSpread;
+
             for (int32 Index = 0; Index < CachedPoints.Num(); ++Index)
             {
                 if (ClaimedPoints.Contains(Index) || Index == AnchorSeatedPointIndex)
                 {
                     continue;
                 }
+                ++UnclaimedCount;
                 const double DistSq = FVector::DistSquared(CachedPoints[Index].Transform.GetLocation(), AnchorLocation);
+                UnclaimedSpread.Emplace(Index, FMath::Sqrt(DistSq));
                 if (DistSq > RadiusSq || DistSq < MinSq)
                 {
+                    if (DistSq < NearestRejectedDistSq)
+                    {
+                        NearestRejectedDistSq = DistSq;
+                        NearestRejectedIndex = Index;
+                    }
                     continue;
                 }
                 if (DistSq < BestDistSq)
@@ -966,13 +983,37 @@ void UGloamsteadPCGSubsystem::ApplyAuthoredSiteContracts()
 
             if (BestIndex == INDEX_NONE)
             {
+                FString Remedy;
+                if (NearestRejectedIndex != INDEX_NONE)
+                {
+                    // The whole spread, not just the nearest: this binder takes the NEAREST point in
+                    // band, so an author placing a site at the sanctuary's far edge has to choose a
+                    // floor above every nearer candidate, and cannot do that from one number.
+                    UnclaimedSpread.Sort([](const TPair<int32, double>& A, const TPair<int32, double>& B)
+                        { return A.Value < B.Value; });
+                    FString Spread;
+                    for (const TPair<int32, double>& Candidate : UnclaimedSpread)
+                    {
+                        Spread += FString::Printf(TEXT(" %d@%.0f"), Candidate.Key, Candidate.Value);
+                    }
+                    Remedy = FString::Printf(
+                        TEXT(" %d unclaimed point(s), nearest to farthest:%s. This binder takes the nearest "
+                             "point inside the band, so pick a floor just under the one you mean."),
+                        UnclaimedCount, *Spread);
+                }
+                else
+                {
+                    Remedy = TEXT(" No unclaimed generated point exists at all, at any distance - "
+                                  "the graph is producing fewer points than the catalog declares sites.");
+                }
+
                 UE_LOG(LogTemp, Error,
                     TEXT("UGloamsteadPCGSubsystem: authored site '%s' binds nothing - no unclaimed generated point ")
-                    TEXT("between %.0f and %.0f units of its anchor. Widen BindRadius, lower MinimumAnchorDistance, ")
-                    TEXT("or check whether the graph produced points near that landmark at all."),
+                    TEXT("between %.0f and %.0f units of its anchor.%s"),
                     *Declaration.SemanticSubject.ToString(),
                     Declaration.MinimumAnchorDistance,
-                    Declaration.BindRadius);
+                    Declaration.BindRadius,
+                    *Remedy);
                 continue;
             }
 

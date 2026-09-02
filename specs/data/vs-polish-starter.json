@@ -657,33 +657,33 @@
             "BindRadius": 7000.0
           },
           {
-            "_comment": "The overlook is high and set back, far enough that plaza, lantern, garden and road read as one arrangement rather than as separate places.",
+            "_comment": "The overlook is high and set back, far enough that plaza, lantern, garden and road read as one arrangement rather than as separate places. Floor 1000, not 1200: this map's points sit at 603/635/724 and 1201/1218/1266 from the Heart, so 1200 bound its point with ONE unit of margin - a number that survives by luck. 1000 selects the same outer ring with ~276 units of slack on either side.",
             "SemanticSubject": "Cycle4_Overlook",
             "RecommendedForWarning": "StolenLight",
             "RitualType": "MirrorPillar",
             "RestorationTag": "MirrorPillar",
             "Anchor": "SanctuaryHeart",
-            "MinimumAnchorDistance": 1200.0,
+            "MinimumAnchorDistance": 1000.0,
             "BindRadius": 8000.0
           },
           {
-            "_comment": "The bell shrine sits at the sanctuary's opposite edge. By Cycle V the island should feel known, so the novelty is what the player must infer, not where they must go.",
+            "_comment": "The bell shrine sits at the sanctuary's opposite edge. By Cycle V the island should feel known, so the novelty is what the player must infer, not where they must go. This floor was 2000 - past the far edge of a sanctuary about 1500 units across - so Cycle V bound nothing, its evidence and reading choices were never placed, and one sixth of the authored arc was unreachable while every test stayed green. The binder takes the NEAREST point in band, so Cycles IV/V/VI now share a floor of 1000 and take the three outer-ring points in catalog order.",
             "SemanticSubject": "Cycle5_BellShrine",
             "RecommendedForWarning": "BellBargain",
             "RitualType": "BellShrine",
             "RestorationTag": "BellShrine",
             "Anchor": "SanctuaryHeart",
-            "MinimumAnchorDistance": 2000.0,
+            "MinimumAnchorDistance": 1000.0,
             "BindRadius": 9000.0
           },
           {
-            "_comment": "The keystone the player binds the ring from. It is not a sixth spoke of the map - it is the act of configuring the five that already exist.",
+            "_comment": "The keystone the player binds the ring from. It is not a sixth spoke of the map - it is the act of configuring the five that already exist. Floor raised 800 -> 1000 so it cannot drift onto an inner point if the graph shifts: at 800 the nearest excluded candidate was only 76 units below the floor.",
             "SemanticSubject": "Cycle6_Sanctuary",
             "RecommendedForWarning": "ThreeLights",
             "RitualType": "AnchorStone",
             "RestorationTag": "AnchorStone",
             "Anchor": "SanctuaryHeart",
-            "MinimumAnchorDistance": 800.0,
+            "MinimumAnchorDistance": 1000.0,
             "BindRadius": 9000.0
           }
         ]
