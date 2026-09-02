@@ -52,6 +52,23 @@ public:
 	/** Test seam: seconds of night remaining, or a negative value when it is not night. */
 	float Test_GetNightSecondsRemaining() const;
 
+	/**
+	 * Every verb the player has, as one row each: key, name, and what it is for.
+	 *
+	 * Public and static because it is the ONLY place in the build that documents the controls, and
+	 * two of the five verbs are bound at key level rather than through an input-mapping asset - so
+	 * an asset-side check cannot see them and a player has nowhere else to learn them. The test
+	 * asserts this table names every verb the character binds, which is what stops a seventh verb
+	 * from shipping undocumented.
+	 */
+	struct FGloamControlRow
+	{
+		const TCHAR* Key;
+		const TCHAR* Verb;
+		const TCHAR* Meaning;
+	};
+	static TArrayView<const FGloamControlRow> GetControlRows();
+
 private:
 	void ResolveSources();
 
@@ -60,6 +77,9 @@ private:
 
 	/** Word-wraps text to Width and draws it, returning the Y below the last line. */
 	float DrawWrapped(float X, float Y, float Width, const FString& Text, const FLinearColor& Color, float Scale);
+
+	/** The held-sanctuary screen: a scrim, the title, and the controls table. */
+	void DrawPausedOverlay();
 
 	TWeakObjectPtr<UGloamsteadDayNightSubsystem> DayNight;
 	TWeakObjectPtr<UGloamsteadExperienceCycleSubsystem> Cycles;

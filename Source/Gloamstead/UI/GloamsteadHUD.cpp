@@ -8,6 +8,7 @@
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "GloamsteadPlayerController.h"
 #include "HAL/IConsoleManager.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Systems/GloamsteadExperienceCycleSubsystem.h"
@@ -86,6 +87,26 @@ namespace GloamsteadHUDDraw
 			return FString();
 		}
 	}
+}
+
+TArrayView<const AGloamsteadHUD::FGloamControlRow> AGloamsteadHUD::GetControlRows()
+{
+	// Kept in the same order the player meets them: move, then the day verbs, then the night verbs,
+	// then the one choice. Strike and Ward sit together because they are the pair that answers a
+	// night, and a player who learns one without the other will try to win a fight.
+	static const FGloamControlRow Rows[] = {
+		{ TEXT("W A S D"),    TEXT("move"),         TEXT("") },
+		{ TEXT("mouse"),      TEXT("look"),         TEXT("") },
+		{ TEXT("space"),      TEXT("jump"),         TEXT("") },
+		{ TEXT("R"),          TEXT("restore"),      TEXT("raise the ritual this place asks for") },
+		{ TEXT("E"),          TEXT("interact"),     TEXT("rest at the Heart; read what you find") },
+		{ TEXT("Q"),          TEXT("examine"),      TEXT("look closer at the evidence") },
+		{ TEXT("left mouse"), TEXT("strike"),       TEXT("interrupt a threat - buys seconds, wins nothing") },
+		{ TEXT("right mouse"),TEXT("ward"),         TEXT("answer it with light; cleanse what can be cleansed") },
+		{ TEXT("1 / 2"),      TEXT("refuse / accept"), TEXT("when something offers you a bargain") },
+		{ TEXT("Esc"),        TEXT("hold"),         TEXT("stop the sanctuary where it stands") },
+	};
+	return MakeArrayView(Rows, UE_ARRAY_COUNT(Rows));
 }
 
 AGloamsteadHUD::AGloamsteadHUD()
@@ -267,6 +288,44 @@ float AGloamsteadHUD::DrawWrapped(
 	return CursorY;
 }
 
+void AGloamsteadHUD::DrawPausedOverlay()
+{
+	using namespace GloamsteadHUDDraw;
+
+	const float ViewW = Canvas->ClipX;
+	const float ViewH = Canvas->ClipY;
+
+	// A scrim rather than an opaque panel: the sanctuary should still be faintly there behind the
+	// held moment, because what the player is being asked to think about is out in it.
+	DrawRect(FLinearColor(0.01f, 0.01f, 0.015f, 0.86f), 0.f, 0.f, ViewW, ViewH);
+
+	const float PanelW = FMath::Clamp(ViewW * 0.46f, 420.f, 820.f);
+	const float X = (ViewW - PanelW) * 0.5f;
+	float Y = ViewH * 0.16f;
+
+	DrawText(TEXT("THE SANCTUARY HOLDS"), Amber, X, Y, GEngine->GetMediumFont(), 1.4f);
+	Y += 44.f;
+
+	// The controls table. This is the only screen in the build that documents the verbs.
+	const float KeyColumn = X;
+	const float VerbColumn = X + PanelW * 0.26f;
+	const float MeaningColumn = X + PanelW * 0.46f;
+
+	for (const FGloamControlRow& Row : GetControlRows())
+	{
+		DrawText(Row.Key, Ink, KeyColumn, Y, GEngine->GetSmallFont(), 1.f);
+		DrawText(Row.Verb, LightFill, VerbColumn, Y, GEngine->GetSmallFont(), 1.f);
+		if (Row.Meaning && *Row.Meaning)
+		{
+			DrawText(Row.Meaning, Dim, MeaningColumn, Y, GEngine->GetSmallFont(), 1.f);
+		}
+		Y += 21.f;
+	}
+
+	Y += 26.f;
+	DrawText(TEXT("[Esc]  return to it"), Amber, X, Y, GEngine->GetSmallFont(), 1.2f);
+}
+
 void AGloamsteadHUD::DrawHUD()
 {
 	Super::DrawHUD();
@@ -276,6 +335,17 @@ void AGloamsteadHUD::DrawHUD()
 	if (!Canvas || !GEngine || !CVarShowHUD.GetValueOnGameThread())
 	{
 		return;
+	}
+
+	// The held sanctuary replaces the readout rather than layering over it: the meters describe a
+	// world that is not currently moving, and a countdown frozen mid-tick reads as a bug.
+	if (const AGloamsteadPlayerController* Gloam = Cast<AGloamsteadPlayerController>(PlayerOwner))
+	{
+		if (Gloam->IsSanctuaryPaused())
+		{
+			DrawPausedOverlay();
+			return;
+		}
 	}
 
 	ResolveSources();

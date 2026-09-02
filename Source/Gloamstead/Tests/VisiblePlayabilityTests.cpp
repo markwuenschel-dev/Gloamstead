@@ -23,8 +23,11 @@
 #include "Engine/GameInstance.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "Components/RitualPlacementComponent.h"
+#include "Data/RitualDefinition.h"
 #include "GloamsteadCharacter.h"
 #include "GloamsteadGameMode.h"
+#include "GloamsteadPlayerController.h"
 #include "Materials/MaterialInterface.h"
 #include "UI/GloamsteadHUD.h"
 
@@ -48,6 +51,25 @@ namespace GloamsteadVisiblePlayabilityFixtures
 		ENightThreatArchetype::Bargainer,
 		ENightThreatArchetype::Echo,
 	};
+
+	/**
+	 * The DA_Ritual_* basename for a form. Deliberately NOT GetRitualTypeDisplayName with the space
+	 * removed: display names are player-facing and may be localised, and an asset path that follows
+	 * a localised string breaks in a language nobody on this project speaks.
+	 */
+	FString RitualFormAssetName(ERitualType Form)
+	{
+		switch (Form)
+		{
+		case ERitualType::LanternPost:  return TEXT("LanternPost");
+		case ERitualType::GardenBed:    return TEXT("GardenBed");
+		case ERitualType::PathPoint:    return TEXT("PathPoint");
+		case ERitualType::MirrorPillar: return TEXT("MirrorPillar");
+		case ERitualType::BellShrine:   return TEXT("BellShrine");
+		case ERitualType::AnchorStone:  return TEXT("AnchorStone");
+		default:                        return FString();
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -433,6 +455,118 @@ bool FGloamStrikeInterruptsTest::RunTest(const FString& /*Parameters*/)
 
 	GEngine->DestroyWorldContext(World);
 	World->DestroyWorld(false);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// 7. Every authored ritual form's tuning asset is actually loaded.
+// ---------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamEveryRitualFormLoadsItsTuningTest,
+	"Gloamstead.Restoration.EveryAuthoredRitualFormLoadsItsTuningAsset",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamEveryRitualFormLoadsItsTuningTest::RunTest(const FString& /*Parameters*/)
+{
+	using namespace GloamsteadVisiblePlayabilityFixtures;
+
+	// URitualPlacementComponent::EnsureRitualDefinitionsLoaded carries a hand-kept table of
+	// /Game/Data/DA_Ritual_* paths. It shipped covering five of the six authored forms - AnchorStone
+	// landed with the six-cycle arc and was never added - so Cycle VI's tuning asset was dead
+	// content, and the miss announced itself as "Loaded 5 ritual definition asset(s)", which reads
+	// exactly like success. SatisfiableWarningTags has no code fallback, so the Heart's satisfied-tag
+	// count came up one short on the final cycle.
+	for (const ERitualType Form : AuthoredForms)
+	{
+		const FString Basename = RitualFormAssetName(Form);
+		const FString Path = FString::Printf(
+			TEXT("/Game/Data/DA_Ritual_%s.DA_Ritual_%s"), *Basename, *Basename);
+
+		URitualDefinition* Definition = LoadObject<URitualDefinition>(nullptr, *Path);
+		if (TestNotNull(*FString::Printf(TEXT("%s ships a tuning asset"), *Path), Definition))
+		{
+			TestEqual(*FString::Printf(TEXT("%s declares the form it is keyed as"), *Path),
+				Definition->RitualType, Form);
+			// The field with no fallback. A form whose tuning asset names no tag cannot contribute
+			// to the Heart's clarity even when it IS loaded.
+			TestTrue(*FString::Printf(TEXT("%s names a satisfiable warning tag"), *Path),
+				Definition->SatisfiableWarningTags.Num() > 0);
+		}
+	}
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// 8. The sanctuary can be held, and every verb is documented somewhere the player can read it.
+// ---------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamNoVerbShipsUndocumentedTest,
+	"Gloamstead.Pause.NoPlayerVerbShipsUndocumented",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamNoVerbShipsUndocumentedTest::RunTest(const FString& /*Parameters*/)
+{
+	// This game has no tutorial and no options screen, and two of its five verbs are bound at key
+	// level rather than through an input-mapping asset - so an asset-side check cannot see them and
+	// the pause overlay's table is the only place a player can learn they exist.
+	//
+	// The exec hooks are the checkable proxy for "a verb the player has": each is documented as
+	// calling the identical handler its key binding calls. Requiring a matching row here means a
+	// seventh verb cannot be added without either documenting it or deliberately deleting a line.
+	const TArray<TPair<FString, FString>> VerbHooks = {
+		{ TEXT("GloamRestore"),  TEXT("restore")  },
+		{ TEXT("GloamInteract"), TEXT("interact") },
+		{ TEXT("GloamExamine"),  TEXT("examine")  },
+		{ TEXT("GloamStrike"),   TEXT("strike")   },
+		{ TEXT("GloamWard"),     TEXT("ward")     },
+	};
+
+	UClass* CharacterClass = AGloamsteadCharacter::StaticClass();
+	UClass* ControllerClass = AGloamsteadPlayerController::StaticClass();
+	if (!TestNotNull(TEXT("the character class exists"), CharacterClass)
+		|| !TestNotNull(TEXT("the controller class exists"), ControllerClass))
+	{
+		return false;
+	}
+
+	const TArrayView<const AGloamsteadHUD::FGloamControlRow> Rows = AGloamsteadHUD::GetControlRows();
+
+	auto RowsName = [&Rows](const FString& Verb)
+	{
+		for (const AGloamsteadHUD::FGloamControlRow& Row : Rows)
+		{
+			if (FString(Row.Verb).Contains(Verb))
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+
+	for (const TPair<FString, FString>& Hook : VerbHooks)
+	{
+		TestNotNull(*FString::Printf(TEXT("the player can reach %s"), *Hook.Key),
+			CharacterClass->FindFunctionByName(FName(*Hook.Key)));
+		TestTrue(*FString::Printf(TEXT("the controls table documents '%s'"), *Hook.Value),
+			RowsName(Hook.Value));
+	}
+
+	// Pause itself is a verb, and the screen that documents the others must document it too.
+	TestNotNull(TEXT("the player can reach GloamPause"),
+		ControllerClass->FindFunctionByName(FName(TEXT("GloamPause"))));
+	TestTrue(TEXT("the controls table documents holding the sanctuary"), RowsName(TEXT("hold")));
+
+	// Every row must actually say something. A blank key or verb is a row that documents nothing
+	// while looking like documentation.
+	for (const AGloamsteadHUD::FGloamControlRow& Row : Rows)
+	{
+		TestTrue(TEXT("every controls row names a key"), Row.Key != nullptr && *Row.Key != TEXT('\0'));
+		TestTrue(TEXT("every controls row names a verb"), Row.Verb != nullptr && *Row.Verb != TEXT('\0'));
+	}
+
 	return true;
 }
 
