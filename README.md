@@ -23,11 +23,25 @@ The player does not build bases, manage villages, or survive hordes. Instead, th
 
 Success is measured by whether the player correctly interprets the world and restores the right places.
 
-## Current Status (June 2026)
+## Current Status (September 2026)
 
-The **vertical-slice core loop** (placement → restoration → dusk warning → night selection from catalog → night runtime → dawn reflection) is implemented in C++ on `main`.
+The **six-cycle authored arc** runs end to end in C++: placement -> restoration -> dusk warning ->
+player-brought night -> night runtime with a light-vulnerable threat roster -> dawn reflection ->
+ending signal. `Lvl_Gloamstead` is the shipped map (sanctuary-kit greybox, `PCG_RitualPoints`, the
+Heart, the first-lantern anchor, foliage, sky).
 
-Development is driven by the **agent_collab** substrate (see `docs/agents/UE5-Agent-Substrate-Review.md`). The `wave-vs-polish-202606` polish wave is active. **Data asset factory verified 2026-06-11:** JSON manifest → `GloamsteadImportDataAssets` commandlet → six `Content/Data/DA_*` assets, wired on `Lvl_ThirdPerson`, PIE day/night smoke passed ([specs/data/VERIFICATION-2026-06-11.md](specs/data/VERIFICATION-2026-06-11.md)). Next gate: PCG init for restoration and varied night selection. A headless automation gate (`gate.ps1`) now grounds shipped logic — **16 tests green** (PCG state/persistence, night selection, Veil Heart warnings); see [Roadmap](docs/ROADMAP.md).
+**Verified 2026-09-02 by a headless boot of the real map:** the sanctuary bootstraps on real PCG data
+(9 points, seed 42), the warning catalog satisfies the authored contract for every plan, **5 of 5**
+authored ritual sites bind, and 15 evidence sources + 15 reading choices are placed. The automation
+gate is at **177 green tests**.
+
+That same pass closed four defects that were invisible to a logic-only suite: Cycles III-VI restored
+nothing visible, night threats had no body, there was no HUD, and Cycle V's authored site sat past the
+edge of the map so one sixth of the game could not be played. See
+[Docs/Phase3_SixHourExperience.md](Docs/Phase3_SixHourExperience.md).
+
+**Known gaps:** no audio assets exist anywhere in the project; no journal, dawn-summary screen or
+menus; night threats wear the stock mannequin pending bespoke silhouettes.
 
 | Phase | Focus | Status |
 |-------|-------|--------|

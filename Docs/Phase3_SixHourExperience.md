@@ -2,11 +2,32 @@
 
 _Plan of record for turning the shipped C++ loop into a ~6-hour playable first experience._
 
-**Status: active implementation (2026-08-26).** All six cycles now have authored runtime contracts,
+**Status: active implementation (2026-09-02).** All six cycles now have authored runtime contracts,
 each with its own place, ritual form, evidence set and second reading; the threat roster (Gatherer,
-Borrowed, Bargainer, Echo) is implemented and light-vulnerable. The full presentation pass, the
-authored geometry for the later sites, and human playtest approval remain planned. This is a *map and
-a sequence*, like `ROADMAP.md` — each item carries a trigger and an acceptance check.
+Borrowed, Bargainer, Echo) is implemented and light-vulnerable. Human playtest approval remains
+planned. This is a *map and a sequence*, like `ROADMAP.md` — each item carries a trigger and an
+acceptance check.
+
+**2026-09-02 — the visibility pass.** A headless boot of `Lvl_Gloamstead` established that the loop
+runs end to end on real PCG data, and that four things the player could not *see* were the actual
+remaining blockers, none of which a logic test could fail:
+
+- Cycles III–VI restored nothing. `URitualPlacementComponent`'s switch covered LanternPost and
+  GardenBed and logged "no restored-actor contract" for the other four forms, so four of six cycles
+  consumed their point, advanced the arc and changed nothing on screen.
+  `AGloamsteadRestoredStructure` now builds all four from the shipped sanctuary kit.
+- Night threats had no skeletal mesh. The runtime spawns the raw C++ class and this project puts
+  mesh/AnimBP on a Blueprint child; none exists for that class, so every Gatherer, Borrowed,
+  Bargainer and Echo walked, drained light and died invisibly.
+- There was no HUD at all. `AGloamsteadHUD` draws cycle, phase, sanctuary light, corruption, the
+  night countdown, what is abroad in the dark, and the Heart's standing sentence — on the canvas from
+  C++, because a Widget Blueprint can only be authored in the editor.
+- **Cycle V was unreachable.** `DA_RitualSiteCatalog` placed the bell shrine at a 2000-unit floor
+  from the Heart, in a sanctuary whose nine ritual points span 603–1266 units. The site bound
+  nothing, its evidence and reading choices were never placed, and one sixth of the arc could not be
+  played — with the entire suite green. Floors for Cycles IV/V/VI are now 1000 apiece.
+- `UNightConsequenceRuntime::DisruptNearestThreat` — the Strike verb — was fully implemented with
+  zero callers. Now bound to Left Mouse.
 
 Two design decisions are **locked** for this phase (they change the build, not just the polish):
 
@@ -32,8 +53,8 @@ size **S/M/L**.
 
 ## 1. Where we are (grounded gap analysis)
 
-The loop's *brain* is code-complete and gate-tested (16 green tests). The gap is the content +
-integration layer.
+The loop's *brain* is code-complete and gate-tested (177 green tests as of 2026-09-02). The gap is
+the content + integration layer.
 
 | Layer | State |
 |---|---|
@@ -41,18 +62,21 @@ integration layer.
 | Restoration contract + placement (`URitualPlacementComponent`, `FRestorationEventPayload`) | Code complete |
 | PCG backbone + spatial queries + save/load (`UGloamsteadPCGSubsystem`, `UGloamsteadSaveGame`) | Code complete |
 | Night selection brain (`UNightConsequenceManager`) + Veil Heart warnings (`AVeilHeart`) | Code complete |
-| Night **execution** (`UNightConsequenceRuntime`) | **Stub** — logs + corruption spread; no threats |
-| Data assets (catalogs + 4× `DA_Ritual_*`) | Exist but MVP-thin; **`DA_Ritual_PathPoint` missing** |
-| **PCG → subsystem init** (`InitializeFromPCGComponent`) | **Never called by anything** → loop is starved |
-| Level / world | Stock `Lvl_ThirdPerson` template |
-| Gloamstead Blueprints (player, Heart, restored actors, threats, game mode) | None |
-| UI / UMG (HUD, whisper, journal, dawn summary, menus) | None |
-| Day/night **visuals** (DaySequence plugin enabled) | Unused in code |
-| VFX / audio / first ending | None |
+| Night **execution** (`UNightConsequenceRuntime`) | Per-type strategies + a spawned, visible, light-vulnerable threat roster |
+| Data assets (catalogs + 6× `DA_Ritual_*`) | All six ritual forms authored, incl. `DA_Ritual_PathPoint` |
+| **PCG → subsystem init** (`InitializeFromPCGComponent`) | Called by `AGloamsteadSanctuaryBootstrap`; verified live — 9 points, 5/5 sites bound |
+| Level / world | `Lvl_Gloamstead` — sanctuary-kit greybox, `PCG_RitualPoints`, Heart, first-lantern anchor, foliage, sky |
+| Gloamstead Blueprints (player, Heart, restored actors, threats, game mode) | Player/Heart/lantern authored; the other five restored forms and the threats are code-owned so they need no Blueprint |
+| UI / UMG (HUD, whisper, journal, dawn summary, menus) | Canvas HUD + prompt + caption widgets shipped; journal, dawn-summary screen and menus still absent |
+| Day/night **visuals** | `AGloamsteadSkyPresenter` blends sun/sky/fog/exposure per phase; corruption stains via `UGloamsteadCorruptionVisualizer` |
+| VFX / audio / first ending | Ending seed present; VFX one Niagara system; **audio: zero assets exist** |
 
-**The single blocking fact:** nothing calls `InitializeFromPCGComponent`, so the loop does not run in PIE.
-This is the critical path; everything visible depends on it. (See `ROADMAP.md` Track B — "frozen at editor
-checklist step 6.")
+**That blocking fact is retired.** `AGloamsteadSanctuaryBootstrap` calls `InitializeFromPCGComponent`
+from `BeginPlay`, and a headless boot of `Lvl_Gloamstead` on 2026-09-02 logged the whole chain:
+warning catalog loaded and contract-satisfied for every plan, 5 ritual definitions mapped, the first
+lantern re-seated onto its authored anchor, **5 of 5** authored sites bound, 15 evidence sources and
+15 reading choices placed, 9 ritual points initialised at seed 42. (`ROADMAP.md` Track B, "frozen at
+editor checklist step 6", is likewise no longer frozen.)
 
 **Accelerator:** the NeoStackAI plugin + the `neostack-blueprint` / `neostack-widget` /
 `neostack-umg-design` / `neostack-game-testing` skills + the `neostack-pcg-editing` recipe make most
@@ -289,8 +313,20 @@ data; the headless integration test Track B has been waiting for goes green in `
   `Gloamstead.NightThreat.NoNightEverExceedsThreeSimultaneousThreats`, which is exhaustive over every
   night type × reading grade × warning-heeded combination rather than over the cases the arc happens to
   author. Review still owns whether a *new* archetype earns its place; the count no longer needs it.
-- **Authored geometry for Cycles 3–6:** the sites for the road, overlook, bell shrine and sanctuary
-  keystone are authored in `DA_RitualSiteCatalog` and anchored to landmarks, but the map still needs the
-  greybox that gives them somewhere to bind. Until it exists those sites refuse to bind — which is the
-  correct fail-closed answer (a site that guessed would put the Heart's evidence in the wrong place),
-  and it is visible in the log as "names a landmark this map does not contain". **H/N.**
+- **Authored geometry for Cycles 3–6: RESOLVED 2026-09-02.** This entry read as a missing-greybox
+  problem and was not one. Both landmarks the catalog names — the Heart and `BP_FirstLanternAnchor` —
+  are placed in `Lvl_Gloamstead`, and a headless boot binds **5 of 5** authored sites, placing 15
+  evidence sources and 15 reading choices. What actually failed was one authored distance: the bell
+  shrine's 2000-unit floor named a place past the far edge of a sanctuary ~1500 units across. The
+  failure was fail-closed and correct, but its diagnostic said only "widen BindRadius" — advice that
+  costs a build to act on — so it now lists every unclaimed point nearest-to-farthest with its
+  distance, and states that the binder takes the *nearest* point in band. Two latent instances of the
+  same bug were retired at the same time: Cycle IV's 1200 floor was binding its point at 1201, on one
+  unit of margin.
+- **Audio is still entirely absent.** There are zero sound assets in `Content/` of any kind — no
+  cues, no waves, no MetaSounds. Workstream H cannot start from inside the repo; it needs source
+  material first.
+- **The night threats wear the stock mannequin.** That is the body that makes the night legible
+  today, and it is thematically defensible for the Gloam wearing a shape the sanctuary knew, but a
+  bespoke silhouette per archetype is real art work and is still owed. Archetypes are currently told
+  apart by a per-archetype coloured glow.
