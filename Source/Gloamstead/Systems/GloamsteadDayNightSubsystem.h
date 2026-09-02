@@ -41,9 +41,28 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DayNight|Cadence", meta = (ClampMin = "0.0"))
 	float DuskToNightDelaySeconds = 6.0f;
 
-	/** Maximum Night duration before this phase authority requests Dawn. */
+	/**
+	 * The night's outer ceiling, in seconds. It is a CEILING, not a length: a night that resolves its
+	 * objective ends early through OnNightShouldEnd, so this only governs a night the player has not
+	 * yet answered.
+	 *
+	 * Raised from 45 to 100 on 2026-09-02, from the arithmetic rather than by feel. This sanctuary's
+	 * ritual points span 603-1266 units from the Heart, so it is about 25 m across and a player at
+	 * MaxWalkSpeed 500 crosses it in ~5 s. A threat approaches at ApproachSpeed 180 (scaled down by
+	 * light), so it needs ~7 s to reach its target in the dark, then drains at LightDrainPerSecond
+	 * 0.06 - about 17 s to take a full point down - with DisruptionSeconds 3 bought back per strike.
+	 * One complete threat lifecycle is therefore ~25-30 s.
+	 *
+	 * At 45 s the player saw roughly one and a half of those: barely time to notice a threat, cross
+	 * to it and strike once, which is not "pressure while you cleanse or activate" so much as a
+	 * cutscene with a verb in it. At 100 s they get three or four - enough to misread the night, lose
+	 * ground, and recover, which is the shape the design asks for.
+	 *
+	 * It also moves the arc's floor: six nights at 100 s is ~10 minutes of night rather than ~4.5,
+	 * against a target experience of about half an hour.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DayNight|Cadence", meta = (ClampMin = "0.0"))
-	float NightDurationSeconds = 45.0f;
+	float NightDurationSeconds = 100.0f;
 
 	UFUNCTION(BlueprintCallable, Category = "DayNight")
 	EGloamsteadDayPhase GetCurrentPhase() const { return CurrentPhase; }
