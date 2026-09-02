@@ -1020,6 +1020,13 @@ void URitualPlacementComponent::EnsureRitualDefinitionsLoaded()
         { ERitualType::PathPoint,    TEXT("/Game/Data/DA_Ritual_PathPoint.DA_Ritual_PathPoint")       },
         { ERitualType::MirrorPillar, TEXT("/Game/Data/DA_Ritual_MirrorPillar.DA_Ritual_MirrorPillar") },
         { ERitualType::BellShrine,   TEXT("/Game/Data/DA_Ritual_BellShrine.DA_Ritual_BellShrine")     },
+        // Cycle VI. DA_Ritual_AnchorStone shipped with the six-cycle arc and this table stopped at
+        // five, so the final ritual form's authored tuning was never loaded - and the miss announced
+        // itself as "Loaded 5 ritual definition asset(s)", which reads exactly like success. The
+        // light/corruption fallbacks in RitualTypes.cpp happen to match the authored values, but
+        // SatisfiableWarningTags has no fallback at all, so Cycle VI set no WarningTagSatisfied and
+        // the Heart's clarity count - an input to the ending - was short by one.
+        { ERitualType::AnchorStone,  TEXT("/Game/Data/DA_Ritual_AnchorStone.DA_Ritual_AnchorStone")   },
     };
 
     int32 LoadedCount = 0;

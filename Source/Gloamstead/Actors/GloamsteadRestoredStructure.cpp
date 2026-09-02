@@ -166,9 +166,11 @@ AGloamsteadRestoredStructure::AGloamsteadRestoredStructure()
 	AimedLight->SetCastShadows(false);
 	AimedLight->SetInnerConeAngle(16.f);
 	AimedLight->SetOuterConeAngle(34.f);
-	// The spot fires along the actor's forward axis. A spot light's own forward is -X after this
-	// yaw, so the pillar's facing and its beam are the same fact rather than two that can drift.
-	AimedLight->SetRelativeRotation(FRotator(0.f, 0.f, 0.f));
+	// Identity rotation on purpose: a spot light emits along its own forward (+X), so leaving this
+	// unrotated makes the beam and the pillar's facing the same fact rather than two that can drift
+	// apart. Cycle IV asks which way the mirror is turned; the answer has to be visible from across
+	// the plaza, and it is only visible because the light points where the pillar does.
+	AimedLight->SetRelativeRotation(FRotator::ZeroRotator);
 }
 
 bool AGloamsteadRestoredStructure::ConfigureForRitualType(ERitualType RitualType)
