@@ -1,7 +1,42 @@
 #include "Actors/GloamsteadNightThreat.h"
 
+#include "Animation/AnimInstance.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/PointLightComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
+#include "UObject/ConstructorHelpers.h"
+
+/**
+ * Named, not anonymous: this module builds through adaptive unity, where an anonymous namespace does
+ * not keep file-local names apart (the C2264 note repeated across this module).
+ */
+namespace GloamsteadNightThreatBody
+{
+	/**
+	 * The stock mannequin, used deliberately rather than for want of anything better.
+	 *
+	 * A night threat had no skeletal mesh of any kind: NightConsequenceRuntime spawns
+	 * AGloamsteadNightThreat::StaticClass() directly, and this project's convention puts mesh and
+	 * AnimBP on a Blueprint child - of which none exists for this class. So every Gatherer,
+	 * Borrowed, Bargainer and Echo walked the sanctuary, drained light and died invisibly, across
+	 * four of the six cycles.
+	 *
+	 * A featureless grey humanoid is also the honest read for what these are: the Gloam wearing the
+	 * shape of something the sanctuary knew. A bespoke silhouette per archetype is real art work and
+	 * is still owed; this is the body that makes the night legible today.
+	 */
+	constexpr const TCHAR* BodyMeshPath =
+		TEXT("/Game/Characters/Mannequins/Meshes/SKM_Quinn_Simple.SKM_Quinn_Simple");
+	constexpr const TCHAR* BodyAnimPath =
+		TEXT("/Game/Characters/Mannequins/Anims/Unarmed/ABP_Unarmed.ABP_Unarmed_C");
+
+	/** Mannequin meshes are authored feet-at-origin facing +Y; a capsule wants centre and +X. */
+	const FVector MeshOffset(0.f, 0.f, -90.f);
+	const FRotator MeshRotation(0.f, -90.f, 0.f);
+}
 
 FString GetNightThreatStateDisplayName(ENightThreatState State)
 {
@@ -31,6 +66,97 @@ AGloamsteadNightThreat::AGloamsteadNightThreat()
 	MaxHP = 3.0f;
 	MeleeDamage = 1.0f;
 	DeathRemovalTime = 2.0f;
+
+	// A body, at last. ConstructorHelpers rather than a runtime load so the mesh is part of this
+	// class's CDO and the cost is paid once at class load, not on every spawn during a night.
+	if (USkeletalMeshComponent* Body = GetMesh())
+	{
+		static ConstructorHelpers::FObjectFinder<USkeletalMesh> BodyMeshFinder(
+			GloamsteadNightThreatBody::BodyMeshPath);
+		if (BodyMeshFinder.Succeeded())
+		{
+			Body->SetSkeletalMeshAsset(BodyMeshFinder.Object);
+		}
+
+		static ConstructorHelpers::FClassFinder<UAnimInstance> BodyAnimFinder(
+			GloamsteadNightThreatBody::BodyAnimPath);
+		if (BodyAnimFinder.Succeeded())
+		{
+			Body->SetAnimInstanceClass(BodyAnimFinder.Class);
+		}
+
+		Body->SetRelativeLocationAndRotation(
+			GloamsteadNightThreatBody::MeshOffset, GloamsteadNightThreatBody::MeshRotation);
+		// The body is scenery on a pawn the player never collides with for gameplay reasons; the
+		// capsule already owns the space.
+		Body->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+
+	GloamGlow = CreateDefaultSubobject<UPointLightComponent>(TEXT("GloamGlow"));
+	GloamGlow->SetupAttachment(GetCapsuleComponent());
+	GloamGlow->SetRelativeLocation(FVector(0.f, 0.f, 40.f));
+	GloamGlow->SetMobility(EComponentMobility::Movable);
+	GloamGlow->SetCastShadows(false);
+	GloamGlow->SetAttenuationRadius(420.f);
+	GloamGlow->SetIntensity(1400.f);
+
+	// The threat walks; without a rotation rate it slides facing wherever it spawned. SetActorRotation
+	// in Tick already turns it, so this only smooths what the movement component would fight.
+	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+	{
+		Movement->bUseControllerDesiredRotation = false;
+		Movement->bOrientRotationToMovement = true;
+		Movement->RotationRate = FRotator(0.f, 220.f, 0.f);
+	}
+}
+
+FLinearColor AGloamsteadNightThreat::GetArchetypeGlowColor(ENightThreatArchetype Archetype)
+{
+	switch (Archetype)
+	{
+	// It takes light out of what you built, so it burns like a stolen ember.
+	case ENightThreatArchetype::Gatherer:  return FLinearColor(1.00f, 0.42f, 0.16f);
+	// Wearing a shape that was the sanctuary's; sickly green is the tell that it is not.
+	case ENightThreatArchetype::Borrowed:  return FLinearColor(0.36f, 0.95f, 0.55f);
+	// Stands at the edge offering shortcuts. Warm and inviting, which is the trap.
+	case ENightThreatArchetype::Bargainer: return FLinearColor(0.98f, 0.84f, 0.35f);
+	// Costs attention, not light. Pale and cold, and dimmer than the rest by design.
+	case ENightThreatArchetype::Echo:      return FLinearColor(0.62f, 0.72f, 0.95f);
+	default:                               return FLinearColor(0.80f, 0.80f, 0.85f);
+	}
+}
+
+bool AGloamsteadNightThreat::HasVisibleBody() const
+{
+	const USkeletalMeshComponent* Body = GetMesh();
+	return Body != nullptr && Body->GetSkeletalMeshAsset() != nullptr;
+}
+
+void AGloamsteadNightThreat::ApplyArchetypePresentation()
+{
+	if (!GloamGlow)
+	{
+		return;
+	}
+
+	GloamGlow->SetLightColor(GetArchetypeGlowColor(Spec.Archetype));
+
+	// Silhouette does the work colour cannot at close range: what is coming for the lantern is not
+	// the same size as what is standing at the treeline offering you something.
+	float BodyScale = 1.f;
+	float GlowIntensity = 1400.f;
+	switch (Spec.Archetype)
+	{
+	case ENightThreatArchetype::Gatherer:  BodyScale = 1.05f; GlowIntensity = 1600.f; break;
+	case ENightThreatArchetype::Borrowed:  BodyScale = 1.00f; GlowIntensity = 1300.f; break;
+	case ENightThreatArchetype::Bargainer: BodyScale = 1.18f; GlowIntensity = 1100.f; break;
+	// An Echo drains nothing and deals nothing. It should look like the least of them, because it is.
+	case ENightThreatArchetype::Echo:      BodyScale = 0.82f; GlowIntensity = 600.f;  break;
+	default: break;
+	}
+
+	GloamGlow->SetIntensity(GlowIntensity);
+	SetActorScale3D(FVector(BodyScale));
 }
 
 void AGloamsteadNightThreat::BeginPlay()
@@ -72,6 +198,9 @@ void AGloamsteadNightThreat::ConfigureThreat(const FNightThreatSpec& InSpec, int
 		LightDrainPerSecond = 0.0f;
 		MeleeDamage = 0.0f;
 	}
+
+	// Last, because it reads Spec: the archetype only exists as something to look at once it is set.
+	ApplyArchetypePresentation();
 }
 
 float AGloamsteadNightThreat::ComputeAdvanceScale(float LightOnThreat, float RepelledAtLightLevel)

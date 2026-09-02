@@ -1,5 +1,6 @@
 #include "Components/RitualPlacementComponent.h"
 #include "Actors/GloamsteadRestoredGardenBed.h"
+#include "Actors/GloamsteadRestoredStructure.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "Systems/GloamsteadDayNightSubsystem.h"
 #include "Systems/GloamsteadSurveySubjectRegistry.h"
@@ -414,6 +415,23 @@ void URitualPlacementComponent::SpawnRestoredActor_Implementation(int32 PointInd
         RestorationActorTag = TEXT("Gloamstead.RestoredGarden");
         break;
 
+    // Cycles III-VI. These four forms shipped with authored plans, warnings, evidence and night
+    // rules, and no restored actor at all - restoring one consumed its point and changed nothing
+    // visible. AGloamsteadRestoredStructure carries a code-owned sanctuary-kit recipe per form, so
+    // the tag comes from the recipe rather than being repeated here.
+    case ERitualType::PathPoint:
+    case ERitualType::MirrorPillar:
+    case ERitualType::BellShrine:
+    case ERitualType::AnchorStone:
+    {
+        ClassToSpawn = RestoredStructureClass.Get();
+        if (!ClassToSpawn && bUseProjectDefaultRestoredStructureClass)
+        {
+            ClassToSpawn = AGloamsteadRestoredStructure::StaticClass();
+        }
+        break;
+    }
+
     default:
         UE_LOG(LogTemp, Warning, TEXT("RitualPlacementComponent: ritual type %d has no restored-actor contract."),
             static_cast<int32>(RitualType));
@@ -435,7 +453,17 @@ void URitualPlacementComponent::SpawnRestoredActor_Implementation(int32 PointInd
     OutSpawnedActor = World->SpawnActor<AActor>(ClassToSpawn, SpawnLocation, SpawnRotation, Params);
     if (OutSpawnedActor)
     {
-        OutSpawnedActor->Tags.AddUnique(RestorationActorTag);
+        // Build the form before tagging, so a structure that refuses its recipe is a visibly empty
+        // actor carrying an honest log line rather than a correctly-tagged invisible success.
+        if (AGloamsteadRestoredStructure* Structure = Cast<AGloamsteadRestoredStructure>(OutSpawnedActor))
+        {
+            Structure->ConfigureForRitualType(RitualType);
+        }
+
+        if (RestorationActorTag != NAME_None)
+        {
+            OutSpawnedActor->Tags.AddUnique(RestorationActorTag);
+        }
         OutSpawnedActor->Tags.AddUnique(*FString::Printf(TEXT("Gloamstead.RitualPoint.%d"), PointIndex));
     }
 }

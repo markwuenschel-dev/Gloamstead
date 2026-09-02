@@ -7,6 +7,8 @@
 #include "Data/RitualDefinition.h"
 #include "RitualPlacementComponent.generated.h"
 
+class AGloamsteadRestoredStructure;
+
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class GLOAMSTEAD_API URitualPlacementComponent : public UActorComponent
 {
@@ -166,6 +168,23 @@ public:
     /** Keep enabled so an authored GardenBed never degrades into an invisible success by default. */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ritual|Placement", meta=(AdvancedDisplay))
     bool bUseProjectDefaultGardenBedClass = true;
+
+    /**
+     * Optional per-character override for the Cycle III-VI ritual forms (PathPoint, MirrorPillar,
+     * BellShrine, AnchorStone). When unset, AGloamsteadRestoredStructure builds each form from its
+     * code-owned sanctuary-kit recipe. A subclass supplied here is configured the same way, so an
+     * override adds art rather than replacing the guarantee that something appears.
+     */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ritual|Placement")
+    TSubclassOf<AGloamsteadRestoredStructure> RestoredStructureClass;
+
+    /**
+     * Keep enabled. Disabling it restores the behaviour that shipped before the structure recipes
+     * existed: restoring a road, mirror, bell or anchor consumed its point and changed nothing the
+     * player could see. Left switchable only so tests can assert that failure mode deliberately.
+     */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ritual|Placement", meta=(AdvancedDisplay))
+    bool bUseProjectDefaultRestoredStructureClass = true;
 
     UFUNCTION(BlueprintNativeEvent, Category="Ritual|Placement")
     void SpawnRestoredActor(int32 PointIndex, AActor*& OutSpawnedActor);

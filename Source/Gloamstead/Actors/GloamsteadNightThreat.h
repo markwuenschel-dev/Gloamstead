@@ -133,10 +133,31 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Night|Threat", meta = (ClampMin = "0.0"))
 	float DisruptionSeconds = 3.0f;
 
+	/**
+	 * The threat's own light, coloured by archetype.
+	 *
+	 * A night threat is answered with light, walks through a sanctuary lit only where the player
+	 * built light, and is looked at across a dark plaza. A silhouette alone is not enough to tell a
+	 * Gatherer from a Bargainer at that distance, and colour is how the four archetypes stay apart
+	 * at night without a HUD marker. It emits, it does not illuminate: shadows off, small radius.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Night|Threat")
+	TObjectPtr<class UPointLightComponent> GloamGlow;
+
+	/** The archetype's signature colour, exposed so the HUD and tests can agree with the world. */
+	static FLinearColor GetArchetypeGlowColor(ENightThreatArchetype Archetype);
+
+	/** True when this threat has a skeletal body to see. Verified by the presentation test. */
+	UFUNCTION(BlueprintPure, Category = "Night|Threat")
+	bool HasVisibleBody() const;
+
 protected:
 	virtual void BeginPlay() override;
 
 private:
+	/** Applies the archetype's body scale and glow. Called from ConfigureThreat, after Spec is set. */
+	void ApplyArchetypePresentation();
+
 	/** The whole behaviour, with every world read already done by the caller. */
 	void StepBehaviour(float DeltaSeconds, float LightOnThreat, float DistanceToTarget, UGloamsteadPCGSubsystem* PCG);
 
