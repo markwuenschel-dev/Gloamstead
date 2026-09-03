@@ -29,6 +29,170 @@ remaining blockers, none of which a logic test could fail:
 - `UNightConsequenceRuntime::DisruptNearestThreat` — the Strike verb — was fully implemented with
   zero callers. Now bound to Left Mouse.
 
+**2026-09-03 — the payoff pass.** The visibility pass above fixed what the player could not *see*
+in the world. This one fixes what they were never *told*, which was the whole interpretation layer:
+
+- **The dawn outcome reached nothing.** `UNightConsequenceRuntime` computes a full
+  `FNightRuntimeOutcome` and `AVeilHeart::ProcessDawnReflectionWithOutcome` broadcasts it on
+  `OnDawnReflectionDelegate`. Its only consumer in the build was a `UE_LOG`. Objective resolved,
+  warning heeded, second-reading grade, scar or boon carried forward, corruption delta - every one
+  of them computed correctly, gate-tested, and invisible. `AGloamsteadHUD` now binds that delegate
+  and draws a dawn panel, which is the `game/00_core_loop.md` rule that every dawn answers at least
+  one question, finally being kept.
+- **`IsExperienceComplete()` still had no ending.** The previous pass gave it a legible terminal
+  state - a Heart that stays interactable and changes its prompt - and explicitly deferred a real
+  completion screen to "map.md Q3 / ticket T2". That ticket is closed: the ending reads the arc back
+  from a per-cycle ledger the HUD keeps, with a closing line derived from held/lingering/scarred
+  counts rather than from having arrived.
+- **Fair Crypticism was authored and unreadable.** `FVeilHeartWarningSupportChannel::EvidenceText`
+  is documented in the type itself as player-facing journal text and is authored for every shipped
+  warning; the only production reader of `SupportChannels` was the predicate in
+  `RecordSupportEncounterInternal` deciding whether an encounter counted. So the cycle enforced
+  `MinimumDistinctSupportCount` as a hard gate while showing the player neither their progress
+  toward it nor what any clue they had found actually said. `AVeilHeart::GetStandingEvidence` and
+  the HUD journal close that: found clues in their authored words, unfound ones named by medium
+  only, and the gate count always visible. This is workstream G's `WBP_Journal`, on canvas.
+- **Night length now follows the night.** One ceiling for all six was derived from a single-threat
+  lifecycle, but `BuildNightThreatRoster` returns an empty roster for Tutorial, Corruption and Omen -
+  so Cycles I and II spent that budget on three or four lifecycles of nothing, while Cycle VI
+  answered three simultaneous threats on the same clock.
+  `UGloamsteadDayNightSubsystem::NightDurationScaleForType` scales it, and the HUD countdown reads
+  the scaled value so it cannot disagree with the timer it claims to show.
+- **The sanctuary has textures.** `Content/Gloamstead` shipped none, and all seven
+  `MI_Sanctuary_*` instances sampled two *desert* terrain sets. `procedural/textures/` now forges 35
+  deterministic maps (7 surfaces x BC/N/R/AO/H, byte-identical across runs) into
+  `Content/Gloamstead/Kit/Textures`, under a new `M_Gloam_Sanctuary` master that preserves every
+  legacy parameter name so the instances reparent without losing their overrides.
+
+**The boot "stall" was not one, and the correction is worth keeping.** A headless `-game` boot appears
+to stop at `Waiting on static mesh SM_Gloam_Growth_Medium being ready before playing`. It does not.
+That line is 1 of **44** identical `LogStaticMesh` waits, returns inside the same millisecond, and the
+engine goes on ticking to frame 288 at 175 s (882 with stains disabled), game thread `Running` at
+~92% of a core for fifteen minutes with zero shader-compile workers. Two controls settle it: the
+**stock `Lvl_ThirdPerson` template reproduces the identical signature**, and with
+`gloam.Corruption.ShowStains=0` the line never appears at all while behaviour is unchanged. The
+forged meshes have Nanite off, one LOD, opaque materials.
+
+What was actually happening is by design: **every phase transition is player-gated.** Day->Dusk and
+Dusk->Night go through `UGloamsteadDayNightSubsystem::RequestRest`, whose only non-test caller is
+`AVeilHeart` reacting to a player interaction (`VeilHeart.cpp:107`), and Cycle I additionally waits on
+`UnlockFirstRest` from the lantern being restored. `-unattended` supplies no input, so the world sat
+in Day forever and `DayNight: phase %d -> %d` logged zero times. A correct world waiting for a person
+is indistinguishable from a hang if nothing can play it.
+
+**So the real gap was that nothing could drive the cycle headlessly**, which is why none of the
+interpretation layer had ever been observed running. `AGloamsteadCharacter` now carries
+`GloamRest`, `GloamUnlockFirstRest`, `GloamStatus` and a `GloamAutoPlay` harness, startable with
+`-GloamAutoPlay [-GloamAutoPlayBeat=1.0]`. The switch is read from `BeginPlay` rather than
+`-ExecCmds` for a reason worth recording: `-ExecCmds` runs during engine init, before a pawn exists
+for a Character exec to route to, so the whole string is parsed, echoed on the command line, and
+executed against nothing.
+
+**First unattended traversal (2026-09-03):** five of six cycles, 22 phase transitions, ~9 min 15 s,
+with real and differing dawn verdicts - Tutorial *held*, Corruption **scarred** (`CorruptionScar`,
+bloom worsened 0.40), Retrieval / SilencePossession / Bargain *held* - and corruption climbing
+0.60 -> 0.97 across a sanctuary nobody restored. The Tutorial night ended at **61 s against its 70 s
+ceiling**, i.e. on its objective rather than on the clock, which is the contract the ceiling is
+supposed to have.
+
+**Second traversal reached the ending** (2026-09-03, 9 min 34 s, 23 phase transitions): all six
+cycles, six dawn reflections, `ExperienceCycle: the authored experience is complete - 6 of 6 cycles
+finished`, and `complete=yes` - the flag `AGloamsteadHUD::DrawEndingReckoning` is gated on. The whole
+chain the payoff pass added is therefore exercised live, not only under test.
+
+**All four threat archetypes took the field**, and the roster composed as authored: the Gatherer in
+Cycle III, the Borrowed in IV, the Bargainer in V, and Gatherer + Borrowed + Echo together in VI -
+three at once, exactly `FNightThreatRoster::MaxSimultaneousThreats`. Their repel thresholds logged
+*above* their authored values (Gatherer 0.70 against 0.60, Borrowed 0.80 against 0.70), which is the
+`+0.10` unheeded-warning modifier doing its job on a run that heeds nothing. No `bare mannequin`, no
+`could not load shroud`, no `engine grid` line appeared, so the forged shrouds and their material
+assignment hold at runtime.
+
+The harness proves the **cadence, payoff and threat plumbing**, not the restoration and
+interpretation gameplay: it cannot walk to a ritual point, so every result tag is a `NoTarget`
+variant, no warning tag is ever heeded, and every threat logs `target -1` - spawned and repelled
+rather than working. Their approach and light relationship is exercised; their theft is not. That
+limit is the honest boundary of this evidence.
+
+**2026-09-03 — the night budget was never sized to the target.** With the collapse above fixed, a
+measured arc came to **8m23s**. The stated goal is a solid half hour, and the gap was not a defect -
+it was a constant nobody had derived from the target. `NightDurationSeconds` (100) came from the
+arithmetic in its own comment: one threat lifecycle of ~25-30s, wanting three or four of them. That
+is the right way to pick a night's *minimum* and says nothing about the length of the experience.
+
+Section 2 of this document asks for six cycles of **~45-60 min each** for the six-hour version. The
+same shape at half an hour is ~5 min a cycle, and the night is most of a cycle. So the base is now
+**300s**, with the scalar curve reweighted so the *threat* nights carry the budget and the empty ones
+do not:
+
+| | I Tutorial | II Corruption | III Retrieval | IV Possession | V Bargain | VI Siege | arc |
+|---|---|---|---|---|---|---|---|
+| scalar | 0.30 | 0.50 | 1.00 | 1.20 | 1.30 | 1.90 | 6.20 |
+| ceiling | 90s | 150s | 300s | 360s | 390s | 570s | **31.0 min** |
+| floor (0.90) | 81s | 135s | 270s | 324s | 351s | 513s | **27.9 min** |
+
+Tutorial and Corruption were pulled *down* (0.70 -> 0.30, 0.80 -> 0.50) precisely because they spawn
+no threat: a proportionate share of a half-hour budget would have handed the tutorial three minutes
+of empty night, which is the dead air the 45s ceiling was originally raised to fix, arrived at from
+the other side.
+
+**The cost, stated rather than hidden:** these nights are long, and a night whose objective is
+already answered is time the player spends holding ground rather than being tested. This buys the
+half hour by lengthening existing nights, **not** by adding content. The durable fix is more authored
+cycles; `Gloamstead.Cadence.NightLengthFollowsWhatTheNightActuallyFields` now asserts the 25-40 min
+band so a later scalar tweak cannot quietly halve the experience the way the 100s base did.
+
+**2026-09-03 — the last three nights were not happening.** Timing a full arc by its own phase
+transitions found where the experience actually goes, and it was not where the design assumed:
+
+| | I | II | III | IV | V | VI | arc |
+|---|---|---|---|---|---|---|---|
+| before | 70s | 80s | 100s | **6s** | **1s** | **10s** | 5m03s |
+| after  | 70s | 48s | 100s | 69s | 72s | 108s | **8m23s** |
+
+Cycles I-III ran their authored ceilings. Cycles IV, V and VI - the escalation, the bargain and the
+three-threat siege - resolved their objectives the moment the runtime evaluated them and ended in
+seconds. 88% of the arc's night time was being spent in its first half, and the climax was a flash.
+
+`UGloamsteadDayNightSubsystem::NightMinimumFraction` (0.6 of the night's own ceiling) keeps the rule
+that an answered night ends early while refusing to end one before it has been a night. It is a
+fraction so it scales with `NightDurationScaleForType`, and `GetEarlyDawnHoldSeconds` is the seam the
+behaviour is asserted through.
+
+`PlayableCycleTests` sets it to 0 deliberately: those tests pin the *synchronous* early-dawn ordering
+contract, and the floor exists to defer exactly that. Leaving it at the shipping default would have
+made that suite assert the pacing rule instead of the ordering rule it was written for.
+
+**The measured mechanical floor is now 8m23s** for a harness that teleports between objectives and
+never hesitates. That is the number this project can defend; the distance between it and half an hour
+is exploration, reading and deliberation, which no automated run can spend.
+
+**2026-09-03 — traversal, and what the map does not have.** `Lvl_Gloamstead` contains **no
+`NavMeshBoundsVolume` and no `RecastNavMesh`** (verified by scanning the package: 0 occurrences of
+either against 593 `StaticMesh` references, so the scan itself is sound). Nothing in this game paths.
+That is consistent with the locked combat decision - `AGloamsteadNightThreat` deliberately does not
+possess the Combat AI controller and steers itself in `StepBehaviour` - but it has a consequence
+worth stating plainly:
+
+- **A straight-line agent pins itself on geometry and never recovers.** An automated walker aimed at
+  the tutorial lantern crossed 1866 uu and then held at 2282 uu with full movement input and zero
+  velocity, indefinitely. Adding one sidestep-on-stall rule got it through that obstruction and on
+  to 1470 uu. So the sanctuary IS traversable and there is no map defect - a steering human crosses
+  it - but no agent can, and the threats are agents.
+- **A night threat can therefore be pinned behind a wall and never reach its target**, and the night
+  would resolve as though the player had answered it. Threats spawn on a 1800 uu ring around their
+  objective so the odds are usually short, and observed runs do show them arriving
+  (`RetrievalReclaimed` is a Gatherer that got there and took the light). This is a risk to watch,
+  not a confirmed failure.
+- The player spawns **~4148 uu (41 m) from the first objective**. `NightDurationSeconds`' derivation
+  comment reasons from a sanctuary "about 25 m across" whose points sit 603-1266 units from the
+  Heart; the travel budget it assumes is smaller than the map's actual spread.
+
+**Audio is no longer owed in the abstract.** `procedural/audio/` forges seven deterministic assets
+(four looping phase beds, three one-shots) pitched from `UGloamsteadSoundscapeSubsystem::VoicingFor`
+so the bed and the runtime synth share a key. The beds swap live on every phase transition, verified
+in a full arc run with zero load failures.
+
 Two design decisions are **locked** for this phase (they change the build, not just the polish):
 
 1. **Combat model — reuse `Variant_Combat`.** Night threats are built on the repo's existing
@@ -67,9 +231,9 @@ the content + integration layer.
 | **PCG → subsystem init** (`InitializeFromPCGComponent`) | Called by `AGloamsteadSanctuaryBootstrap`; verified live — 9 points, 5/5 sites bound |
 | Level / world | `Lvl_Gloamstead` — sanctuary-kit greybox, `PCG_RitualPoints`, Heart, first-lantern anchor, foliage, sky |
 | Gloamstead Blueprints (player, Heart, restored actors, threats, game mode) | Player/Heart/lantern authored; the other five restored forms and the threats are code-owned so they need no Blueprint |
-| UI / UMG (HUD, whisper, journal, dawn summary, menus) | Canvas HUD + prompt + caption widgets shipped; journal, dawn-summary screen and menus still absent |
+| UI / UMG (HUD, whisper, journal, dawn summary, menus) | Canvas HUD + prompt + caption widgets, **evidence journal, dawn summary and ending reckoning** shipped; menus still absent |
 | Day/night **visuals** | `AGloamsteadSkyPresenter` blends sun/sky/fog/exposure per phase; corruption stains via `UGloamsteadCorruptionVisualizer` |
-| VFX / audio / first ending | Ending seed present; VFX one Niagara system; audio synthesised in C++ (no assets), music still owed |
+| VFX / audio / first ending | **Ending screen shipped** (the arc read back as a reckoning); VFX one Niagara system; audio synthesised in C++ (no assets), music still owed |
 
 **That blocking fact is retired.** `AGloamsteadSanctuaryBootstrap` calls `InitializeFromPCGComponent`
 from `BeginPlay`, and a headless boot of `Lvl_Gloamstead` on 2026-09-02 logged the whole chain:
