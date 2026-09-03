@@ -5,8 +5,12 @@
 #include "RitualTypes.generated.h"
 
 /**
- * Ritual Type Enum - Phase 1 scope locked.
- * Only LanternPost, GardenBed, and PathPoint are active in Phase 1.
+ * The ritual forms the sanctuary knows, one per cycle of the authored six-cycle arc.
+ *
+ * Cycle I raises the first LanternPost, II wakes the GardenBed, III mends the PathPoints, IV raises
+ * the MirrorPillar, V wakes the BellShrine, and VI binds three existing lights with an AnchorStone.
+ * The order is the teaching order: each form asks the player to read one more thing about a place
+ * than the last one did.
  */
 UENUM(BlueprintType)
 enum class ERitualType : uint8
@@ -17,6 +21,13 @@ enum class ERitualType : uint8
     PathPoint       = 3,
     MirrorPillar    = 4,
     BellShrine      = 5,
+    /**
+     * Cycle VI. An anchor stone does not build a new light; it BINDS lights the player already
+     * raised into one circuit. It is a distinct ritual form rather than a sixth lantern because the
+     * act being asked for is different in kind - the player is configuring the sanctuary they made,
+     * which is the whole point of the final night.
+     */
+    AnchorStone     = 6,
 };
 
 /**

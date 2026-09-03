@@ -11,6 +11,9 @@
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 #include "Systems/VeilHeart.h"
+#include "Blueprint/UserWidget.h"
+#include "GameFramework/PlayerController.h"
+#include "UObject/UnrealType.h"
 
 namespace
 {
@@ -95,6 +98,42 @@ void AGloamsteadSkyPresenter::CacheTargets()
 			Grade = *It;
 		}
 	}
+
+	ReportBoundTargets();
+}
+
+void AGloamsteadSkyPresenter::ReportBoundTargets()
+{
+	const uint8 Mask =
+		  (Sun   ? 1 : 0)
+		| (Sky   ? 2 : 0)
+		| (Fog   ? 4 : 0)
+		| (Grade ? 8 : 0);
+
+	if (Mask == ReportedTargetMask)
+	{
+		return;
+	}
+	ReportedTargetMask = Mask;
+
+	// Named individually rather than as a count: "3 of 4" does not tell anyone WHICH blend is
+	// running into nothing, and the four failures look completely different on screen.
+	const bool bAll = (Mask == 0x0F);
+	UE_LOG(LogTemp, Log, TEXT("GloamsteadSkyPresenter: sun=%s sky=%s fog=%s grade=%s."),
+		Sun   ? TEXT("bound") : TEXT("MISSING"),
+		Sky   ? TEXT("bound") : TEXT("MISSING"),
+		Fog   ? TEXT("bound") : TEXT("MISSING"),
+		Grade ? TEXT("bound") : TEXT("MISSING"));
+
+	if (!bAll)
+	{
+		// Warning rather than Log for the incomplete case: every missing target is a phase blend
+		// that silently does nothing, which is exactly the class of defect this project keeps
+		// shipping past a green suite.
+		UE_LOG(LogTemp, Warning,
+			TEXT("GloamsteadSkyPresenter: the day/night blend is incomplete - place the missing actor(s) in the level. "
+				 "A PostProcessVolume must have bUnbound set, or it grades nowhere and the exposure curve is swallowed."));
+	}
 }
 
 const FGloamSkyPreset& AGloamsteadSkyPresenter::PresetFor(EGloamsteadDayPhase Phase) const
@@ -156,8 +195,36 @@ void AGloamsteadSkyPresenter::HandlePhaseChanged(EGloamsteadDayPhase /*OldPhase*
 	ToPreset = PresetFor(NewPhase);
 	BlendAlpha = 0.f;
 
+	// A caption is a momentary thing and was treated as a permanent one: the widget is added with
+	// AddToPlayerScreen and nothing ever cleared it, so the Heart's warning for the cycle stayed
+	// pinned to the bottom of the screen for the rest of the game. By the ending, Cycle VI's
+	// sentence was still there, drawn through the reckoning panel. Clearing on every phase change
+	// is the smallest rule that matches what a caption is for.
+	ClearFallbackCaption();
+
+	// BP_FirstNightDirector captions with Print String nodes, which render as engine on-screen
+	// messages rather than through any widget - so removing the caption widget above cannot touch
+	// them, and they outlive their moment the same way. By the ending, Cycle I's "find the ruined
+	// lantern" and its dawn line were still stacked over the reckoning panel.
+	//
+	// This clears what is already on screen at each phase change; it does not disable the feature,
+	// so a later Print String still shows, and every one of these lines is in the log regardless.
+	if (GEngine && GetWorld() && GetWorld()->IsGameWorld())
+	{
+		GEngine->ClearOnScreenDebugMessages();
+	}
+
 	UE_LOG(LogTemp, Log, TEXT("GloamSky: phase -> %d, blending over %.1fs"),
 		static_cast<int32>(NewPhase), BlendSeconds);
+}
+
+void AGloamsteadSkyPresenter::ClearFallbackCaption()
+{
+	if (FallbackCaptionWidget)
+	{
+		FallbackCaptionWidget->RemoveFromParent();
+		FallbackCaptionWidget = nullptr;
+	}
 }
 
 void AGloamsteadSkyPresenter::TryBindPostTutorialWarningPresenter()
@@ -230,6 +297,105 @@ void AGloamsteadSkyPresenter::HandleHeartWarning(const FVeilHeartWarningFragment
 {
 	LastPresentedWarningId = WarningFragment.WarningId;
 	OnHeartWarning(WarningFragment.Fragment);
+	PresentWarningCaption(WarningFragment);
+}
+
+bool AGloamsteadSkyPresenter::IsPresentationEventImplemented(FName EventName) const
+{
+	const UFunction* Function = GetClass()->FindFunctionByName(EventName);
+	if (!Function)
+	{
+		return false;
+	}
+	return Function->GetOuter() != AGloamsteadSkyPresenter::StaticClass();
+}
+
+void AGloamsteadSkyPresenter::PresentWarningCaption(const FVeilHeartWarningFragment& WarningFragment)
+{
+	// A Blueprint child that implements OnHeartWarning owns presentation; do not caption twice.
+	if (IsPresentationEventImplemented(TEXT("OnHeartWarning")))
+	{
+		return;
+	}
+
+	// DayNight clears its dedup key and re-broadcasts the armed warning whenever a presenter registers
+	// (GloamsteadDayNightSubsystem.cpp:284), so the identical fragment arrives twice milliseconds apart.
+	// That was harmless while nothing presented it. Now that it reaches a screen, it must caption once.
+	if (!WarningFragment.WarningId.IsNone() && WarningFragment.WarningId == LastCaptionedWarningId)
+	{
+		return;
+	}
+
+	const FText& CaptionText = WarningFragment.Fragment;
+	if (CaptionText.IsEmpty())
+	{
+		return;
+	}
+
+	// Latch here, not after the widget call: the dedup must hold even in a world with no screen, or a
+	// re-broadcast would be "accepted" twice the moment one appears.
+	LastCaptionedWarningId = WarningFragment.WarningId;
+	++CaptionAcceptedCount;
+
+	// A caption needs a screen. Synthetic automation worlds have no local player; that is not a defect.
+	APlayerController* Viewer = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+	if (!Viewer)
+	{
+		return;
+	}
+
+	if (!FallbackCaptionWidget)
+	{
+		static const TCHAR* CaptionPath = TEXT("/Game/FirstNight/WBP_FirstNightCaption.WBP_FirstNightCaption_C");
+		UClass* CaptionClass = LoadClass<UUserWidget>(nullptr, CaptionPath);
+		if (!CaptionClass)
+		{
+			UE_LOG(LogTemp, Error,
+				TEXT("SkyPresenter: no Blueprint implements OnHeartWarning and the caption widget at %s could not "
+					 "be loaded, so the Heart's words reach no one from Cycle II on."), CaptionPath);
+			return;
+		}
+
+		FallbackCaptionWidget = CreateWidget<UUserWidget>(Viewer, CaptionClass);
+		if (!FallbackCaptionWidget)
+		{
+			UE_LOG(LogTemp, Error, TEXT("SkyPresenter: could not create the fallback caption widget."));
+			return;
+		}
+		FallbackCaptionWidget->AddToPlayerScreen(20);
+	}
+
+	// Verify the widget's entry point rather than assuming its shape: exactly one FText parameter.
+	UFunction* Display = FallbackCaptionWidget->FindFunction(TEXT("DisplayCaption"));
+	FTextProperty* TextParam = nullptr;
+	int32 ParamCount = 0;
+	if (Display)
+	{
+		for (TFieldIterator<FProperty> It(Display); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+		{
+			++ParamCount;
+			TextParam = CastField<FTextProperty>(*It);
+		}
+	}
+
+	if (!Display || ParamCount != 1 || !TextParam)
+	{
+		UE_LOG(LogTemp, Error,
+			TEXT("SkyPresenter: the caption widget has no DisplayCaption(FText) entry point, so the Heart's warning "
+				 "cannot be shown. Implement OnHeartWarning on a Blueprint child, or give the widget that entry point."));
+		return;
+	}
+
+	void* Parms = FMemory::Malloc(Display->ParmsSize);
+	FMemory::Memzero(Parms, Display->ParmsSize);
+	TextParam->InitializeValue_InContainer(Parms);
+	TextParam->SetPropertyValue_InContainer(Parms, CaptionText);
+	FallbackCaptionWidget->ProcessEvent(Display, Parms);
+	TextParam->DestroyValue_InContainer(Parms);
+	FMemory::Free(Parms);
+
+	UE_LOG(LogTemp, Log, TEXT("SkyPresenter: captioned Heart warning [%s] natively: \"%s\""),
+		*WarningFragment.WarningId.ToString(), *CaptionText.ToString());
 }
 
 void AGloamsteadSkyPresenter::Tick(float DeltaSeconds)

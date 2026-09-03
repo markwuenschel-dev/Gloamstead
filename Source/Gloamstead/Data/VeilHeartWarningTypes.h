@@ -26,6 +26,35 @@ struct FVeilHeartWarningSupportChannel
 	FName ChannelType = NAME_None;
 };
 
+/**
+ * One authored clue for the standing warning, and whether the player has actually found it.
+ *
+ * FVeilHeartWarningSupportChannel::EvidenceText has always been documented as "player-facing
+ * evidence text for journal/caption presentation" and has never been presented anywhere: the only
+ * production reader of SupportChannels is the predicate that decides whether an encounter counts.
+ * So the game asked the player to gather a minimum number of distinct clues, authored the sentence
+ * each clue says, and then showed them neither the sentence nor the count.
+ */
+USTRUCT(BlueprintType)
+struct FVeilHeartEvidenceLine
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Warning|Support")
+	FName SupportId = NAME_None;
+
+	/** Readable medium, for example Environmental, ObjectReaction, or Audio. */
+	UPROPERTY(BlueprintReadOnly, Category = "Warning|Support")
+	FName ChannelType = NAME_None;
+
+	/** What this clue says, authored in the catalog. Empty until the player has encountered it. */
+	UPROPERTY(BlueprintReadOnly, Category = "Warning|Support")
+	FText EvidenceText;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Warning|Support")
+	bool bFound = false;
+};
+
 USTRUCT(BlueprintType)
 struct FVeilHeartWarningFragment
 {
@@ -140,10 +169,27 @@ struct FVeilHeartWarningFragment
 			EncounterableIds.Add(Channel.SupportId);
 		}
 
-		if (EncounterableIds.Num() != RequiredChannels.Num()
-			|| (WarningId == FName(TEXT("GardenRot")) && EncounterableIds.Num() != 3))
+		if (EncounterableIds.Num() != RequiredChannels.Num())
 		{
 			return Fail(TEXT("warning support channels do not provide the exact authored evidence set"));
+		}
+
+		// Fair crypticism needs slack, not just a minimum. Two encountered channels are required to
+		// interpret, so three must be AVAILABLE: otherwise one occluded or missed clue turns a fair
+		// warning into an unanswerable one. This was previously spelled as a literal exemption for
+		// the GardenRot identity, which meant every warning authored after it was unguarded.
+		if (RequiredChannels.Num() < 3)
+		{
+			return Fail(TEXT("an authored warning must offer at least three readable support channels so two can be found"));
+		}
+
+		// The second clause of the warning is part of the same contract as the first. A plan whose
+		// readings are half-authored would let a night grade the player against a reading they were
+		// never offered, so the warning refuses to present at all.
+		FString ReadingError;
+		if (!Plan.HasCoherentSecondReadings(&ReadingError))
+		{
+			return Fail(TEXT("the plan second-reading set is incoherent, so its warning cannot be presented fairly"));
 		}
 
 		return true;
@@ -159,3 +205,21 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Warning")
 	TArray<FVeilHeartWarningFragment> Warnings;
 };
+
+/**
+ * The single authority on whether an authored warning catalog satisfies the whole experience contract.
+ *
+ * Every authored plan must resolve EXACTLY one warning row for its (WarningId, NightType) pair, because
+ * AVeilHeart::FindExactWarningById refuses an ambiguous match exactly as it refuses a missing one - two
+ * rows fail identically to zero. A plan whose row is missing cannot present its warning, which means
+ * PresentedPlanId is never set, which means UGloamsteadDayNightSubsystem::CanRestNow denies rest and that
+ * night can never begin.
+ *
+ * This exists so the contract is checked in ONE place: the runtime load path fails closed against it, and
+ * the shipped-catalog automation test asserts against the same function rather than reimplementing the
+ * rule. Returns true when the catalog is complete; otherwise fills OutProblems with actionable defects
+ * naming the slot, the plan, and the missing pair.
+ */
+GLOAMSTEAD_API bool ValidateWarningCatalogCoversAuthoredPlans(
+	const UVeilHeartWarningCatalog& Catalog,
+	TArray<FString>& OutProblems);

@@ -23,11 +23,60 @@ The player does not build bases, manage villages, or survive hordes. Instead, th
 
 Success is measured by whether the player correctly interprets the world and restores the right places.
 
-## Current Status (June 2026)
+## Current Status (September 2026)
 
-The **vertical-slice core loop** (placement → restoration → dusk warning → night selection from catalog → night runtime → dawn reflection) is implemented in C++ on `main`.
+The **six-cycle authored arc** runs end to end in C++: placement -> restoration -> dusk warning ->
+player-brought night -> night runtime with a light-vulnerable threat roster -> dawn reflection ->
+ending signal. `Lvl_Gloamstead` is the shipped map (sanctuary-kit greybox, `PCG_RitualPoints`, the
+Heart, the first-lantern anchor, foliage, sky).
 
-Development is driven by the **agent_collab** substrate (see `docs/agents/UE5-Agent-Substrate-Review.md`). The `wave-vs-polish-202606` polish wave is active. **Data asset factory verified 2026-06-11:** JSON manifest → `GloamsteadImportDataAssets` commandlet → six `Content/Data/DA_*` assets, wired on `Lvl_ThirdPerson`, PIE day/night smoke passed ([specs/data/VERIFICATION-2026-06-11.md](specs/data/VERIFICATION-2026-06-11.md)). Next gate: PCG init for restoration and varied night selection. A headless automation gate (`gate.ps1`) now grounds shipped logic — **16 tests green** (PCG state/persistence, night selection, Veil Heart warnings); see [Roadmap](docs/ROADMAP.md).
+**Verified 2026-09-02 by a headless boot of the real map:** the sanctuary bootstraps on real PCG data
+(9 points, seed 42), the warning catalog satisfies the authored contract for every plan, **5 of 5**
+authored ritual sites bind, and 15 evidence sources + 15 reading choices are placed. The automation
+gate is at **186 green tests**.
+
+That same pass closed four defects that were invisible to a logic-only suite: Cycles III-VI restored
+nothing visible, night threats had no body, there was no HUD, and Cycle V's authored site sat past the
+edge of the map so one sixth of the game could not be played. See
+[Docs/Phase3_SixHourExperience.md](Docs/Phase3_SixHourExperience.md).
+
+**2026-09-03 — the payoff pass.** Three things the loop computed and never showed the player are now
+on screen, and the automation gate is at **186 green tests**:
+
+- **Every dawn answers its night.** `AVeilHeart::OnDawnReflectionDelegate` broadcasts a complete
+  `FNightRuntimeOutcome` - objective resolved, warning heeded, second-reading grade, scar or boon
+  carried forward, corruption delta - and its only consumer was a `UE_LOG`. Six nights could be
+  played through without once being told whether any of them had been understood.
+- **The arc ends on a screen.** `IsExperienceComplete()` had a single production reader, one line of
+  small text, so finishing all six nights left the readout counting toward a seventh. The ending now
+  reads the whole arc back - each night with its verdict and reading, the held/lingering/scarred
+  tally, and a closing line derived from the ledger rather than from having reached it.
+- **The warnings are readable.** `FVeilHeartWarningSupportChannel::EvidenceText` is documented in the
+  type as player-facing journal text, is authored for every shipped warning, and was presented
+  nowhere: the only production reader of `SupportChannels` was the predicate deciding whether an
+  encounter counted. The journal now shows found clues in their authored words, names the medium of
+  the ones still missing without spoiling what they say, and states the distinct-clue gate the cycle
+  is actually enforcing.
+
+Night length now follows what a night fields, rather than one ceiling for all six: Cycles I and II
+spawn no threat at all and were spending the same budget as Cycle VI's three-threat siege.
+
+**The loop has now been driven end to end unattended.** Every phase transition in this game is
+player-gated by design, so a headless boot supplies no input and sits in Day forever - which is
+indistinguishable from a hang if nothing can play it. `AGloamsteadCharacter` now carries a
+`GloamAutoPlay` harness (`-GloamAutoPlay [-GloamAutoPlayBeat=1.0]`, read from `BeginPlay`, because
+`-ExecCmds` runs before a pawn exists for a Character exec to route to). Its first traversal walked
+five of six cycles in ~9 min: Tutorial *held*, Corruption **scarred** (bloom worsened 0.40),
+Retrieval / Possession / Bargain *held*, corruption climbing 0.60 -> 0.97. The Tutorial night ended
+at 61 s against its 70 s ceiling - on its objective, not on the clock. The harness cannot walk to a
+ritual point, so it proves the cadence and payoff plumbing, not restoration and interpretation.
+
+**Known gaps:** night threats wear the stock mannequin under a forged shroud, pending bespoke
+silhouettes; the audio bed is synthesised in C++ because the project ships no sound assets, so real
+music and a recorded whisper for the Heart are still owed; `Content/Gloamstead` ships no textures of
+its own, so every sanctuary material samples the two desert terrain sets in `Content/Textures/`; and
+the seven forged gloam meshes under `Content/Gloamstead/World/` are loaded by path from C++ but are
+still untracked in git.
 
 | Phase | Focus | Status |
 |-------|-------|--------|

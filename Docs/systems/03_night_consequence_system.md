@@ -166,7 +166,17 @@ The simplest current failure state is:
 
 Because the game is now third-person, player death can be direct and embodied. Heart failure should still feel central: the player is not only losing health, but losing the last stable light in the place.
 
-## Implementation status (August 2026 — authored cycles 1–4)
+## Implementation status (August 2026 — authored cycles 1–6)
+
+**Update (2026-08-26) — all nine night types now resolve.** `Bargain` maps to `UNightBargainStrategy`
+(the restored bell breaks the night's bargain; the second reading decides whether one answer suffices
+or two are needed), and `Fracture` / `TrueSiege` both map to `UNightSiegeStrategy` — one strategy for
+both because the sixth cycle *opens* as a fracture and *becomes* a siege, and splitting them would let
+the climax drift from the beat that sets it up. Nothing falls through to the quiet base any more.
+
+Night pressure is now composed rather than fixed: `BuildNightThreatRoster` takes the night type, the
+interpretation receipt, and the player's second reading, and returns 0–3 light-vulnerable threats. The
+ceiling is enforced in the function, not in review.
 
 The runtime now executes Tutorial, Corruption, Omen, Retrieval, and the authored Silence Possession
 slice. Possession is a bounded light-ward consequence on the exact restored authored target; it does

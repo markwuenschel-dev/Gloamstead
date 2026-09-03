@@ -107,14 +107,41 @@ public:
 	/** Test seam: how far the blend has run, 0..1. */
 	float Test_GetBlendAlpha() const { return BlendAlpha; }
 	FName Test_GetLastPresentedWarningId() const { return LastPresentedWarningId; }
+	/** The warning this presenter accepted for captioning (empty until one is). */
+	FName Test_GetLastCaptionedWarningId() const { return LastCaptionedWarningId; }
+	/** How many distinct warnings this presenter has accepted for captioning. The armed warning is
+	 *  deliberately re-broadcast when a presenter registers, so this must not tick twice for one id. */
+	int32 Test_GetCaptionAcceptedCount() const { return CaptionAcceptedCount; }
 	/** Ordered phase events received by this sole global presentation writer. */
 	const TArray<EGloamsteadDayPhase>& Test_GetPresentedPhaseHistory() const { return Test_PresentedPhaseHistory; }
 
 private:
 	void CacheTargets();
+
+	/** Say once, per change, which lighting targets are actually bound. */
+	void ReportBoundTargets();
+
+	/** Take the caption down. A caption is momentary; nothing ever removed this one. */
+	void ClearFallbackCaption();
 	void TryBindPostTutorialWarningPresenter();
 	void UnbindPostTutorialWarningPresenter();
 	void ApplyPreset(const FGloamSkyPreset& Preset);
+
+	/**
+	 * True when a Blueprint child actually implements EventName. A BlueprintImplementableEvent stub is
+	 * owned by this native class; a Blueprint that implements it owns its own UFunction on the generated
+	 * class, so a different outer means real Blueprint code should keep presentation authority.
+	 */
+	bool IsPresentationEventImplemented(FName EventName) const;
+
+	/**
+	 * Cycles II-VI had no warning surface at all: OnHeartWarning is a BlueprintImplementableEvent and no
+	 * Blueprint subclass of this actor exists, so the Heart's words went nowhere. This is the same native
+	 * caption fallback the first-night director already carries, plus the dedup the director never needed:
+	 * DayNight deliberately re-broadcasts the armed warning when a presenter registers, so the identical
+	 * fragment arrives twice and must caption once.
+	 */
+	void PresentWarningCaption(const FVeilHeartWarningFragment& WarningFragment);
 
 	UPROPERTY(Transient)
 	TObjectPtr<ADirectionalLight> Sun;
@@ -128,12 +155,33 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<APostProcessVolume> Grade;
 
+	/**
+	 * Which of the four lighting targets were bound the last time this reported.
+	 *
+	 * CacheTargets binds all four through silent TActorIterator loops, so a level missing any of
+	 * them - or, for the grade volume, holding only a BOUNDED one, which this deliberately refuses -
+	 * produced a presenter that ran every phase blend into nothing and said so nowhere. There is no
+	 * log line, success or failure, anywhere in this actor's startup path, which makes "does the
+	 * day/night look right" a question no boot log can answer. This bitmask exists so the summary is
+	 * logged once per change rather than once per frame.
+	 */
+	uint8 ReportedTargetMask = 0xFF;
+
 	UPROPERTY(Transient)
 	TObjectPtr<UGloamsteadDayNightSubsystem> CachedDayNight;
 
 	TWeakObjectPtr<AVeilHeart> CachedHeart;
 	bool bPostTutorialWarningPresenterBound = false;
 	FName LastPresentedWarningId = NAME_None;
+
+	/** The warning actually captioned to the screen, so a re-broadcast of the same one stays silent. */
+	FName LastCaptionedWarningId = NAME_None;
+
+	/** Distinct warnings accepted for captioning; the dedup latch keeps a re-broadcast from counting. */
+	int32 CaptionAcceptedCount = 0;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UUserWidget> FallbackCaptionWidget;
 	TArray<EGloamsteadDayPhase> Test_PresentedPhaseHistory;
 
 	FGloamSkyPreset FromPreset;

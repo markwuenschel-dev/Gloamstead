@@ -234,24 +234,11 @@
 			"Enabled": true
 		},
 		{
-			"Name": "Avalanche",
-			"Enabled": true,
-			"SupportedTargetPlatforms": [
-				"Win64",
-				"Linux",
-				"Mac"
-			]
-		},
-		{
 			"Name": "StructUtils",
 			"Enabled": true
 		},
 		{
 			"Name": "ActorModifierCore",
-			"Enabled": true
-		},
-		{
-			"Name": "ActorModifier",
 			"Enabled": true
 		},
 		{
@@ -295,10 +282,6 @@
 			"Enabled": true
 		},
 		{
-			"Name": "AvalancheSceneState",
-			"Enabled": true
-		},
-		{
 			"Name": "DataLink",
 			"Enabled": true
 		},
@@ -316,10 +299,6 @@
 		},
 		{
 			"Name": "Text3D",
-			"Enabled": true
-		},
-		{
-			"Name": "PixelStreaming2",
 			"Enabled": true
 		}
 	]

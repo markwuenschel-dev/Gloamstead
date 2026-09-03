@@ -68,4 +68,25 @@ protected:
 	/** Creates and screen-adds the contextual prompt HUD. Safe to call once per local controller. */
 	void CreatePromptWidget();
 
+public:
+
+	/**
+	 * True while the player is holding the sanctuary. Read by AGloamsteadHUD, which draws the
+	 * overlay; the controller owns the state because it is the thing that actually pauses the world
+	 * and it outlives HUD recreation.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Gloamstead|Pause")
+	bool IsSanctuaryPaused() const { return bSanctuaryPaused; }
+
+	/** Automated-playtest and accessibility hook for the pause (also bound to Escape). */
+	UFUNCTION(Exec)
+	void GloamPause() { ToggleSanctuaryPause(); }
+
+	/** Holds or releases the sanctuary. Idempotent per press; safe with no world. */
+	void ToggleSanctuaryPause();
+
+private:
+
+	bool bSanctuaryPaused = false;
+
 };

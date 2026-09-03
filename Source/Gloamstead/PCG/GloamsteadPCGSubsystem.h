@@ -23,6 +23,13 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStructureRestored, const FRestora
  */
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnPlacementAuthorizedRestoration, const FRestorationEventPayload&);
 
+/**
+ * Native-only notice that per-point corruption changed. The night's pressure mutates
+ * CorruptionLevel every beat, but nothing used to say so, which is why a bloom could
+ * climb to 1.00 while the world looked identical. Presentation layers bind here.
+ */
+DECLARE_MULTICAST_DELEGATE(FOnCorruptionChanged);
+
 USTRUCT()
 struct FRitualPointState
 {
@@ -99,6 +106,28 @@ public:
 
     /** Fills only contract metadata from the PCG point, never caller-provided literals. */
     bool PopulateAuthoritativeRestorationMetadata(int32 PointIndex, FRestorationEventPayload& InOutPayload) const;
+
+    /**
+     * World location of a ritual point.
+     *
+     * The subsystem could answer "which point" (FindNearestUnrestoredPointMatchingExperiencePlan)
+     * but not "where is it", so nothing outside this class could act on the answer - which is why
+     * the automated playtest harness could never reach a ritual point to restore one, and why every
+     * night in an unattended run resolved with no target. Read-only: it grants no restoration or
+     * interpretation authority, exactly like the finders above.
+     */
+    UFUNCTION(BlueprintPure, Category="PCG|Ritual")
+    FVector GetRitualPointLocation(int32 PointIndex) const;
+
+    /**
+     * The ritual form a point carries.
+     *
+     * GetRitualTypeFromPoint is private and takes an FPCGPoint, so no caller outside this class
+     * could ask what form a point index is - which is why "why did the tutorial not find its
+     * lantern" was three runs of guesswork with no way to look.
+     */
+    UFUNCTION(BlueprintPure, Category="PCG|Ritual")
+    ERitualType GetRitualTypeAt(int32 PointIndex) const;
 
     UFUNCTION(BlueprintPure, Category="PCG|Ritual")
     float GetCorruptionLevel(int32 PointIndex) const;
@@ -210,6 +239,13 @@ public:
     UPROPERTY(BlueprintAssignable, Category="PCG|Ritual")
     FOnStructureRestored OnStructureRestored;
 
+    /**
+     * Native-only: fires whenever any point's CorruptionLevel actually changed.
+     * Not BlueprintAssignable on purpose - corruption is runtime state owned here,
+     * and a Blueprint must not be able to fake the signal that drives its visuals.
+     */
+    FOnCorruptionChanged OnCorruptionChanged;
+
 #if WITH_DEV_AUTOMATION_TESTS
     // === Automation-only synthetic-world seams ===
     // These declarations intentionally disappear from non-automation builds.
@@ -222,6 +258,9 @@ public:
     /** Test-only seam: seed the same authoritative metadata fields the PCG graph supplies to visual consumers. */
     void Test_SeedPoints(const TArray<FVector>& Locations, const TArray<float>& Wetness,
         const TArray<FName>& RecommendedWarningTags);
+    /** Test-only seam: run the authored-site binding pass over the current synthetic points. */
+    void Test_ApplyAuthoredSiteContracts() { ApplyAuthoredSiteContracts(); }
+
     /** Test-only metadata injection for an existing synthetic point. */
     bool Test_SetPointContractMetadata(
         int32 PointIndex,
@@ -247,6 +286,56 @@ public:
     static const FName FirstLanternAnchorTag;
 
 private:
+    /**
+     * The production writer for a point's semantic contract. Deliberately NOT a UFUNCTION: FairCrypticism
+     * asserts by reflection that no Blueprint route to PCG metadata exists, and this must not become one.
+     * Content declares a contract on a placed UGloamsteadRitualSiteComponent; only this writes it.
+     */
+    /**
+     * Guarantee the semantic-contract attribute block exists on the owned point data.
+     *
+     * The PCG graph declares only RitualType, so a real session's duplicated point data has no
+     * SemanticSubject / RecommendedForWarning / RestorationTag attribute at all - every write failed and
+     * every read answered NAME_None. Test_SeedPoints created them by hand, which is precisely why this
+     * survived being tested: the fixture built a schema production never had.
+     */
+    void EnsureContractMetadataAttributes();
+
+    bool WritePointContractMetadata(
+        int32 PointIndex,
+        FName WarningId,
+        FName SemanticSubject,
+        ERitualType RitualType,
+        FName RestorationTag);
+
+    /**
+     * Stamps every authored ritual-site declaration in the level onto the nearest eligible generated
+     * point. This is what gives SemanticSubject a shipping authority at all: without it the attribute
+     * keeps its NAME_None default in a player build and no semantically-targeted night can resolve.
+     * Fail-loud - incomplete declarations, unbindable sites, and duplicate subjects are all reported.
+     */
+    void ApplyAuthoredSiteContracts();
+
+    /**
+     * Resolve a content-declared site's anchor to a world location. Returns false when the landmark it
+     * names is absent, which is an authoring error rather than a reason to guess a position.
+     */
+    bool ResolveSiteAnchorLocation(uint8 Anchor, FVector& OutLocation) const;
+
+    /**
+     * Names the anchor-seated first-lantern point with the Slot 1 plan's semantic subject. The site
+     * catalog declares Cycle2-Cycle6 only, so without this the tutorial's own subject resolved to
+     * nothing and its interpretation site was never built.
+     */
+    void StampAnchorSeatedSubject();
+
+    /**
+     * Point index re-seated onto the authored first-lantern anchor, or INDEX_NONE. Tracked so an authored
+     * ritual site can never re-type the opening lantern out from under Cycle 1 while looking for a place
+     * to bind.
+     */
+    int32 AnchorSeatedPointIndex = INDEX_NONE;
+
     // PCG metadata is the root of Gloamstead semantic target authority. Only
     // the placed bootstrap may duplicate generated output into this subsystem;
     // a Blueprint or arbitrary runtime component cannot supply a forged graph.

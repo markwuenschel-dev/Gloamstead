@@ -19,6 +19,10 @@ FNightRuntimeOutcome UNightStrategy::MakeBaseOutcome(UGloamsteadPCGSubsystem* PC
 	Out.bObjectiveResolved = Objective.bResolved;
 	Out.bWarningHeeded = Context.bWarningHeeded;
 	Out.SanctuaryCorruptionDelta = SafeAvgCorruption(PCG) - StartAvgCorruption;
+	// Carried here rather than in each strategy so a night can never report an outcome that has
+	// silently forgotten which second reading shaped it.
+	Out.SecondReadingGrade = Context.SecondReadingGrade;
+	Out.SecondReadingTag = Context.SecondReadingTag;
 	return Out;
 }
 
@@ -84,9 +88,18 @@ void UNightCorruptionStrategy::EnterNight_Implementation(const FNightRuntimeCont
 	}
 
 	Objective.StartCorruption = PCG->GetCorruptionLevel(TargetIndex);
-	// "Cleansed" = corruption at least halved and below a low floor.
-	Objective.ResolveAtOrBelow = FMath::Min(Objective.StartCorruption * 0.5f, 0.2f);
+	// "Cleansed" = corruption at least halved, relative to where the bloom actually started.
+	//
+	// This used to be FMath::Min(Start * 0.5f, 0.2f), which inverted the test: the worse the bloom, the
+	// SMALLER the absolute target became. At the shipped seed the gate sat at 0.20 against a start of
+	// 0.66, demanding 0.46 of removal from a night whose single lever (a GardenBed restoration) clears
+	// 0.35 - and whose pressure added 0.08 every two seconds. The night was arithmetically unwinnable
+	// before the player could move. Halving is the stated intent and scales the way a cleanse should:
+	// a worse bloom is harder in absolute terms, not impossible. The small floor keeps a near-zero
+	// bloom from resolving on rounding alone.
+	Objective.ResolveAtOrBelow = FMath::Max(Objective.StartCorruption * 0.5f, 0.05f);
 	Objective.bResolved = false;
+	WardsUsed = 0;
 
 	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Corruption]: bloom at point %d (corruption %.2f, cleanse<=%.2f)."),
 		TargetIndex, Objective.StartCorruption, Objective.ResolveAtOrBelow);
@@ -99,10 +112,23 @@ void UNightCorruptionStrategy::ApplyPressureStep_Implementation(UGloamsteadPCGSu
 		return;
 	}
 
+	const float PreviousLevel = PCG->GetCorruptionLevel(Objective.TargetPointIndex);
 	const float NewLevel = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, PressureStepDelta);
 	const int32 Spread = PCG->ApplyCorruptionSpread(SpreadStepDelta, SpreadStepPoints);
-	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Corruption]: pressure step — bloom %d now %.2f (+%d spread)."),
-		Objective.TargetPointIndex, NewLevel, Spread);
+
+	// Once the bloom saturates at 1.00 the step is a no-op, and repeating the identical line every two
+	// seconds buried the one number that mattered under fifteen copies of itself. Say it once, then say
+	// only that it is still saturated.
+	if (!FMath::IsNearlyEqual(PreviousLevel, NewLevel))
+	{
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Corruption]: pressure step — bloom %d now %.2f (+%d spread)."),
+			Objective.TargetPointIndex, NewLevel, Spread);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("NightStrategy[Corruption]: bloom %d saturated at %.2f; pressure step had no further effect."),
+			Objective.TargetPointIndex, NewLevel);
+	}
 }
 
 void UNightCorruptionStrategy::NotifyRestoration_Implementation(const FRestorationEventPayload& Payload, UGloamsteadPCGSubsystem* PCG)
@@ -132,6 +158,32 @@ void UNightCorruptionStrategy::NotifyRestoration_Implementation(const FRestorati
 		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Corruption]: bloom cleansed (point %d, corruption %.2f)."),
 			Objective.TargetPointIndex, TargetCorruption);
 	}
+}
+
+bool UNightCorruptionStrategy::NotifyLightWard_Implementation(UGloamsteadPCGSubsystem* PCG)
+{
+	if (!PCG || Objective.bResolved || Objective.TargetPointIndex < 0)
+	{
+		return false;
+	}
+
+	// Every other threatened night lets the player push back during the night; Corruption did not, so
+	// its only answer was a once-per-point restoration that pressure had already outrun. Tending the
+	// bloom is repeatable and out-paces one pressure beat, with a falloff so neglect still costs.
+	const float Effective = FMath::Max(WardCorruptionDelta - (WardFalloffPerUse * WardsUsed), 0.02f);
+	++WardsUsed;
+
+	const float NewLevel = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, -Effective);
+	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Corruption]: light ward tended the bloom at point %d (-%.2f, corruption %.2f, cleanse<=%.2f)."),
+		Objective.TargetPointIndex, Effective, NewLevel, Objective.ResolveAtOrBelow);
+
+	if (NewLevel <= Objective.ResolveAtOrBelow)
+	{
+		Objective.bResolved = true;
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Corruption]: bloom cleansed by light ward (point %d, corruption %.2f)."),
+			Objective.TargetPointIndex, NewLevel);
+	}
+	return true;
 }
 
 FNightRuntimeOutcome UNightCorruptionStrategy::ResolveNight_Implementation(UGloamsteadPCGSubsystem* PCG)
@@ -693,5 +745,414 @@ FNightRuntimeOutcome UNightPossessionStrategy::ResolveNight_Implementation(UGloa
 	Out.TargetCorruptionDelta = FinalCorruption - Objective.StartCorruption;
 	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Possession]: outcome %s (target delta %.2f, sanctuary delta %.2f)."),
 		*GetNightOutcomeResultDisplayName(Out.Result), Out.TargetCorruptionDelta, Out.SanctuaryCorruptionDelta);
+	return Out;
+}
+
+// ===== UNightMirrorStrategy (Night Types III) =====
+
+void UNightMirrorStrategy::EnterNight_Implementation(const FNightRuntimeContext& InContext, UGloamsteadPCGSubsystem* PCG)
+{
+	Context = InContext;
+	StartAvgCorruption = SafeAvgCorruption(PCG);
+	bChoiceMade = false;
+	bBargainAccepted = false;
+	bBargainHeld = false;
+	bNoTargetFallback = false;
+
+	const int32 TargetIndex = (PCG && InContext.bRequiresExactSemanticTarget)
+		? ((InContext.TargetPointIndex >= 0 && PCG->IsPointRestored(InContext.TargetPointIndex))
+			? InContext.TargetPointIndex
+			: INDEX_NONE)
+		: (PCG ? PCG->FindRestoredPointIndex(/*bMostLit*/ true) : INDEX_NONE);
+
+	Objective = FNightObjective();
+	Objective.Kind = ENightObjectiveKind::MirrorBargain;
+	Objective.TargetPointIndex = TargetIndex;
+
+	if (TargetIndex < 0 || !PCG)
+	{
+		bNoTargetFallback = true;
+		Objective.Kind = ENightObjectiveKind::None;
+		Objective.bResolved = true;
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Mirror]: no restored authored target — quiet fallback."));
+		return;
+	}
+
+	Objective.StartCorruption = PCG->GetCorruptionLevel(TargetIndex);
+	Objective.ResolveAtOrBelow = FMath::Min(Objective.StartCorruption * 0.5f, 0.12f);
+	Objective.bResolved = false;
+	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Mirror]: reflection at point %d awaits a choice (corruption %.2f, hold<=%.2f)."),
+		TargetIndex, Objective.StartCorruption, Objective.ResolveAtOrBelow);
+}
+
+void UNightMirrorStrategy::ApplyPressureStep_Implementation(UGloamsteadPCGSubsystem* PCG)
+{
+	if (!PCG || bNoTargetFallback || Objective.bResolved || Objective.TargetPointIndex < 0)
+	{
+		return;
+	}
+
+	const float Delta = bChoiceMade && bBargainAccepted ? BargainPressureDelta : UnansweredPressureDelta;
+	const float NewLevel = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, Delta);
+	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Mirror]: reflection pressure at point %d now %.2f (choice=%s, accepted=%s)."),
+		Objective.TargetPointIndex, NewLevel, bChoiceMade ? TEXT("made") : TEXT("pending"), bBargainAccepted ? TEXT("yes") : TEXT("no"));
+}
+
+bool UNightMirrorStrategy::ChooseBargain(bool bAccept)
+{
+	if (bNoTargetFallback || bChoiceMade || Objective.TargetPointIndex < 0)
+	{
+		return false;
+	}
+
+	bChoiceMade = true;
+	bBargainAccepted = bAccept;
+	if (!bAccept)
+	{
+		// Refusal is the clear reading: the reflection was a false path, not a gift.
+		Objective.bResolved = true;
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Mirror]: player refused the reflection bargain."));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Mirror]: player accepted the reflection bargain; light must hold it."));
+	}
+	return true;
+}
+
+bool UNightMirrorStrategy::NotifyLightWard_Implementation(UGloamsteadPCGSubsystem* PCG)
+{
+	if (!PCG || bNoTargetFallback || !bChoiceMade || !bBargainAccepted || Objective.bResolved || Objective.TargetPointIndex < 0)
+	{
+		return false;
+	}
+
+	bBargainHeld = true;
+	const float NewLevel = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, -BargainWardDelta);
+	if (NewLevel <= Objective.ResolveAtOrBelow)
+	{
+		Objective.bResolved = true;
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Mirror]: light held the accepted truth at point %d (corruption %.2f)."),
+			Objective.TargetPointIndex, NewLevel);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Mirror]: light reached the mirror but did not hold it yet (corruption %.2f)."), NewLevel);
+	}
+	return true;
+}
+
+FNightRuntimeOutcome UNightMirrorStrategy::ResolveNight_Implementation(UGloamsteadPCGSubsystem* PCG)
+{
+	FNightRuntimeOutcome Out = MakeBaseOutcome(PCG);
+	Out.bObjectiveResolved = Objective.bResolved;
+
+	if (bNoTargetFallback || Objective.Kind == ENightObjectiveKind::None)
+	{
+		Out.Result = ENightOutcomeResult::Success;
+		Out.ResultTag = FName(TEXT("MirrorNoTarget"));
+		return Out;
+	}
+
+	float FinalCorruption = (PCG && Objective.TargetPointIndex >= 0)
+		? PCG->GetCorruptionLevel(Objective.TargetPointIndex)
+		: Objective.StartCorruption;
+
+	if (!bChoiceMade)
+	{
+		if (PCG && Objective.TargetPointIndex >= 0 && FinalCorruption <= Objective.StartCorruption + KINDA_SMALL_NUMBER)
+		{
+			FinalCorruption = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, BargainScarDelta);
+		}
+		Out.Result = ENightOutcomeResult::Failure;
+		Out.ResultTag = FName(TEXT("MirrorUnchosen"));
+	}
+	else if (!bBargainAccepted)
+	{
+		Out.Result = ENightOutcomeResult::Success;
+		Out.ResultTag = FName(TEXT("MirrorRefused"));
+	}
+	else if (Objective.bResolved && bBargainHeld)
+	{
+		Out.Result = ENightOutcomeResult::Success;
+		Out.ResultTag = FName(TEXT("MirrorTruthHeld"));
+	}
+	else
+	{
+		if (PCG && Objective.TargetPointIndex >= 0 && FinalCorruption <= Objective.StartCorruption + KINDA_SMALL_NUMBER)
+		{
+			FinalCorruption = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, BargainScarDelta);
+		}
+		Out.Result = ENightOutcomeResult::Partial;
+		Out.ResultTag = FName(TEXT("MirrorBargainPaid"));
+	}
+
+	Out.TargetCorruptionDelta = FinalCorruption - Objective.StartCorruption;
+	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Mirror]: outcome %s (target delta %.2f, sanctuary delta %.2f)."),
+		*GetNightOutcomeResultDisplayName(Out.Result), Out.TargetCorruptionDelta, Out.SanctuaryCorruptionDelta);
+	return Out;
+}
+
+
+// ===== UNightBargainStrategy (Cycle V - the bell) =====
+
+void UNightBargainStrategy::EnterNight_Implementation(const FNightRuntimeContext& InContext, UGloamsteadPCGSubsystem* PCG)
+{
+	Context = InContext;
+	StartAvgCorruption = SafeAvgCorruption(PCG);
+	AnswersGiven = 0;
+	bNoTargetFallback = false;
+
+	// "Three answers invite company." An overread bell called something extra, and something extra
+	// has to be answered too. This is the entire second clause, expressed as one integer.
+	RequiredAnswers = InContext.HasOverreachReading() ? 2 : 1;
+
+	const int32 TargetIndex = (PCG && InContext.bRequiresExactSemanticTarget)
+		? ((InContext.TargetPointIndex >= 0 && PCG->IsPointRestored(InContext.TargetPointIndex))
+			? InContext.TargetPointIndex
+			: INDEX_NONE)
+		: (PCG ? PCG->FindRestoredPointIndex(/*bMostLit*/ true) : INDEX_NONE);
+
+	Objective = FNightObjective();
+	Objective.Kind = ENightObjectiveKind::BreakBargain;
+	Objective.TargetPointIndex = TargetIndex;
+
+	if (TargetIndex < 0 || !PCG)
+	{
+		// The bell was never woken, so there is nothing to answer with. Failing closed to a quiet
+		// night is right: punishing a player for not using a tool they do not have is arbitrary.
+		bNoTargetFallback = true;
+		Objective.Kind = ENightObjectiveKind::None;
+		Objective.bResolved = true;
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Bargain]: no restored bell shrine - quiet fallback."));
+		return;
+	}
+
+	Objective.StartCorruption = PCG->GetCorruptionLevel(TargetIndex);
+	Objective.ResolveAtOrBelow = FMath::Min(Objective.StartCorruption * 0.5f, 0.12f);
+	Objective.bResolved = false;
+	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Bargain]: the bargain stands at point %d and needs %d answer(s)."),
+		TargetIndex, RequiredAnswers);
+}
+
+void UNightBargainStrategy::ApplyPressureStep_Implementation(UGloamsteadPCGSubsystem* PCG)
+{
+	if (!PCG || bNoTargetFallback || Objective.bResolved || Objective.TargetPointIndex < 0)
+	{
+		return;
+	}
+
+	const float NewLevel = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, BargainPressureDelta);
+	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Bargain]: unanswered bargain deepens at point %d (%.2f), %d answer(s) still needed."),
+		Objective.TargetPointIndex, NewLevel, GetAnswersRemaining());
+}
+
+bool UNightBargainStrategy::NotifyLightWard_Implementation(UGloamsteadPCGSubsystem* PCG)
+{
+	if (!PCG || bNoTargetFallback || Objective.bResolved || Objective.TargetPointIndex < 0)
+	{
+		return false;
+	}
+
+	++AnswersGiven;
+	const float NewLevel = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, -ResonanceWardDelta);
+
+	if (GetAnswersRemaining() > 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Bargain]: the bell answered, but company remains (%d left, corruption %.2f)."),
+			GetAnswersRemaining(), NewLevel);
+		return true;
+	}
+
+	Objective.bResolved = true;
+
+	// The Insight payoff: a single clean answer on the right beat does not merely repel, it relights
+	// what the night had already put out. That is what "One answer frees" earns over "answered it".
+	if (Context.HasInsightReading())
+	{
+		const int32 Relit = PCG->ApplyCorruptionSpread(-ResonanceRelightDelta, /*MaxPoints*/ 3);
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Bargain]: one clean answer freed the night and relit %d point(s)."), Relit);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Bargain]: the bargain is broken at point %d (corruption %.2f)."),
+			Objective.TargetPointIndex, NewLevel);
+	}
+	return true;
+}
+
+FNightRuntimeOutcome UNightBargainStrategy::ResolveNight_Implementation(UGloamsteadPCGSubsystem* PCG)
+{
+	FNightRuntimeOutcome Out = MakeBaseOutcome(PCG);
+	Out.bObjectiveResolved = Objective.bResolved;
+
+	if (bNoTargetFallback || Objective.Kind == ENightObjectiveKind::None)
+	{
+		Out.Result = ENightOutcomeResult::Success;
+		Out.ResultTag = FName(TEXT("BargainNoTarget"));
+		return Out;
+	}
+
+	float FinalCorruption = (PCG && Objective.TargetPointIndex >= 0)
+		? PCG->GetCorruptionLevel(Objective.TargetPointIndex)
+		: Objective.StartCorruption;
+
+	if (Objective.bResolved)
+	{
+		Out.Result = ENightOutcomeResult::Success;
+		Out.ResultTag = FName(TEXT("BargainBroken"));
+	}
+	else if (AnswersGiven > 0)
+	{
+		// Answered, but not enough times. That is precisely the overread's cost made legible.
+		Out.Result = ENightOutcomeResult::Partial;
+		Out.ResultTag = FName(TEXT("BargainCompanyRemains"));
+	}
+	else
+	{
+		if (PCG && Objective.TargetPointIndex >= 0)
+		{
+			FinalCorruption = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, UnansweredScarDelta);
+		}
+		Out.Result = ENightOutcomeResult::Failure;
+		Out.ResultTag = FName(TEXT("BargainStruck"));
+	}
+
+	Out.TargetCorruptionDelta = FinalCorruption - Objective.StartCorruption;
+	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Bargain]: outcome %s (target delta %.2f, sanctuary delta %.2f)."),
+		*GetNightOutcomeResultDisplayName(Out.Result), Out.TargetCorruptionDelta, Out.SanctuaryCorruptionDelta);
+	return Out;
+}
+
+// ===== UNightSiegeStrategy (Cycle VI - fracture into true siege) =====
+
+void UNightSiegeStrategy::EnterNight_Implementation(const FNightRuntimeContext& InContext, UGloamsteadPCGSubsystem* PCG)
+{
+	Context = InContext;
+	StartAvgCorruption = SafeAvgCorruption(PCG);
+	OpenSeams = 0;
+	SeamsClosed = 0;
+	bNoTargetFallback = false;
+
+	// The two shapes the second clause names, and the only two things this night branches on.
+	bRingHolds = InContext.HasInsightReading();
+	bCrownCollapsed = InContext.HasOverreachReading();
+
+	const int32 TargetIndex = (PCG && InContext.bRequiresExactSemanticTarget)
+		? ((InContext.TargetPointIndex >= 0 && PCG->IsPointRestored(InContext.TargetPointIndex))
+			? InContext.TargetPointIndex
+			: INDEX_NONE)
+		: (PCG ? PCG->FindRestoredPointIndex(/*bMostLit*/ true) : INDEX_NONE);
+
+	Objective = FNightObjective();
+	Objective.Kind = ENightObjectiveKind::HoldSiege;
+	Objective.TargetPointIndex = TargetIndex;
+
+	if (TargetIndex < 0 || !PCG)
+	{
+		bNoTargetFallback = true;
+		Objective.Kind = ENightObjectiveKind::None;
+		Objective.bResolved = true;
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Siege]: no bound anchor - quiet fallback."));
+		return;
+	}
+
+	Objective.StartCorruption = PCG->GetCorruptionLevel(TargetIndex);
+	Objective.ResolveAtOrBelow = FMath::Min(Objective.StartCorruption * 0.5f, 0.10f);
+	Objective.bResolved = false;
+	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Siege]: the seams open at point %d (ring=%s, crown=%s)."),
+		TargetIndex, bRingHolds ? TEXT("held") : TEXT("open"), bCrownCollapsed ? TEXT("yes") : TEXT("no"));
+}
+
+void UNightSiegeStrategy::ApplyPressureStep_Implementation(UGloamsteadPCGSubsystem* PCG)
+{
+	if (!PCG || bNoTargetFallback || Objective.bResolved || Objective.TargetPointIndex < 0)
+	{
+		return;
+	}
+
+	// A closed ring links the outer lights, so the seams open at half the rate. A crown around the
+	// Heart funnels everything to one place: the anchor takes double while the outer sanctuary,
+	// which now has nothing holding it, is left to the spread.
+	const float SeamScale = bRingHolds ? 0.5f : (bCrownCollapsed ? 2.0f : 1.0f);
+	const float NewLevel = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, SeamPressureDelta * SeamScale);
+	++OpenSeams;
+
+	if (!bRingHolds)
+	{
+		const float SpreadScale = bCrownCollapsed ? 1.5f : 1.0f;
+		const int32 Touched = PCG->ApplyCorruptionSpread(SanctuarySpreadDelta * SpreadScale, SanctuarySpreadPoints);
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Siege]: seam %d widens at point %d (%.2f); the fracture reached %d more point(s)."),
+			OpenSeams, Objective.TargetPointIndex, NewLevel, Touched);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Siege]: seam %d strains at point %d (%.2f), but the ring is holding."),
+			OpenSeams, Objective.TargetPointIndex, NewLevel);
+	}
+}
+
+bool UNightSiegeStrategy::NotifyLightWard_Implementation(UGloamsteadPCGSubsystem* PCG)
+{
+	if (!PCG || bNoTargetFallback || Objective.bResolved || Objective.TargetPointIndex < 0)
+	{
+		return false;
+	}
+
+	++SeamsClosed;
+	// A held ring means the player's own linked light is doing half the work of every ward.
+	const float WardScale = bRingHolds ? 1.5f : 1.0f;
+	const float NewLevel = PCG->AddCorruptionAtIndex(Objective.TargetPointIndex, -SeamWardDelta * WardScale);
+
+	if (NewLevel <= Objective.ResolveAtOrBelow)
+	{
+		Objective.bResolved = true;
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Siege]: the sanctuary held - seams closed at point %d (corruption %.2f)."),
+			Objective.TargetPointIndex, NewLevel);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("NightStrategy[Siege]: seam %d pushed back (corruption %.2f)."), SeamsClosed, NewLevel);
+	}
+	return true;
+}
+
+FNightRuntimeOutcome UNightSiegeStrategy::ResolveNight_Implementation(UGloamsteadPCGSubsystem* PCG)
+{
+	FNightRuntimeOutcome Out = MakeBaseOutcome(PCG);
+	Out.bObjectiveResolved = Objective.bResolved;
+
+	if (bNoTargetFallback || Objective.Kind == ENightObjectiveKind::None)
+	{
+		Out.Result = ENightOutcomeResult::Success;
+		Out.ResultTag = FName(TEXT("SiegeNoTarget"));
+		return Out;
+	}
+
+	const float FinalCorruption = (PCG && Objective.TargetPointIndex >= 0)
+		? PCG->GetCorruptionLevel(Objective.TargetPointIndex)
+		: Objective.StartCorruption;
+
+	if (Objective.bResolved)
+	{
+		Out.Result = ENightOutcomeResult::Success;
+		Out.ResultTag = bRingHolds ? FName(TEXT("SiegeRingHeld")) : FName(TEXT("SiegeHeld"));
+	}
+	else if (SeamsClosed > 0 && FinalCorruption < Objective.StartCorruption)
+	{
+		Out.Result = ENightOutcomeResult::Partial;
+		Out.ResultTag = FName(TEXT("SiegeSeamsStrained"));
+	}
+	else
+	{
+		// The failure is fail-forward, exactly like every other night: a scar the next dawn can
+		// speak to, never a game over.
+		Out.Result = ENightOutcomeResult::Failure;
+		Out.ResultTag = bCrownCollapsed ? FName(TEXT("SiegeCrownBroke")) : FName(TEXT("SiegeFractured"));
+	}
+
+	Out.TargetCorruptionDelta = FinalCorruption - Objective.StartCorruption;
+	UE_LOG(LogTemp, Log, TEXT("NightStrategy[Siege]: outcome %s (target delta %.2f, sanctuary delta %.2f, %d seam(s) closed)."),
+		*GetNightOutcomeResultDisplayName(Out.Result), Out.TargetCorruptionDelta, Out.SanctuaryCorruptionDelta, SeamsClosed);
 	return Out;
 }

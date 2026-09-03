@@ -51,6 +51,10 @@ struct FNightSanctuarySnapshot
 
 	UPROPERTY(BlueprintReadOnly, Category = "Night")
 	int32 BellShrineRestored = 0;
+
+	/** Cycle VI binds existing lights; the siege reads how many anchors were actually set. */
+	UPROPERTY(BlueprintReadOnly, Category = "Night")
+	int32 AnchorStoneRestored = 0;
 };
 
 /** Designer-tunable rule row for catalog scoring */

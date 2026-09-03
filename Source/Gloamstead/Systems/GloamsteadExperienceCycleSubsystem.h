@@ -22,6 +22,20 @@ public:
 	 * or for the explicit post-authored generic handoff; callers must inspect
 	 * GetActivePlan() and never treat false as permission to substitute meaning.
 	 */
+	/**
+	 * True when every authored cycle has been completed and no further plan exists.
+	 *
+	 * This is the ending's only signal. FExperienceCyclePlan::IsGenericHandoff() had no production reader
+	 * at all - the end of the authored experience manifested as an unhandled boundary: rest was refused
+	 * forever, the Heart became permanently non-interactable, and the only trace was one log line.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Experience Cycle")
+	bool IsExperienceComplete() const { return ActivePlan.IsGenericHandoff(); }
+
+	/** How many cycles the authored catalog actually defines. The experience ends after this many. */
+	UFUNCTION(BlueprintPure, Category = "Experience Cycle")
+	int32 GetAuthoredSlotCount() const;
+
 	bool EnsureUpcomingPlan();
 
 	/** The immutable active result: authored, invalid, or explicit generic handoff. */

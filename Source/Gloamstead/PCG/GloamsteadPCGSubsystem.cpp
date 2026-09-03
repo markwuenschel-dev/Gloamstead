@@ -1,4 +1,8 @@
 #include "PCG/GloamsteadPCGSubsystem.h"
+#include "Components/GloamsteadRitualSiteComponent.h"
+#include "Data/GloamsteadRitualSiteCatalog.h"
+#include "Systems/VeilHeart.h"
+#include "EngineUtils.h"
 #include "Data/ExperienceCycleTypes.h"
 #include "PCGComponent.h"
 #include "PCGData.h"
@@ -59,8 +63,12 @@ void UGloamsteadPCGSubsystem::ApplyAuthoredAnchorOverride()
     const FVector OldLocation = CachedPoints[BestIndex].Transform.GetLocation();
     if (OldLocation.Equals(AnchorLocation, 1.0))
     {
-        return; // Already there; nothing to say.
+        AnchorSeatedPointIndex = BestIndex; // Already there, but still the lantern's point.
+        StampAnchorSeatedSubject();
+        return;
     }
+
+    AnchorSeatedPointIndex = BestIndex;
 
     // In-place: keep MetadataEntry (and therefore RitualType / RestorationRadius) intact.
     CachedPoints[BestIndex].Transform.SetLocation(AnchorLocation);
@@ -69,6 +77,58 @@ void UGloamsteadPCGSubsystem::ApplyAuthoredAnchorOverride()
     UE_LOG(LogTemp, Log,
         TEXT("UGloamsteadPCGSubsystem: re-seated first lantern (point %d) from %s onto authored anchor '%s' at %s."),
         BestIndex, *OldLocation.ToCompactString(), *Anchor->GetName(), *AnchorLocation.ToCompactString());
+
+    StampAnchorSeatedSubject();
+}
+
+void UGloamsteadPCGSubsystem::StampAnchorSeatedSubject()
+{
+    if (!CachedPoints.IsValidIndex(AnchorSeatedPointIndex))
+    {
+        return;
+    }
+
+    // The tutorial lantern's point exists and is seated on its authored anchor, but nothing ever wrote
+    // its NAME onto it: the site catalog declares Cycle2-Cycle6 only, and the placed-actor route is
+    // empty in the shipping map. So ResolveSemanticSubjectToPoint could not find the one subject the
+    // first cycle is entirely about - "authored subject courtyard.lantern.first has no PCG mapping" -
+    // and Cycle1_Tutorial's evidence and reading choices were never placed. The anchor override is the
+    // one place that knows which point IS the first lantern, so it is the place that names it.
+    UExperienceCycleCatalog* Catalog = NewObject<UExperienceCycleCatalog>(this);
+    if (!Catalog)
+    {
+        return;
+    }
+    PopulateDefaultExperienceCyclePlans(*Catalog);
+
+    const FExperienceCyclePlan* Tutorial = Catalog->AuthoredPlans.FindByPredicate(
+        [](const FExperienceCyclePlan& Plan) { return Plan.Slot == 1; });
+    if (!Tutorial || Tutorial->SemanticSubject.IsNone())
+    {
+        return;
+    }
+
+    // Never overwrite a stamp an authored site declaration already placed here.
+    if (GetNameAttribute(CachedPoints[AnchorSeatedPointIndex], TEXT("SemanticSubject")) != NAME_None)
+    {
+        return;
+    }
+
+    const FName RestorationTag = Tutorial->RequiredRestorationTags.Num() > 0
+        ? Tutorial->RequiredRestorationTags[0]
+        : NAME_None;
+
+    if (WritePointContractMetadata(
+            AnchorSeatedPointIndex,
+            Tutorial->WarningId,
+            Tutorial->SemanticSubject,
+            ERitualType::LanternPost,
+            RestorationTag))
+    {
+        UE_LOG(LogTemp, Log,
+            TEXT("UGloamsteadPCGSubsystem: named the anchor-seated first lantern (point %d) '%s' for plan %s."),
+            AnchorSeatedPointIndex, *Tutorial->SemanticSubject.ToString(), *Tutorial->PlanId.ToString());
+    }
 }
 
 void UGloamsteadPCGSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -149,6 +209,11 @@ void UGloamsteadPCGSubsystem::InitializeFromPCGComponent(UPCGComponent* PCGCompo
     {
         MutablePointData->Metadata->Flatten(); // ensure the owned copy is fully self-contained
     }
+
+    // The graph supplies geometry and RitualType; the semantic contract is ours to carry. Create any
+    // missing attribute here so an authored site can be stamped onto real generated points at all.
+    EnsureContractMetadataAttributes();
+
     CachedPoints = MutablePointData->GetPoints();
 
     // Build fast parallel state
@@ -172,6 +237,10 @@ void UGloamsteadPCGSubsystem::InitializeFromPCGComponent(UPCGComponent* PCGCompo
     // Re-seat the first lantern onto the level's authored anchor BEFORE the grid is built, so the grid
     // is correct on its first and only construction rather than being invalidated a moment later.
     ApplyAuthoredAnchorOverride();
+
+    // Give every authored ritual site its semantic contract BEFORE the grid is built, so semantically
+    // targeted nights can resolve a point in a shipping build rather than only under automation.
+    ApplyAuthoredSiteContracts();
 
     BuildSpatialGrid();
 
@@ -305,6 +374,20 @@ float UGloamsteadPCGSubsystem::GetLightLevel(int32 PointIndex) const
     return PointStates.IsValidIndex(PointIndex) ? PointStates[PointIndex].LightLevel : 0.0f;
 }
 
+ERitualType UGloamsteadPCGSubsystem::GetRitualTypeAt(int32 PointIndex) const
+{
+    return CachedPoints.IsValidIndex(PointIndex)
+        ? GetRitualTypeFromPoint(CachedPoints[PointIndex])
+        : ERitualType::Invalid;
+}
+
+FVector UGloamsteadPCGSubsystem::GetRitualPointLocation(int32 PointIndex) const
+{
+    return CachedPoints.IsValidIndex(PointIndex)
+        ? CachedPoints[PointIndex].Transform.GetLocation()
+        : FVector::ZeroVector;
+}
+
 float UGloamsteadPCGSubsystem::GetCorruptionLevel(int32 PointIndex) const
 {
     return PointStates.IsValidIndex(PointIndex) ? PointStates[PointIndex].CorruptionLevel : 0.0f;
@@ -378,6 +461,7 @@ FNightSanctuarySnapshot UGloamsteadPCGSubsystem::BuildSanctuarySnapshot() const
     Snapshot.PathPointRestored = GetRestoredCountByRitualType(ERitualType::PathPoint);
     Snapshot.MirrorPillarRestored = GetRestoredCountByRitualType(ERitualType::MirrorPillar);
     Snapshot.BellShrineRestored = GetRestoredCountByRitualType(ERitualType::BellShrine);
+    Snapshot.AnchorStoneRestored = GetRestoredCountByRitualType(ERitualType::AnchorStone);
     return Snapshot;
 }
 
@@ -432,6 +516,11 @@ bool UGloamsteadPCGSubsystem::ApplyRestoration(int32 PointIndex, const FRestorat
     // Call SyncPointToMetadata() explicitly only when needed (debug, save, VFX binding).
 
     OnStructureRestored.Broadcast(Payload);
+    // Mending a point lowers its corruption; the visual layer must recede with it.
+    if (Payload.CorruptionCleared > 0.0f)
+    {
+        OnCorruptionChanged.Broadcast();
+    }
     return true;
 }
 
@@ -470,6 +559,11 @@ int32 UGloamsteadPCGSubsystem::ApplyCorruptionSpread(float Delta, int32 MaxPoint
     UE_LOG(LogTemp, Log, TEXT("PCG: ApplyCorruptionSpread delta=%.2f mutated=%d avg corruption now=%.2f"),
         Delta, Mutated, GetSanctuaryAverageCorruptionLevel());
 
+    if (Mutated > 0)
+    {
+        OnCorruptionChanged.Broadcast();
+    }
+
     return Mutated;
 }
 
@@ -480,7 +574,12 @@ float UGloamsteadPCGSubsystem::AddCorruptionAtIndex(int32 PointIndex, float Delt
         return -1.f;
     }
     FRitualPointState& State = PointStates[PointIndex];
+    const float Previous = State.CorruptionLevel;
     State.CorruptionLevel = FMath::Clamp(State.CorruptionLevel + Delta, 0.f, 1.f);
+    if (!FMath::IsNearlyEqual(Previous, State.CorruptionLevel))
+    {
+        OnCorruptionChanged.Broadcast();
+    }
     return State.CorruptionLevel;
 }
 
@@ -558,6 +657,47 @@ bool UGloamsteadPCGSubsystem::Test_SetPointContractMetadata(
     ERitualType RitualType,
     FName RestorationTag)
 {
+    // Delegates to the production writer so the test seam and the shipping path cannot diverge: a fixture
+    // that passes here is exercising exactly the code an authored ritual site runs.
+    return WritePointContractMetadata(PointIndex, WarningId, SemanticSubject, RitualType, RestorationTag);
+}
+#endif // WITH_DEV_AUTOMATION_TESTS
+
+void UGloamsteadPCGSubsystem::EnsureContractMetadataAttributes()
+{
+    if (!MutablePointData || !MutablePointData->Metadata)
+    {
+        return;
+    }
+
+    UPCGMetadata* Metadata = MutablePointData->Metadata;
+
+    if (!Metadata->GetMutableTypedAttribute<int32>(TEXT("RitualType")))
+    {
+        Metadata->CreateAttribute<int32>(TEXT("RitualType"), static_cast<int32>(ERitualType::LanternPost),
+            /*bAllowsInterpolation*/ false, /*bOverrideParent*/ false);
+    }
+    if (!Metadata->GetMutableTypedAttribute<FName>(TEXT("RecommendedForWarning")))
+    {
+        Metadata->CreateAttribute<FName>(TEXT("RecommendedForWarning"), NAME_None, false, false);
+    }
+    if (!Metadata->GetMutableTypedAttribute<FName>(TEXT("SemanticSubject")))
+    {
+        Metadata->CreateAttribute<FName>(TEXT("SemanticSubject"), NAME_None, false, false);
+    }
+    if (!Metadata->GetMutableTypedAttribute<FName>(TEXT("RestorationTag")))
+    {
+        Metadata->CreateAttribute<FName>(TEXT("RestorationTag"), NAME_None, false, false);
+    }
+}
+
+bool UGloamsteadPCGSubsystem::WritePointContractMetadata(
+    int32 PointIndex,
+    FName WarningId,
+    FName SemanticSubject,
+    ERitualType RitualType,
+    FName RestorationTag)
+{
     if (!CachedPoints.IsValidIndex(PointIndex) || !MutablePointData || !MutablePointData->Metadata)
     {
         return false;
@@ -573,14 +713,354 @@ bool UGloamsteadPCGSubsystem::Test_SetPointContractMetadata(
         return false;
     }
 
-    const int64 Entry = CachedPoints[PointIndex].MetadataEntry;
+    // A duplicated graph point can share (or lack) a metadata entry. Give this point its own before
+    // writing, or the stamp would land on every point sharing that entry - one site claiming the map.
+    FPCGPoint& MutablePoint = CachedPoints[PointIndex];
+    if (MutablePoint.MetadataEntry == PCGInvalidEntryKey)
+    {
+        Metadata->InitializeOnSet(MutablePoint.MetadataEntry);
+    }
+
+    const int64 Entry = MutablePoint.MetadataEntry;
     RitualAttribute->SetValue(Entry, static_cast<int32>(RitualType));
     WarningAttribute->SetValue(Entry, WarningId);
     SubjectAttribute->SetValue(Entry, SemanticSubject);
     TagAttribute->SetValue(Entry, RestorationTag);
     return true;
 }
-#endif // WITH_DEV_AUTOMATION_TESTS
+
+bool UGloamsteadPCGSubsystem::ResolveSiteAnchorLocation(uint8 Anchor, FVector& OutLocation) const
+{
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return false;
+    }
+
+    switch (static_cast<EGloamsteadSiteAnchor>(Anchor))
+    {
+    case EGloamsteadSiteAnchor::SanctuaryHeart:
+    {
+        for (TActorIterator<AVeilHeart> It(World); It; ++It)
+        {
+            OutLocation = It->GetActorLocation();
+            return true;
+        }
+        return false;
+    }
+    case EGloamsteadSiteAnchor::FirstLantern:
+    {
+        TArray<AActor*> Anchors;
+        UGameplayStatics::GetAllActorsWithTag(World, FirstLanternAnchorTag, Anchors);
+        if (Anchors.Num() == 0 || !Anchors[0])
+        {
+            return false;
+        }
+        OutLocation = Anchors[0]->GetActorLocation();
+        return true;
+    }
+    case EGloamsteadSiteAnchor::WorldOrigin:
+    default:
+        OutLocation = FVector::ZeroVector;
+        return true;
+    }
+}
+
+void UGloamsteadPCGSubsystem::ApplyAuthoredSiteContracts()
+{
+    UWorld* World = GetWorld();
+    if (!World || CachedPoints.Num() == 0)
+    {
+        return;
+    }
+
+    TArray<UGloamsteadRitualSiteComponent*> Sites;
+    for (TActorIterator<AActor> It(World); It; ++It)
+    {
+        if (UGloamsteadRitualSiteComponent* Site = It->FindComponentByClass<UGloamsteadRitualSiteComponent>())
+        {
+            Sites.Add(Site);
+        }
+    }
+
+
+    TMap<FName, TWeakObjectPtr<AActor>> ClaimedSubjects;
+    TSet<int32> ClaimedPoints;
+    int32 BoundCount = 0;
+
+    for (UGloamsteadRitualSiteComponent* Site : Sites)
+    {
+        AActor* Owner = Site->GetOwner();
+        const FString OwnerName = Owner ? Owner->GetName() : TEXT("<no owner>");
+
+        TArray<FString> Problems;
+        if (!Site->IsCompleteDeclaration(Problems))
+        {
+            for (const FString& Problem : Problems)
+            {
+                UE_LOG(LogTemp, Error, TEXT("UGloamsteadPCGSubsystem: %s"), *Problem);
+            }
+            continue;
+        }
+
+        if (const TWeakObjectPtr<AActor>* Existing = ClaimedSubjects.Find(Site->SemanticSubject))
+        {
+            UE_LOG(LogTemp, Error,
+                TEXT("UGloamsteadPCGSubsystem: semantic subject '%s' is declared by both '%s' and '%s'. Two actors ")
+                TEXT("claiming one place is ambiguity, and ambiguity never resolves - refusing the second."),
+                *Site->SemanticSubject.ToString(),
+                Existing->IsValid() ? *Existing->Get()->GetName() : TEXT("<stale>"),
+                *OwnerName);
+            continue;
+        }
+
+        const FVector SiteLocation = Owner->GetActorLocation();
+        const double RadiusSq = Site->BindRadius * Site->BindRadius;
+
+        // Prefer a point the graph already typed for this ritual. Failing that, an unclaimed point of any
+        // type is still a legitimate binding: the authored site is the AUTHORITY on what its place is, and
+        // the graph currently types every point with the attribute default. Re-typing is announced, never
+        // silent, and the first lantern's point is never eligible - Cycle 1 depends on it staying a
+        // LanternPost.
+        int32 TypedIndex = INDEX_NONE;
+        double TypedDistSq = TNumericLimits<double>::Max();
+        int32 AnyIndex = INDEX_NONE;
+        double AnyDistSq = TNumericLimits<double>::Max();
+
+        for (int32 Index = 0; Index < CachedPoints.Num(); ++Index)
+        {
+            if (ClaimedPoints.Contains(Index))
+            {
+                continue;
+            }
+            const double DistSq = FVector::DistSquared(CachedPoints[Index].Transform.GetLocation(), SiteLocation);
+            if (DistSq > RadiusSq)
+            {
+                continue;
+            }
+            if (GetRitualTypeFromPoint(CachedPoints[Index]) == Site->RitualType)
+            {
+                if (DistSq < TypedDistSq)
+                {
+                    TypedDistSq = DistSq;
+                    TypedIndex = Index;
+                }
+            }
+            if (Index != AnchorSeatedPointIndex && DistSq < AnyDistSq)
+            {
+                AnyDistSq = DistSq;
+                AnyIndex = Index;
+            }
+        }
+
+        int32 BestIndex = TypedIndex;
+        double BestDistSq = TypedDistSq;
+        bool bRetyped = false;
+        if (BestIndex == INDEX_NONE)
+        {
+            BestIndex = AnyIndex;
+            BestDistSq = AnyDistSq;
+            bRetyped = (BestIndex != INDEX_NONE);
+        }
+
+        if (BestIndex == INDEX_NONE)
+        {
+            UE_LOG(LogTemp, Error,
+                TEXT("UGloamsteadPCGSubsystem: authored ritual site '%s' on '%s' binds nothing - no unclaimed ")
+                TEXT("generated point within %.0f units. That night can never resolve a target. Move the actor ")
+                TEXT("nearer a generated point, widen BindRadius, or check whether another site already claimed it."),
+                *Site->SemanticSubject.ToString(),
+                *OwnerName,
+                Site->BindRadius);
+            continue;
+        }
+
+        if (bRetyped)
+        {
+            UE_LOG(LogTemp, Warning,
+                TEXT("UGloamsteadPCGSubsystem: authored ritual site '%s' found no generated %s point in range, so ")
+                TEXT("point %d is being re-typed to %s from the site's declaration. The site is the authority on ")
+                TEXT("what this place is, but if the graph was meant to type it, that is the better fix."),
+                *Site->SemanticSubject.ToString(),
+                *GetRitualTypeDisplayName(Site->RitualType),
+                BestIndex,
+                *GetRitualTypeDisplayName(Site->RitualType));
+        }
+
+        if (!WritePointContractMetadata(
+                BestIndex,
+                Site->RecommendedForWarning,
+                Site->SemanticSubject,
+                Site->RitualType,
+                Site->RestorationTag))
+        {
+            UE_LOG(LogTemp, Error,
+                TEXT("UGloamsteadPCGSubsystem: authored ritual site '%s' matched point %d but its metadata could not ")
+                TEXT("be written - the generated data is missing the contract attribute block."),
+                *Site->SemanticSubject.ToString(),
+                BestIndex);
+            continue;
+        }
+
+        ClaimedSubjects.Add(Site->SemanticSubject, Owner);
+        ClaimedPoints.Add(BestIndex);
+        ++BoundCount;
+        UE_LOG(LogTemp, Log,
+            TEXT("UGloamsteadPCGSubsystem: bound authored site '%s' (%s/%s) to point %d at %.0f units."),
+            *Site->SemanticSubject.ToString(),
+            *Site->RecommendedForWarning.ToString(),
+            *GetRitualTypeDisplayName(Site->RitualType),
+            BestIndex,
+            FMath::Sqrt(BestDistSq));
+    }
+
+    // Content-declared sites. A place in Gloamstead is described relative to a landmark, so these carry an
+    // anchor rather than a transform - which also means they can be authored in the manifest without
+    // opening the editor. Same C++ writer, same refusals; only the source of the declaration differs.
+    int32 DeclaredCount = 0;
+    if (UGloamsteadRitualSiteCatalog* SiteCatalog = Cast<UGloamsteadRitualSiteCatalog>(StaticLoadObject(
+            UGloamsteadRitualSiteCatalog::StaticClass(), nullptr,
+            TEXT("/Game/Data/DA_RitualSiteCatalog.DA_RitualSiteCatalog"))))
+    {
+        for (const FGloamsteadRitualSiteDeclaration& Declaration : SiteCatalog->Sites)
+        {
+            ++DeclaredCount;
+
+            TArray<FString> Problems;
+            if (!Declaration.IsCompleteDeclaration(Problems))
+            {
+                for (const FString& Problem : Problems)
+                {
+                    UE_LOG(LogTemp, Error, TEXT("UGloamsteadPCGSubsystem: %s"), *Problem);
+                }
+                continue;
+            }
+
+            if (ClaimedSubjects.Contains(Declaration.SemanticSubject))
+            {
+                UE_LOG(LogTemp, Error,
+                    TEXT("UGloamsteadPCGSubsystem: semantic subject '%s' is already claimed by a placed actor; ")
+                    TEXT("refusing the authored declaration so one place has exactly one claimant."),
+                    *Declaration.SemanticSubject.ToString());
+                continue;
+            }
+
+            FVector AnchorLocation = FVector::ZeroVector;
+            if (!ResolveSiteAnchorLocation(static_cast<uint8>(Declaration.Anchor), AnchorLocation))
+            {
+                UE_LOG(LogTemp, Error,
+                    TEXT("UGloamsteadPCGSubsystem: authored site '%s' names a landmark this map does not contain, ")
+                    TEXT("so its place cannot be resolved. Place the landmark, or describe the site from one that exists."),
+                    *Declaration.SemanticSubject.ToString());
+                continue;
+            }
+
+            const double RadiusSq = Declaration.BindRadius * Declaration.BindRadius;
+            const double MinSq = Declaration.MinimumAnchorDistance * Declaration.MinimumAnchorDistance;
+
+            int32 BestIndex = INDEX_NONE;
+            double BestDistSq = TNumericLimits<double>::Max();
+
+            // Tracked purely so a failure can name the band that WOULD have worked. Without it the
+            // error says "widen BindRadius" and stops, which is the advice that costs an author a
+            // build to act on - and it cost this project the whole of Cycle V, whose 2000-unit floor
+            // sat past the far edge of a sanctuary only ~1500 units across.
+            int32 NearestRejectedIndex = INDEX_NONE;
+            double NearestRejectedDistSq = TNumericLimits<double>::Max();
+            int32 UnclaimedCount = 0;
+            TArray<TPair<int32, double>> UnclaimedSpread;
+
+            for (int32 Index = 0; Index < CachedPoints.Num(); ++Index)
+            {
+                if (ClaimedPoints.Contains(Index) || Index == AnchorSeatedPointIndex)
+                {
+                    continue;
+                }
+                ++UnclaimedCount;
+                const double DistSq = FVector::DistSquared(CachedPoints[Index].Transform.GetLocation(), AnchorLocation);
+                UnclaimedSpread.Emplace(Index, FMath::Sqrt(DistSq));
+                if (DistSq > RadiusSq || DistSq < MinSq)
+                {
+                    if (DistSq < NearestRejectedDistSq)
+                    {
+                        NearestRejectedDistSq = DistSq;
+                        NearestRejectedIndex = Index;
+                    }
+                    continue;
+                }
+                if (DistSq < BestDistSq)
+                {
+                    BestDistSq = DistSq;
+                    BestIndex = Index;
+                }
+            }
+
+            if (BestIndex == INDEX_NONE)
+            {
+                FString Remedy;
+                if (NearestRejectedIndex != INDEX_NONE)
+                {
+                    // The whole spread, not just the nearest: this binder takes the NEAREST point in
+                    // band, so an author placing a site at the sanctuary's far edge has to choose a
+                    // floor above every nearer candidate, and cannot do that from one number.
+                    UnclaimedSpread.Sort([](const TPair<int32, double>& A, const TPair<int32, double>& B)
+                        { return A.Value < B.Value; });
+                    FString Spread;
+                    for (const TPair<int32, double>& Candidate : UnclaimedSpread)
+                    {
+                        Spread += FString::Printf(TEXT(" %d@%.0f"), Candidate.Key, Candidate.Value);
+                    }
+                    Remedy = FString::Printf(
+                        TEXT(" %d unclaimed point(s), nearest to farthest:%s. This binder takes the nearest "
+                             "point inside the band, so pick a floor just under the one you mean."),
+                        UnclaimedCount, *Spread);
+                }
+                else
+                {
+                    Remedy = TEXT(" No unclaimed generated point exists at all, at any distance - "
+                                  "the graph is producing fewer points than the catalog declares sites.");
+                }
+
+                UE_LOG(LogTemp, Error,
+                    TEXT("UGloamsteadPCGSubsystem: authored site '%s' binds nothing - no unclaimed generated point ")
+                    TEXT("between %.0f and %.0f units of its anchor.%s"),
+                    *Declaration.SemanticSubject.ToString(),
+                    Declaration.MinimumAnchorDistance,
+                    Declaration.BindRadius,
+                    *Remedy);
+                continue;
+            }
+
+            if (!WritePointContractMetadata(
+                    BestIndex,
+                    Declaration.RecommendedForWarning,
+                    Declaration.SemanticSubject,
+                    Declaration.RitualType,
+                    Declaration.RestorationTag))
+            {
+                UE_LOG(LogTemp, Error,
+                    TEXT("UGloamsteadPCGSubsystem: authored site '%s' matched point %d but its metadata could not be written."),
+                    *Declaration.SemanticSubject.ToString(), BestIndex);
+                continue;
+            }
+
+            ClaimedSubjects.Add(Declaration.SemanticSubject, nullptr);
+            ClaimedPoints.Add(BestIndex);
+            ++BoundCount;
+            UE_LOG(LogTemp, Log,
+                TEXT("UGloamsteadPCGSubsystem: bound authored site '%s' (%s/%s) to point %d at %.0f units from its anchor."),
+                *Declaration.SemanticSubject.ToString(),
+                *Declaration.RecommendedForWarning.ToString(),
+                *GetRitualTypeDisplayName(Declaration.RitualType),
+                BestIndex,
+                FMath::Sqrt(BestDistSq));
+        }
+    }
+
+    UE_LOG(LogTemp, Log,
+        TEXT("UGloamsteadPCGSubsystem: bound %d of %d authored ritual site declaration(s) (%d placed, %d authored)."),
+        BoundCount, Sites.Num() + DeclaredCount, Sites.Num(), DeclaredCount);
+}
 
 int32 UGloamsteadPCGSubsystem::FindRestoredPointIndex(bool bMostLit) const
 {

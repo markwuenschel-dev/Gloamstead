@@ -4,34 +4,60 @@
 
 namespace
 {
-	bool HasOnlyTag(const FExperienceCyclePlan& Plan, FName Tag)
+	/**
+	 * The canonical authored cycles, built once from the in-code definition.
+	 *
+	 * C++ stays the authority on what an authored cycle IS; the shipped DA_ExperienceCycleCatalog is
+	 * transport. This used to be six hand-written `case` blocks, each listing whichever fields its
+	 * author remembered - which meant a field nobody listed (a second reading, a support medium)
+	 * could drift between the asset and the code forever without anything noticing. Comparing
+	 * against the canonical plan checks EVERY field by construction, and adding a cycle now needs
+	 * only the authored row plus its entry in PopulateDefaultExperienceCyclePlans.
+	 */
+	const UExperienceCycleCatalog& GetCanonicalCatalog()
 	{
-		return Plan.RequiredRestorationTags.Num() == 1 && Plan.RequiredRestorationTags[0] == Tag;
+		static UExperienceCycleCatalog* Canonical = []()
+		{
+			UExperienceCycleCatalog* Built = NewObject<UExperienceCycleCatalog>(
+				GetTransientPackage(), TEXT("GloamsteadCanonicalExperienceCycleCatalog"));
+			PopulateDefaultExperienceCyclePlans(*Built);
+			Built->AddToRoot();
+			return Built;
+		}();
+		return *Canonical;
 	}
 
-	bool HasExactGardenSupports(const FExperienceCyclePlan& Plan)
+	const FExperienceCyclePlan* FindCanonicalPlanForSlot(int32 Slot)
 	{
-		static const FName CanonicalIds[] = {
-			TEXT("GardenRot.WitheredVines"),
-			TEXT("GardenRot.ColdSoil"),
-			TEXT("GardenRot.BellMoths")
-		};
-		static const FName CanonicalMedia[] = {
-			TEXT("Environmental"),
-			TEXT("ObjectReaction"),
-			TEXT("Audio")
-		};
+		const UExperienceCycleCatalog& Canonical = GetCanonicalCatalog();
+		const FExperienceCyclePlan* Match = nullptr;
+		for (const FExperienceCyclePlan& Candidate : Canonical.AuthoredPlans)
+		{
+			if (Candidate.Slot != Slot || !Candidate.IsAuthoredPlan())
+			{
+				continue;
+			}
+			if (Match)
+			{
+				// The canonical source itself is malformed. Refuse rather than pick one.
+				return nullptr;
+			}
+			Match = &Candidate;
+		}
+		return Match;
+	}
 
-		if (Plan.RequiredSupportIds.Num() != UE_ARRAY_COUNT(CanonicalIds)
-			|| Plan.RequiredSupportChannelTypes.Num() != UE_ARRAY_COUNT(CanonicalMedia))
+	bool NameArraysMatchInOrder(const TArray<FName>& Left, const TArray<FName>& Right)
+	{
+		if (Left.Num() != Right.Num())
 		{
 			return false;
 		}
-
-		for (int32 Index = 0; Index < UE_ARRAY_COUNT(CanonicalIds); ++Index)
+		for (int32 Index = 0; Index < Left.Num(); ++Index)
 		{
-			if (Plan.RequiredSupportIds[Index] != CanonicalIds[Index]
-				|| Plan.RequiredSupportChannelTypes[Index] != CanonicalMedia[Index])
+			// Order is part of the contract: RequiredSupportChannelTypes[i] declares the medium of
+			// RequiredSupportIds[i], so a reordered pair silently reassigns every clue's medium.
+			if (Left[Index] != Right[Index])
 			{
 				return false;
 			}
@@ -39,75 +65,72 @@ namespace
 		return true;
 	}
 
+	bool SecondReadingsMatch(
+		const TArray<FExperienceCycleSecondReading>& Left,
+		const TArray<FExperienceCycleSecondReading>& Right)
+	{
+		if (Left.Num() != Right.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Left.Num(); ++Index)
+		{
+			const FExperienceCycleSecondReading& A = Left[Index];
+			const FExperienceCycleSecondReading& B = Right[Index];
+			if (A.ReadingId != B.ReadingId
+				|| A.Grade != B.Grade
+				|| A.ConsequenceTag != B.ConsequenceTag
+				|| !A.ChoicePrompt.ToString().Equals(B.ChoicePrompt.ToString(), ESearchCase::CaseSensitive)
+				|| !A.OutcomeSummary.ToString().Equals(B.OutcomeSummary.ToString(), ESearchCase::CaseSensitive))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/** Every authored field must agree with the canonical plan for that slot. */
 	bool MatchesRequiredContract(const FExperienceCyclePlan& Plan, int32 Slot)
 	{
-		if (!Plan.IsAuthoredPlan())
+		if (!Plan.IsAuthoredPlan() || Plan.Slot != Slot)
 		{
 			return false;
 		}
 
-		switch (Slot)
+		const FExperienceCyclePlan* Canonical = FindCanonicalPlanForSlot(Slot);
+		if (!Canonical)
 		{
-		case 1:
-			return Plan.Slot == 1
-				&& Plan.PlanId == FName(TEXT("Cycle1_Tutorial"))
-				&& Plan.WarningId == FName(TEXT("TutorialLostPath"))
-				&& Plan.NightType == ENightConsequenceType::Tutorial
-				&& Plan.SemanticSubject == FName(TEXT("courtyard.lantern.first"))
-				&& HasOnlyTag(Plan, FName(TEXT("LanternPost")))
-				&& Plan.RequiredRitualType == ERitualType::Invalid
-				&& Plan.RequiredSupportIds.IsEmpty()
-				&& Plan.RequiredSupportChannelTypes.IsEmpty()
-				&& Plan.MinimumDistinctSupportCount == 0
-				&& Plan.InterpretationReceiptId == NAME_None
-				&& Plan.VisualStateKey == FName(TEXT("restoration_level"))
-				&& Plan.OutcomeSummaryKey == FName(TEXT("Cycle1_Tutorial"));
-
-		case 2:
-			return Plan.Slot == 2
-				&& Plan.PlanId == FName(TEXT("Cycle2_Garden"))
-				&& Plan.WarningId == FName(TEXT("GardenRot"))
-				&& Plan.NightType == ENightConsequenceType::Corruption
-				&& Plan.SemanticSubject == FName(TEXT("Cycle2_Garden"))
-				&& HasOnlyTag(Plan, FName(TEXT("GardenBed")))
-				&& Plan.RequiredRitualType == ERitualType::GardenBed
-				&& HasExactGardenSupports(Plan)
-				&& Plan.MinimumDistinctSupportCount == 2
-				&& Plan.InterpretationReceiptId == FName(TEXT("GardenRot.Interpreted"))
-				&& Plan.VisualStateKey == FName(TEXT("restoration_level"))
-				&& Plan.OutcomeSummaryKey == FName(TEXT("Cycle2_Garden"));
-
-		case 3:
-			return Plan.Slot == 3
-				&& Plan.PlanId == FName(TEXT("Cycle3_Retrieval"))
-				&& Plan.WarningId == FName(TEXT("GardenRot"))
-				&& Plan.NightType == ENightConsequenceType::Retrieval
-				&& Plan.SemanticSubject == FName(TEXT("Cycle2_Garden"))
-				&& HasOnlyTag(Plan, FName(TEXT("GardenBed")))
-				&& Plan.RequiredRitualType == ERitualType::GardenBed
-				&& HasExactGardenSupports(Plan)
-				&& Plan.MinimumDistinctSupportCount == 2
-				&& Plan.InterpretationReceiptId == FName(TEXT("GardenRot.Retrieved"))
-				&& Plan.VisualStateKey == FName(TEXT("restoration_level"))
-				&& Plan.OutcomeSummaryKey == FName(TEXT("Cycle3_Retrieval"));
-
-		case 4:
-			return Plan.Slot == 4
-				&& Plan.PlanId == FName(TEXT("Cycle4_Possession"))
-				&& Plan.WarningId == FName(TEXT("GardenRot"))
-				&& Plan.NightType == ENightConsequenceType::SilencePossession
-				&& Plan.SemanticSubject == FName(TEXT("Cycle2_Garden"))
-				&& HasOnlyTag(Plan, FName(TEXT("GardenBed")))
-				&& Plan.RequiredRitualType == ERitualType::GardenBed
-				&& HasExactGardenSupports(Plan)
-				&& Plan.MinimumDistinctSupportCount == 2
-				&& Plan.InterpretationReceiptId == FName(TEXT("GardenRot.Possessed"))
-				&& Plan.VisualStateKey == FName(TEXT("restoration_level"))
-				&& Plan.OutcomeSummaryKey == FName(TEXT("Cycle4_Possession"));
-
-		default:
 			return false;
 		}
+
+		if (Plan.PlanId != Canonical->PlanId
+			|| Plan.WarningId != Canonical->WarningId
+			|| Plan.NightType != Canonical->NightType
+			|| Plan.SemanticSubject != Canonical->SemanticSubject
+			|| Plan.RequiredRitualType != Canonical->RequiredRitualType
+			|| Plan.MinimumDistinctSupportCount != Canonical->MinimumDistinctSupportCount
+			|| Plan.InterpretationReceiptId != Canonical->InterpretationReceiptId
+			|| Plan.VisualStateKey != Canonical->VisualStateKey
+			|| Plan.OutcomeSummaryKey != Canonical->OutcomeSummaryKey)
+		{
+			return false;
+		}
+
+		if (!NameArraysMatchInOrder(Plan.RequiredRestorationTags, Canonical->RequiredRestorationTags)
+			|| !NameArraysMatchInOrder(Plan.RequiredSupportIds, Canonical->RequiredSupportIds)
+			|| !NameArraysMatchInOrder(Plan.RequiredSupportChannelTypes, Canonical->RequiredSupportChannelTypes))
+		{
+			return false;
+		}
+
+		if (!SecondReadingsMatch(Plan.SecondReadings, Canonical->SecondReadings))
+		{
+			return false;
+		}
+
+		// A canonical plan that cannot pass its own authoring rule is a defect in this file, not in
+		// the asset - but it must still refuse, or a half-authored reading set would ship.
+		return Plan.HasCoherentSecondReadings();
 	}
 }
 
@@ -123,16 +146,35 @@ void UGloamsteadExperienceCycleSubsystem::EnsureCatalog()
 		TEXT("/Game/Data/DA_ExperienceCycleCatalog.DA_ExperienceCycleCatalog")));
 	if (ExperienceCatalog)
 	{
+		// Say which source won. Without this the authored asset and the code fallback are
+		// indistinguishable at runtime, which is precisely how code-as-content survives unnoticed.
+		UE_LOG(LogTemp, Log,
+			TEXT("ExperienceCycle: loaded the authored plan catalog from /Game/Data/DA_ExperienceCycleCatalog (%d plan(s))."),
+			ExperienceCatalog->AuthoredPlans.Num());
 		return;
 	}
 
 	ExperienceCatalog = NewObject<UExperienceCycleCatalog>(this, TEXT("DefaultExperienceCycleCatalog"));
 	PopulateDefaultExperienceCyclePlans(*ExperienceCatalog);
+	UE_LOG(LogTemp, Warning,
+		TEXT("ExperienceCycle: /Game/Data/DA_ExperienceCycleCatalog is absent - falling back to the in-code "
+			 "development plans (%d plan(s)). This fallback is NOT production content: author the plans in "
+			 "specs/data/vs-polish-starter.json and re-import with "
+			 "agent_collab/scripts/Invoke-GloamsteadDataAssetImport.ps1."),
+		ExperienceCatalog->AuthoredPlans.Num());
+}
+
+int32 UGloamsteadExperienceCycleSubsystem::GetAuthoredSlotCount() const
+{
+	return ExperienceCatalog ? ExperienceCatalog->AuthoredPlans.Num() : 0;
 }
 
 const FExperienceCyclePlan* UGloamsteadExperienceCycleSubsystem::FindCanonicalRequiredPlan(int32 Slot) const
 {
-	if (!ExperienceCatalog || Slot < 1 || Slot > 4)
+	// The ceiling is the authored catalog's size, not a literal. It was hardcoded to 4 in three places,
+	// which meant authoring a fifth cycle would have been silently ignored - the catalog would grow and the
+	// experience would still end after the fourth night.
+	if (!ExperienceCatalog || Slot < 1 || Slot > GetAuthoredSlotCount())
 	{
 		return nullptr;
 	}
@@ -187,16 +229,36 @@ bool UGloamsteadExperienceCycleSubsystem::EnsureUpcomingPlan()
 		return false;
 	}
 
-	if (UpcomingSlot > 4)
+	// Load the catalog BEFORE asking how many slots it authors, or the ceiling would always read zero.
+	EnsureCatalog();
+
+	if (UpcomingSlot > GetAuthoredSlotCount())
 	{
+		// The authored experience is finished. This is a terminal, player-meaningful state - not an error -
+		// and IsExperienceComplete() is what the rest of the game reads to present an ending rather than
+		// leaving the player beside a Heart that has silently stopped answering.
 		SetGenericHandoff(UpcomingSlot);
+		UE_LOG(LogTemp, Log,
+			TEXT("ExperienceCycle: the authored experience is complete - %d of %d cycles finished. No further "
+				 "authored plan exists; the Heart should now present an ending rather than a rest."),
+			PersistentState.CompletedCycleSlot, GetAuthoredSlotCount());
 		return false;
 	}
 
-	EnsureCatalog();
 	const FExperienceCyclePlan* CanonicalPlan = FindCanonicalRequiredPlan(UpcomingSlot);
 	if (!CanonicalPlan)
 	{
+		// The catalog authors a row for this slot, but it does not satisfy the canonical contract in
+		// MatchesRequiredContract. That gate is deliberate: the asset is transport, and C++ stays the
+		// authority on what an authored cycle IS, so an edited or forged catalog cannot invent a night.
+		// Refusing here is correct - but say why, because "authored a new cycle and nothing happened" is
+		// otherwise indistinguishable from the experience simply ending.
+		UE_LOG(LogTemp, Error,
+			TEXT("ExperienceCycle: slot %d has no authored row satisfying the canonical contract, so it is "
+				 "refused - the row is missing, duplicated, or does not match. The catalog is transport; C++ "
+				 "stays the authority on what a cycle IS, so adding one needs BOTH an authored row and a "
+				 "matching entry in PopulateDefaultExperienceCyclePlans."),
+			UpcomingSlot);
 		SetInvalidPlan(UpcomingSlot);
 		return false;
 	}
@@ -208,13 +270,13 @@ bool UGloamsteadExperienceCycleSubsystem::EnsureUpcomingPlan()
 
 bool UGloamsteadExperienceCycleSubsystem::RestoreArmedPlan(FName ArmedPlanId, int32 ExpectedSlot)
 {
-	if (ExpectedSlot < 1 || ExpectedSlot > 4)
+	EnsureCatalog();
+	if (ExpectedSlot < 1 || ExpectedSlot > GetAuthoredSlotCount())
 	{
 		SetInvalidPlan(ExpectedSlot);
 		return false;
 	}
 
-	EnsureCatalog();
 	const FExperienceCyclePlan* CanonicalPlan = FindCanonicalRequiredPlan(ExpectedSlot);
 	if (!CanonicalPlan || CanonicalPlan->PlanId != ArmedPlanId)
 	{
@@ -281,6 +343,17 @@ bool UGloamsteadExperienceCycleSubsystem::RecordActivePlanOutcome(const FNightRu
 		&& !PersistentState.ScarTags.Contains(Outcome.ResultTag))
 	{
 		PersistentState.ScarTags.Add(Outcome.ResultTag);
+	}
+
+	// A second reading leaves a durable mark regardless of how the night scored, because the mark IS
+	// the payoff: a player who opened the sluice should still carry Boon.GardenAura into Cycle III
+	// even on a night that only went partly right, and a player who ashed the bed carries Scar.AshFed
+	// even on one they survived. Tying it to the result would make the sharper reading matter only
+	// when the night was already going well.
+	if (Outcome.SecondReadingTag != NAME_None
+		&& !PersistentState.ScarTags.Contains(Outcome.SecondReadingTag))
+	{
+		PersistentState.ScarTags.Add(Outcome.SecondReadingTag);
 	}
 
 	PersistentState.ArmedPlanId = NAME_None;

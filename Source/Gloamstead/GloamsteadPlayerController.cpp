@@ -7,6 +7,7 @@
 #include "InputMappingContext.h"
 #include "Blueprint/UserWidget.h"
 #include "Gloamstead.h"
+#include "Kismet/GameplayStatics.h"
 #include "Widgets/Input/SVirtualJoystick.h"
 
 void AGloamsteadPlayerController::BeginPlay()
@@ -92,6 +93,43 @@ void AGloamsteadPlayerController::SetupInputComponent()
 			}
 		}
 	}
+
+	// Escape holds the sanctuary. Bound at key level rather than through an input-mapping asset for
+	// the same reason the night verbs are: no action exists for it in IMC_Default, and a game the
+	// player cannot stop is not finished.
+	//
+	// bExecuteWhenPaused is the whole trick. Without it the binding stops firing the instant it
+	// succeeds, so the pause key can hold the sanctuary and then cannot release it.
+	if (InputComponent)
+	{
+		FInputKeyBinding& PauseBinding = InputComponent->BindKey(
+			EKeys::Escape, IE_Pressed, this, &AGloamsteadPlayerController::ToggleSanctuaryPause);
+		PauseBinding.bExecuteWhenPaused = true;
+		SetTickableWhenPaused(true);
+	}
+}
+
+void AGloamsteadPlayerController::ToggleSanctuaryPause()
+{
+	bSanctuaryPaused = !bSanctuaryPaused;
+
+	// SetGamePaused refuses in some contexts (a dedicated server, a world mid-teardown). Believe the
+	// world rather than the request, so the overlay can never claim a pause that did not happen.
+	UGameplayStatics::SetGamePaused(this, bSanctuaryPaused);
+	bSanctuaryPaused = UGameplayStatics::IsGamePaused(this);
+
+	bShowMouseCursor = bSanctuaryPaused;
+	if (bSanctuaryPaused)
+	{
+		SetInputMode(FInputModeGameAndUI().SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock));
+	}
+	else
+	{
+		SetInputMode(FInputModeGameOnly());
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("GloamInput: the sanctuary is %s."),
+		bSanctuaryPaused ? TEXT("held") : TEXT("released"));
 }
 
 bool AGloamsteadPlayerController::ShouldUseTouchControls() const

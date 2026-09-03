@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Data/ExperienceCycleTypes.h"
 #include "Data/NightConsequenceTypes.h"
 #include "Data/RitualTypes.h"
 #include "NightRuntimeTypes.generated.h"
@@ -27,6 +28,12 @@ enum class ENightObjectiveKind : uint8
 	HoldRestored            = 4,
 	/** Disrupt a possession's hold with light, then purify the restored place before dawn. */
 	PurifyPossessed         = 5,
+	/** Choose whether to refuse a false reflection or accept its bargain and hold it with light. */
+	MirrorBargain           = 6,
+	/** Break the night's bargain with the restored bell before dawn instead of trading for it. */
+	BreakBargain            = 7,
+	/** Hold the bound sanctuary together while its fracture seams are besieged. */
+	HoldSiege               = 8,
 };
 
 /** How the night resolved, in ascending severity of failure. */
@@ -86,6 +93,24 @@ struct FNightRuntimeContext
 
 	UPROPERTY(BlueprintReadOnly, Category = "Night|Interpretation")
 	FName RequiredRestorationTag = NAME_None;
+
+	/**
+	 * How the player read the warning's second clause, re-derived from the Heart at night start.
+	 *
+	 * This is the only channel by which a second reading reaches the night. It is a grade rather than
+	 * a reading id on purpose: the night must never branch on WHICH sluice or WHICH bell rope, only
+	 * on whether the player read sharply, plainly, or over-read. That keeps a new authored reading a
+	 * content change instead of a night-runtime change.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Night|Interpretation")
+	EExperienceReadingGrade SecondReadingGrade = EExperienceReadingGrade::Unread;
+
+	/** The durable boon/scar marker that reading carried, for the dawn summary and later cycles. */
+	UPROPERTY(BlueprintReadOnly, Category = "Night|Interpretation")
+	FName SecondReadingTag = NAME_None;
+
+	bool HasInsightReading() const { return SecondReadingGrade == EExperienceReadingGrade::Insight; }
+	bool HasOverreachReading() const { return SecondReadingGrade == EExperienceReadingGrade::Overreach; }
 };
 
 /** Live objective state the strategy tracks through the night. */
@@ -143,6 +168,14 @@ struct FNightRuntimeOutcome
 	/** A scar (failure) or blessing (success) marker the next cycle / journal can read. */
 	UPROPERTY(BlueprintReadOnly, Category = "Night")
 	FName ResultTag = NAME_None;
+
+	/** The grade the night actually applied, so dawn can say what the second reading did. */
+	UPROPERTY(BlueprintReadOnly, Category = "Night")
+	EExperienceReadingGrade SecondReadingGrade = EExperienceReadingGrade::Unread;
+
+	/** The reading's durable marker, carried through to the persisted scar/boon set. */
+	UPROPERTY(BlueprintReadOnly, Category = "Night")
+	FName SecondReadingTag = NAME_None;
 };
 
 GLOAMSTEAD_API FString GetNightOutcomeResultDisplayName(ENightOutcomeResult Result);

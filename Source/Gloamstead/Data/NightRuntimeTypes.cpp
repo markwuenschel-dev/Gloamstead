@@ -21,6 +21,9 @@ FString GetNightObjectiveKindDisplayName(ENightObjectiveKind Kind)
 	case ENightObjectiveKind::HeedOmen:               return TEXT("Heed Omen");
 	case ENightObjectiveKind::HoldRestored:           return TEXT("Hold Restored");
 	case ENightObjectiveKind::PurifyPossessed:        return TEXT("Purify Possessed");
+	case ENightObjectiveKind::MirrorBargain:          return TEXT("Mirror Bargain");
+	case ENightObjectiveKind::BreakBargain:          return TEXT("Break Bargain");
+	case ENightObjectiveKind::HoldSiege:             return TEXT("Hold Siege");
 	case ENightObjectiveKind::None:
 	default:                                          return TEXT("None");
 	}

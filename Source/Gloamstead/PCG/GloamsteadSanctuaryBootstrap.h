@@ -54,6 +54,17 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gloamstead|PCG|Persistence")
 	bool bEnablePersistence = true;
 
+	/**
+	 * Place the authored evidence sources and reading choices once the sanctuary points exist.
+	 *
+	 * On by default: without it the fair-crypticism contract is enforceable but unsatisfiable, because
+	 * nothing in the map carries the authored clue identities. Turn it off for a map that hand-places
+	 * its own - the builder already skips any identity the map already provides, so the two can also
+	 * coexist during a transition.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gloamstead|Interpretation")
+	bool bMaterializeInterpretationSites = true;
+
 private:
 	void BindToPCGComponent();
 	void UnbindFromPCGComponent();

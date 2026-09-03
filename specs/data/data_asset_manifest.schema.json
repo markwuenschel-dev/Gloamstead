@@ -2,152 +2,298 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Gloamstead Data Asset Manifest",
   "type": "object",
-  "required": ["manifest_version", "content_path", "assets"],
+  "required": [
+    "manifest_version",
+    "content_path",
+    "assets"
+  ],
   "properties": {
-    "manifest_version": { "type": "string" },
-    "content_path": { "type": "string", "default": "/Game/Data" },
+    "manifest_version": {
+      "type": "string"
+    },
+    "content_path": {
+      "type": "string",
+      "default": "/Game/Data"
+    },
     "assets": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["asset_name", "class", "properties"],
-          "properties": {
-            "asset_name": { "type": "string" },
-            "class": {
-              "type": "string",
-              "enum": ["NightConsequenceCatalog", "VeilHeartWarningCatalog", "RitualDefinition"]
-            },
-            "properties": { "type": "object" }
+        "required": [
+          "asset_name",
+          "class",
+          "properties"
+        ],
+        "properties": {
+          "asset_name": {
+            "type": "string"
           },
-          "allOf": [
-            {
-              "if": {
-                "properties": { "class": { "const": "VeilHeartWarningCatalog" } },
-                "required": ["class"]
+          "class": {
+            "type": "string",
+            "enum": [
+              "NightConsequenceCatalog",
+              "VeilHeartWarningCatalog",
+              "RitualDefinition",
+              "ExperienceCycleCatalog",
+              "RitualSiteCatalog",
+              "StaticMeshCollisionPolicy"
+            ]
+          },
+          "properties": {
+            "type": "object"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "VeilHeartWarningCatalog"
+                }
               },
-              "then": {
+              "required": [
+                "class"
+              ]
+            },
+            "then": {
+              "properties": {
                 "properties": {
+                  "type": "object",
+                  "required": [
+                    "Warnings"
+                  ],
                   "properties": {
-                    "type": "object",
-                    "required": ["Warnings"],
-                    "properties": {
-                      "Warnings": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "required": ["WarningId", "Fragment", "AssociatedNightType", "SatisfiableTags"],
-                          "properties": {
-                            "WarningId": { "type": "string" },
-                            "Fragment": { "type": "string" },
-                            "AssociatedNightType": { "type": "string" },
-                            "SatisfiableTags": {
-                              "type": "array",
-                              "items": { "type": "string" },
-                              "uniqueItems": true
+                    "Warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "WarningId",
+                          "Fragment",
+                          "AssociatedNightType",
+                          "SatisfiableTags"
+                        ],
+                        "properties": {
+                          "WarningId": {
+                            "type": "string"
+                          },
+                          "Fragment": {
+                            "type": "string"
+                          },
+                          "AssociatedNightType": {
+                            "type": "string"
+                          },
+                          "SatisfiableTags": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
                             },
-                            "SemanticSubject": { "type": "string" },
-                            "RequiredRitualType": { "type": "string" },
-                            "InterpretationReceiptId": { "type": "string" },
-                            "SupportChannels": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "required": ["SupportId", "EvidenceText", "ChannelType"],
-                                "properties": {
-                                  "SupportId": { "type": "string" },
-                                  "EvidenceText": { "type": "string", "minLength": 1 },
-                                  "ChannelType": { "type": "string", "minLength": 1 }
+                            "uniqueItems": true
+                          },
+                          "SemanticSubject": {
+                            "type": "string"
+                          },
+                          "RequiredRitualType": {
+                            "type": "string"
+                          },
+                          "InterpretationReceiptId": {
+                            "type": "string"
+                          },
+                          "SupportChannels": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "SupportId",
+                                "EvidenceText",
+                                "ChannelType"
+                              ],
+                              "properties": {
+                                "SupportId": {
+                                  "type": "string"
+                                },
+                                "EvidenceText": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "ChannelType": {
+                                  "type": "string",
+                                  "minLength": 1
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "allOf": [
+                          {
+                            "if": {
+                              "required": [
+                                "SupportChannels"
+                              ]
+                            },
+                            "then": {
+                              "required": [
+                                "SemanticSubject",
+                                "RequiredRitualType",
+                                "InterpretationReceiptId"
+                              ],
+                              "properties": {
+                                "SupportChannels": {
+                                  "type": "array",
+                                  "minItems": 3,
+                                  "uniqueItems": true
+                                },
+                                "InterpretationReceiptId": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "SatisfiableTags": {
+                                  "type": "array",
+                                  "minItems": 1,
+                                  "maxItems": 1
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "ExperienceCycleCatalog"
+                }
+              },
+              "required": [
+                "class"
+              ]
+            },
+            "then": {
+              "properties": {
+                "properties": {
+                  "type": "object",
+                  "required": [
+                    "AuthoredPlans"
+                  ],
+                  "properties": {
+                    "AuthoredPlans": {
+                      "type": "array",
+                      "minItems": 1,
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "Slot",
+                          "PlanId",
+                          "WarningId",
+                          "NightType",
+                          "SemanticSubject"
+                        ],
+                        "properties": {
+                          "Slot": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "PlanId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "WarningId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "NightType": {
+                            "type": "string"
+                          },
+                          "SemanticSubject": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "RequiredRestorationTags": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 1,
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "RequiredRitualType": {
+                            "type": "string"
+                          },
+                          "RequiredSupportIds": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "RequiredSupportChannelTypes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "MinimumDistinctSupportCount": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "InterpretationReceiptId": {
+                            "type": "string"
+                          },
+                          "SecondReadings": {
+                            "type": "array",
+                            "minItems": 3,
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "ReadingId",
+                                "Grade",
+                                "ChoicePrompt",
+                                "OutcomeSummary"
+                              ],
+                              "properties": {
+                                "ReadingId": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "Grade": {
+                                  "enum": [
+                                    "Insight",
+                                    "Plain",
+                                    "Overreach"
+                                  ]
+                                },
+                                "ChoicePrompt": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "OutcomeSummary": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "ConsequenceTag": {
+                                  "type": "string",
+                                  "minLength": 1
                                 }
                               }
                             }
                           },
-                          "allOf": [
-                            {
-                              "if": {
-                                "properties": { "WarningId": { "const": "GardenRot" } },
-                                "required": ["WarningId"]
-                              },
-                              "then": {
-                                "required": ["SemanticSubject", "RequiredRitualType", "SupportChannels", "InterpretationReceiptId"],
-                                "properties": {
-                                  "AssociatedNightType": { "enum": ["Corruption", "Retrieval"] },
-                                  "SemanticSubject": { "const": "Cycle2_Garden" },
-                                  "RequiredRitualType": { "const": "GardenBed" },
-                                  "InterpretationReceiptId": { "type": "string", "minLength": 1 },
-                                  "SatisfiableTags": {
-                                    "type": "array",
-                                    "minItems": 1,
-                                    "maxItems": 1,
-                                    "items": { "const": "GardenBed" }
-                                  },
-                                  "SupportChannels": {
-                                    "type": "array",
-                                    "minItems": 3,
-                                    "maxItems": 3,
-                                    "uniqueItems": true,
-                                    "items": {
-                                      "type": "object",
-                                      "required": ["SupportId", "EvidenceText", "ChannelType"],
-                                      "properties": {
-                                        "SupportId": {
-                                          "enum": [
-                                            "GardenRot.WitheredVines",
-                                            "GardenRot.ColdSoil",
-                                            "GardenRot.BellMoths"
-                                          ]
-                                        },
-                                        "EvidenceText": { "type": "string", "minLength": 1 },
-                                        "ChannelType": { "type": "string", "minLength": 1 }
-                                      }
-                                    },
-                                    "allOf": [
-                                      {
-                                        "contains": {
-                                          "properties": {
-                                            "SupportId": { "const": "GardenRot.WitheredVines" },
-                                            "ChannelType": { "const": "Environmental" }
-                                          },
-                                          "required": ["SupportId", "ChannelType"]
-                                        }
-                                      },
-                                      {
-                                        "contains": {
-                                          "properties": {
-                                            "SupportId": { "const": "GardenRot.ColdSoil" },
-                                            "ChannelType": { "const": "ObjectReaction" }
-                                          },
-                                          "required": ["SupportId", "ChannelType"]
-                                        }
-                                      },
-                                      {
-                                        "contains": {
-                                          "properties": {
-                                            "SupportId": { "const": "GardenRot.BellMoths" },
-                                            "ChannelType": { "const": "Audio" }
-                                          },
-                                          "required": ["SupportId", "ChannelType"]
-                                        }
-                                      }
-                                    ]
-                                  }
-                                },
-                                "oneOf": [
-                                  {
-                                    "properties": {
-                                      "AssociatedNightType": { "const": "Corruption" },
-                                      "InterpretationReceiptId": { "const": "GardenRot.Interpreted" }
-                                    }
-                                  },
-                                  {
-                                    "properties": {
-                                      "AssociatedNightType": { "const": "Retrieval" },
-                                      "InterpretationReceiptId": { "const": "GardenRot.Retrieved" }
-                                    }
-                                  }
-                                ]
-                              }
-                            }
-                          ]
+                          "VisualStateKey": {
+                            "type": "string"
+                          },
+                          "OutcomeSummaryKey": {
+                            "type": "string"
+                          },
+                          "Resolution": {
+                            "enum": [
+                              "Authored",
+                              "GenericHandoff"
+                            ]
+                          }
                         }
                       }
                     }
@@ -155,8 +301,78 @@
                 }
               }
             }
-          ]
-        }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "RitualSiteCatalog"
+                }
+              },
+              "required": [
+                "class"
+              ]
+            },
+            "then": {
+              "properties": {
+                "properties": {
+                  "type": "object",
+                  "required": [
+                    "Sites"
+                  ],
+                  "properties": {
+                    "Sites": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "SemanticSubject",
+                          "RecommendedForWarning",
+                          "RitualType",
+                          "RestorationTag"
+                        ],
+                        "properties": {
+                          "SemanticSubject": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "RecommendedForWarning": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "RitualType": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "RestorationTag": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "Anchor": {
+                            "enum": [
+                              "SanctuaryHeart",
+                              "FirstLantern",
+                              "WorldOrigin"
+                            ]
+                          },
+                          "MinimumAnchorDistance": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "BindRadius": {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
       }
+    }
   }
 }

@@ -100,6 +100,9 @@ float UNightConsequenceManager::ScoreRule(const FNightConsequenceRule& Rule, con
 		case ERitualType::BellShrine:
 			Score += static_cast<float>(Snapshot.BellShrineRestored) * 0.25f;
 			break;
+		case ERitualType::AnchorStone:
+			Score += static_cast<float>(Snapshot.AnchorStoneRestored) * 0.25f;
+			break;
 		default:
 			break;
 		}

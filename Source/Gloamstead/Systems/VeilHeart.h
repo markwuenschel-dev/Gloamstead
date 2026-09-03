@@ -11,6 +11,7 @@
 
 class USphereComponent;
 class AGloamsteadEvidenceSource;
+class AGloamsteadReadingChoice;
 class UGloamsteadPCGSubsystem;
 class UGloamsteadDayNightSubsystem;
 
@@ -26,6 +27,13 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVeilHeartWarning, const FVeilHear
 
 /** Broadcast at dawn with the night's real outcome, for the same reason as FOnVeilHeartWarning. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVeilHeartDawnReflection, const FNightRuntimeOutcome&, Outcome);
+
+/**
+ * Broadcast when the player rests at the Heart after the last authored cycle. This is the ending's hook:
+ * whatever presents a completion screen listens here rather than polling for a state that used to have
+ * no reader at all.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnVeilHeartExperienceComplete);
 
 /**
  * The Veil Heart - Central protected object and emotional core of Gloamstead.
@@ -59,6 +67,24 @@ public:
 	 * deliberately a C++ authority seam rather than a Blueprint payload API.
 	 */
 	bool RecordSupportEncounterFromEvidenceSource(const AGloamsteadEvidenceSource* Source);
+
+	/**
+	 * Commits the player second reading of the active warning, from one live authored choice actor.
+	 *
+	 * Same authority shape as the evidence seam above, and the same reason: the Heart reads the
+	 * authored identity off the live actor and validates it against the active plan, so neither
+	 * Blueprint nor a generic caller can forge which reading was taken. The commit is refused until
+	 * the plan interpretation receipt exists - a second reading is a configuration of a restoration
+	 * the player already earned, never a substitute for earning it.
+	 */
+	bool RecordSecondReadingFromChoice(const AGloamsteadReadingChoice* Choice);
+
+	/** The reading committed for the active plan, or an empty verdict. */
+	UFUNCTION(BlueprintPure, Category="Veil Heart|Interpretation")
+	FExperienceSecondReadingVerdict GetSecondReadingVerdict() const { return SecondReadingVerdict; }
+
+	/** How the night should treat the player reading of this exact plan second clause. */
+	EExperienceReadingGrade GetSecondReadingGradeForPlan(const FExperienceCyclePlan& Plan) const;
 
 	UFUNCTION(BlueprintCallable, Category="Veil Heart")
 	void EmitWarningForNight(ENightConsequenceType NightType);
@@ -107,6 +133,20 @@ public:
 	FName GetLastEmittedWarningId() const { return LastEmittedWarningId; }
 
 	/**
+	 * The clue set for the standing warning: every authored channel, marked found or not.
+	 *
+	 * Read-only, and deliberately reports the clues that EXIST as well as the ones the player has
+	 * encountered. Hiding the count would not make the game more cryptic, only less fair: the
+	 * minimum distinct count is a hard gate on the cycle, and a player who cannot see it is being
+	 * asked to satisfy a condition the game never states. What stays hidden is what an unfound clue
+	 * SAYS - EvidenceText is left empty until it is actually encountered.
+	 *
+	 * Returns false when no authored warning is currently presented, in which case there is nothing
+	 * to interpret and the journal should say so rather than draw an empty list.
+	 */
+	bool GetStandingEvidence(TArray<FVeilHeartEvidenceLine>& OutLines, int32& OutRequiredDistinct) const;
+
+	/**
 	 * Registers the one player-facing warning presenter after it has bound its
 	 * exact dynamic-delegate handler. Blueprint events and incidental observers
 	 * do not satisfy this presentation authority.
@@ -134,6 +174,9 @@ public:
 
 	/** Test-only controlled route for source/media validation without exposing a Blueprint write API. */
 	bool Test_RecordSupportEncounter(FName WarningId, FName SupportId, FName ChannelType);
+
+	/** Test-only controlled route for reading-choice validation without a Blueprint write API. */
+	bool Test_RecordSecondReading(FName WarningId, FName ReadingId);
 
 	/** Test-only wrappers for durable state assertions; production restore authority is DayNight-only. */
 	FVeilHeartInterpretationPersistentState Test_CaptureInterpretationPersistentState() const
@@ -165,6 +208,14 @@ public:
     UPROPERTY(BlueprintAssignable, Category="Veil Heart")
     FOnVeilHeartDawnReflection OnDawnReflectionDelegate;
 
+    /** BP presentation hook for the end of the authored experience. */
+    UFUNCTION(BlueprintImplementableEvent, Category="Veil Heart")
+    void OnExperienceComplete();
+
+    /** Fires alongside OnExperienceComplete, for listeners that are not Blueprint subclasses of the Heart. */
+    UPROPERTY(BlueprintAssignable, Category="Veil Heart")
+    FOnVeilHeartExperienceComplete OnExperienceCompleteDelegate;
+
     /** Assign Content/Data/DA_VeilHeartWarningCatalog (auto-loaded at BeginPlay if left empty). */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil Heart")
     TObjectPtr<UVeilHeartWarningCatalog> WarningCatalog;
@@ -192,8 +243,20 @@ private:
 	bool RestoreInterpretationPersistentState(const FVeilHeartInterpretationPersistentState& State);
 	void ResetInterpretationPersistentState();
 
-	/** Lazily loads the assigned catalog for startup-order-safe exact emission. */
+	/**
+	 * Lazily loads the assigned catalog for startup-order-safe exact emission, then validates it against
+	 * the authored experience contract and FAILS CLOSED. Returns false - refusing every warning this Heart
+	 * could present - when the asset is missing or does not cover every authored plan. It never
+	 * synthesizes catalog rows: the catalog is authored content, and a runtime substitute would let the
+	 * authored asset stay wrong indefinitely while the game appeared to work.
+	 */
 	bool EnsureWarningCatalog();
+
+	/**
+	 * Sticky record that the shipped catalog was refused - missing, or failing the authored contract - so
+	 * every later caller gets the same closed answer without retrying and re-logging the load.
+	 */
+	bool bWarningCatalogLoadRefused = false;
 	const FVeilHeartWarningFragment* FindExactWarningById(FName WarningId, ENightConsequenceType ExpectedNightType) const;
 	const FExperienceCyclePlan* ResolveActivePlan() const;
 	UGloamsteadPCGSubsystem* ResolvePCGSubsystem() const;
@@ -206,6 +269,9 @@ private:
 		const FExperienceCyclePlan& Plan,
 		const TSet<FName>& SupportIds) const;
 	bool RecordSupportEncounterInternal(FName WarningId, FName SupportId, FName ChannelType);
+	bool RecordSecondReadingInternal(FName WarningId, FName ReadingId);
+	/** True only when this verdict names a reading the given plan actually authors. */
+	bool DoesVerdictProveExactPlan(const FExperienceSecondReadingVerdict& Verdict, const FExperienceCyclePlan& Plan) const;
 	/** Native-only completion emitted by the placement authority, never by generic PCG mutation. */
 	void OnPlacementAuthorizedRestoration(const FRestorationEventPayload& Payload);
 	bool EvaluateRestorationAgainstActivePlan(const FRestorationEventPayload& Payload);
@@ -215,6 +281,9 @@ private:
 
 	UPROPERTY()
 	FExperienceInterpretationReceipt LastInterpretationReceipt;
+
+	UPROPERTY()
+	FExperienceSecondReadingVerdict SecondReadingVerdict;
 
     UPROPERTY()
     FNightRuntimeOutcome LastNightOutcome;

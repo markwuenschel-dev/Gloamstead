@@ -1,4 +1,9 @@
 #include "Commandlets/GloamsteadImportDataAssetsCommandlet.h"
+#include "Engine/StaticMesh.h"
+#include "PhysicsEngine/BodySetup.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetRegistry/ARFilter.h"
+#include "Data/GloamsteadRitualSiteCatalog.h"
 
 #include "Data/NightConsequenceTypes.h"
 #include "Data/ExperienceCycleTypes.h"
@@ -125,21 +130,386 @@ namespace GloamsteadDataImport
 		return true;
 	}
 
-	static bool ValidateCanonicalGardenRotContract(const FVeilHeartWarningFragment& Fragment, FString& OutError)
+	/**
+	 * Holds an imported warning row to the contract of the authored plan it answers.
+	 *
+	 * A row that answers no authored plan is not a defect - the catalog may carry flavour warnings
+	 * for night types the experience does not currently author - so OutHasCanonicalPlan tells the
+	 * caller which case it is. The opening tutorial is the one authored plan deliberately exempted:
+	 * it predates the fair-crypticism evidence contract, exactly as AVeilHeart::CanPresentWarningForPlan
+	 * exempts it at runtime.
+	 */
+	static bool ValidateAgainstCanonicalPlan(
+		const FVeilHeartWarningFragment& Fragment,
+		bool& OutHasCanonicalPlan,
+		FString& OutError)
 	{
+		OutHasCanonicalPlan = false;
+
 		UExperienceCycleCatalog* Catalog = NewObject<UExperienceCycleCatalog>(GetTransientPackage());
 		PopulateDefaultExperienceCyclePlans(*Catalog);
 		for (const FExperienceCyclePlan& Plan : Catalog->AuthoredPlans)
 		{
-			if (Plan.WarningId == Fragment.WarningId && Plan.NightType == Fragment.AssociatedNightType)
+			if (!Plan.IsAuthoredPlan()
+				|| Plan.WarningId != Fragment.WarningId
+				|| Plan.NightType != Fragment.AssociatedNightType)
 			{
-				return Fragment.MatchesExactPlanContract(Plan, &OutError);
+				continue;
+			}
+
+			OutHasCanonicalPlan = true;
+
+			if (Plan.NightType == ENightConsequenceType::Tutorial
+				&& Plan.WarningId == FName(TEXT("TutorialLostPath")))
+			{
+				return true;
+			}
+
+			return Fragment.MatchesExactPlanContract(Plan, &OutError);
+		}
+
+		return true;
+	}
+
+	static bool ImportExperienceCycleCatalog(
+		UExperienceCycleCatalog* Catalog,
+		const TSharedPtr<FJsonObject>& Properties,
+		int32& OutErrorCount)
+	{
+		if (!Catalog || !Properties.IsValid())
+		{
+			++OutErrorCount;
+			return false;
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* PlanValues = nullptr;
+		if (!Properties->TryGetArrayField(TEXT("AuthoredPlans"), PlanValues) || !PlanValues)
+		{
+			UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: ExperienceCycleCatalog needs an AuthoredPlans array."));
+			++OutErrorCount;
+			return false;
+		}
+
+		const UEnum* NightEnum = StaticEnum<ENightConsequenceType>();
+		const UEnum* RitualEnum = StaticEnum<ERitualType>();
+		const UEnum* ResolutionEnum = StaticEnum<EExperiencePlanResolution>();
+
+		TArray<FExperienceCyclePlan> Plans;
+		for (const TSharedPtr<FJsonValue>& Value : *PlanValues)
+		{
+			const TSharedPtr<FJsonObject>* PlanObjPtr = nullptr;
+			if (!Value.IsValid() || !Value->TryGetObject(PlanObjPtr) || !PlanObjPtr)
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: an AuthoredPlans entry is not an object."));
+				++OutErrorCount;
+				return false;
+			}
+			const TSharedPtr<FJsonObject>& PlanObj = *PlanObjPtr;
+
+			FExperienceCyclePlan Plan;
+
+			if (!ReadNumberField(PlanObj, TEXT("Slot"), Plan.Slot) || Plan.Slot < 1)
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: an authored plan needs a Slot >= 1."));
+				++OutErrorCount;
+				return false;
+			}
+
+			FString PlanId;
+			FString WarningId;
+			if (!PlanObj->TryGetStringField(TEXT("PlanId"), PlanId) || PlanId.IsEmpty()
+				|| !PlanObj->TryGetStringField(TEXT("WarningId"), WarningId) || WarningId.IsEmpty())
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: plan in slot %d needs a PlanId and a WarningId."), Plan.Slot);
+				++OutErrorCount;
+				return false;
+			}
+			Plan.PlanId = FName(*PlanId);
+			Plan.WarningId = FName(*WarningId);
+
+			FString NightTypeName;
+			int64 EnumValue = INDEX_NONE;
+			if (!PlanObj->TryGetStringField(TEXT("NightType"), NightTypeName)
+				|| !ParseEnumByName(NightEnum, NightTypeName, EnumValue))
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: plan %s has an unknown NightType."), *PlanId);
+				++OutErrorCount;
+				return false;
+			}
+			Plan.NightType = static_cast<ENightConsequenceType>(EnumValue);
+
+			FString SemanticSubject;
+			if (PlanObj->TryGetStringField(TEXT("SemanticSubject"), SemanticSubject) && !SemanticSubject.IsEmpty())
+			{
+				Plan.SemanticSubject = FName(*SemanticSubject);
+			}
+
+			const TArray<TSharedPtr<FJsonValue>>* TagValues = nullptr;
+			if (PlanObj->TryGetArrayField(TEXT("RequiredRestorationTags"), TagValues) && TagValues
+				&& !ParseStringArray(*TagValues, Plan.RequiredRestorationTags))
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: plan %s has a malformed RequiredRestorationTags."), *PlanId);
+				++OutErrorCount;
+				return false;
+			}
+
+			FString RitualTypeName;
+			if (PlanObj->TryGetStringField(TEXT("RequiredRitualType"), RitualTypeName) && !RitualTypeName.IsEmpty())
+			{
+				int64 RitualValue = INDEX_NONE;
+				if (!ParseEnumByName(RitualEnum, RitualTypeName, RitualValue))
+				{
+					UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: plan %s has an unknown RequiredRitualType."), *PlanId);
+					++OutErrorCount;
+					return false;
+				}
+				Plan.RequiredRitualType = static_cast<ERitualType>(RitualValue);
+			}
+
+			const TArray<TSharedPtr<FJsonValue>>* SupportIdValues = nullptr;
+			if (PlanObj->TryGetArrayField(TEXT("RequiredSupportIds"), SupportIdValues) && SupportIdValues
+				&& !ParseStringArray(*SupportIdValues, Plan.RequiredSupportIds))
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: plan %s has a malformed RequiredSupportIds."), *PlanId);
+				++OutErrorCount;
+				return false;
+			}
+
+			const TArray<TSharedPtr<FJsonValue>>* ChannelTypeValues = nullptr;
+			if (PlanObj->TryGetArrayField(TEXT("RequiredSupportChannelTypes"), ChannelTypeValues) && ChannelTypeValues
+				&& !ParseStringArray(*ChannelTypeValues, Plan.RequiredSupportChannelTypes))
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: plan %s has a malformed RequiredSupportChannelTypes."), *PlanId);
+				++OutErrorCount;
+				return false;
+			}
+
+			ReadNumberField(PlanObj, TEXT("MinimumDistinctSupportCount"), Plan.MinimumDistinctSupportCount);
+
+			FString ReceiptId;
+			if (PlanObj->TryGetStringField(TEXT("InterpretationReceiptId"), ReceiptId) && !ReceiptId.IsEmpty())
+			{
+				Plan.InterpretationReceiptId = FName(*ReceiptId);
+			}
+			FString VisualStateKey;
+			if (PlanObj->TryGetStringField(TEXT("VisualStateKey"), VisualStateKey) && !VisualStateKey.IsEmpty())
+			{
+				Plan.VisualStateKey = FName(*VisualStateKey);
+			}
+			FString OutcomeSummaryKey;
+			if (PlanObj->TryGetStringField(TEXT("OutcomeSummaryKey"), OutcomeSummaryKey) && !OutcomeSummaryKey.IsEmpty())
+			{
+				Plan.OutcomeSummaryKey = FName(*OutcomeSummaryKey);
+			}
+
+			// Second readings: the authored ways to act on the warning's second clause.
+			const TArray<TSharedPtr<FJsonValue>>* ReadingValues = nullptr;
+			if (PlanObj->TryGetArrayField(TEXT("SecondReadings"), ReadingValues) && ReadingValues)
+			{
+				const UEnum* GradeEnum = StaticEnum<EExperienceReadingGrade>();
+				for (const TSharedPtr<FJsonValue>& ReadingValue : *ReadingValues)
+				{
+					const TSharedPtr<FJsonObject>* ReadingObjPtr = nullptr;
+					if (!ReadingValue.IsValid() || !ReadingValue->TryGetObject(ReadingObjPtr) || !ReadingObjPtr)
+					{
+						UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: plan %s has a malformed SecondReadings entry."), *PlanId);
+						++OutErrorCount;
+						return false;
+					}
+					const TSharedPtr<FJsonObject>& ReadingObj = *ReadingObjPtr;
+
+					FExperienceCycleSecondReading Reading;
+
+					FString ReadingId;
+					FString GradeName;
+					FString ChoicePrompt;
+					FString OutcomeSummary;
+					int64 GradeValue = INDEX_NONE;
+					if (!ReadingObj->TryGetStringField(TEXT("ReadingId"), ReadingId) || ReadingId.IsEmpty()
+						|| !ReadingObj->TryGetStringField(TEXT("Grade"), GradeName)
+						|| !ParseEnumByName(GradeEnum, GradeName, GradeValue)
+						|| !ReadingObj->TryGetStringField(TEXT("ChoicePrompt"), ChoicePrompt) || ChoicePrompt.IsEmpty()
+						|| !ReadingObj->TryGetStringField(TEXT("OutcomeSummary"), OutcomeSummary) || OutcomeSummary.IsEmpty())
+					{
+						UE_LOG(LogTemp, Error,
+							TEXT("GloamsteadImportDataAssets: plan %s has a second reading missing its id, grade, prompt, or outcome summary."),
+							*PlanId);
+						++OutErrorCount;
+						return false;
+					}
+
+					Reading.ReadingId = FName(*ReadingId);
+					Reading.Grade = static_cast<EExperienceReadingGrade>(GradeValue);
+					Reading.ChoicePrompt = FText::FromString(ChoicePrompt);
+					Reading.OutcomeSummary = FText::FromString(OutcomeSummary);
+
+					FString ConsequenceTag;
+					if (ReadingObj->TryGetStringField(TEXT("ConsequenceTag"), ConsequenceTag) && !ConsequenceTag.IsEmpty())
+					{
+						Reading.ConsequenceTag = FName(*ConsequenceTag);
+					}
+
+					Plan.SecondReadings.Add(MoveTemp(Reading));
+				}
+			}
+
+			// Half-authored readings are rejected at import rather than at runtime. A night that grades
+			// a player against a reading they were never offered is the worst possible failure mode for
+			// this mechanic, and the earliest place to make it impossible is here.
+			FString ReadingError;
+			if (!Plan.HasCoherentSecondReadings(&ReadingError))
+			{
+				UE_LOG(LogTemp, Error,
+					TEXT("GloamsteadImportDataAssets: plan %s has an incoherent second-reading set: %s"),
+					*PlanId, *ReadingError);
+				++OutErrorCount;
+				return false;
+			}
+
+			// Resolution defaults to Authored: a plan written into the authored catalog IS an authored plan.
+			// Anything else must be stated explicitly, so an accidental omission cannot silently produce a row
+			// that IsAuthoredPlan() rejects and that therefore blocks its cycle forever.
+			FString ResolutionName;
+			if (PlanObj->TryGetStringField(TEXT("Resolution"), ResolutionName) && !ResolutionName.IsEmpty())
+			{
+				int64 ResolutionValue = INDEX_NONE;
+				if (!ParseEnumByName(ResolutionEnum, ResolutionName, ResolutionValue))
+				{
+					UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: plan %s has an unknown Resolution."), *PlanId);
+					++OutErrorCount;
+					return false;
+				}
+				Plan.Resolution = static_cast<EExperiencePlanResolution>(ResolutionValue);
+			}
+			else
+			{
+				Plan.Resolution = EExperiencePlanResolution::Authored;
+			}
+
+			Plans.Add(MoveTemp(Plan));
+		}
+
+		// Slots must be unique and contiguous from 1: EnsureUpcomingPlan walks CompletedCycleSlot + 1, so a
+		// gap silently ends the experience at the gap rather than at the last authored cycle.
+		Plans.Sort([](const FExperienceCyclePlan& A, const FExperienceCyclePlan& B) { return A.Slot < B.Slot; });
+		for (int32 Index = 0; Index < Plans.Num(); ++Index)
+		{
+			if (Plans[Index].Slot != Index + 1)
+			{
+				UE_LOG(LogTemp, Error,
+					TEXT("GloamsteadImportDataAssets: authored plan slots must be unique and contiguous from 1; expected %d but found %d."),
+					Index + 1, Plans[Index].Slot);
+				++OutErrorCount;
+				return false;
 			}
 		}
 
-		OutError = FString::Printf(TEXT("the canonical plan for %s/%d is unavailable"),
-			*Fragment.WarningId.ToString(), static_cast<int32>(Fragment.AssociatedNightType));
-		return false;
+		Catalog->AuthoredPlans = MoveTemp(Plans);
+		return true;
+	}
+
+	static bool ImportRitualSiteCatalog(
+		UGloamsteadRitualSiteCatalog* Catalog,
+		const TSharedPtr<FJsonObject>& Properties,
+		int32& OutErrorCount)
+	{
+		if (!Catalog || !Properties.IsValid())
+		{
+			++OutErrorCount;
+			return false;
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* SiteValues = nullptr;
+		if (!Properties->TryGetArrayField(TEXT("Sites"), SiteValues) || !SiteValues)
+		{
+			UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: RitualSiteCatalog needs a Sites array."));
+			++OutErrorCount;
+			return false;
+		}
+
+		const UEnum* RitualEnum = StaticEnum<ERitualType>();
+		const UEnum* AnchorEnum = StaticEnum<EGloamsteadSiteAnchor>();
+
+		TArray<FGloamsteadRitualSiteDeclaration> Sites;
+		for (const TSharedPtr<FJsonValue>& Value : *SiteValues)
+		{
+			const TSharedPtr<FJsonObject>* SiteObjPtr = nullptr;
+			if (!Value.IsValid() || !Value->TryGetObject(SiteObjPtr) || !SiteObjPtr)
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: a Sites entry is not an object."));
+				++OutErrorCount;
+				return false;
+			}
+			const TSharedPtr<FJsonObject>& SiteObj = *SiteObjPtr;
+
+			FGloamsteadRitualSiteDeclaration Site;
+
+			FString SemanticSubject;
+			FString WarningId;
+			FString RestorationTag;
+			if (!SiteObj->TryGetStringField(TEXT("SemanticSubject"), SemanticSubject) || SemanticSubject.IsEmpty()
+				|| !SiteObj->TryGetStringField(TEXT("RecommendedForWarning"), WarningId) || WarningId.IsEmpty()
+				|| !SiteObj->TryGetStringField(TEXT("RestorationTag"), RestorationTag) || RestorationTag.IsEmpty())
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: a ritual site needs SemanticSubject, RecommendedForWarning and RestorationTag."));
+				++OutErrorCount;
+				return false;
+			}
+			Site.SemanticSubject = FName(*SemanticSubject);
+			Site.RecommendedForWarning = FName(*WarningId);
+			Site.RestorationTag = FName(*RestorationTag);
+
+			FString RitualTypeName;
+			int64 RitualValue = INDEX_NONE;
+			if (!SiteObj->TryGetStringField(TEXT("RitualType"), RitualTypeName)
+				|| !ParseEnumByName(RitualEnum, RitualTypeName, RitualValue))
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: ritual site %s has an unknown RitualType."), *SemanticSubject);
+				++OutErrorCount;
+				return false;
+			}
+			Site.RitualType = static_cast<ERitualType>(RitualValue);
+
+			FString AnchorName;
+			if (SiteObj->TryGetStringField(TEXT("Anchor"), AnchorName) && !AnchorName.IsEmpty())
+			{
+				int64 AnchorValue = INDEX_NONE;
+				if (!ParseEnumByName(AnchorEnum, AnchorName, AnchorValue))
+				{
+					UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: ritual site %s has an unknown Anchor '%s'."), *SemanticSubject, *AnchorName);
+					++OutErrorCount;
+					return false;
+				}
+				Site.Anchor = static_cast<EGloamsteadSiteAnchor>(AnchorValue);
+			}
+
+			float Radius = 0.f;
+			if (ReadNumberField(SiteObj, TEXT("BindRadius"), Radius) && Radius > 0.f)
+			{
+				Site.BindRadius = Radius;
+			}
+			float MinDistance = 0.f;
+			if (ReadNumberField(SiteObj, TEXT("MinimumAnchorDistance"), MinDistance) && MinDistance >= 0.f)
+			{
+				Site.MinimumAnchorDistance = MinDistance;
+			}
+
+			TArray<FString> Problems;
+			if (!Site.IsCompleteDeclaration(Problems))
+			{
+				for (const FString& Problem : Problems)
+				{
+					UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: %s"), *Problem);
+				}
+				++OutErrorCount;
+				return false;
+			}
+
+			Sites.Add(MoveTemp(Site));
+		}
+
+		Catalog->Sites = MoveTemp(Sites);
+		return true;
 	}
 
 	static bool SaveDataAsset(UObject* Asset, const FString& PackageName, int32& OutErrorCount)
@@ -183,6 +553,110 @@ namespace GloamsteadDataImport
 
 		UPackage* Package = CreatePackage(*PackageName);
 		return NewObject<UObject>(Package, AssetClass, *AssetName, RF_Public | RF_Standalone);
+	}
+
+	/**
+	 * Give authored meshes working collision.
+	 *
+	 * The sanctuary kit ships 27 meshes with a BodySetup but ZERO collision primitives and no trace flag,
+	 * so simple-collision tracing finds nothing and the player walks through every wall and column. The
+	 * mesh forge contract has no collision concept at all, so regenerating reintroduces it - this is the
+	 * repair, not the cure.
+	 *
+	 * Sets CollisionTraceFlag so the render geometry is used as collision. Complex-as-simple is the honest
+	 * choice for greybox ruins: authored convex hulls are better for a shipping build, but a wall you
+	 * cannot walk through today beats a perfect hull nobody has authored.
+	 */
+	static bool ImportStaticMeshCollisionPolicy(const TSharedPtr<FJsonObject>& Properties, int32& OutErrorCount)
+	{
+		if (!Properties.IsValid())
+		{
+			++OutErrorCount;
+			return false;
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* FolderValues = nullptr;
+		if (!Properties->TryGetArrayField(TEXT("Folders"), FolderValues) || !FolderValues)
+		{
+			UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: StaticMeshCollisionPolicy needs a Folders array."));
+			++OutErrorCount;
+			return false;
+		}
+
+		FString FlagName;
+		Properties->TryGetStringField(TEXT("CollisionTraceFlag"), FlagName);
+		ECollisionTraceFlag Flag = CTF_UseComplexAsSimple;
+		if (!FlagName.IsEmpty())
+		{
+			if (FlagName == TEXT("UseComplexAsSimple")) { Flag = CTF_UseComplexAsSimple; }
+			else if (FlagName == TEXT("UseSimpleAsComplex")) { Flag = CTF_UseSimpleAsComplex; }
+			else if (FlagName == TEXT("UseDefault")) { Flag = CTF_UseDefault; }
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: unknown CollisionTraceFlag '%s'."), *FlagName);
+				++OutErrorCount;
+				return false;
+			}
+		}
+
+		IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+		AssetRegistry.SearchAllAssets(/*bSynchronousSearch*/ true);
+
+		int32 Changed = 0;
+		int32 Inspected = 0;
+		for (const TSharedPtr<FJsonValue>& Value : *FolderValues)
+		{
+			if (!Value.IsValid() || Value->Type != EJson::String)
+			{
+				UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: a Folders entry is not a string."));
+				++OutErrorCount;
+				return false;
+			}
+
+			const FString Folder = Value->AsString();
+			FARFilter Filter;
+			Filter.bRecursivePaths = true;
+			Filter.PackagePaths.Add(FName(*Folder));
+			Filter.ClassPaths.Add(UStaticMesh::StaticClass()->GetClassPathName());
+
+			TArray<FAssetData> Assets;
+			AssetRegistry.GetAssets(Filter, Assets);
+			if (Assets.Num() == 0)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("GloamsteadImportDataAssets: no static meshes found under %s."), *Folder);
+			}
+
+			for (const FAssetData& AssetData : Assets)
+			{
+				UStaticMesh* Mesh = Cast<UStaticMesh>(AssetData.GetAsset());
+				if (!Mesh || !Mesh->GetBodySetup())
+				{
+					continue;
+				}
+				++Inspected;
+
+				if (Mesh->GetBodySetup()->CollisionTraceFlag == Flag)
+				{
+					continue;
+				}
+
+				Mesh->GetBodySetup()->Modify();
+				Mesh->GetBodySetup()->CollisionTraceFlag = Flag;
+				Mesh->GetBodySetup()->InvalidatePhysicsData();
+				Mesh->GetBodySetup()->CreatePhysicsMeshes();
+				Mesh->MarkPackageDirty();
+
+				if (SaveDataAsset(Mesh, Mesh->GetPackage()->GetName(), OutErrorCount))
+				{
+					++Changed;
+				}
+			}
+		}
+
+		UE_LOG(LogTemp, Display,
+			TEXT("GloamsteadImportDataAssets: collision policy applied to %d of %d static mesh(es)."),
+			Changed, Inspected);
+		return true;
 	}
 
 	static bool ImportNightCatalog(UNightConsequenceCatalog* Catalog, const TSharedPtr<FJsonObject>& Properties, int32& OutErrorCount)
@@ -379,12 +853,20 @@ namespace GloamsteadDataImport
 				Fragment.InterpretationReceiptId = FName(*ReceiptId);
 			}
 
-			if (Fragment.WarningId == FName(TEXT("GardenRot")))
+			// Every row that claims an authored plan is checked, not only the one identity that
+			// happened to exist when this gate was written. Gating on "GardenRot" meant each new
+			// cycle shipped unvalidated, which is precisely when a support medium or a half-authored
+			// reading set would slip through.
 			{
+				bool bHasCanonicalPlan = false;
 				FString ContractError;
-				if (!ValidateCanonicalGardenRotContract(Fragment, ContractError))
+				if (!ValidateAgainstCanonicalPlan(Fragment, bHasCanonicalPlan, ContractError))
 				{
-					UE_LOG(LogTemp, Error, TEXT("GloamsteadImportDataAssets: GardenRot contract rejected: %s"), *ContractError);
+					UE_LOG(LogTemp, Error,
+						TEXT("GloamsteadImportDataAssets: warning %s/%s rejected: %s"),
+						*Fragment.WarningId.ToString(),
+						*GetNightConsequenceTypeDisplayName(Fragment.AssociatedNightType),
+						*ContractError);
 					++OutErrorCount;
 					return false;
 				}
@@ -544,6 +1026,30 @@ int32 UGloamsteadImportDataAssetsCommandlet::Main(const FString& Params)
 			}
 			GloamsteadDataImport::SaveDataAsset(Catalog, PackageName, ErrorCount);
 		}
+		else if (ClassName == TEXT("ExperienceCycleCatalog"))
+		{
+			UExperienceCycleCatalog* Catalog = Cast<UExperienceCycleCatalog>(
+				GloamsteadDataImport::LoadOrCreateAsset(PackageName, AssetName, UExperienceCycleCatalog::StaticClass()));
+			if (!GloamsteadDataImport::ImportExperienceCycleCatalog(Catalog, *PropertiesPtr, ErrorCount))
+			{
+				continue;
+			}
+			GloamsteadDataImport::SaveDataAsset(Catalog, PackageName, ErrorCount);
+		}
+		else if (ClassName == TEXT("StaticMeshCollisionPolicy"))
+		{
+			GloamsteadDataImport::ImportStaticMeshCollisionPolicy(*PropertiesPtr, ErrorCount);
+		}
+		else if (ClassName == TEXT("RitualSiteCatalog"))
+		{
+			UGloamsteadRitualSiteCatalog* Catalog = Cast<UGloamsteadRitualSiteCatalog>(
+				GloamsteadDataImport::LoadOrCreateAsset(PackageName, AssetName, UGloamsteadRitualSiteCatalog::StaticClass()));
+			if (!GloamsteadDataImport::ImportRitualSiteCatalog(Catalog, *PropertiesPtr, ErrorCount))
+			{
+				continue;
+			}
+			GloamsteadDataImport::SaveDataAsset(Catalog, PackageName, ErrorCount);
+		}
 		else if (ClassName == TEXT("RitualDefinition"))
 		{
 			URitualDefinition* Definition = Cast<URitualDefinition>(
@@ -613,7 +1119,7 @@ bool FGloamsteadImportGardenRotSparseSupportRejectedTest::RunTest(const FString&
 
 	UVeilHeartWarningCatalog* Catalog = NewObject<UVeilHeartWarningCatalog>();
 	int32 ErrorCount = 0;
-	AddExpectedErrorPlain(TEXT("GloamsteadImportDataAssets: GardenRot contract rejected"), EAutomationExpectedErrorFlags::Contains, 1);
+	AddExpectedErrorPlain(TEXT("GloamsteadImportDataAssets: warning GardenRot/Corruption rejected"), EAutomationExpectedErrorFlags::Contains, 1);
 	TestFalse(TEXT("import rejects a sparse GardenRot support array"),
 		GloamsteadDataImport::ImportWarningCatalog(Catalog, Properties, ErrorCount));
 	TestTrue(TEXT("import reports the rejected contract"), ErrorCount > 0);
@@ -658,7 +1164,7 @@ bool FGloamsteadImportGardenRotWrongMediumRejectedTest::RunTest(const FString& /
 
 	UVeilHeartWarningCatalog* Catalog = NewObject<UVeilHeartWarningCatalog>();
 	int32 ErrorCount = 0;
-	AddExpectedErrorPlain(TEXT("GloamsteadImportDataAssets: GardenRot contract rejected"), EAutomationExpectedErrorFlags::Contains, 1);
+	AddExpectedErrorPlain(TEXT("GloamsteadImportDataAssets: warning GardenRot/Corruption rejected"), EAutomationExpectedErrorFlags::Contains, 1);
 	TestFalse(TEXT("import rejects a wrong-medium GardenRot support"),
 		GloamsteadDataImport::ImportWarningCatalog(Catalog, Properties, ErrorCount));
 	TestTrue(TEXT("import reports the wrong-medium contract rejection"), ErrorCount > 0);

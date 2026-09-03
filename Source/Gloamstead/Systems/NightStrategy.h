@@ -100,6 +100,23 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night", meta = (ClampMin = "1"))
 	int32 SpreadStepPoints = 3;
+
+	/**
+	 * Corruption removed by one light ward. Deliberately larger than PressureStepDelta: a ward that
+	 * cannot out-pace a single beat of pressure is not a lever, and Corruption was the only threatened
+	 * night with no ward at all - leaving the once-per-point restoration as its sole answer.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night", meta = (ClampMin = "0", ClampMax = "1"))
+	float WardCorruptionDelta = 0.12f;
+
+	/** Tending the bloom is repeatable, but not free: each ward past the first gives a little less. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night", meta = (ClampMin = "0", ClampMax = "1"))
+	float WardFalloffPerUse = 0.02f;
+
+	virtual bool NotifyLightWard_Implementation(UGloamsteadPCGSubsystem* PCG) override;
+
+private:
+	int32 WardsUsed = 0;
 };
 
 /**
@@ -271,4 +288,167 @@ public:
 private:
 	bool bPossessionActive = false;
 	bool bPossessionDisrupted = false;
+};
+
+/**
+ * Mirror/Bargain night: the restored garden reflects a tempting shortcut.
+ * The player must read the evidence, choose to refuse the false path or accept
+ * the bargain, and then use light to hold an accepted truth. There is no wave:
+ * pressure is the mirror's growing corruption and the consequence of the choice.
+ */
+UCLASS(Blueprintable)
+class GLOAMSTEAD_API UNightMirrorStrategy : public UNightStrategy
+{
+	GENERATED_BODY()
+
+public:
+	virtual void EnterNight_Implementation(const FNightRuntimeContext& InContext, UGloamsteadPCGSubsystem* PCG) override;
+	virtual void ApplyPressureStep_Implementation(UGloamsteadPCGSubsystem* PCG) override;
+	virtual bool NotifyLightWard_Implementation(UGloamsteadPCGSubsystem* PCG) override;
+	virtual FNightRuntimeOutcome ResolveNight_Implementation(UGloamsteadPCGSubsystem* PCG) override;
+
+	/** Make the deliberate mirror choice. Returns false when no choice is pending. */
+	UFUNCTION(BlueprintCallable, Category = "Night|Mirror")
+	bool ChooseBargain(bool bAccept);
+
+	UFUNCTION(BlueprintPure, Category = "Night|Mirror")
+	bool IsChoicePending() const { return !bChoiceMade && !bNoTargetFallback; }
+
+	UFUNCTION(BlueprintPure, Category = "Night|Mirror")
+	bool HasChosenBargain() const { return bChoiceMade && bBargainAccepted; }
+
+	UFUNCTION(BlueprintPure, Category = "Night|Mirror")
+	bool IsBargainHeld() const { return bBargainHeld; }
+
+	/** Corruption added while the player leaves the reflection unanswered. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night|Mirror", meta = (ClampMin = "0", ClampMax = "1"))
+	float UnansweredPressureDelta = 0.06f;
+
+	/** Corruption added when the player accepts the bargain but has not held it with light. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night|Mirror", meta = (ClampMin = "0", ClampMax = "1"))
+	float BargainPressureDelta = 0.04f;
+
+	/** Corruption removed by the light ward that proves the accepted bargain is held. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night|Mirror", meta = (ClampMin = "0", ClampMax = "1"))
+	float BargainWardDelta = 0.18f;
+
+	/** Fail-forward scar when the player accepts but never brings light to the mirror. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night|Mirror", meta = (ClampMin = "0", ClampMax = "1"))
+	float BargainScarDelta = 0.12f;
+
+	/** True when the authored target is absent, so the mirror stays quiet rather than selecting a substitute. */
+	UPROPERTY(BlueprintReadOnly, Category = "Night|Mirror")
+	bool bNoTargetFallback = false;
+
+private:
+	bool bChoiceMade = false;
+	bool bBargainAccepted = false;
+	bool bBargainHeld = false;
+};
+
+
+/**
+ * Bargain night (Cycle V). The Bargainer stands at the edge of the light and offers a shortcut; the
+ * restored bell is how the player refuses it.
+ *
+ * This is the first night whose answer is an ACTIVE tool rather than preparation, which is why the
+ * warning's second clause is about restraint - "One answer frees; three answers invite company."
+ * Ringing once on the answering beat (the Insight reading) makes a single resonance pulse enough and
+ * relights what the night put out. Ringing three times (the Overreach) called something else, and
+ * the night now needs answering twice.
+ */
+UCLASS(Blueprintable)
+class GLOAMSTEAD_API UNightBargainStrategy : public UNightStrategy
+{
+	GENERATED_BODY()
+
+public:
+	virtual void EnterNight_Implementation(const FNightRuntimeContext& InContext, UGloamsteadPCGSubsystem* PCG) override;
+	virtual void ApplyPressureStep_Implementation(UGloamsteadPCGSubsystem* PCG) override;
+	virtual bool NotifyLightWard_Implementation(UGloamsteadPCGSubsystem* PCG) override;
+	virtual FNightRuntimeOutcome ResolveNight_Implementation(UGloamsteadPCGSubsystem* PCG) override;
+
+	/** How many resonance answers this night still needs. Zero means the bargain is broken. */
+	UFUNCTION(BlueprintPure, Category = "Night|Bargain")
+	int32 GetAnswersRemaining() const { return FMath::Max(0, RequiredAnswers - AnswersGiven); }
+
+	UFUNCTION(BlueprintPure, Category = "Night|Bargain")
+	int32 GetRequiredAnswers() const { return RequiredAnswers; }
+
+	/** Corruption added per step while the bargain stands unanswered. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night|Bargain", meta = (ClampMin = "0", ClampMax = "1"))
+	float BargainPressureDelta = 0.07f;
+
+	/** Corruption removed by one resonance answer. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night|Bargain", meta = (ClampMin = "0", ClampMax = "1"))
+	float ResonanceWardDelta = 0.16f;
+
+	/** Extra light the Insight reading's single clean answer restores across the sanctuary. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night|Bargain", meta = (ClampMin = "0", ClampMax = "1"))
+	float ResonanceRelightDelta = 0.10f;
+
+	/** Fail-forward scar when the bell is never answered. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night|Bargain", meta = (ClampMin = "0", ClampMax = "1"))
+	float UnansweredScarDelta = 0.14f;
+
+	/** True when the authored bell shrine is absent or unrestored, so the night stays quiet. */
+	UPROPERTY(BlueprintReadOnly, Category = "Night|Bargain")
+	bool bNoTargetFallback = false;
+
+private:
+	int32 RequiredAnswers = 1;
+	int32 AnswersGiven = 0;
+};
+
+/**
+ * Fracture into True Siege (Cycle VI). The whole sanctuary is the objective.
+ *
+ * Nothing new is introduced here on purpose. The night pulls at the seams between everything the
+ * player restored, and the only thing that decides how badly it goes is the shape they bound their
+ * three anchors into the day before: a closed ring links their light and holds the seams shut, an
+ * arc holds one flank, and a crown around the Heart collapses the outer sanctuary and funnels every
+ * threat inward.
+ */
+UCLASS(Blueprintable)
+class GLOAMSTEAD_API UNightSiegeStrategy : public UNightStrategy
+{
+	GENERATED_BODY()
+
+public:
+	virtual void EnterNight_Implementation(const FNightRuntimeContext& InContext, UGloamsteadPCGSubsystem* PCG) override;
+	virtual void ApplyPressureStep_Implementation(UGloamsteadPCGSubsystem* PCG) override;
+	virtual bool NotifyLightWard_Implementation(UGloamsteadPCGSubsystem* PCG) override;
+	virtual FNightRuntimeOutcome ResolveNight_Implementation(UGloamsteadPCGSubsystem* PCG) override;
+
+	/** How many seams the siege has opened that the player has not yet closed. */
+	UFUNCTION(BlueprintPure, Category = "Night|Siege")
+	int32 GetOpenSeamCount() const { return OpenSeams; }
+
+	/** Corruption added at the bound anchor per step. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night|Siege", meta = (ClampMin = "0", ClampMax = "1"))
+	float SeamPressureDelta = 0.09f;
+
+	/** Corruption spread across the wider sanctuary per step when the ring does not hold. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night|Siege", meta = (ClampMin = "0", ClampMax = "1"))
+	float SanctuarySpreadDelta = 0.05f;
+
+	/** How many points the spread touches per step. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night|Siege", meta = (ClampMin = "0"))
+	int32 SanctuarySpreadPoints = 4;
+
+	/** Corruption removed at the anchor by one light ward, closing one seam. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Night|Siege", meta = (ClampMin = "0", ClampMax = "1"))
+	float SeamWardDelta = 0.15f;
+
+	/** True when no bound anchor exists, so the siege stays quiet rather than punishing a guess. */
+	UPROPERTY(BlueprintReadOnly, Category = "Night|Siege")
+	bool bNoTargetFallback = false;
+
+private:
+	/** Set from the second reading: a closed ring links the outer lights and suppresses the seams. */
+	bool bRingHolds = false;
+	/** Set from the second reading: a crown around the Heart funnels everything inward. */
+	bool bCrownCollapsed = false;
+	int32 OpenSeams = 0;
+	int32 SeamsClosed = 0;
 };

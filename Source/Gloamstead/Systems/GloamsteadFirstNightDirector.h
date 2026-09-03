@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "TimerManager.h"
 #include "GameFramework/Actor.h"
 #include "Data/RitualTypes.h"
 #include "Data/NightConsequenceTypes.h"
@@ -129,6 +130,40 @@ public:
 	/** Dawn: the reflection tying the warning, the restoration, and the night's outcome together. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "First Night")
 	void OnHeartReflection(const FText& ReflectionText);
+
+private:
+	/**
+	 * Show one line of the Heart's own words when the Blueprint child does not.
+	 *
+	 * OnHeartWarning and OnHeartReflection are BlueprintImplementableEvents, which means an unimplemented
+	 * one is a SILENT no-op: C++ logs "captioning Heart warning", calls into nothing, and the player sees
+	 * no warning at all while every log and test looks healthy. That is exactly what shipped - the
+	 * director Blueprint implements neither event.
+	 *
+	 * If the Blueprint does implement the event, this stands aside and lets it own presentation.
+	 *
+	 * @param EventName          the BlueprintImplementableEvent this is standing in for
+	 * @param CaptionText        the Heart's words
+	 */
+	void PresentCaptionIfBlueprintDoesNot(FName EventName, const FText& CaptionText);
+
+	/** Take the tutorial caption down. Bound to a timer so it expires like a caption should. */
+	UFUNCTION()
+	void DismissFallbackCaption();
+
+	/** How long a first-night caption stays readable before it clears. */
+	static constexpr float CaptionSeconds = 9.f;
+
+	FTimerHandle CaptionExpiryTimer;
+
+	/** True when a Blueprint subclass actually overrides this event, rather than inheriting the stub. */
+	bool IsPresentationEventImplemented(FName EventName) const;
+
+	/** Lazily created project-owned caption widget, used only when the Blueprint presents nothing. */
+	UPROPERTY(Transient)
+	TObjectPtr<class UUserWidget> FallbackCaptionWidget;
+
+public:
 
 	/** The text OnHeartReflection is given; exposed so the wording is testable without a widget. */
 	UFUNCTION(BlueprintPure, Category = "First Night")

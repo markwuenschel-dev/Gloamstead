@@ -2,6 +2,7 @@
 
 #include "AssetRegistry/AssetData.h"
 #include "Data/ExperienceCycleTypes.h"
+#include "Data/NightConsequenceTypes.h"
 #include "Data/VeilHeartWarningTypes.h"
 #include "Misc/DataValidation.h"
 
@@ -11,15 +12,25 @@
 
 namespace
 {
-	bool GetCanonicalGardenPlan(
-		FExperienceCyclePlan& OutPlan,
-		ENightConsequenceType DesiredNightType = ENightConsequenceType::Corruption)
+	/**
+	 * Finds the canonical authored plan a warning row claims to answer.
+	 *
+	 * This used to look only for GardenRot, which meant every warning authored after Cycle II was
+	 * validated by nothing at all: the identity was the gate, so a new night's row could ship with
+	 * sparse evidence, a wrong medium, or a half-authored reading set and the editor would pass it.
+	 * Matching on (WarningId, NightType) makes the check cover whatever the catalog currently
+	 * authors, including cycles that do not exist yet.
+	 */
+	bool FindCanonicalPlanForWarning(
+		FName WarningId,
+		ENightConsequenceType NightType,
+		FExperienceCyclePlan& OutPlan)
 	{
 		UExperienceCycleCatalog* CanonicalCatalog = NewObject<UExperienceCycleCatalog>(GetTransientPackage());
 		PopulateDefaultExperienceCyclePlans(*CanonicalCatalog);
 		for (const FExperienceCyclePlan& Plan : CanonicalCatalog->AuthoredPlans)
 		{
-			if (Plan.WarningId == FName(TEXT("GardenRot")) && Plan.NightType == DesiredNightType)
+			if (Plan.IsAuthoredPlan() && Plan.WarningId == WarningId && Plan.NightType == NightType)
 			{
 				OutPlan = Plan;
 				return true;
@@ -28,6 +39,12 @@ namespace
 		return false;
 	}
 
+	/** The one exemption: the opening tutorial predates the fair-crypticism evidence contract. */
+	bool IsTutorialExemptPlan(const FExperienceCyclePlan& Plan)
+	{
+		return Plan.NightType == ENightConsequenceType::Tutorial
+			&& Plan.WarningId == FName(TEXT("TutorialLostPath"));
+	}
 }
 
 bool UVeilHeartWarningCatalogValidator::CanValidateAsset_Implementation(
@@ -57,8 +74,7 @@ EDataValidationResult UVeilHeartWarningCatalogValidator::ValidateLoadedAsset_Imp
 	};
 
 	TSet<FString> SeenWarningKeys;
-	bool bFoundCorruptionGarden = false;
-	bool bFoundRetrievalGarden = false;
+	TSet<FName> AnsweredPlanIds;
 	for (const FVeilHeartWarningFragment& Warning : Catalog->Warnings)
 	{
 		if (Warning.WarningId == NAME_None)
@@ -76,34 +92,50 @@ EDataValidationResult UVeilHeartWarningCatalogValidator::ValidateLoadedAsset_Imp
 		}
 		SeenWarningKeys.Add(WarningKey);
 
-		if (Warning.WarningId == FName(TEXT("GardenRot")))
+		// A row that answers no authored plan is allowed: the catalog may hold flavour warnings for
+		// night types the experience does not currently author. A row that DOES claim an authored
+		// plan is held to that plan's full contract.
+		FExperienceCyclePlan AnsweredPlan;
+		if (!FindCanonicalPlanForWarning(Warning.WarningId, Warning.AssociatedNightType, AnsweredPlan))
 		{
-			FExperienceCyclePlan GardenPlan;
-			if (!GetCanonicalGardenPlan(GardenPlan, Warning.AssociatedNightType))
-			{
-				Fail(FString::Printf(TEXT("Canonical GardenRot plan is unavailable for night type %d."),
-					static_cast<int32>(Warning.AssociatedNightType)));
-				continue;
-			}
-			FString ContractError;
-			if (!Warning.MatchesExactPlanContract(GardenPlan, &ContractError))
-			{
-				Fail(FString::Printf(TEXT("GardenRot warning contract is invalid: %s."), *ContractError));
-			}
-			if (Warning.AssociatedNightType == ENightConsequenceType::Corruption)
-			{
-				bFoundCorruptionGarden = true;
-			}
-			else if (Warning.AssociatedNightType == ENightConsequenceType::Retrieval)
-			{
-				bFoundRetrievalGarden = true;
-			}
+			continue;
+		}
+
+		AnsweredPlanIds.Add(AnsweredPlan.PlanId);
+
+		if (IsTutorialExemptPlan(AnsweredPlan))
+		{
+			continue;
+		}
+
+		FString ContractError;
+		if (!Warning.MatchesExactPlanContract(AnsweredPlan, &ContractError))
+		{
+			Fail(FString::Printf(TEXT("Warning '%s' for %s does not satisfy plan %s: %s."),
+				*Warning.WarningId.ToString(),
+				*GetNightConsequenceTypeDisplayName(Warning.AssociatedNightType),
+				*AnsweredPlan.PlanId.ToString(),
+				*ContractError));
 		}
 	}
 
-	if (!bFoundCorruptionGarden || !bFoundRetrievalGarden)
+	// Coverage, in the plan -> warning direction. A plan with no row can never present its warning,
+	// which means rest is refused and that night can never begin - so it is a catalog defect even
+	// though nothing in the catalog itself looks wrong.
 	{
-		Fail(TEXT("Veil Heart warning catalog must contain canonical Corruption and Retrieval GardenRot warnings."));
+		UExperienceCycleCatalog* CanonicalCatalog = NewObject<UExperienceCycleCatalog>(GetTransientPackage());
+		PopulateDefaultExperienceCyclePlans(*CanonicalCatalog);
+		for (const FExperienceCyclePlan& Plan : CanonicalCatalog->AuthoredPlans)
+		{
+			if (Plan.IsAuthoredPlan() && !AnsweredPlanIds.Contains(Plan.PlanId))
+			{
+				Fail(FString::Printf(
+					TEXT("Veil Heart warning catalog has no row for plan %s (%s / %s), so that night can never begin."),
+					*Plan.PlanId.ToString(),
+					*Plan.WarningId.ToString(),
+					*GetNightConsequenceTypeDisplayName(Plan.NightType)));
+			}
+		}
 	}
 
 	if (bInvalid)
@@ -117,83 +149,159 @@ EDataValidationResult UVeilHeartWarningCatalogValidator::ValidateLoadedAsset_Imp
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+namespace
+{
+	/**
+	 * Builds a catalog that satisfies every authored plan, so a test can break exactly one thing.
+	 *
+	 * The old fixtures built a single GardenRot row and asserted "invalid" - which stayed green after
+	 * the validator gained plan coverage, because a one-row catalog is now invalid for a completely
+	 * different reason than the one the test names. Starting from a valid catalog is what keeps these
+	 * tests about the defect they claim to be about.
+	 */
+	UVeilHeartWarningCatalog* BuildFullyValidCatalog(TArray<FExperienceCyclePlan>& OutPlans)
+	{
+		UExperienceCycleCatalog* CanonicalCatalog = NewObject<UExperienceCycleCatalog>(GetTransientPackage());
+		PopulateDefaultExperienceCyclePlans(*CanonicalCatalog);
+		OutPlans = CanonicalCatalog->AuthoredPlans;
+
+		UVeilHeartWarningCatalog* Catalog = NewObject<UVeilHeartWarningCatalog>();
+		for (const FExperienceCyclePlan& Plan : OutPlans)
+		{
+			FVeilHeartWarningFragment Warning;
+			Warning.WarningId = Plan.WarningId;
+			Warning.Fragment = FText::FromString(TEXT("A short sensory fragment."));
+			Warning.AssociatedNightType = Plan.NightType;
+			Warning.SatisfiableTags = Plan.RequiredRestorationTags;
+			Warning.SemanticSubject = Plan.SemanticSubject;
+			Warning.RequiredRitualType = Plan.RequiredRitualType;
+			Warning.InterpretationReceiptId = Plan.InterpretationReceiptId;
+			for (int32 Index = 0; Index < Plan.RequiredSupportIds.Num(); ++Index)
+			{
+				FVeilHeartWarningSupportChannel& Channel = Warning.SupportChannels.AddDefaulted_GetRef();
+				Channel.SupportId = Plan.RequiredSupportIds[Index];
+				Channel.EvidenceText = FText::FromString(TEXT("Readable evidence."));
+				Channel.ChannelType = Plan.RequiredSupportChannelTypes[Index];
+			}
+			Catalog->Warnings.Add(MoveTemp(Warning));
+		}
+		return Catalog;
+	}
+
+	/** Index of the first row carrying real support channels, i.e. the first non-tutorial row. */
+	int32 FindFirstEvidenceBackedRow(const UVeilHeartWarningCatalog& Catalog)
+	{
+		for (int32 Index = 0; Index < Catalog.Warnings.Num(); ++Index)
+		{
+			if (Catalog.Warnings[Index].SupportChannels.Num() >= 3)
+			{
+				return Index;
+			}
+		}
+		return INDEX_NONE;
+	}
+
+	EDataValidationResult RunValidator(UVeilHeartWarningCatalog* Catalog, int32& OutErrorCount)
+	{
+		UVeilHeartWarningCatalogValidator* Validator = NewObject<UVeilHeartWarningCatalogValidator>();
+		FDataValidationContext Context;
+		const EDataValidationResult Result = Validator->ValidateLoadedAsset(FAssetData(Catalog), Catalog, Context);
+		OutErrorCount = Context.GetNumErrors();
+		return Result;
+	}
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FGloamsteadGardenRotValidatorRejectsDuplicateSupportTest,
-	"Gloamstead.Editor.Validation.GardenRotRejectsDuplicateSupportFixture",
+	FGloamsteadWarningValidatorAcceptsCompleteCatalogTest,
+	"Gloamstead.Editor.Validation.AcceptsACatalogCoveringEveryAuthoredPlan",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FGloamsteadGardenRotValidatorRejectsDuplicateSupportTest::RunTest(const FString& /*Parameters*/)
+bool FGloamsteadWarningValidatorAcceptsCompleteCatalogTest::RunTest(const FString& /*Parameters*/)
 {
-	FExperienceCyclePlan GardenPlan;
-	if (!TestTrue(TEXT("canonical GardenRot plan is available to the validator"), GetCanonicalGardenPlan(GardenPlan)))
-	{
-		return false;
-	}
+	TArray<FExperienceCyclePlan> Plans;
+	UVeilHeartWarningCatalog* Catalog = BuildFullyValidCatalog(Plans);
 
-	UVeilHeartWarningCatalog* Catalog = NewObject<UVeilHeartWarningCatalog>();
-	FVeilHeartWarningFragment GardenWarning;
-	GardenWarning.WarningId = GardenPlan.WarningId;
-	GardenWarning.Fragment = FText::FromString(TEXT("What grows in darkness must be tended before the bell tolls."));
-	GardenWarning.AssociatedNightType = GardenPlan.NightType;
-	GardenWarning.SatisfiableTags = GardenPlan.RequiredRestorationTags;
-	GardenWarning.SemanticSubject = GardenPlan.SemanticSubject;
-	GardenWarning.RequiredRitualType = GardenPlan.RequiredRitualType;
-	GardenWarning.InterpretationReceiptId = GardenPlan.InterpretationReceiptId;
-	for (int32 Index = 0; Index < GardenPlan.RequiredSupportIds.Num(); ++Index)
-	{
-		FVeilHeartWarningSupportChannel& Channel = GardenWarning.SupportChannels.AddDefaulted_GetRef();
-		Channel.SupportId = GardenPlan.RequiredSupportIds[Index];
-		Channel.EvidenceText = FText::FromString(TEXT("Readable evidence."));
-		Channel.ChannelType = GardenPlan.RequiredSupportChannelTypes[Index];
-	}
-	GardenWarning.SupportChannels[1].SupportId = GardenWarning.SupportChannels[0].SupportId;
-	Catalog->Warnings.Add(GardenWarning);
-
-	UVeilHeartWarningCatalogValidator* Validator = NewObject<UVeilHeartWarningCatalogValidator>();
-	FDataValidationContext Context;
-	const EDataValidationResult Result = Validator->ValidateLoadedAsset(FAssetData(Catalog), Catalog, Context);
-	TestEqual(TEXT("editor validator rejects duplicate GardenRot supports"), Result, EDataValidationResult::Invalid);
-	TestTrue(TEXT("editor validator reports the contract failure"), Context.GetNumErrors() > 0);
+	int32 ErrorCount = 0;
+	const EDataValidationResult Result = RunValidator(Catalog, ErrorCount);
+	TestEqual(TEXT("a catalog covering every authored plan validates"), Result, EDataValidationResult::Valid);
+	TestEqual(TEXT("a complete catalog reports no defects"), ErrorCount, 0);
 	return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FGloamsteadGardenRotValidatorRejectsWrongMediumTest,
-	"Gloamstead.Editor.Validation.GardenRotRejectsWrongMediumFixture",
+	FGloamsteadWarningValidatorRejectsMissingPlanRowTest,
+	"Gloamstead.Editor.Validation.RejectsACatalogMissingAnAuthoredPlanRow",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FGloamsteadGardenRotValidatorRejectsWrongMediumTest::RunTest(const FString& /*Parameters*/)
+bool FGloamsteadWarningValidatorRejectsMissingPlanRowTest::RunTest(const FString& /*Parameters*/)
 {
-	FExperienceCyclePlan GardenPlan;
-	if (!TestTrue(TEXT("canonical GardenRot plan is available to the validator"), GetCanonicalGardenPlan(GardenPlan)))
+	TArray<FExperienceCyclePlan> Plans;
+	UVeilHeartWarningCatalog* Catalog = BuildFullyValidCatalog(Plans);
+	if (!TestTrue(TEXT("the authored catalog has rows to remove"), Catalog->Warnings.Num() > 1))
 	{
 		return false;
 	}
 
-	UVeilHeartWarningCatalog* Catalog = NewObject<UVeilHeartWarningCatalog>();
-	FVeilHeartWarningFragment GardenWarning;
-	GardenWarning.WarningId = GardenPlan.WarningId;
-	GardenWarning.Fragment = FText::FromString(TEXT("What grows in darkness must be tended before the bell tolls."));
-	GardenWarning.AssociatedNightType = GardenPlan.NightType;
-	GardenWarning.SatisfiableTags = GardenPlan.RequiredRestorationTags;
-	GardenWarning.SemanticSubject = GardenPlan.SemanticSubject;
-	GardenWarning.RequiredRitualType = GardenPlan.RequiredRitualType;
-	GardenWarning.InterpretationReceiptId = GardenPlan.InterpretationReceiptId;
-	for (int32 Index = 0; Index < GardenPlan.RequiredSupportIds.Num(); ++Index)
-	{
-		FVeilHeartWarningSupportChannel& Channel = GardenWarning.SupportChannels.AddDefaulted_GetRef();
-		Channel.SupportId = GardenPlan.RequiredSupportIds[Index];
-		Channel.EvidenceText = FText::FromString(TEXT("Readable evidence."));
-		Channel.ChannelType = GardenPlan.RequiredSupportChannelTypes[Index];
-	}
-	GardenWarning.SupportChannels[2].ChannelType = TEXT("Environmental");
-	Catalog->Warnings.Add(GardenWarning);
+	// A plan with no warning row can never present, which means rest is refused and that night can
+	// never begin. Nothing in the catalog looks wrong; only coverage catches it.
+	Catalog->Warnings.RemoveAt(Catalog->Warnings.Num() - 1);
 
-	UVeilHeartWarningCatalogValidator* Validator = NewObject<UVeilHeartWarningCatalogValidator>();
-	FDataValidationContext Context;
-	const EDataValidationResult Result = Validator->ValidateLoadedAsset(FAssetData(Catalog), Catalog, Context);
-	TestEqual(TEXT("editor validator rejects a wrong-medium GardenRot support"), Result, EDataValidationResult::Invalid);
-	TestTrue(TEXT("editor validator reports the wrong-medium contract failure"), Context.GetNumErrors() > 0);
+	int32 ErrorCount = 0;
+	const EDataValidationResult Result = RunValidator(Catalog, ErrorCount);
+	TestEqual(TEXT("a catalog missing an authored plan row is rejected"), Result, EDataValidationResult::Invalid);
+	TestTrue(TEXT("the validator names the uncovered plan"), ErrorCount > 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamsteadWarningValidatorRejectsDuplicateSupportTest,
+	"Gloamstead.Editor.Validation.RejectsDuplicateSupportChannels",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamsteadWarningValidatorRejectsDuplicateSupportTest::RunTest(const FString& /*Parameters*/)
+{
+	TArray<FExperienceCyclePlan> Plans;
+	UVeilHeartWarningCatalog* Catalog = BuildFullyValidCatalog(Plans);
+	const int32 RowIndex = FindFirstEvidenceBackedRow(*Catalog);
+	if (!TestTrue(TEXT("the catalog has an evidence-backed row to corrupt"), RowIndex != INDEX_NONE))
+	{
+		return false;
+	}
+
+	Catalog->Warnings[RowIndex].SupportChannels[1].SupportId =
+		Catalog->Warnings[RowIndex].SupportChannels[0].SupportId;
+
+	int32 ErrorCount = 0;
+	const EDataValidationResult Result = RunValidator(Catalog, ErrorCount);
+	TestEqual(TEXT("editor validator rejects duplicate supports"), Result, EDataValidationResult::Invalid);
+	TestTrue(TEXT("editor validator reports the contract failure"), ErrorCount > 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGloamsteadWarningValidatorRejectsWrongMediumTest,
+	"Gloamstead.Editor.Validation.RejectsAWrongMediumSupportChannel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGloamsteadWarningValidatorRejectsWrongMediumTest::RunTest(const FString& /*Parameters*/)
+{
+	TArray<FExperienceCyclePlan> Plans;
+	UVeilHeartWarningCatalog* Catalog = BuildFullyValidCatalog(Plans);
+	const int32 RowIndex = FindFirstEvidenceBackedRow(*Catalog);
+	if (!TestTrue(TEXT("the catalog has an evidence-backed row to corrupt"), RowIndex != INDEX_NONE))
+	{
+		return false;
+	}
+
+	// Index 2 is authored as Audio for every evidence-backed plan; retyping it as Environmental
+	// leaves three channels but only two distinct media, which is the failure fair crypticism cares
+	// about - a clue the player cannot find a second, different way.
+	Catalog->Warnings[RowIndex].SupportChannels[2].ChannelType = TEXT("Environmental");
+
+	int32 ErrorCount = 0;
+	const EDataValidationResult Result = RunValidator(Catalog, ErrorCount);
+	TestEqual(TEXT("editor validator rejects a wrong-medium support"), Result, EDataValidationResult::Invalid);
+	TestTrue(TEXT("editor validator reports the wrong-medium contract failure"), ErrorCount > 0);
 	return true;
 }
 
