@@ -961,6 +961,11 @@ bool FGloamPlayableCycleResumeQuiescenceWorldTest::RunTest(const FString& /*Para
 	{
 		DayNight->SetDawnAutosaveEnabled(false);
 		DayNight->NightDurationSeconds = 60.0f;
+		// No floor here on purpose. These tests pin the *synchronous* early-dawn contract - that an
+		// answered night reaches Dawn on the same call rather than a frame or a timer later - and
+		// NightMinimumFraction exists to defer exactly that. Leaving it at its shipping default would
+		// make this suite assert the pacing rule instead of the ordering rule it was written for.
+		DayNight->NightMinimumFraction = 0.f;
 		Runtime->PressureStepSeconds = 0.05f;
 		UExperienceCycleCatalog* CycleCatalog = NewObject<UExperienceCycleCatalog>(GameInstance);
 		PopulateDefaultExperienceCyclePlans(*CycleCatalog);
@@ -1226,6 +1231,11 @@ bool FGloamPlayableCycleSynchronousEarlyDawnPresentationTest::RunTest(const FStr
 		DayNight->SetDawnAutosaveEnabled(false);
 		DayNight->DuskToNightDelaySeconds = 60.0f;
 		DayNight->NightDurationSeconds = 60.0f;
+		// No floor here on purpose. These tests pin the *synchronous* early-dawn contract - that an
+		// answered night reaches Dawn on the same call rather than a frame or a timer later - and
+		// NightMinimumFraction exists to defer exactly that. Leaving it at its shipping default would
+		// make this suite assert the pacing rule instead of the ordering rule it was written for.
+		DayNight->NightMinimumFraction = 0.f;
 		Runtime->PressureStepSeconds = 0.05f;
 
 		TArray<FRitualPointState> States;

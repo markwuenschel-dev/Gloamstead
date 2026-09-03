@@ -107,6 +107,28 @@ public:
     /** Fills only contract metadata from the PCG point, never caller-provided literals. */
     bool PopulateAuthoritativeRestorationMetadata(int32 PointIndex, FRestorationEventPayload& InOutPayload) const;
 
+    /**
+     * World location of a ritual point.
+     *
+     * The subsystem could answer "which point" (FindNearestUnrestoredPointMatchingExperiencePlan)
+     * but not "where is it", so nothing outside this class could act on the answer - which is why
+     * the automated playtest harness could never reach a ritual point to restore one, and why every
+     * night in an unattended run resolved with no target. Read-only: it grants no restoration or
+     * interpretation authority, exactly like the finders above.
+     */
+    UFUNCTION(BlueprintPure, Category="PCG|Ritual")
+    FVector GetRitualPointLocation(int32 PointIndex) const;
+
+    /**
+     * The ritual form a point carries.
+     *
+     * GetRitualTypeFromPoint is private and takes an FPCGPoint, so no caller outside this class
+     * could ask what form a point index is - which is why "why did the tutorial not find its
+     * lantern" was three runs of guesswork with no way to look.
+     */
+    UFUNCTION(BlueprintPure, Category="PCG|Ritual")
+    ERitualType GetRitualTypeAt(int32 PointIndex) const;
+
     UFUNCTION(BlueprintPure, Category="PCG|Ritual")
     float GetCorruptionLevel(int32 PointIndex) const;
 

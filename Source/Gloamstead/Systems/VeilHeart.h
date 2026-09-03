@@ -133,6 +133,20 @@ public:
 	FName GetLastEmittedWarningId() const { return LastEmittedWarningId; }
 
 	/**
+	 * The clue set for the standing warning: every authored channel, marked found or not.
+	 *
+	 * Read-only, and deliberately reports the clues that EXIST as well as the ones the player has
+	 * encountered. Hiding the count would not make the game more cryptic, only less fair: the
+	 * minimum distinct count is a hard gate on the cycle, and a player who cannot see it is being
+	 * asked to satisfy a condition the game never states. What stays hidden is what an unfound clue
+	 * SAYS - EvidenceText is left empty until it is actually encountered.
+	 *
+	 * Returns false when no authored warning is currently presented, in which case there is nothing
+	 * to interpret and the journal should say so rather than draw an empty list.
+	 */
+	bool GetStandingEvidence(TArray<FVeilHeartEvidenceLine>& OutLines, int32& OutRequiredDistinct) const;
+
+	/**
 	 * Registers the one player-facing warning presenter after it has bound its
 	 * exact dynamic-delegate handler. Blueprint events and incidental observers
 	 * do not satisfy this presentation authority.

@@ -435,6 +435,55 @@ bool AVeilHeart::RecordSupportEncounterFromEvidenceSource(const AGloamsteadEvide
 	return RecordSupportEncounterInternal(Source->GetWarningId(), Source->GetSupportId(), Source->GetChannelType());
 }
 
+bool AVeilHeart::GetStandingEvidence(TArray<FVeilHeartEvidenceLine>& OutLines, int32& OutRequiredDistinct) const
+{
+	OutLines.Reset();
+	OutRequiredDistinct = 0;
+
+	const FExperienceCyclePlan* ActivePlan = ResolveActivePlan();
+	if (!ActivePlan || !ActivePlan->IsAuthoredPlan())
+	{
+		return false;
+	}
+
+	// The presented warning, not merely a warning that matches the plan's id: the journal must
+	// describe what the Heart has actually said out loud this cycle. Before it speaks there is
+	// nothing to interpret, and listing the clues then would hand the player the shape of a
+	// question they have not been asked.
+	if (!IsExactWarningPresentedForPlan(*ActivePlan))
+	{
+		return false;
+	}
+
+	const FVeilHeartWarningFragment* ExactWarning =
+		FindExactWarningById(ActivePlan->WarningId, ActivePlan->NightType);
+	if (!ExactWarning)
+	{
+		return false;
+	}
+
+	OutRequiredDistinct = ActivePlan->MinimumDistinctSupportCount;
+	OutLines.Reserve(ExactWarning->SupportChannels.Num());
+
+	for (const FVeilHeartWarningSupportChannel& Channel : ExactWarning->SupportChannels)
+	{
+		FVeilHeartEvidenceLine Line;
+		Line.SupportId = Channel.SupportId;
+		Line.ChannelType = Channel.ChannelType;
+		Line.bFound = EncounteredSupportIds.Contains(Channel.SupportId);
+		// What a clue SAYS is earned by finding it. The channel type is not withheld - knowing that
+		// one of the three clues is something you hear rather than something you see is the kind of
+		// direction the design calls fair, and it is useless to a player who has not gone looking.
+		if (Line.bFound)
+		{
+			Line.EvidenceText = Channel.EvidenceText;
+		}
+		OutLines.Add(MoveTemp(Line));
+	}
+
+	return true;
+}
+
 bool AVeilHeart::RecordSupportEncounterInternal(FName WarningId, FName SupportId, FName ChannelType)
 {
 	if (!EnsureWarningCatalog())

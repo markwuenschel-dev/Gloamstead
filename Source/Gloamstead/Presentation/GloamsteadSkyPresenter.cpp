@@ -98,6 +98,42 @@ void AGloamsteadSkyPresenter::CacheTargets()
 			Grade = *It;
 		}
 	}
+
+	ReportBoundTargets();
+}
+
+void AGloamsteadSkyPresenter::ReportBoundTargets()
+{
+	const uint8 Mask =
+		  (Sun   ? 1 : 0)
+		| (Sky   ? 2 : 0)
+		| (Fog   ? 4 : 0)
+		| (Grade ? 8 : 0);
+
+	if (Mask == ReportedTargetMask)
+	{
+		return;
+	}
+	ReportedTargetMask = Mask;
+
+	// Named individually rather than as a count: "3 of 4" does not tell anyone WHICH blend is
+	// running into nothing, and the four failures look completely different on screen.
+	const bool bAll = (Mask == 0x0F);
+	UE_LOG(LogTemp, Log, TEXT("GloamsteadSkyPresenter: sun=%s sky=%s fog=%s grade=%s."),
+		Sun   ? TEXT("bound") : TEXT("MISSING"),
+		Sky   ? TEXT("bound") : TEXT("MISSING"),
+		Fog   ? TEXT("bound") : TEXT("MISSING"),
+		Grade ? TEXT("bound") : TEXT("MISSING"));
+
+	if (!bAll)
+	{
+		// Warning rather than Log for the incomplete case: every missing target is a phase blend
+		// that silently does nothing, which is exactly the class of defect this project keeps
+		// shipping past a green suite.
+		UE_LOG(LogTemp, Warning,
+			TEXT("GloamsteadSkyPresenter: the day/night blend is incomplete - place the missing actor(s) in the level. "
+				 "A PostProcessVolume must have bUnbound set, or it grades nowhere and the exposure curve is swallowed."));
+	}
 }
 
 const FGloamSkyPreset& AGloamsteadSkyPresenter::PresetFor(EGloamsteadDayPhase Phase) const
@@ -159,8 +195,36 @@ void AGloamsteadSkyPresenter::HandlePhaseChanged(EGloamsteadDayPhase /*OldPhase*
 	ToPreset = PresetFor(NewPhase);
 	BlendAlpha = 0.f;
 
+	// A caption is a momentary thing and was treated as a permanent one: the widget is added with
+	// AddToPlayerScreen and nothing ever cleared it, so the Heart's warning for the cycle stayed
+	// pinned to the bottom of the screen for the rest of the game. By the ending, Cycle VI's
+	// sentence was still there, drawn through the reckoning panel. Clearing on every phase change
+	// is the smallest rule that matches what a caption is for.
+	ClearFallbackCaption();
+
+	// BP_FirstNightDirector captions with Print String nodes, which render as engine on-screen
+	// messages rather than through any widget - so removing the caption widget above cannot touch
+	// them, and they outlive their moment the same way. By the ending, Cycle I's "find the ruined
+	// lantern" and its dawn line were still stacked over the reckoning panel.
+	//
+	// This clears what is already on screen at each phase change; it does not disable the feature,
+	// so a later Print String still shows, and every one of these lines is in the log regardless.
+	if (GEngine && GetWorld() && GetWorld()->IsGameWorld())
+	{
+		GEngine->ClearOnScreenDebugMessages();
+	}
+
 	UE_LOG(LogTemp, Log, TEXT("GloamSky: phase -> %d, blending over %.1fs"),
 		static_cast<int32>(NewPhase), BlendSeconds);
+}
+
+void AGloamsteadSkyPresenter::ClearFallbackCaption()
+{
+	if (FallbackCaptionWidget)
+	{
+		FallbackCaptionWidget->RemoveFromParent();
+		FallbackCaptionWidget = nullptr;
+	}
 }
 
 void AGloamsteadSkyPresenter::TryBindPostTutorialWarningPresenter()

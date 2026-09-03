@@ -10,6 +10,7 @@ class AActor;
 class AVeilHeart;
 class UGloamsteadPCGSubsystem;
 class UGloamsteadSanctuarySynth;
+class UAudioComponent;
 
 /** One phase's worth of the sanctuary's voice. Presentation only; nothing here reads back. */
 struct FGloamPhaseVoicing
@@ -55,8 +56,22 @@ public:
 	/** Test seam: the synth this subsystem is driving, or null when audio is off. */
 	UGloamsteadSanctuarySynth* Test_GetSynth() const { return Synth; }
 
+	/**
+	 * The forged looping bed for a phase, or null.
+	 *
+	 * Public because it is the only place the phase->asset mapping exists, and a test that cannot
+	 * read it can only assert that SOME audio loads, not that every phase has its own.
+	 */
+	static const TCHAR* BedPathFor(EGloamsteadDayPhase Phase);
+
 private:
 	void ApplyPhase(EGloamsteadDayPhase Phase);
+
+	/** Start (or swap to) the phase's bed. The synth keeps its own voice on top. */
+	void ApplyPhaseBed(EGloamsteadDayPhase Phase);
+
+	/** Fire a forged one-shot for a loop event. */
+	void PlayOneShot(const TCHAR* Path, float Volume);
 	void HandleCorruptionChanged();
 
 	UPROPERTY(Transient)
@@ -64,6 +79,10 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UGloamsteadSanctuarySynth> Synth;
+
+	/** The looping ambience for the current phase. Null until the first phase is applied. */
+	UPROPERTY(Transient)
+	TObjectPtr<class UAudioComponent> BedComponent;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UGloamsteadDayNightSubsystem> CachedDayNight;

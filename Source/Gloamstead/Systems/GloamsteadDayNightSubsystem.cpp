@@ -136,6 +136,10 @@ void UGloamsteadDayNightSubsystem::ClearNightToDawnCadence()
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(NightToDawnCadenceTimer);
+		// The deferred early dawn belongs to the same night as the ceiling it was measured against.
+		// Leaving it armed across a phase change would bring a dawn to the night after the one that
+		// was actually answered.
+		World->GetTimerManager().ClearTimer(EarlyDawnHoldTimer);
 	}
 }
 
@@ -176,6 +180,64 @@ void UGloamsteadDayNightSubsystem::ScheduleDuskToNightCadence()
 	}
 }
 
+FString GetGloamsteadDayPhaseDisplayName(EGloamsteadDayPhase Phase)
+{
+	switch (Phase)
+	{
+	case EGloamsteadDayPhase::Day:   return TEXT("Day");
+	case EGloamsteadDayPhase::Dusk:  return TEXT("Dusk");
+	case EGloamsteadDayPhase::Night: return TEXT("Night");
+	case EGloamsteadDayPhase::Dawn:  return TEXT("Dawn");
+	default:                         return TEXT("Unknown");
+	}
+}
+
+float UGloamsteadDayNightSubsystem::NightDurationScaleForType(ENightConsequenceType Type)
+{
+	switch (Type)
+	{
+	// No threat is spawned for these at all (BuildNightThreatRoster returns an empty roster for
+	// Tutorial, Corruption and Omen). Their pressure is corruption spreading and the Heart being
+	// read, and neither needs a threat lifecycle to play out - so they run short, and were pulled
+	// down further when the base rose to 300: a proportionate share of a half-hour budget would have
+	// given the tutorial three minutes of empty night.
+	case ENightConsequenceType::Tutorial:          return 0.30f;
+	case ENightConsequenceType::Corruption:        return 0.50f;
+	case ENightConsequenceType::Omen:              return 0.50f;
+
+	// One threat. This is the case the 100 s base was derived for: three or four lifecycles of
+	// ~25-30 s, enough to misread the night, lose ground, and recover.
+	case ENightConsequenceType::Retrieval:         return 1.00f;
+
+	// One threat that must also be exposed before it can be answered, so the same lifecycle count
+	// costs the player more decisions.
+	case ENightConsequenceType::SilencePossession: return 1.20f;
+	case ENightConsequenceType::Mirror:            return 1.20f;
+	case ENightConsequenceType::Bargain:           return 1.30f;
+
+	// The climax fields three threats at once. They act in parallel rather than in sequence, so
+	// this is not three times the length - but answering three does cost more than answering one,
+	// and a siege that ends on the same clock as a single Gatherer does not read as a siege.
+	case ENightConsequenceType::Fracture:          return 1.70f;
+	case ENightConsequenceType::TrueSiege:         return 1.90f;
+
+	// An unauthored or invalid night falls back to the base rather than to zero: a night with no
+	// ceiling never ends, and that is a worse failure than one of the wrong length.
+	default:                                       return 1.00f;
+	}
+}
+
+float UGloamsteadDayNightSubsystem::GetCurrentNightDurationSeconds() const
+{
+	ENightConsequenceType Type = ENightConsequenceType::Invalid;
+	if (const FExperienceCyclePlan* Plan = GetUpcomingPlan())
+	{
+		Type = Plan->NightType;
+	}
+
+	return FMath::Max(NightDurationSeconds * NightDurationScaleForType(Type), KINDA_SMALL_NUMBER);
+}
+
 void UGloamsteadDayNightSubsystem::ScheduleNightToDawnCadence()
 {
 	ClearNightToDawnCadence();
@@ -192,7 +254,12 @@ void UGloamsteadDayNightSubsystem::ScheduleNightToDawnCadence()
 
 	if (UWorld* World = GetWorld())
 	{
-		const float Delay = FMath::Max(NightDurationSeconds, KINDA_SMALL_NUMBER);
+		// Stamped here rather than in the phase handler: this runs exactly when Night becomes
+		// authoritative and its ceiling is armed, so the floor and the ceiling measure from the
+		// same instant and cannot drift apart.
+		NightBeganWorldTime = World->GetTimeSeconds();
+
+		const float Delay = GetCurrentNightDurationSeconds();
 		World->GetTimerManager().SetTimer(
 			NightToDawnCadenceTimer,
 			this,
@@ -212,8 +279,42 @@ void UGloamsteadDayNightSubsystem::AdvanceFromDuskCadence()
 	}
 }
 
+float UGloamsteadDayNightSubsystem::GetEarlyDawnHoldSeconds() const
+{
+	const UWorld* World = GetWorld();
+	if (!World || CurrentPhase != EGloamsteadDayPhase::Night)
+	{
+		return 0.f;
+	}
+
+	const float Floor = GetCurrentNightDurationSeconds() * FMath::Clamp(NightMinimumFraction, 0.f, 1.f);
+	const float Elapsed = World->GetTimeSeconds() - NightBeganWorldTime;
+	return FMath::Max(0.f, Floor - Elapsed);
+}
+
 void UGloamsteadDayNightSubsystem::HandleNightShouldEnd()
 {
+	// Answering the night still ends it early - but not before it has been a night. Without this
+	// floor the last three cycles resolved in 6s, 1s and 10s against ceilings of 115s, 120s and
+	// 180s, so the arc's escalation and its climax were both over before the player could see them.
+	const float Hold = GetEarlyDawnHoldSeconds();
+	if (Hold > KINDA_SMALL_NUMBER)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (!World->GetTimerManager().IsTimerActive(EarlyDawnHoldTimer))
+			{
+				UE_LOG(LogTemp, Log,
+					TEXT("DayNight: the night was answered early; holding dawn %.1fs so it is still a night."),
+					Hold);
+				World->GetTimerManager().SetTimer(
+					EarlyDawnHoldTimer, this, &UGloamsteadDayNightSubsystem::RequestDawnFromCadence,
+					Hold, /*bLoop*/ false);
+			}
+			return;
+		}
+	}
+
 	RequestDawnFromCadence();
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Data/NightConsequenceTypes.h"
 #include "Data/ExperienceCycleTypes.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "TimerManager.h"
@@ -17,6 +18,9 @@ enum class EGloamsteadDayPhase : uint8
 	Night UMETA(DisplayName = "Night"),
 	Dawn  UMETA(DisplayName = "Dawn"),
 };
+
+/** The phase as a word, for logs and diagnostics. The HUD keeps its own upper-case display form. */
+GLOAMSTEAD_API FString GetGloamsteadDayPhaseDisplayName(EGloamsteadDayPhase Phase);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnGloamsteadDayPhaseChanged, EGloamsteadDayPhase, OldPhase, EGloamsteadDayPhase, NewPhase);
 
@@ -58,11 +62,72 @@ public:
 	 * cutscene with a verb in it. At 100 s they get three or four - enough to misread the night, lose
 	 * ground, and recover, which is the shape the design asks for.
 	 *
-	 * It also moves the arc's floor: six nights at 100 s is ~10 minutes of night rather than ~4.5,
-	 * against a target experience of about half an hour.
+	 * **Raised from 100 to 300 on 2026-09-03, because 100 was never derived from the half-hour
+	 * target.** The arithmetic above sizes a night against one threat lifecycle, which is the right
+	 * way to pick a *minimum* and says nothing about how long the experience should be. Measured, a
+	 * full arc at 100 came to 8m23s. The plan of record asks for six cycles of ~45-60 min for the
+	 * six-hour version; the same shape at half an hour is ~5 min a cycle, and the night is most of a
+	 * cycle. 300 x the scalars below puts the arc at 27.9-31.0 minutes.
+	 *
+	 * The honest cost, stated rather than hidden: these nights are long, and a night whose objective
+	 * is already answered is time the player spends holding ground rather than being tested. That is
+	 * why the quiet nights were reweighted *down* (Tutorial 0.30, Corruption 0.50) while the threat
+	 * nights carry the budget - the alternative was three or four minutes of tutorial night with
+	 * nothing in it, which is the same dead air the 45 s ceiling was raised to fix.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DayNight|Cadence", meta = (ClampMin = "0.0"))
-	float NightDurationSeconds = 100.0f;
+	float NightDurationSeconds = 300.0f;
+
+	/**
+	 * How a night of this kind scales the base ceiling above.
+	 *
+	 * One number for all six nights was the wrong shape, and the arithmetic above is what shows it:
+	 * that reasoning derives 100 s from a threat lifecycle of ~25-30 s, wanting three or four of
+	 * them. But Cycles I and II field NO threat at all - BuildNightThreatRoster returns an empty
+	 * roster for Tutorial, Corruption and Omen - so those nights were spending 100 s delivering
+	 * three or four lifecycles of nothing, which is the same dead air the 45 s ceiling was raised to
+	 * fix, arrived at from the other side. Cycle VI fields three threats at once and got the same
+	 * 100 s to answer all of them.
+	 *
+	 * So the multiplier tracks what is actually out there: below 1.0 for the nights whose pressure
+	 * is corruption spreading rather than something walking, at 1.0 for the single-threat nights the
+	 * base was derived for, and well above it for the siege. The base UPROPERTY still governs the
+	 * whole curve, so tuning one number retunes every night in proportion.
+	 *
+	 * Static and pure so the arc's total night time is testable without standing up a world.
+	 */
+	static float NightDurationScaleForType(ENightConsequenceType Type);
+
+	/**
+	 * The ceiling for the night now running, in seconds.
+	 *
+	 * Every reader must use this rather than NightDurationSeconds directly - notably the HUD
+	 * countdown, which would otherwise count down to a dawn that arrives at a different time. A
+	 * countdown that disagrees with the clock it claims to show is worse than no countdown.
+	 */
+	UFUNCTION(BlueprintPure, Category = "DayNight|Cadence")
+	float GetCurrentNightDurationSeconds() const;
+
+	/**
+	 * The least of a night that must actually be endured, as a fraction of its ceiling.
+	 *
+	 * A night ends early when its objective resolves, which is the right rule and was producing the
+	 * wrong game. Measured across a full arc: Cycles I-III ran 70s, 80s and 100s - their whole
+	 * authored ceilings - and Cycles IV, V and VI ran **6s, 1s and 10s**. The escalation, the
+	 * bargain and the three-threat siege were all over before they began, because their objectives
+	 * resolve the moment the runtime evaluates them, so 88% of the arc's night time was spent in its
+	 * first half and the climax was a flash.
+	 *
+	 * A floor keeps the rule and fixes the shape: answering the night still ends it early, but not
+	 * before the night has been a night. It is a fraction rather than a constant so it scales with
+	 * NightDurationScaleForType - a quiet tutorial night and a siege get proportionate floors.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DayNight|Cadence", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float NightMinimumFraction = 0.9f;
+
+	/** Seconds an early dawn must still wait for, or 0 when the night has run its floor. */
+	UFUNCTION(BlueprintPure, Category = "DayNight|Cadence")
+	float GetEarlyDawnHoldSeconds() const;
 
 	UFUNCTION(BlueprintCallable, Category = "DayNight")
 	EGloamsteadDayPhase GetCurrentPhase() const { return CurrentPhase; }
@@ -275,6 +340,12 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UNightConsequenceRuntime> CadenceRuntime;
+
+	/** World time Night began, so the floor above can be measured against something real. */
+	float NightBeganWorldTime = 0.f;
+
+	/** Armed when an objective resolved before the night's floor; fires the deferred dawn. */
+	FTimerHandle EarlyDawnHoldTimer;
 
 	/** Keeps the entered Night's runtime alive through its one-frame presentation deferral. */
 	UPROPERTY(Transient)

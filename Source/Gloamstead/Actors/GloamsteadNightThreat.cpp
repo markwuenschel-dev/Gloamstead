@@ -4,8 +4,12 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
+#include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
 #include "PCG/GloamsteadPCGSubsystem.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -92,6 +96,15 @@ AGloamsteadNightThreat::AGloamsteadNightThreat()
 		Body->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 
+	// Forged in Houdini by procedural/houdini/forge_gloam_assets.py, imported by its companion
+	// script. Attached to the capsule rather than the skeleton on purpose: it is a shroud the Gloam
+	// is wearing, not a garment skinned to a body it does not really have.
+	Shroud = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Shroud"));
+	Shroud->SetupAttachment(GetCapsuleComponent());
+	Shroud->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Shroud->SetRelativeLocation(FVector(0.f, 0.f, -92.f));
+	Shroud->SetVisibility(false);
+
 	GloamGlow = CreateDefaultSubobject<UPointLightComponent>(TEXT("GloamGlow"));
 	GloamGlow->SetupAttachment(GetCapsuleComponent());
 	GloamGlow->SetRelativeLocation(FVector(0.f, 0.f, 40.f));
@@ -132,11 +145,82 @@ bool AGloamsteadNightThreat::HasVisibleBody() const
 	return Body != nullptr && Body->GetSkeletalMeshAsset() != nullptr;
 }
 
+const TCHAR* AGloamsteadNightThreat::GetArchetypeShroudPath(ENightThreatArchetype Archetype)
+{
+	switch (Archetype)
+	{
+	case ENightThreatArchetype::Gatherer:
+		return TEXT("/Game/Gloamstead/World/SM_Gloam_Shroud_Gatherer.SM_Gloam_Shroud_Gatherer");
+	case ENightThreatArchetype::Borrowed:
+		return TEXT("/Game/Gloamstead/World/SM_Gloam_Shroud_Borrowed.SM_Gloam_Shroud_Borrowed");
+	case ENightThreatArchetype::Bargainer:
+		return TEXT("/Game/Gloamstead/World/SM_Gloam_Shroud_Bargainer.SM_Gloam_Shroud_Bargainer");
+	case ENightThreatArchetype::Echo:
+		return TEXT("/Game/Gloamstead/World/SM_Gloam_Shroud_Echo.SM_Gloam_Shroud_Echo");
+	default:
+		return nullptr;
+	}
+}
+
+bool AGloamsteadNightThreat::HasShroud() const
+{
+	return Shroud != nullptr && Shroud->GetStaticMesh() != nullptr && Shroud->IsVisible();
+}
+
 void AGloamsteadNightThreat::ApplyArchetypePresentation()
 {
 	if (!GloamGlow)
 	{
 		return;
+	}
+
+	// The shroud first: it is the thing that decides whether the player sees a creature or a
+	// mannequin, and a failure to load it should be loud rather than leave a bare body walking.
+	if (Shroud)
+	{
+		if (const TCHAR* ShroudPath = GetArchetypeShroudPath(Spec.Archetype))
+		{
+			if (UStaticMesh* ShroudMesh = LoadObject<UStaticMesh>(nullptr, ShroudPath))
+			{
+				Shroud->SetStaticMesh(ShroudMesh);
+				Shroud->SetVisibility(true);
+
+				// The shroud was forged with import_materials=False and nothing assigned one, so
+				// every archetype wore the engine grid checkerboard over the mannequin - which is
+				// worse than the bare mannequin the shroud was added to replace.
+				//
+				// Tinted well below the archetype's glow colour on purpose: GloamGlow is the light
+				// that should read at distance, and a shroud at full colour would compete with it
+				// and flatten the silhouette the shroud exists to create.
+				if (UMaterialInterface* Base = LoadObject<UMaterialInterface>(
+						nullptr, TEXT("/Game/Gloamstead/Kit/Materials/MI_Sanctuary_Stone_Dark.MI_Sanctuary_Stone_Dark")))
+				{
+					if (UMaterialInstanceDynamic* Cloth = UMaterialInstanceDynamic::Create(Base, Shroud))
+					{
+						const FLinearColor Signature = GetArchetypeGlowColor(Spec.Archetype);
+						Cloth->SetVectorParameterValue(TEXT("TintColor"), Signature * 0.22f);
+						const int32 SlotCount = FMath::Max(1, Shroud->GetNumMaterials());
+						for (int32 Slot = 0; Slot < SlotCount; ++Slot)
+						{
+							Shroud->SetMaterial(Slot, Cloth);
+						}
+					}
+				}
+				else
+				{
+					UE_LOG(LogTemp, Error,
+						TEXT("NightThreat: no shroud material, so this %s wears the engine grid."),
+						*GetNightThreatArchetypeDisplayName(Spec.Archetype));
+				}
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error,
+					TEXT("NightThreat: could not load shroud %s, so this %s walks as a bare "
+						 "mannequin. Re-run procedural/houdini/forge_gloam_assets.py and its import."),
+					ShroudPath, *GetNightThreatArchetypeDisplayName(Spec.Archetype));
+			}
+		}
 	}
 
 	GloamGlow->SetLightColor(GetArchetypeGlowColor(Spec.Archetype));

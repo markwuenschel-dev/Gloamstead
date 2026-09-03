@@ -255,9 +255,25 @@ void AGloamsteadFirstNightDirector::DetachTutorial()
 	// callback inert instead of trying to clean up a second phase authority.
 	bTutorialDetached = true;
 	SetLanternMarkerVisible(false);
+	DismissFallbackCaption();
 	UnbindDelegates();
 	CurrentBeat = EFirstNightBeat::Complete;
 	SetActorTickEnabled(false);
+}
+
+void AGloamsteadFirstNightDirector::DismissFallbackCaption()
+{
+	// The caption is added with AddToPlayerScreen and was never taken down again, by this actor or
+	// by AGloamsteadSkyPresenter, which builds its own the same way. So Cycle I's instruction -
+	// "Find the ruined lantern. Press R once to focus it, then again to restore it." - stayed on
+	// screen for the entire six-cycle arc, drawn over the Heart's later warnings, over the dawn
+	// verdict, and over the ending. It is the first thing visible in every captured frame and it
+	// tells the player to do something they finished twenty minutes earlier.
+	if (FallbackCaptionWidget)
+	{
+		FallbackCaptionWidget->RemoveFromParent();
+		FallbackCaptionWidget = nullptr;
+	}
 }
 
 void AGloamsteadFirstNightDirector::DetachForProgressionResume()
@@ -587,6 +603,21 @@ void AGloamsteadFirstNightDirector::PresentCaptionIfBlueprintDoesNot(FName Event
 	FallbackCaptionWidget->ProcessEvent(Display, Parms);
 	TextParam->DestroyValue_InContainer(Parms);
 	FMemory::Free(Parms);
+
+	// A caption expires. Nothing here ever took one down, so Cycle I's lines - "find the ruined
+	// lantern", then its dawn payoff - stayed pinned to the bottom of the screen for the rest of the
+	// game, drawn through the Heart's later warnings and through the ending reckoning itself.
+	//
+	// Clearing at DetachTutorial was not enough and is worth recording why: CompleteDawn presents
+	// the dawn caption AFTER it relinquishes control, so the dismissal ran first and the widget was
+	// immediately rebuilt. Expiring the caption itself is the rule that does not depend on ordering.
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(CaptionExpiryTimer);
+		World->GetTimerManager().SetTimer(
+			CaptionExpiryTimer, this, &AGloamsteadFirstNightDirector::DismissFallbackCaption,
+			CaptionSeconds, /*bLoop*/ false);
+	}
 
 	UE_LOG(LogTemp, Log,
 		TEXT("FirstNightDirector: captioned %s natively (the Blueprint implements no handler): \"%s\""),

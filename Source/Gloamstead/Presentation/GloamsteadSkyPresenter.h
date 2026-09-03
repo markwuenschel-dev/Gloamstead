@@ -117,6 +117,12 @@ public:
 
 private:
 	void CacheTargets();
+
+	/** Say once, per change, which lighting targets are actually bound. */
+	void ReportBoundTargets();
+
+	/** Take the caption down. A caption is momentary; nothing ever removed this one. */
+	void ClearFallbackCaption();
 	void TryBindPostTutorialWarningPresenter();
 	void UnbindPostTutorialWarningPresenter();
 	void ApplyPreset(const FGloamSkyPreset& Preset);
@@ -148,6 +154,18 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<APostProcessVolume> Grade;
+
+	/**
+	 * Which of the four lighting targets were bound the last time this reported.
+	 *
+	 * CacheTargets binds all four through silent TActorIterator loops, so a level missing any of
+	 * them - or, for the grade volume, holding only a BOUNDED one, which this deliberately refuses -
+	 * produced a presenter that ran every phase blend into nothing and said so nowhere. There is no
+	 * log line, success or failure, anywhere in this actor's startup path, which makes "does the
+	 * day/night look right" a question no boot log can answer. This bitmask exists so the summary is
+	 * logged once per change rather than once per frame.
+	 */
+	uint8 ReportedTargetMask = 0xFF;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UGloamsteadDayNightSubsystem> CachedDayNight;

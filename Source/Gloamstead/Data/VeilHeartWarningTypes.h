@@ -26,6 +26,35 @@ struct FVeilHeartWarningSupportChannel
 	FName ChannelType = NAME_None;
 };
 
+/**
+ * One authored clue for the standing warning, and whether the player has actually found it.
+ *
+ * FVeilHeartWarningSupportChannel::EvidenceText has always been documented as "player-facing
+ * evidence text for journal/caption presentation" and has never been presented anywhere: the only
+ * production reader of SupportChannels is the predicate that decides whether an encounter counts.
+ * So the game asked the player to gather a minimum number of distinct clues, authored the sentence
+ * each clue says, and then showed them neither the sentence nor the count.
+ */
+USTRUCT(BlueprintType)
+struct FVeilHeartEvidenceLine
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Warning|Support")
+	FName SupportId = NAME_None;
+
+	/** Readable medium, for example Environmental, ObjectReaction, or Audio. */
+	UPROPERTY(BlueprintReadOnly, Category = "Warning|Support")
+	FName ChannelType = NAME_None;
+
+	/** What this clue says, authored in the catalog. Empty until the player has encountered it. */
+	UPROPERTY(BlueprintReadOnly, Category = "Warning|Support")
+	FText EvidenceText;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Warning|Support")
+	bool bFound = false;
+};
+
 USTRUCT(BlueprintType)
 struct FVeilHeartWarningFragment
 {

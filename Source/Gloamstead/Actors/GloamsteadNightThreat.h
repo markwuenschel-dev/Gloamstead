@@ -144,6 +144,24 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Night|Threat")
 	TObjectPtr<class UPointLightComponent> GloamGlow;
 
+	/**
+	 * The archetype's shroud - Houdini-forged geometry worn over the borrowed body.
+	 *
+	 * The mannequin underneath is what makes the threat animate; the shroud is what makes it stop
+	 * reading as a mannequin. Its proportions carry the archetype at silhouette distance: the
+	 * Gatherer squat and heavy, the Bargainer tall and narrow because it waits at the edge of the
+	 * light, the Echo small because it drains nothing. Set from the recipe in ApplyArchetypePresentation.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Night|Threat")
+	TObjectPtr<class UStaticMeshComponent> Shroud;
+
+	/** The forged shroud asset path for an archetype, or nullptr. Public so the test can load them. */
+	static const TCHAR* GetArchetypeShroudPath(ENightThreatArchetype Archetype);
+
+	/** True once this threat is wearing its shroud rather than walking as a bare mannequin. */
+	UFUNCTION(BlueprintPure, Category = "Night|Threat")
+	bool HasShroud() const;
+
 	/** The archetype's signature colour, exposed so the HUD and tests can agree with the world. */
 	static FLinearColor GetArchetypeGlowColor(ENightThreatArchetype Archetype);
 

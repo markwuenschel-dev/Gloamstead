@@ -44,6 +44,21 @@ public:
 	/** Test seam: how many decals are currently showing a bloom. */
 	int32 Test_GetVisibleDecalCount() const;
 
+	/** Test seam: how many forged gloam growths are standing. */
+	int32 Test_GetVisibleGrowthCount() const;
+
+	/**
+	 * The forged growth asset for a corruption level, or nullptr when the point is clean enough to
+	 * show nothing. Severity picks a bigger, busier crystal rather than the same one scaled up.
+	 */
+	static const TCHAR* GetGrowthMeshPathFor(float Corruption);
+
+	/** The material the forged growths are shaded with. They ship with none of their own. */
+	static const TCHAR* GetGrowthBaseMaterialPath();
+
+	/** Bruised blue through mineral obsidian, by severity. Never emissive - glow means restoration. */
+	static FLinearColor GetGrowthTintFor(float Corruption);
+
 private:
 	UFUNCTION()
 	void HandleCorruptionChanged();
@@ -56,6 +71,16 @@ private:
 	/** One decal per ritual point index; entries stay allocated and are hidden when a point is clean. */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UDecalComponent>> PointDecals;
+
+	/**
+	 * One forged gloam growth per ritual point, standing where the stain is.
+	 *
+	 * The decals alone put corruption on the floor, which a player only reads while looking down. A
+	 * crystal pushing up out of the ground is visible from across the sanctuary and from eye level,
+	 * which is where the player actually is when deciding whether the rot has spread.
+	 */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<class UStaticMeshComponent>> PointGrowths;
 
 	UPROPERTY(Transient)
 	TObjectPtr<AActor> DecalHolder;

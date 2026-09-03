@@ -1,4 +1,7 @@
 #include "Audio/GloamsteadSoundscapeSubsystem.h"
+#include "Sound/SoundBase.h"
+#include "Kismet/GameplayStatics.h"
+#include "Components/AudioComponent.h"
 
 #include "Audio/GloamsteadSanctuarySynth.h"
 #include "Components/SceneComponent.h"
@@ -119,7 +122,7 @@ void UGloamsteadSoundscapeSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	}
 
 	bBound = true;
-	UE_LOG(LogTemp, Log, TEXT("Soundscape: the sanctuary has a voice (synthesised; no audio assets exist)."));
+	UE_LOG(LogTemp, Log, TEXT("Soundscape: the sanctuary has a voice (synth + forged beds)."));
 }
 
 void UGloamsteadSoundscapeSubsystem::Deinitialize()
@@ -159,6 +162,92 @@ void UGloamsteadSoundscapeSubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
+const TCHAR* UGloamsteadSoundscapeSubsystem::BedPathFor(EGloamsteadDayPhase Phase)
+{
+	// Forged by procedural/audio/forge_sanctuary_audio.py, pitched from VoicingFor below so the bed
+	// and the runtime synth share a key rather than beating against each other.
+	switch (Phase)
+	{
+	case EGloamsteadDayPhase::Day:   return TEXT("/Game/Gloamstead/Audio/S_AMB_Sanctuary_Day.S_AMB_Sanctuary_Day");
+	case EGloamsteadDayPhase::Dusk:  return TEXT("/Game/Gloamstead/Audio/S_AMB_Sanctuary_Dusk.S_AMB_Sanctuary_Dusk");
+	case EGloamsteadDayPhase::Night: return TEXT("/Game/Gloamstead/Audio/S_AMB_Sanctuary_Night.S_AMB_Sanctuary_Night");
+	case EGloamsteadDayPhase::Dawn:  return TEXT("/Game/Gloamstead/Audio/S_AMB_Sanctuary_Dawn.S_AMB_Sanctuary_Dawn");
+	default:                         return nullptr;
+	}
+}
+
+void UGloamsteadSoundscapeSubsystem::ApplyPhaseBed(EGloamsteadDayPhase Phase)
+{
+	UWorld* World = GetWorld();
+	if (!World || !World->IsGameWorld())
+	{
+		return;
+	}
+
+	const TCHAR* Path = BedPathFor(Phase);
+	if (!Path)
+	{
+		return;
+	}
+
+	USoundBase* Bed = LoadObject<USoundBase>(nullptr, Path);
+	if (!Bed)
+	{
+		// Loud, and it names the script: the project shipped with zero sound assets for its whole
+		// life, so a missing one is far more likely to mean "the forge was never run on this
+		// machine" than "someone deleted it".
+		UE_LOG(LogTemp, Error,
+			TEXT("Soundscape: could not load %s. Run procedural/audio/forge_sanctuary_audio.py and "
+				 "its importer; the sanctuary keeps its synthesised voice but has no bed."), Path);
+		return;
+	}
+
+	if (!BedComponent)
+	{
+		BedComponent = NewObject<UAudioComponent>(SoundscapeHolder ? SoundscapeHolder : World->GetWorldSettings());
+		if (!BedComponent)
+		{
+			return;
+		}
+		// The bed describes the whole sanctuary, not a place inside it, so it is deliberately 2D:
+		// a positioned bed would tell the player where to stand to feel safe, which is the lantern
+		// light's job and not the ambience's.
+		BedComponent->bAllowSpatialization = false;
+		BedComponent->bAutoActivate = false;
+		BedComponent->bIsUISound = false;
+		BedComponent->RegisterComponentWithWorld(World);
+	}
+
+	if (BedComponent->Sound != Bed)
+	{
+		BedComponent->SetSound(Bed);
+		// Under the synth rather than over it. The synth carries the phase's motion and reacts to
+		// corruption; the bed is the room it moves in.
+		BedComponent->SetVolumeMultiplier(0.45f);
+		BedComponent->Play();
+		UE_LOG(LogTemp, Log, TEXT("Soundscape: bed -> %s."), Path);
+	}
+}
+
+void UGloamsteadSoundscapeSubsystem::PlayOneShot(const TCHAR* Path, float Volume)
+{
+	UWorld* World = GetWorld();
+	if (!World || !World->IsGameWorld() || !Path)
+	{
+		return;
+	}
+
+	if (USoundBase* Cue = LoadObject<USoundBase>(nullptr, Path))
+	{
+		// 2D for the same reason as the bed: these mark events in the loop, not places in the world.
+		UGameplayStatics::PlaySound2D(World, Cue, Volume);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Soundscape: could not load one-shot %s."), Path);
+	}
+}
+
 void UGloamsteadSoundscapeSubsystem::ApplyPhase(EGloamsteadDayPhase Phase)
 {
 	if (!Synth)
@@ -169,6 +258,7 @@ void UGloamsteadSoundscapeSubsystem::ApplyPhase(EGloamsteadDayPhase Phase)
 	const FGloamPhaseVoicing Voicing = VoicingFor(Phase);
 	const float Unease = CachedPCG ? CachedPCG->GetSanctuaryAverageCorruptionLevel() : 0.f;
 	Synth->SetVoicing(Voicing.RootHz, Voicing.Brightness, Voicing.Level, Voicing.TremoloHz, Unease);
+	ApplyPhaseBed(Phase);
 	LastAppliedPhase = Phase;
 }
 
@@ -207,6 +297,11 @@ void UGloamsteadSoundscapeSubsystem::HandleHeartWarning(const FVeilHeartWarningF
 		// Low and long, under the bed rather than over it: the Heart is not a notification.
 		Synth->Strike(196.f, 0.30f, 4.5f); // G3
 	}
+
+	// The forged tone doubles the synth strike at the same pitch rather than replacing it: the synth
+	// carries the decay and reacts to corruption, the asset gives the strike a body the oscillator
+	// alone does not have. Quiet, because the sentence is the point, not the sound of it arriving.
+	PlayOneShot(TEXT("/Game/Gloamstead/Audio/S_SFX_Heart_Warning.S_SFX_Heart_Warning"), 0.55f);
 }
 
 void UGloamsteadSoundscapeSubsystem::HandleCorruptionChanged()

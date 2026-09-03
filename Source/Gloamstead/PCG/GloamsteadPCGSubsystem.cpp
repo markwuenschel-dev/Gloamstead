@@ -374,6 +374,20 @@ float UGloamsteadPCGSubsystem::GetLightLevel(int32 PointIndex) const
     return PointStates.IsValidIndex(PointIndex) ? PointStates[PointIndex].LightLevel : 0.0f;
 }
 
+ERitualType UGloamsteadPCGSubsystem::GetRitualTypeAt(int32 PointIndex) const
+{
+    return CachedPoints.IsValidIndex(PointIndex)
+        ? GetRitualTypeFromPoint(CachedPoints[PointIndex])
+        : ERitualType::Invalid;
+}
+
+FVector UGloamsteadPCGSubsystem::GetRitualPointLocation(int32 PointIndex) const
+{
+    return CachedPoints.IsValidIndex(PointIndex)
+        ? CachedPoints[PointIndex].Transform.GetLocation()
+        : FVector::ZeroVector;
+}
+
 float UGloamsteadPCGSubsystem::GetCorruptionLevel(int32 PointIndex) const
 {
     return PointStates.IsValidIndex(PointIndex) ? PointStates[PointIndex].CorruptionLevel : 0.0f;

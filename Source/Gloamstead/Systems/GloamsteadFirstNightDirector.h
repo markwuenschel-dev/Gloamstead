@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "TimerManager.h"
 #include "GameFramework/Actor.h"
 #include "Data/RitualTypes.h"
 #include "Data/NightConsequenceTypes.h"
@@ -145,6 +146,15 @@ private:
 	 * @param CaptionText        the Heart's words
 	 */
 	void PresentCaptionIfBlueprintDoesNot(FName EventName, const FText& CaptionText);
+
+	/** Take the tutorial caption down. Bound to a timer so it expires like a caption should. */
+	UFUNCTION()
+	void DismissFallbackCaption();
+
+	/** How long a first-night caption stays readable before it clears. */
+	static constexpr float CaptionSeconds = 9.f;
+
+	FTimerHandle CaptionExpiryTimer;
 
 	/** True when a Blueprint subclass actually overrides this event, rather than inheriting the stub. */
 	bool IsPresentationEventImplemented(FName EventName) const;
